@@ -106,7 +106,7 @@ services:
       PORT: "8000"
       MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-25}
       REQUEST_TIMEOUT_SECONDS: ${CRM_SPEECH_TO_TEXT_TIMEOUT_SECONDS:-120}
-      ALLOW_ORIGINS: http://localhost:5173,http://127.0.0.1:5173,http://localhost:8080,https://fawnixverse.acstechnologies.co.in,http://54.76.187.129,https://54.76.187.129
+      ALLOW_ORIGINS: http://localhost:5173,http://127.0.0.1:5173,http://localhost:8080,https://fawnixverse.acstechnologies.co.in,http://54.76.187.129,http://54.76.187.129:5173,https://54.76.187.129
     ports:
       - "8000:8000"
     healthcheck:
@@ -366,7 +366,7 @@ services:
     environment:
       SERVER_PORT: "8080"
       EUREKA_SERVER_URL: http://eureka-server:8761/eureka/
-      FRONTEND_ORIGINS: http://localhost:5173,http://127.0.0.1:5173,https://fawnixverse.acstechnologies.co.in,http://54.76.187.129,https://54.76.187.129
+      FRONTEND_ORIGINS: http://localhost:5173,http://127.0.0.1:5173,https://fawnixverse.acstechnologies.co.in,http://54.76.187.129,http://54.76.187.129:5173,https://54.76.187.129
       JWT_SECRET: ${JWT_SECRET:-change-this-local-dev-secret-change-this-local-dev-secret}
     ports:
       - "8080:8080"

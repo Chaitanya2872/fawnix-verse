@@ -31,6 +31,7 @@ app:
       - http://localhost:5173
       - https://fawnixverse.acstechnologies.co.in
       - http://54.76.187.129
+      - http://54.76.187.129:5173
       - https://54.76.187.129
   security:
     jwt:
