@@ -46,10 +46,23 @@ jobs:
         run: |
           ssh -i ~/.ssh/ec2.pem -p "${EC2_PORT:-22}" "${EC2_USER}@${EC2_HOST}" <<EOF
           set -e
-          cd "${EC2_DEPLOY_DIR}"
-          git pull origin "${DEPLOY_BRANCH}"
-          if [ ! -f PRD/.env ]; then
-            cp PRD/.env.example PRD/.env
+          if cd "${EC2_DEPLOY_DIR}"; then
+            git pull origin "${DEPLOY_BRANCH}"
+            if [ ! -f PRD/.env ]; then
+              cp PRD/.env.example PRD/.env
+            fi
+            docker compose -f PRD/compose.yml --env-file PRD/.env up -d --build
+            exit 0
           fi
-          docker compose -f PRD/compose.yml --env-file PRD/.env up -d --build
+
+          if sudo -n true 2>/dev/null; then
+            sudo -n bash -lc "cd '${EC2_DEPLOY_DIR}' \
+              && git pull origin '${DEPLOY_BRANCH}' \
+              && if [ ! -f PRD/.env ]; then cp PRD/.env.example PRD/.env; fi \
+              && docker compose -f PRD/compose.yml --env-file PRD/.env up -d --build"
+            exit 0
+          fi
+
+          echo "Cannot access ${EC2_DEPLOY_DIR}. Set EC2_DEPLOY_DIR to a path owned by ${EC2_USER}, or grant passwordless sudo."
+          exit 1
           EOF
