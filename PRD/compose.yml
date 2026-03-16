@@ -1,0 +1,390 @@
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/frontend/Dockerfile
+      provenance: false
+      sbom: false
+    depends_on:
+      api-gateway:
+        condition: service_healthy
+    environment:
+      CHOKIDAR_USEPOLLING: "true"
+      VITE_API_URL: ${VITE_API_URL:-/api}
+      VITE_PROXY_TARGET: ${VITE_PROXY_TARGET:-http://api-gateway:8080}
+    ports:
+      - "5173:5173"
+    volumes:
+      - .:/app
+      - frontend-node-modules:/app/node_modules
+    networks:
+      - fawnix-network
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on:
+      frontend:
+        condition: service_started
+      api-gateway:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - fawnix-network
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-postgres}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 5s
+    networks:
+      - fawnix-network
+
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio-data:/data
+    networks:
+      - fawnix-network
+
+  minio-bootstrap:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_started
+    environment:
+      MINIO_ALIAS: local
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      MINIO_BUCKETS: ${MINIO_BUCKETS:-fawnix-objects}
+    volumes:
+      - ./docker/minio/bootstrap:/bootstrap:ro
+    entrypoint: ["sh", "/bootstrap/create-buckets.sh"]
+    restart: "no"
+    networks:
+      - fawnix-network
+
+  speech-to-text-service:
+    build:
+      context: .
+      dockerfile: ml/speech-to-text-service/Dockerfile
+      provenance: false
+      sbom: false
+    restart: unless-stopped
+    environment:
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_API_KEYS: ${GEMINI_API_KEYS:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
+      HOST: "0.0.0.0"
+      PORT: "8000"
+      MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-25}
+      REQUEST_TIMEOUT_SECONDS: ${CRM_SPEECH_TO_TEXT_TIMEOUT_SECONDS:-120}
+      ALLOW_ORIGINS: http://localhost:5173,http://127.0.0.1:5173,http://localhost:8080,https://fawnixverse.acstechnologies.co.in,http://54.76.187.129,https://54.76.187.129
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\""]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+    networks:
+      - fawnix-network
+
+  db-bootstrap:
+    image: postgres:16-alpine
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGUSER: ${POSTGRES_USER:-postgres}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      PGDATABASE: ${POSTGRES_DB:-postgres}
+      SERVICE_DATABASES: fawnix_identity fawnix_crm fawnix_inventory fawnix_hrms fawnix_sales
+    volumes:
+      - ./docker/postgres/bootstrap:/bootstrap:ro
+    entrypoint: ["sh", "/bootstrap/bootstrap-databases.sh"]
+    restart: "no"
+    networks:
+      - fawnix-network
+
+  eureka-server:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      provenance: false
+      sbom: false
+      args:
+        MODULE_PATH: platform/eureka-server
+    restart: unless-stopped
+    environment:
+      SERVER_PORT: "8761"
+    ports:
+      - "8761:8761"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8761/actuator/health > /dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+    networks:
+      - fawnix-network
+
+  identity-service:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      provenance: false
+      sbom: false
+      args:
+        MODULE_PATH: services/identity-service
+    restart: unless-stopped
+    depends_on:
+      db-bootstrap:
+        condition: service_completed_successfully
+      eureka-server:
+        condition: service_healthy
+    environment:
+      SERVER_PORT: "8081"
+      EUREKA_SERVER_URL: http://eureka-server:8761/eureka/
+      FRONTEND_ORIGIN: https://fawnixverse.acstechnologies.co.in
+      JWT_SECRET: ${JWT_SECRET:-change-this-local-dev-secret-change-this-local-dev-secret}
+      INTERNAL_SERVICE_SECRET: ${INTERNAL_SERVICE_SECRET:-fawnix-internal-secret}
+      DEV_ADMIN_EMAIL: ${DEV_ADMIN_EMAIL:-admin@fawnix.com}
+      DEV_ADMIN_PASSWORD: ${DEV_ADMIN_PASSWORD:-Admin@123}
+      IDENTITY_DB_URL: jdbc:postgresql://postgres:5432/fawnix_identity
+      IDENTITY_DB_USERNAME: ${POSTGRES_USER:-postgres}
+      IDENTITY_DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    ports:
+      - "8081:8081"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8081/actuator/health > /dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 180s
+    networks:
+      - fawnix-network
+
+  crm-service:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      provenance: false
+      sbom: false
+      args:
+        MODULE_PATH: services/crm-service
+    restart: unless-stopped
+    depends_on:
+      db-bootstrap:
+        condition: service_completed_successfully
+      eureka-server:
+        condition: service_healthy
+      identity-service:
+        condition: service_healthy
+      minio-bootstrap:
+        condition: service_completed_successfully
+      speech-to-text-service:
+        condition: service_started
+    environment:
+      SERVER_PORT: "8082"
+      EUREKA_SERVER_URL: http://eureka-server:8761/eureka/
+      JWT_SECRET: ${JWT_SECRET:-change-this-local-dev-secret-change-this-local-dev-secret}
+      INTERNAL_SERVICE_SECRET: ${INTERNAL_SERVICE_SECRET:-fawnix-internal-secret}
+      IDENTITY_SERVICE_URL: http://identity-service:8081
+      CRM_DB_URL: jdbc:postgresql://postgres:5432/fawnix_crm
+      CRM_DB_USERNAME: ${POSTGRES_USER:-postgres}
+      CRM_DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      CRM_CONTACT_RECORDINGS_PREFIX: ${CRM_CONTACT_RECORDINGS_PREFIX:-contact-recordings}
+      CRM_CONTACT_RECORDINGS_MAX_SIZE: ${CRM_CONTACT_RECORDINGS_MAX_SIZE:-25MB}
+      CRM_CONTACT_RECORDINGS_MAX_BYTES: ${CRM_CONTACT_RECORDINGS_MAX_BYTES:-26214400}
+      CRM_OBJECT_STORAGE_ENDPOINT: http://minio:9000
+      CRM_OBJECT_STORAGE_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
+      CRM_OBJECT_STORAGE_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      CRM_OBJECT_STORAGE_BUCKET: ${CRM_OBJECT_STORAGE_BUCKET:-fawnix-objects}
+      CRM_OBJECT_STORAGE_SECURE: "false"
+      CRM_OBJECT_STORAGE_AUTO_CREATE_BUCKET: "true"
+      CRM_OBJECT_STORAGE_CONTACT_RECORDINGS_PREFIX: ${CRM_CONTACT_RECORDINGS_PREFIX:-contact-recordings}
+      CRM_OBJECT_STORAGE_ATTACHMENTS_PREFIX: ${CRM_OBJECT_STORAGE_ATTACHMENTS_PREFIX:-attachments}
+      CRM_SPEECH_TO_TEXT_ENABLED: ${CRM_SPEECH_TO_TEXT_ENABLED:-true}
+      CRM_SPEECH_TO_TEXT_URL: ${CRM_SPEECH_TO_TEXT_URL:-http://speech-to-text-service:8000/transcribe}
+      CRM_SPEECH_TO_TEXT_API_KEY: ${CRM_SPEECH_TO_TEXT_API_KEY:-}
+      CRM_SPEECH_TO_TEXT_API_KEY_HEADER: ${CRM_SPEECH_TO_TEXT_API_KEY_HEADER:-Authorization}
+      CRM_SPEECH_TO_TEXT_API_KEY_PREFIX: ${CRM_SPEECH_TO_TEXT_API_KEY_PREFIX:-Bearer}
+      CRM_SPEECH_TO_TEXT_MODEL: ${CRM_SPEECH_TO_TEXT_MODEL:-gemini-2.5-flash}
+      CRM_SPEECH_TO_TEXT_FILE_FIELD: ${CRM_SPEECH_TO_TEXT_FILE_FIELD:-file}
+      CRM_SPEECH_TO_TEXT_TIMEOUT_SECONDS: ${CRM_SPEECH_TO_TEXT_TIMEOUT_SECONDS:-120}
+    ports:
+      - "8082:8082"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8082/actuator/health > /dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 150s
+    networks:
+      - fawnix-network
+
+  inventory-service:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      provenance: false
+      sbom: false
+      args:
+        MODULE_PATH: services/inventory-service
+    restart: unless-stopped
+    depends_on:
+      db-bootstrap:
+        condition: service_completed_successfully
+      eureka-server:
+        condition: service_healthy
+    environment:
+      SERVER_PORT: "8083"
+      EUREKA_SERVER_URL: http://eureka-server:8761/eureka/
+      INVENTORY_DB_URL: jdbc:postgresql://postgres:5432/fawnix_inventory
+      INVENTORY_DB_USERNAME: ${POSTGRES_USER:-postgres}
+      INVENTORY_DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8083/actuator/health > /dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 90s
+    networks:
+      - fawnix-network
+
+  hrms-service:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      provenance: false
+      sbom: false
+      args:
+        MODULE_PATH: services/hrms-service
+    restart: unless-stopped
+    depends_on:
+      db-bootstrap:
+        condition: service_completed_successfully
+      eureka-server:
+        condition: service_healthy
+    environment:
+      SERVER_PORT: "8084"
+      EUREKA_SERVER_URL: http://eureka-server:8761/eureka/
+      HRMS_DB_URL: jdbc:postgresql://postgres:5432/fawnix_hrms
+      HRMS_DB_USERNAME: ${POSTGRES_USER:-postgres}
+      HRMS_DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8084/actuator/health > /dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 90s
+    networks:
+      - fawnix-network
+
+  sales-service:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      provenance: false
+      sbom: false
+      args:
+        MODULE_PATH: services/sales-service
+    restart: unless-stopped
+    depends_on:
+      db-bootstrap:
+        condition: service_completed_successfully
+      eureka-server:
+        condition: service_healthy
+    environment:
+      SERVER_PORT: "8085"
+      EUREKA_SERVER_URL: http://eureka-server:8761/eureka/
+      SALES_DB_URL: jdbc:postgresql://postgres:5432/fawnix_sales
+      SALES_DB_USERNAME: ${POSTGRES_USER:-postgres}
+      SALES_DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8085/actuator/health > /dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 90s
+    networks:
+      - fawnix-network
+
+  api-gateway:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      provenance: false
+      sbom: false
+      args:
+        MODULE_PATH: platform/api-gateway
+    restart: unless-stopped
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+      identity-service:
+        condition: service_healthy
+      crm-service:
+        condition: service_healthy
+      inventory-service:
+        condition: service_healthy
+      hrms-service:
+        condition: service_healthy
+      sales-service:
+        condition: service_healthy
+    environment:
+      SERVER_PORT: "8080"
+      EUREKA_SERVER_URL: http://eureka-server:8761/eureka/
+      FRONTEND_ORIGINS: http://localhost:5173,http://127.0.0.1:5173,https://fawnixverse.acstechnologies.co.in,http://54.76.187.129,https://54.76.187.129
+      JWT_SECRET: ${JWT_SECRET:-change-this-local-dev-secret-change-this-local-dev-secret}
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/actuator/health > /dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 90s
+    networks:
+      - fawnix-network
+
+volumes:
+  frontend-node-modules:
+  postgres-data:
+  minio-data:
+  caddy_data:
+  caddy_config:
+
+networks:
+  fawnix-network:

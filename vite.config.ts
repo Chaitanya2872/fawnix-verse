@@ -1,14 +1,44 @@
+import fs from "fs"
 import path from "path"
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from "@tailwindcss/vite"
 
+function isRunningInDocker() {
+  return fs.existsSync("/.dockerenv")
+}
+
+function resolveProxyTarget(target: string) {
+  const url = new URL(target)
+
+  if (url.hostname === "api-gateway" && !isRunningInDocker()) {
+    url.hostname = "localhost"
+  }
+
+  return url.toString()
+}
+
 // https://vite.dev/config/
-export default defineConfig({
-  plugins: [react(), tailwindcss()],
-  resolve: {
-    alias: {
-      "@": path.resolve(__dirname, "./src"),
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), "")
+  const proxyTarget = resolveProxyTarget(
+    process.env.VITE_PROXY_TARGET ?? env.VITE_PROXY_TARGET ?? "http://localhost:8080"
+  )
+
+  return {
+    plugins: [react(), tailwindcss()],
+    server: {
+      proxy: {
+        "/api": {
+          target: proxyTarget,
+          changeOrigin: true,
+        },
+      },
     },
-  },
+    resolve: {
+      alias: {
+        "@": path.resolve(__dirname, "./src"),
+      },
+    },
+  }
 })

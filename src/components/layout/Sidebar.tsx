@@ -48,6 +48,7 @@ const ERP_NAV_SECTIONS: readonly SidebarNavSection[] = [
     heading: "CRM",
     items: [
       { label: "Leads", to: "/crm/leads", icon: UserPlus },
+      { label: "Pre-Sales", to: "/crm/presales", icon: Target },
       { label: "Opportunities", to: "/crm/opportunities", icon: Target },
     ],
   },

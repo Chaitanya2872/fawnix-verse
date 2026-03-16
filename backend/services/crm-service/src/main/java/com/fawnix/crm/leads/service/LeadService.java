@@ -1,0 +1,596 @@
+package com.fawnix.crm.leads.service;
+
+import com.fawnix.crm.activities.entity.LeadActivityType;
+import com.fawnix.crm.activities.service.LeadActivityService;
+import com.fawnix.crm.common.exception.BadRequestException;
+import com.fawnix.crm.common.exception.ResourceNotFoundException;
+import com.fawnix.crm.contact.service.LeadContactRecordingService;
+import com.fawnix.crm.leads.dto.LeadDtos;
+import com.fawnix.crm.leads.entity.LeadEntity;
+import com.fawnix.crm.leads.entity.LeadPriority;
+import com.fawnix.crm.leads.entity.LeadSource;
+import com.fawnix.crm.leads.entity.LeadStatus;
+import com.fawnix.crm.leads.entity.LeadTagEntity;
+import com.fawnix.crm.leads.mapper.LeadMapper;
+import com.fawnix.crm.leads.repository.LeadRepository;
+import com.fawnix.crm.leads.service.IdentityUserClient.IdentityUser;
+import com.fawnix.crm.leads.specification.LeadSpecifications;
+import com.fawnix.crm.leads.validator.LeadRequestValidator;
+import com.fawnix.crm.remarks.service.LeadRemarkService;
+import com.fawnix.crm.security.service.AppUserDetails;
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.util.EnumMap;
+import java.util.EnumSet;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
+
+@Service
+public class LeadService {
+
+  private static final Map<LeadStatus, Set<LeadStatus>> ALLOWED_STATUS_TRANSITIONS =
+      buildAllowedStatusTransitions();
+
+  private final LeadRepository leadRepository;
+  private final LeadRequestValidator leadRequestValidator;
+  private final LeadMapper leadMapper;
+  private final LeadRemarkService leadRemarkService;
+  private final LeadActivityService leadActivityService;
+  private final IdentityUserClient identityUserClient;
+  private final LeadContactRecordingService leadContactRecordingService;
+  private final LeadStatusHistoryService leadStatusHistoryService;
+
+  public LeadService(
+      LeadRepository leadRepository,
+      LeadRequestValidator leadRequestValidator,
+      LeadMapper leadMapper,
+      LeadRemarkService leadRemarkService,
+      LeadActivityService leadActivityService,
+      IdentityUserClient identityUserClient,
+      LeadContactRecordingService leadContactRecordingService,
+      LeadStatusHistoryService leadStatusHistoryService
+  ) {
+    this.leadRepository = leadRepository;
+    this.leadRequestValidator = leadRequestValidator;
+    this.leadMapper = leadMapper;
+    this.leadRemarkService = leadRemarkService;
+    this.leadActivityService = leadActivityService;
+    this.identityUserClient = identityUserClient;
+    this.leadContactRecordingService = leadContactRecordingService;
+    this.leadStatusHistoryService = leadStatusHistoryService;
+  }
+
+  @Transactional(readOnly = true)
+  public LeadDtos.PaginatedLeadResponse getLeads(
+      String search,
+      String status,
+      String source,
+      String priority,
+      String assignedTo,
+      int page,
+      int pageSize
+  ) {
+    LeadStatus statusFilter = parseStatusFilter(status);
+    LeadSource sourceFilter = parseSourceFilter(source);
+    LeadPriority priorityFilter = parsePriorityFilter(priority);
+    Specification<LeadEntity> specification = LeadSpecifications.withFilters(
+        search,
+        statusFilter,
+        sourceFilter,
+        priorityFilter,
+        assignedTo
+    );
+
+    int resolvedPage = Math.max(page, 1);
+    int resolvedPageSize = Math.max(pageSize, 1);
+    Page<LeadEntity> leadPage = leadRepository.findAll(
+        specification,
+        PageRequest.of(resolvedPage - 1, resolvedPageSize, Sort.by(Sort.Direction.DESC, "updatedAt"))
+    );
+    List<LeadEntity> filteredLeads = leadRepository.findAll(
+        specification,
+        Sort.by(Sort.Direction.DESC, "updatedAt")
+    );
+
+    return new LeadDtos.PaginatedLeadResponse(
+        leadPage.getContent().stream().map(leadMapper::toResponse).toList(),
+        leadPage.getTotalElements(),
+        resolvedPage,
+        resolvedPageSize,
+        leadPage.getTotalPages(),
+        leadMapper.toSummary(filteredLeads)
+    );
+  }
+
+  @Transactional(readOnly = true)
+  public LeadDtos.LeadResponse getLead(String id) {
+    return leadMapper.toResponse(requireLead(id));
+  }
+
+  @Transactional
+  public LeadDtos.LeadResponse createLead(LeadDtos.CreateLeadRequest request, AppUserDetails currentUser) {
+    Instant now = Instant.now();
+    LeadEntity lead = new LeadEntity();
+    lead.setId(UUID.randomUUID().toString());
+    lead.setName(request.name().trim());
+    lead.setCompany(request.company().trim());
+    lead.setEmail(trimToNull(request.email()));
+    lead.setPhone(trimToNull(request.phone()));
+    lead.setSource(leadRequestValidator.parseSource(request.source()));
+    lead.setStatus(leadRequestValidator.parseStatus(request.status()));
+    lead.setPriority(leadRequestValidator.parsePriority(request.priority()));
+    applyAssignee(lead, resolveAssignee(request.assignedToUserId(), request.assignedTo(), true));
+    lead.setEstimatedValue(request.estimatedValue() != null ? request.estimatedValue() : BigDecimal.ZERO);
+    lead.setNotes("");
+    lead.setCreatedAt(now);
+    lead.setUpdatedAt(now);
+    lead.setCreatedByUserId(currentUser.getUserId());
+    lead.setCreatedByName(currentUser.getFullName());
+    lead.setUpdatedByUserId(currentUser.getUserId());
+    lead.setUpdatedByName(currentUser.getFullName());
+
+    applyStatusTimestamps(lead, lead.getStatus(), now);
+    replaceTags(lead, leadRequestValidator.normalizeTags(request.tags()), now);
+
+    if (request.notes() != null && !request.notes().trim().isEmpty()) {
+      String content = leadRequestValidator.requireRemarkContent(request.notes());
+      leadRemarkService.addRemark(lead, content, currentUser, now);
+      leadActivityService.addActivity(
+          lead,
+          LeadActivityType.REMARK_ADDED,
+          "Added the initial lead remark.",
+          currentUser,
+          now
+      );
+    }
+
+    if (lead.getStatus() != LeadStatus.NEW) {
+      leadActivityService.addActivity(
+          lead,
+          LeadActivityType.STATUS_CHANGE,
+          "Lead created in " + prettyStatus(lead.getStatus()) + ".",
+          currentUser,
+          now
+      );
+    }
+
+    if (lead.getStatus() == LeadStatus.CONVERTED) {
+      leadActivityService.addActivity(
+          lead,
+          LeadActivityType.CONVERTED,
+          "Lead converted to opportunity.",
+          currentUser,
+          lead.getConvertedAt() != null ? lead.getConvertedAt() : now
+      );
+    }
+
+    LeadEntity saved = leadRepository.save(lead);
+    leadStatusHistoryService.recordInitial(saved, saved.getStatus(), currentUser, now);
+    return leadMapper.toResponse(saved);
+  }
+
+  @Transactional
+  public LeadDtos.LeadResponse updateLead(String id, LeadDtos.UpdateLeadRequest request, AppUserDetails currentUser) {
+    LeadEntity lead = requireLead(id);
+    Instant now = Instant.now();
+
+    if (request.name() != null) {
+      lead.setName(request.name().trim());
+    }
+    if (request.company() != null) {
+      lead.setCompany(request.company().trim());
+    }
+    if (request.email() != null) {
+      lead.setEmail(trimToNull(request.email()));
+    }
+    if (request.phone() != null) {
+      lead.setPhone(trimToNull(request.phone()));
+    }
+    if (request.source() != null) {
+      lead.setSource(leadRequestValidator.parseSource(request.source()));
+    }
+    if (request.priority() != null) {
+      lead.setPriority(leadRequestValidator.parsePriority(request.priority()));
+    }
+    if (request.estimatedValue() != null) {
+      lead.setEstimatedValue(request.estimatedValue());
+    }
+    if (request.tags() != null) {
+      replaceTags(lead, leadRequestValidator.normalizeTags(request.tags()), now);
+    }
+    if (request.assignedTo() != null || request.assignedToUserId() != null) {
+      IdentityUser nextAssignee = resolveAssignee(request.assignedToUserId(), request.assignedTo(), false);
+      if (nextAssignee != null && !sameUser(lead.getAssignedToUserId(), nextAssignee.id())) {
+        String previousAssignee = lead.getAssignedToName() != null ? lead.getAssignedToName() : "Unassigned";
+        applyAssignee(lead, nextAssignee);
+        leadActivityService.addActivity(
+            lead,
+            LeadActivityType.ASSIGNMENT_CHANGE,
+            currentUser.getFullName() + " reassigned the lead from " + previousAssignee + " to " + nextAssignee.name() + ".",
+            currentUser,
+            now
+        );
+      }
+    }
+    if (request.status() != null) {
+      updateStatusInternal(lead, leadRequestValidator.parseStatus(request.status()), currentUser, now, request.convertedAt());
+    } else if (request.convertedAt() != null) {
+      lead.setConvertedAt(request.convertedAt());
+    }
+    if (request.lastContactedAt() != null) {
+      lead.setLastContactedAt(request.lastContactedAt());
+    }
+    if (request.notes() != null) {
+      String nextNotes = request.notes().trim();
+      if (!nextNotes.isEmpty() && !nextNotes.equals(lead.getNotes())) {
+        leadRemarkService.addRemark(lead, nextNotes, currentUser, now);
+        leadActivityService.addActivity(
+            lead,
+            LeadActivityType.REMARK_ADDED,
+            currentUser.getFullName() + " added a new remark.",
+            currentUser,
+            now
+        );
+      }
+    }
+
+    touchLead(lead, currentUser, now);
+    return leadMapper.toResponse(leadRepository.save(lead));
+  }
+
+  @Transactional
+  public LeadDtos.LeadResponse updateStatus(
+      String id,
+      LeadDtos.UpdateLeadStatusRequest request,
+      AppUserDetails currentUser
+  ) {
+    LeadEntity lead = requireLead(id);
+    Instant now = Instant.now();
+
+    updateStatusInternal(lead, leadRequestValidator.parseStatus(request.status()), currentUser, now, null);
+    touchLead(lead, currentUser, now);
+    return leadMapper.toResponse(leadRepository.save(lead));
+  }
+
+  @Transactional
+  public LeadDtos.LeadResponse captureContactRecording(
+      String id,
+      MultipartFile audio,
+      Instant contactedAt,
+      AppUserDetails currentUser
+  ) {
+    LeadEntity lead = requireLead(id);
+    Instant now = contactedAt != null ? contactedAt : Instant.now();
+
+    LeadContactRecordingService.ProcessedContactRecording processed = leadContactRecordingService.capture(
+        lead,
+        audio,
+        currentUser,
+        now
+    );
+
+    if (lead.getStatus() == LeadStatus.NEW || lead.getStatus() == LeadStatus.CONTACTED) {
+      updateStatusInternal(lead, LeadStatus.CONTACTED, currentUser, now, null);
+    }
+    lead.setLastContactedAt(now);
+    leadRemarkService.addRemark(lead, processed.remarkContent(), currentUser, now);
+    leadActivityService.addActivity(
+        lead,
+        LeadActivityType.CALL,
+        currentUser.getFullName() + " uploaded a call recording and saved the generated contact summary.",
+        currentUser,
+        now
+    );
+    touchLead(lead, currentUser, now);
+    return leadMapper.toResponse(leadRepository.save(lead));
+  }
+
+  @Transactional
+  public LeadDtos.LeadResponse assignLead(
+      String id,
+      LeadDtos.AssignLeadRequest request,
+      AppUserDetails currentUser
+  ) {
+    LeadEntity lead = requireLead(id);
+    IdentityUser assignee = resolveAssignee(request.assignedToUserId(), request.assignedTo(), false);
+    if (assignee == null) {
+      throw new BadRequestException("Assignee is required.");
+    }
+
+    Instant now = Instant.now();
+    if (!sameUser(lead.getAssignedToUserId(), assignee.id())) {
+      String previousAssignee = lead.getAssignedToName() != null ? lead.getAssignedToName() : "Unassigned";
+      applyAssignee(lead, assignee);
+      leadActivityService.addActivity(
+          lead,
+          LeadActivityType.ASSIGNMENT_CHANGE,
+          currentUser.getFullName() + " reassigned the lead from " + previousAssignee + " to " + assignee.name() + ".",
+          currentUser,
+          now
+      );
+      if (lead.getStatus() == LeadStatus.QUALIFIED || lead.getStatus() == LeadStatus.UNQUALIFIED) {
+        updateStatusInternal(lead, LeadStatus.ASSIGNED_TO_SALESPERSON, currentUser, now, null);
+      }
+      touchLead(lead, currentUser, now);
+    }
+
+    return leadMapper.toResponse(leadRepository.save(lead));
+  }
+
+  @Transactional
+  public LeadDtos.LeadResponse updatePriority(
+      String id,
+      LeadDtos.UpdateLeadPriorityRequest request,
+      AppUserDetails currentUser
+  ) {
+    LeadEntity lead = requireLead(id);
+    Instant now = Instant.now();
+    lead.setPriority(leadRequestValidator.parsePriority(request.priority()));
+    touchLead(lead, currentUser, now);
+    return leadMapper.toResponse(leadRepository.save(lead));
+  }
+
+  @Transactional
+  public LeadDtos.LeadResponse addRemark(
+      String id,
+      LeadDtos.CreateRemarkRequest request,
+      AppUserDetails currentUser
+  ) {
+    LeadEntity lead = requireLead(id);
+    Instant now = Instant.now();
+    String content = leadRequestValidator.requireRemarkContent(request.content());
+
+    leadRemarkService.addRemark(lead, content, currentUser, now);
+    leadActivityService.addActivity(
+        lead,
+        LeadActivityType.REMARK_ADDED,
+        currentUser.getFullName() + " added a new remark.",
+        currentUser,
+        now
+    );
+    touchLead(lead, currentUser, now);
+    return leadMapper.toResponse(leadRepository.save(lead));
+  }
+
+  @Transactional
+  public LeadDtos.LeadResponse editRemark(
+      String id,
+      String remarkId,
+      LeadDtos.EditRemarkRequest request,
+      AppUserDetails currentUser
+  ) {
+    LeadEntity lead = requireLead(id);
+    Instant now = Instant.now();
+    String content = leadRequestValidator.requireRemarkContent(request.content());
+
+    leadRemarkService.editRemark(lead, remarkId, content, currentUser, now);
+    leadActivityService.addActivity(
+        lead,
+        LeadActivityType.REMARK_EDITED,
+        currentUser.getFullName() + " edited a remark version.",
+        currentUser,
+        now
+    );
+    touchLead(lead, currentUser, now);
+    return leadMapper.toResponse(leadRepository.save(lead));
+  }
+
+  @Transactional
+  public void deleteLead(String id) {
+    LeadEntity lead = requireLead(id);
+    leadContactRecordingService.deleteStoredRecordings(lead);
+    leadStatusHistoryService.deleteForLead(lead.getId());
+    leadRepository.delete(lead);
+  }
+
+  private void updateStatusInternal(
+      LeadEntity lead,
+      LeadStatus nextStatus,
+      AppUserDetails actor,
+      Instant now,
+      Instant convertedAt
+  ) {
+    LeadStatus currentStatus = lead.getStatus();
+    if (lead.getStatus() == nextStatus) {
+      if (convertedAt != null && nextStatus == LeadStatus.CONVERTED) {
+        lead.setConvertedAt(convertedAt);
+      }
+      return;
+    }
+
+    validateStatusTransition(currentStatus, nextStatus);
+    lead.setStatus(nextStatus);
+    if (convertedAt != null) {
+      lead.setConvertedAt(convertedAt);
+    }
+    applyStatusTimestamps(lead, nextStatus, now);
+    leadStatusHistoryService.recordTransition(lead, currentStatus, nextStatus, actor, now);
+    leadActivityService.addActivity(
+        lead,
+        LeadActivityType.STATUS_CHANGE,
+        "Lead moved to " + prettyStatus(nextStatus) + ".",
+        actor,
+        now
+    );
+
+    if (nextStatus == LeadStatus.CONVERTED) {
+      leadActivityService.addActivity(
+          lead,
+          LeadActivityType.CONVERTED,
+          "Lead converted to opportunity.",
+          actor,
+          lead.getConvertedAt() != null ? lead.getConvertedAt() : now
+      );
+    }
+  }
+
+  private void applyStatusTimestamps(LeadEntity lead, LeadStatus status, Instant now) {
+    if (status == LeadStatus.CONTACTED
+        || status == LeadStatus.FOLLOW_UP
+        || status == LeadStatus.QUALIFIED
+        || status == LeadStatus.UNQUALIFIED
+        || status == LeadStatus.ASSIGNED_TO_SALESPERSON
+        || status == LeadStatus.PROPOSAL_SENT
+        || status == LeadStatus.CONVERTED) {
+      if (lead.getLastContactedAt() == null) {
+        lead.setLastContactedAt(now);
+      }
+    }
+
+    if (status == LeadStatus.CONVERTED) {
+      if (lead.getConvertedAt() == null) {
+        lead.setConvertedAt(now);
+      }
+    } else {
+      lead.setConvertedAt(null);
+    }
+  }
+
+  private void replaceTags(LeadEntity lead, List<String> tags, Instant now) {
+    Map<String, LeadTagEntity> existingTagsByValue = new LinkedHashMap<>();
+    for (LeadTagEntity tagEntity : lead.getTags()) {
+      existingTagsByValue.put(tagEntity.getTagValue(), tagEntity);
+    }
+
+    Set<String> requestedTags = Set.copyOf(tags);
+    lead.getTags().removeIf(tagEntity -> !requestedTags.contains(tagEntity.getTagValue()));
+
+    for (String tag : tags) {
+      if (!existingTagsByValue.containsKey(tag)) {
+        lead.getTags().add(new LeadTagEntity(UUID.randomUUID().toString(), lead, tag, now));
+      }
+    }
+  }
+
+  private LeadEntity requireLead(String id) {
+    return leadRepository.findById(id)
+        .orElseThrow(() -> new ResourceNotFoundException("Lead not found"));
+  }
+
+  private IdentityUser resolveAssignee(String assignedToUserId, String assignedTo, boolean allowFallback) {
+    if (assignedToUserId != null && !assignedToUserId.isBlank()) {
+      return identityUserClient.getAssignableUserById(assignedToUserId.trim());
+    }
+
+    if (assignedTo != null && !assignedTo.isBlank()) {
+      return identityUserClient.getAssignableUserByName(assignedTo.trim());
+    }
+
+    if (!allowFallback) {
+      return null;
+    }
+
+    return identityUserClient.getDefaultAssignee();
+  }
+
+  private void applyAssignee(LeadEntity lead, IdentityUser assignee) {
+    if (assignee == null) {
+      lead.setAssignedToUserId(null);
+      lead.setAssignedToName(null);
+      return;
+    }
+
+    lead.setAssignedToUserId(assignee.id());
+    lead.setAssignedToName(assignee.name());
+  }
+
+  private void touchLead(LeadEntity lead, AppUserDetails actor, Instant now) {
+    lead.setUpdatedByUserId(actor.getUserId());
+    lead.setUpdatedByName(actor.getFullName());
+    lead.setUpdatedAt(now);
+  }
+
+  private boolean sameUser(String left, String right) {
+    return left != null && right != null && left.equals(right);
+  }
+
+  private String trimToNull(String value) {
+    if (value == null) {
+      return null;
+    }
+    String trimmed = value.trim();
+    return trimmed.isEmpty() ? null : trimmed;
+  }
+
+  private void validateStatusTransition(LeadStatus currentStatus, LeadStatus nextStatus) {
+    Set<LeadStatus> allowedNextStatuses = ALLOWED_STATUS_TRANSITIONS.getOrDefault(
+        currentStatus,
+        Set.of()
+    );
+    if (!allowedNextStatuses.contains(nextStatus)) {
+      throw new BadRequestException(
+          "Invalid stage transition from "
+              + prettyStatus(currentStatus)
+              + " to "
+              + prettyStatus(nextStatus)
+              + "."
+      );
+    }
+  }
+
+  private static Map<LeadStatus, Set<LeadStatus>> buildAllowedStatusTransitions() {
+    Map<LeadStatus, Set<LeadStatus>> transitions = new EnumMap<>(LeadStatus.class);
+    transitions.put(LeadStatus.NEW, EnumSet.of(LeadStatus.CONTACTED, LeadStatus.LOST));
+    transitions.put(LeadStatus.CONTACTED, EnumSet.of(LeadStatus.FOLLOW_UP, LeadStatus.LOST));
+    transitions.put(
+        LeadStatus.FOLLOW_UP,
+        EnumSet.of(LeadStatus.QUALIFIED, LeadStatus.UNQUALIFIED, LeadStatus.LOST)
+    );
+    transitions.put(
+        LeadStatus.QUALIFIED,
+        EnumSet.of(LeadStatus.ASSIGNED_TO_SALESPERSON, LeadStatus.LOST)
+    );
+    transitions.put(
+        LeadStatus.UNQUALIFIED,
+        EnumSet.of(LeadStatus.ASSIGNED_TO_SALESPERSON, LeadStatus.LOST)
+    );
+    transitions.put(
+        LeadStatus.ASSIGNED_TO_SALESPERSON,
+        EnumSet.of(LeadStatus.PROPOSAL_SENT, LeadStatus.LOST)
+    );
+    transitions.put(
+        LeadStatus.PROPOSAL_SENT,
+        EnumSet.of(LeadStatus.CONVERTED, LeadStatus.LOST)
+    );
+    transitions.put(LeadStatus.CONVERTED, EnumSet.noneOf(LeadStatus.class));
+    transitions.put(LeadStatus.LOST, EnumSet.noneOf(LeadStatus.class));
+    return transitions;
+  }
+
+  private LeadStatus parseStatusFilter(String value) {
+    if (value == null || value.isBlank() || "ALL".equalsIgnoreCase(value)) {
+      return null;
+    }
+    return leadRequestValidator.parseStatus(value);
+  }
+
+  private LeadSource parseSourceFilter(String value) {
+    if (value == null || value.isBlank() || "ALL".equalsIgnoreCase(value)) {
+      return null;
+    }
+    return leadRequestValidator.parseSource(value);
+  }
+
+  private LeadPriority parsePriorityFilter(String value) {
+    if (value == null || value.isBlank() || "ALL".equalsIgnoreCase(value)) {
+      return null;
+    }
+    return leadRequestValidator.parsePriority(value);
+  }
+
+  private String prettyStatus(LeadStatus status) {
+    String lower = status.name().toLowerCase(Locale.ROOT).replace('_', ' ');
+    return Character.toUpperCase(lower.charAt(0)) + lower.substring(1);
+  }
+}

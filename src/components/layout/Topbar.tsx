@@ -7,6 +7,7 @@ import {
   Settings,
   UserCircle2,
 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -19,6 +20,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { useCurrentUser, useLogout } from "@/modules/auth/hooks";
+import { hasStoredSession } from "@/services/api-client";
 
 type TopbarProps = {
   title?: string;
@@ -42,11 +45,25 @@ export function Topbar({
   title = "Dashboard",
   breadcrumb = "ERP / Dashboard",
   showSearch = true,
-  userName = "Admin User",
-  userEmail = "admin@fawnix.com",
+  userName,
+  userEmail,
   className,
 }: TopbarProps) {
-  const userInitials = getUserInitials(userName) || "AU";
+  const navigate = useNavigate();
+  const { data: currentUser } = useCurrentUser({ enabled: hasStoredSession() });
+  const logoutMutation = useLogout();
+
+  const resolvedUserName = userName ?? currentUser?.name ?? "Admin User";
+  const resolvedUserEmail = userEmail ?? currentUser?.email ?? "admin@fawnix.com";
+  const userInitials = getUserInitials(resolvedUserName) || "AU";
+
+  const handleLogout = async () => {
+    try {
+      await logoutMutation.mutateAsync();
+    } finally {
+      navigate("/login", { replace: true });
+    }
+  };
 
   return (
     <header
@@ -112,7 +129,7 @@ export function Topbar({
                   {userInitials}
                 </span>
                 <span className="hidden max-w-28 truncate text-sm font-medium sm:block">
-                  {userName}
+                  {resolvedUserName}
                 </span>
                 <ChevronDown
                   className="hidden h-4 w-4 text-slate-400 sm:block"
@@ -123,8 +140,8 @@ export function Topbar({
 
             <DropdownMenuContent align="end" className="w-56 border-blue-100 bg-white">
               <DropdownMenuLabel className="space-y-1">
-                <p className="text-sm leading-none font-medium">{userName}</p>
-                <p className="text-xs font-normal text-slate-500">{userEmail}</p>
+                <p className="text-sm leading-none font-medium">{resolvedUserName}</p>
+                <p className="text-xs font-normal text-slate-500">{resolvedUserEmail}</p>
               </DropdownMenuLabel>
 
               <DropdownMenuSeparator />
@@ -140,9 +157,15 @@ export function Topbar({
 
               <DropdownMenuSeparator />
 
-              <DropdownMenuItem className="gap-2 text-destructive focus:text-destructive">
+              <DropdownMenuItem
+                className="gap-2 text-destructive focus:text-destructive"
+                disabled={logoutMutation.isPending}
+                onClick={() => {
+                  void handleLogout();
+                }}
+              >
                 <LogOut className="h-4 w-4" aria-hidden="true" />
-                Logout
+                {logoutMutation.isPending ? "Logging out..." : "Logout"}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

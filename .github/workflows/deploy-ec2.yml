@@ -1,0 +1,55 @@
+name: Deploy To EC2
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: Branch to deploy
+        required: false
+        default: master
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-ec2
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      DEPLOY_BRANCH: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.branch || github.ref_name }}
+      EC2_HOST: ${{ vars.EC2_HOST }}
+      EC2_USER: ${{ vars.EC2_USER }}
+      EC2_PORT: ${{ vars.EC2_SSH_PORT }}
+      EC2_DEPLOY_DIR: ${{ vars.EC2_DEPLOY_DIR }}
+    steps:
+      - name: Validate deploy configuration
+        run: |
+          test -n "${EC2_HOST}" || { echo "Missing repo variable: EC2_HOST"; exit 1; }
+          test -n "${EC2_USER}" || { echo "Missing repo variable: EC2_USER"; exit 1; }
+          test -n "${EC2_DEPLOY_DIR}" || { echo "Missing repo variable: EC2_DEPLOY_DIR"; exit 1; }
+          test -n "${{ secrets.EC2_PEM_KEY }}" || { echo "Missing repository secret: EC2_PEM_KEY"; exit 1; }
+
+      - name: Prepare SSH key
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s' "${{ secrets.EC2_PEM_KEY }}" > ~/.ssh/ec2.pem
+          chmod 600 ~/.ssh/ec2.pem
+          ssh-keyscan -p "${EC2_PORT:-22}" -H "${EC2_HOST}" >> ~/.ssh/known_hosts
+
+      - name: Deploy on EC2
+        run: |
+          ssh -i ~/.ssh/ec2.pem -p "${EC2_PORT:-22}" "${EC2_USER}@${EC2_HOST}" <<EOF
+          set -e
+          cd "${EC2_DEPLOY_DIR}"
+          git pull origin "${DEPLOY_BRANCH}"
+          if [ ! -f PRD/.env ]; then
+            cp PRD/.env.example PRD/.env
+          fi
+          docker compose -f PRD/compose.yml --env-file PRD/.env up -d --build
+          EOF

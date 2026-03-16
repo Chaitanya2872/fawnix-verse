@@ -1,0 +1,105 @@
+package com.fawnix.verse.leads.mapper;
+
+import com.fawnix.verse.activities.entity.LeadActivityEntity;
+import com.fawnix.verse.leads.dto.LeadDtos;
+import com.fawnix.verse.leads.entity.LeadEntity;
+import com.fawnix.verse.leads.entity.LeadStatus;
+import com.fawnix.verse.leads.entity.LeadTagEntity;
+import com.fawnix.verse.remarks.entity.LeadRemarkEntity;
+import com.fawnix.verse.remarks.entity.LeadRemarkVersionEntity;
+import java.math.BigDecimal;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import org.springframework.stereotype.Component;
+
+@Component
+public class LeadMapper {
+
+  public LeadDtos.LeadResponse toResponse(LeadEntity lead) {
+    return new LeadDtos.LeadResponse(
+        lead.getId(),
+        lead.getName(),
+        lead.getCompany(),
+        lead.getEmail(),
+        lead.getPhone(),
+        lead.getStatus().name(),
+        lead.getSource().name(),
+        lead.getPriority().name(),
+        lead.getAssignedToUser() != null ? lead.getAssignedToUser().getFullName() : "",
+        lead.getAssignedToUser() != null ? lead.getAssignedToUser().getId() : null,
+        lead.getEstimatedValue(),
+        lead.getNotes(),
+        lead.getTags().stream().map(LeadTagEntity::getTagValue).toList(),
+        lead.getRemarks().stream().map(this::toRemarkResponse).toList(),
+        lead.getActivities().stream().map(this::toActivityResponse).toList(),
+        lead.getLastContactedAt(),
+        lead.getConvertedAt(),
+        lead.getCreatedAt(),
+        lead.getUpdatedAt()
+    );
+  }
+
+  public LeadDtos.LeadSummaryResponse toSummary(List<LeadEntity> leads) {
+    Map<String, Long> statusCounts = new LinkedHashMap<>();
+    Arrays.stream(LeadStatus.values()).forEach(status ->
+        statusCounts.put(status.name(), leads.stream().filter(lead -> lead.getStatus() == status).count()));
+
+    BigDecimal totalPipelineValue = leads.stream()
+        .map(LeadEntity::getEstimatedValue)
+        .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+    long qualifiedCount = leads.stream()
+        .filter(lead ->
+            lead.getStatus() == LeadStatus.QUALIFIED
+                || lead.getStatus() == LeadStatus.ASSIGNED_TO_SALESPERSON
+                || lead.getStatus() == LeadStatus.PROPOSAL_SENT)
+        .count();
+
+    return new LeadDtos.LeadSummaryResponse(
+        totalPipelineValue,
+        leads.stream().filter(lead -> lead.getStatus() == LeadStatus.NEW).count(),
+        qualifiedCount,
+        leads.stream().filter(lead -> lead.getStatus() == LeadStatus.CONVERTED).count(),
+        statusCounts
+    );
+  }
+
+  private LeadDtos.LeadRemarkResponse toRemarkResponse(LeadRemarkEntity remark) {
+    return new LeadDtos.LeadRemarkResponse(
+        remark.getId(),
+        remark.getLead().getId(),
+        remark.getCreatedAt(),
+        remark.getCreatedByUser() != null ? remark.getCreatedByUser().getFullName() : "System",
+        remark.getUpdatedAt(),
+        remark.getUpdatedByUser() != null ? remark.getUpdatedByUser().getFullName() : "System",
+        remark.getVersions().stream()
+            .sorted(Comparator.comparing(LeadRemarkVersionEntity::getCreatedAt))
+            .map(this::toRemarkVersionResponse)
+            .toList()
+    );
+  }
+
+  private LeadDtos.LeadRemarkVersionResponse toRemarkVersionResponse(LeadRemarkVersionEntity version) {
+    return new LeadDtos.LeadRemarkVersionResponse(
+        version.getId(),
+        version.getContent(),
+        version.getCreatedAt(),
+        version.getCreatedByUser() != null ? version.getCreatedByUser().getFullName() : "System"
+    );
+  }
+
+  private LeadDtos.LeadActivityResponse toActivityResponse(LeadActivityEntity activity) {
+    return new LeadDtos.LeadActivityResponse(
+        activity.getId(),
+        activity.getLead().getId(),
+        activity.getActivityType().name().toLowerCase(Locale.ROOT),
+        activity.getContent(),
+        activity.getCreatedByUser() != null ? activity.getCreatedByUser().getFullName() : "System",
+        activity.getCreatedAt()
+    );
+  }
+}

@@ -1,0 +1,25 @@
+spring:
+  application:
+    name: sales-service
+  datasource:
+    url: ${SALES_DB_URL:jdbc:postgresql://localhost:5432/fawnix_sales}
+    username: ${SALES_DB_USERNAME:postgres}
+    password: ${SALES_DB_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+server:
+  port: ${SERVER_PORT:8085}
+
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_SERVER_URL:http://localhost:8761/eureka/}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info

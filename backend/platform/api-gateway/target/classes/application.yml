@@ -1,0 +1,57 @@
+spring:
+  application:
+    name: api-gateway
+  cloud:
+    gateway:
+      default-filters:
+        - DedupeResponseHeader=Access-Control-Allow-Credentials Access-Control-Allow-Origin Vary, RETAIN_FIRST
+      routes:
+        - id: identity-auth
+          uri: lb://IDENTITY-SERVICE
+          predicates:
+            - Path=/api/auth/**
+        - id: identity-users
+          uri: lb://IDENTITY-SERVICE
+          predicates:
+            - Path=/api/users/**
+        - id: crm-leads
+          uri: lb://CRM-SERVICE
+          predicates:
+            - Path=/api/leads/**
+        - id: crm-reports
+          uri: lb://CRM-SERVICE
+          predicates:
+            - Path=/api/reports/**
+        - id: inventory
+          uri: lb://INVENTORY-SERVICE
+          predicates:
+            - Path=/api/inventory/**
+        - id: hrms
+          uri: lb://HRMS-SERVICE
+          predicates:
+            - Path=/api/hrms/**
+        - id: sales
+          uri: lb://SALES-SERVICE
+          predicates:
+            - Path=/api/sales/**
+
+server:
+  port: ${SERVER_PORT:8080}
+
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_SERVER_URL:http://localhost:8761/eureka/}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,gateway
+
+app:
+  cors:
+    allowed-origins: ${FRONTEND_ORIGINS:http://localhost:5173,http://127.0.0.1:5173,https://fawnixverse.acstechnologies.co.in,http://54.76.187.129,https://54.76.187.129}
+  security:
+    jwt:
+      secret: ${JWT_SECRET:change-this-local-dev-secret-change-this-local-dev-secret}
