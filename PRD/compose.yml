@@ -2,7 +2,7 @@ services:
   frontend:
     build:
       context: ..
-      dockerfile: ../docker/frontend/Dockerfile
+      dockerfile: docker/frontend/Dockerfile
       provenance: false
       sbom: false
     depends_on:
@@ -94,7 +94,7 @@ services:
   speech-to-text-service:
     build:
       context: ..
-      dockerfile: ../ml/speech-to-text-service/Dockerfile
+      dockerfile: ml/speech-to-text-service/Dockerfile
       provenance: false
       sbom: false
     restart: unless-stopped
@@ -140,7 +140,7 @@ services:
   eureka-server:
     build:
       context: ..
-      dockerfile: ../backend/Dockerfile
+      dockerfile: backend/Dockerfile
       provenance: false
       sbom: false
       args:
@@ -162,7 +162,7 @@ services:
   identity-service:
     build:
       context: ..
-      dockerfile: ../backend/Dockerfile
+      dockerfile: backend/Dockerfile
       provenance: false
       sbom: false
       args:
@@ -198,7 +198,7 @@ services:
   crm-service:
     build:
       context: ..
-      dockerfile: ../backend/Dockerfile
+      dockerfile: backend/Dockerfile
       provenance: false
       sbom: false
       args:
@@ -257,7 +257,7 @@ services:
   inventory-service:
     build:
       context: ..
-      dockerfile: ../backend/Dockerfile
+      dockerfile: backend/Dockerfile
       provenance: false
       sbom: false
       args:
@@ -286,7 +286,7 @@ services:
   hrms-service:
     build:
       context: ..
-      dockerfile: ../backend/Dockerfile
+      dockerfile: backend/Dockerfile
       provenance: false
       sbom: false
       args:
@@ -315,7 +315,7 @@ services:
   sales-service:
     build:
       context: ..
-      dockerfile: ../backend/Dockerfile
+      dockerfile: backend/Dockerfile
       provenance: false
       sbom: false
       args:
@@ -344,7 +344,7 @@ services:
   api-gateway:
     build:
       context: ..
-      dockerfile: ../backend/Dockerfile
+      dockerfile: backend/Dockerfile
       provenance: false
       sbom: false
       args:
