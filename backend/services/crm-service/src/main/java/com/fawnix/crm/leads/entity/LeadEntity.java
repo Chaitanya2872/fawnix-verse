@@ -64,6 +64,12 @@ public class LeadEntity {
   @Column(name = "last_contacted_at")
   private Instant lastContactedAt;
 
+  @Column(name = "follow_up_at")
+  private Instant followUpAt;
+
+  @Column(name = "follow_up_reminder_sent_at")
+  private Instant followUpReminderSentAt;
+
   @Column(name = "converted_at")
   private Instant convertedAt;
 
@@ -203,6 +209,22 @@ public class LeadEntity {
 
   public void setLastContactedAt(Instant lastContactedAt) {
     this.lastContactedAt = lastContactedAt;
+  }
+
+  public Instant getFollowUpAt() {
+    return followUpAt;
+  }
+
+  public void setFollowUpAt(Instant followUpAt) {
+    this.followUpAt = followUpAt;
+  }
+
+  public Instant getFollowUpReminderSentAt() {
+    return followUpReminderSentAt;
+  }
+
+  public void setFollowUpReminderSentAt(Instant followUpReminderSentAt) {
+    this.followUpReminderSentAt = followUpReminderSentAt;
   }
 
   public Instant getConvertedAt() {

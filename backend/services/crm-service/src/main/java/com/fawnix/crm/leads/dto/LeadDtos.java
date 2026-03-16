@@ -25,7 +25,8 @@ public final class LeadDtos {
       String assignedToUserId,
       @DecimalMin(value = "0.0", inclusive = true) BigDecimal estimatedValue,
       String notes,
-      List<String> tags
+      List<String> tags,
+      Instant followUpAt
   ) {
   }
 
@@ -43,6 +44,7 @@ public final class LeadDtos {
       String notes,
       List<String> tags,
       Instant lastContactedAt,
+      Instant followUpAt,
       Instant convertedAt
   ) {
   }
@@ -134,6 +136,7 @@ public final class LeadDtos {
       List<LeadContactRecordingResponse> contactRecordings,
       List<LeadActivityResponse> activities,
       Instant lastContactedAt,
+      Instant followUpAt,
       Instant convertedAt,
       Instant createdAt,
       Instant updatedAt

@@ -1,0 +1,37 @@
+import { api } from "@/services/api-client";
+import type {
+  Product,
+  ProductFilter,
+  ProductFormData,
+  PaginatedProducts,
+} from "./types";
+
+export async function fetchProducts(filter: ProductFilter): Promise<PaginatedProducts> {
+  const response = await api.get<PaginatedProducts>("/inventory", {
+    params: {
+      search: filter.search,
+      category: filter.category,
+      status: filter.status,
+      page: filter.page,
+      pageSize: filter.pageSize,
+    },
+  });
+  return response.data;
+}
+
+export async function createProduct(data: ProductFormData): Promise<Product> {
+  const response = await api.post<Product>("/inventory", data);
+  return response.data;
+}
+
+export async function updateProduct(
+  id: string,
+  data: Partial<ProductFormData>
+): Promise<Product> {
+  const response = await api.patch<Product>(`/inventory/${id}`, data);
+  return response.data;
+}
+
+export async function deleteProduct(id: string): Promise<void> {
+  await api.delete(`/inventory/${id}`);
+}

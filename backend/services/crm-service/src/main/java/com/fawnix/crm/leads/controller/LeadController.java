@@ -40,13 +40,14 @@ public class LeadController {
       @RequestParam(defaultValue = "ALL") String priority,
       @RequestParam(defaultValue = "") String assignedTo,
       @RequestParam(defaultValue = "1") int page,
-      @RequestParam(defaultValue = "10") int pageSize
+      @RequestParam(defaultValue = "10") int pageSize,
+      @AuthenticationPrincipal AppUserDetails userDetails
   ) {
-    return leadService.getLeads(search, status, source, priority, assignedTo, page, pageSize);
+    return leadService.getLeads(search, status, source, priority, assignedTo, page, pageSize, userDetails);
   }
 
   @GetMapping("/{id}")
-  @PreAuthorize("isAuthenticated()")
+  @PreAuthorize("hasAnyRole('ADMIN','SALES_MANAGER') or @leadSecurityService.canManageLead(authentication, #id)")
   public LeadDtos.LeadResponse getLead(@PathVariable String id) {
     return leadService.getLead(id);
   }

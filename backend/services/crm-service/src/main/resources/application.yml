@@ -36,6 +36,19 @@ management:
         include: health,info
 
 app:
+  seed:
+    enabled: ${APP_SEED_ENABLED:false}
+  integrations:
+    meta:
+      enabled: ${META_LEADS_ENABLED:false}
+      verify-token: ${META_VERIFY_TOKEN:}
+      app-secret: ${META_APP_SECRET:}
+      access-token: ${META_ACCESS_TOKEN:}
+      api-version: ${META_API_VERSION:v19.0}
+      default-status: ${META_LEAD_STATUS:NEW}
+      default-priority: ${META_LEAD_PRIORITY:MEDIUM}
+      default-source: ${META_LEAD_SOURCE:SOCIAL}
+      default-tags: ${META_LEAD_TAGS:meta}
   security:
     jwt:
       issuer: fawnix-verse

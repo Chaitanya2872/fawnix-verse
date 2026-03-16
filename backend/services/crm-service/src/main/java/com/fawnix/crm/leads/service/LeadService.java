@@ -79,17 +79,22 @@ public class LeadService {
       String priority,
       String assignedTo,
       int page,
-      int pageSize
+      int pageSize,
+      AppUserDetails actor
   ) {
     LeadStatus statusFilter = parseStatusFilter(status);
     LeadSource sourceFilter = parseSourceFilter(source);
     LeadPriority priorityFilter = parsePriorityFilter(priority);
+    String effectiveAssignedTo = assignedTo;
+    if (isSalesRepOnly(actor)) {
+      effectiveAssignedTo = actor.getUserId();
+    }
     Specification<LeadEntity> specification = LeadSpecifications.withFilters(
         search,
         statusFilter,
         sourceFilter,
         priorityFilter,
-        assignedTo
+        effectiveAssignedTo
     );
 
     int resolvedPage = Math.max(page, 1);
@@ -135,6 +140,7 @@ public class LeadService {
     lead.setNotes("");
     lead.setCreatedAt(now);
     lead.setUpdatedAt(now);
+    lead.setFollowUpAt(request.followUpAt());
     lead.setCreatedByUserId(currentUser.getUserId());
     lead.setCreatedByName(currentUser.getFullName());
     lead.setUpdatedByUserId(currentUser.getUserId());
@@ -230,6 +236,9 @@ public class LeadService {
     }
     if (request.lastContactedAt() != null) {
       lead.setLastContactedAt(request.lastContactedAt());
+    }
+    if (request.followUpAt() != null) {
+      lead.setFollowUpAt(request.followUpAt());
     }
     if (request.notes() != null) {
       String nextNotes = request.notes().trim();
@@ -509,6 +518,15 @@ public class LeadService {
     lead.setUpdatedByUserId(actor.getUserId());
     lead.setUpdatedByName(actor.getFullName());
     lead.setUpdatedAt(now);
+  }
+
+  private boolean isSalesRepOnly(AppUserDetails actor) {
+    if (actor == null) {
+      return false;
+    }
+    boolean adminLike = actor.getRoleNames().stream()
+        .anyMatch(role -> role.equals("ROLE_ADMIN") || role.equals("ROLE_SALES_MANAGER"));
+    return !adminLike && actor.getRoleNames().contains("ROLE_SALES_REP");
   }
 
   private boolean sameUser(String left, String right) {

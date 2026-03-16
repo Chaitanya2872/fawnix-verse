@@ -2,6 +2,7 @@ package com.fawnix.crm;
 
 import com.fawnix.crm.contact.config.ContactRecordingProperties;
 import com.fawnix.crm.contact.config.SpeechToTextProperties;
+import com.fawnix.crm.integrations.meta.MetaLeadProperties;
 import com.fawnix.crm.security.jwt.JwtProperties;
 import com.fawnix.crm.storage.config.ObjectStorageProperties;
 import org.springframework.boot.SpringApplication;
@@ -13,7 +14,8 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
     JwtProperties.class,
     ContactRecordingProperties.class,
     SpeechToTextProperties.class,
-    ObjectStorageProperties.class
+    ObjectStorageProperties.class,
+    MetaLeadProperties.class
 })
 public class CrmServiceApplication {
 

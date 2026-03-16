@@ -77,6 +77,22 @@ const fmtDateTime = (s: string) =>
     minute: "2-digit",
   });
 
+function toDateTimeLocal(value: string | null) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const offset = date.getTimezoneOffset();
+  const local = new Date(date.getTime() - offset * 60000);
+  return local.toISOString().slice(0, 16);
+}
+
+function fromDateTimeLocal(value: string) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toISOString();
+}
+
 const fmtBytes = (size: number) => {
   if (size < 1024) return `${size} B`;
   if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
@@ -273,6 +289,7 @@ const BASE_FORM: LeadFormData = {
   estimatedValue: 0,
   notes: "",
   tags: [],
+  followUpAt: null,
 };
 
 type LeadDialogMode = "create" | "edit";
@@ -305,6 +322,7 @@ function leadToFormData(lead: Lead): LeadFormData {
     estimatedValue: lead.estimatedValue,
     notes: lead.notes,
     tags: [...lead.tags],
+    followUpAt: lead.followUpAt,
   };
 }
 
@@ -437,6 +455,15 @@ function CreateLeadDialog({
                 <div>
                   <label className={labelCls}>Est. Value (USD)</label>
                   <input type="number" min={0} value={form.estimatedValue} onChange={(e) => setForm((p) => ({ ...p, estimatedValue: parseFloat(e.target.value) || 0 }))} className={inputCls} />
+                </div>
+                <div>
+                  <label className={labelCls}>Follow-up At</label>
+                  <input
+                    type="datetime-local"
+                    value={toDateTimeLocal(form.followUpAt)}
+                    onChange={(e) => setForm((p) => ({ ...p, followUpAt: fromDateTimeLocal(e.target.value) }))}
+                    className={inputCls}
+                  />
                 </div>
               </div>
             </div>
@@ -1140,6 +1167,7 @@ function LeadDetailPanel({
           <div className="text-xs text-muted-foreground space-y-1 border-t border-border pt-4">
             <p>Created: {fmtDate(lead.createdAt)}</p>
             {lead.lastContactedAt && <p>Last contacted: {fmtDate(lead.lastContactedAt)}</p>}
+            {lead.followUpAt && <p>Follow-up at: {fmtDateTime(lead.followUpAt)}</p>}
             {lead.convertedAt && <p className="text-emerald-600 font-medium">Converted: {fmtDate(lead.convertedAt)}</p>}
           </div>
         </div>

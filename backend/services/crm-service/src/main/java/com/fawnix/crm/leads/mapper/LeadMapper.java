@@ -39,6 +39,7 @@ public class LeadMapper {
         lead.getContactRecordings().stream().map(this::toContactRecordingResponse).toList(),
         lead.getActivities().stream().map(this::toActivityResponse).toList(),
         lead.getLastContactedAt(),
+        lead.getFollowUpAt(),
         lead.getConvertedAt(),
         lead.getCreatedAt(),
         lead.getUpdatedAt()

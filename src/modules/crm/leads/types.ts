@@ -105,6 +105,7 @@ export interface Lead {
   contactRecordings: LeadContactRecording[];
   activities: LeadActivity[];
   lastContactedAt: string | null;
+  followUpAt: string | null;
   convertedAt: string | null;
   createdAt: string;
   updatedAt: string;
@@ -138,12 +139,14 @@ export type LeadFormData = Pick<
   | "estimatedValue"
   | "notes"
   | "tags"
+  | "followUpAt"
 >;
 
 export type LeadUpdateData = Partial<
   LeadFormData & {
     convertedAt: string | null;
     lastContactedAt: string | null;
+    followUpAt: string | null;
   }
 >;
 
