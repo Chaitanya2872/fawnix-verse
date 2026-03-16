@@ -28,6 +28,13 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react(), tailwindcss()],
     server: {
+      allowedHosts: [
+        "localhost",
+        "127.0.0.1",
+        "fawnixverse.acstechnologies.co.in",
+        "54.76.187.129",
+        "108.131.209.156",
+      ],
       proxy: {
         "/api": {
           target: proxyTarget,

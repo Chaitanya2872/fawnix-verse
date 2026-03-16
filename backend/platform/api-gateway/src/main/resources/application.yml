@@ -55,7 +55,7 @@ management:
 
 app:
   cors:
-    allowed-origins: ${FRONTEND_ORIGINS:http://localhost:5173,http://127.0.0.1:5173,https://fawnixverse.acstechnologies.co.in,http://54.76.187.129,http://54.76.187.129:5173,https://54.76.187.129}
+    allowed-origins: ${FRONTEND_ORIGINS:http://localhost:5173,http://127.0.0.1:5173,https://fawnixverse.acstechnologies.co.in,http://54.76.187.129,http://54.76.187.129:5173,https://54.76.187.129,http://108.131.209.156,http://108.131.209.156:5173,https://108.131.209.156}
   security:
     jwt:
       secret: ${JWT_SECRET:change-this-local-dev-secret-change-this-local-dev-secret}
