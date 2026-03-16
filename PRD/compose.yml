@@ -1,8 +1,8 @@
 services:
   frontend:
     build:
-      context: .
-      dockerfile: docker/frontend/Dockerfile
+      context: ..
+      dockerfile: ../docker/frontend/Dockerfile
       provenance: false
       sbom: false
     depends_on:
@@ -15,7 +15,7 @@ services:
     ports:
       - "5173:5173"
     volumes:
-      - .:/app
+      - ..:/app
       - frontend-node-modules:/app/node_modules
     networks:
       - fawnix-network
@@ -85,7 +85,7 @@ services:
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
       MINIO_BUCKETS: ${MINIO_BUCKETS:-fawnix-objects}
     volumes:
-      - ./docker/minio/bootstrap:/bootstrap:ro
+      - ../docker/minio/bootstrap:/bootstrap:ro
     entrypoint: ["sh", "/bootstrap/create-buckets.sh"]
     restart: "no"
     networks:
@@ -93,8 +93,8 @@ services:
 
   speech-to-text-service:
     build:
-      context: .
-      dockerfile: ml/speech-to-text-service/Dockerfile
+      context: ..
+      dockerfile: ../ml/speech-to-text-service/Dockerfile
       provenance: false
       sbom: false
     restart: unless-stopped
@@ -131,7 +131,7 @@ services:
       PGDATABASE: ${POSTGRES_DB:-postgres}
       SERVICE_DATABASES: fawnix_identity fawnix_crm fawnix_inventory fawnix_hrms fawnix_sales
     volumes:
-      - ./docker/postgres/bootstrap:/bootstrap:ro
+      - ../docker/postgres/bootstrap:/bootstrap:ro
     entrypoint: ["sh", "/bootstrap/bootstrap-databases.sh"]
     restart: "no"
     networks:
@@ -139,8 +139,8 @@ services:
 
   eureka-server:
     build:
-      context: .
-      dockerfile: backend/Dockerfile
+      context: ..
+      dockerfile: ../backend/Dockerfile
       provenance: false
       sbom: false
       args:
@@ -161,8 +161,8 @@ services:
 
   identity-service:
     build:
-      context: .
-      dockerfile: backend/Dockerfile
+      context: ..
+      dockerfile: ../backend/Dockerfile
       provenance: false
       sbom: false
       args:
@@ -197,8 +197,8 @@ services:
 
   crm-service:
     build:
-      context: .
-      dockerfile: backend/Dockerfile
+      context: ..
+      dockerfile: ../backend/Dockerfile
       provenance: false
       sbom: false
       args:
@@ -256,8 +256,8 @@ services:
 
   inventory-service:
     build:
-      context: .
-      dockerfile: backend/Dockerfile
+      context: ..
+      dockerfile: ../backend/Dockerfile
       provenance: false
       sbom: false
       args:
@@ -285,8 +285,8 @@ services:
 
   hrms-service:
     build:
-      context: .
-      dockerfile: backend/Dockerfile
+      context: ..
+      dockerfile: ../backend/Dockerfile
       provenance: false
       sbom: false
       args:
@@ -314,8 +314,8 @@ services:
 
   sales-service:
     build:
-      context: .
-      dockerfile: backend/Dockerfile
+      context: ..
+      dockerfile: ../backend/Dockerfile
       provenance: false
       sbom: false
       args:
@@ -343,8 +343,8 @@ services:
 
   api-gateway:
     build:
-      context: .
-      dockerfile: backend/Dockerfile
+      context: ..
+      dockerfile: ../backend/Dockerfile
       provenance: false
       sbom: false
       args:
