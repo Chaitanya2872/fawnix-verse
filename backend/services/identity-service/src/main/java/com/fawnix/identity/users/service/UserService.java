@@ -12,8 +12,11 @@ import com.fawnix.identity.users.dto.InternalUserResponse;
 import com.fawnix.identity.users.dto.UserDtos;
 import com.fawnix.identity.users.entity.UserEntity;
 import com.fawnix.identity.users.mapper.UserMapper;
+import com.fawnix.identity.users.permission.UserPermissionCatalog;
 import com.fawnix.identity.users.repository.UserRepository;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -21,6 +24,7 @@ import java.util.UUID;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 @Service
 public class UserService {
@@ -68,6 +72,7 @@ public class UserService {
     String email = normalizeEmail(request.email());
     ensureEmailAvailable(email, null);
     RoleEntity role = resolveRole(request.role());
+    RoleName roleName = RoleName.valueOf(role.getName());
     Instant now = Instant.now();
     UserEntity user = new UserEntity(
         UUID.randomUUID().toString(),
@@ -81,6 +86,7 @@ public class UserService {
         now
     );
     user.setRoles(Set.of(role));
+    user.setPermissions(normalizePermissions(request.permissions(), roleName));
     return userMapper.toUserResponse(userRepository.save(user));
   }
 
@@ -89,12 +95,14 @@ public class UserService {
     String email = normalizeEmail(request.email());
     ensureEmailAvailable(email, userId);
     RoleEntity role = resolveRole(request.role());
+    RoleName roleName = RoleName.valueOf(role.getName());
 
     user.setFullName(request.fullName().trim());
     user.setEmail(email);
     user.setPhoneNumber(normalizePhone(request.phoneNumber()));
     user.setLanguage(normalizeLanguage(request.language()));
     user.setRoles(Set.of(role));
+    user.setPermissions(normalizePermissions(request.permissions(), roleName));
     if (request.password() != null && !request.password().isBlank()) {
       user.setPasswordHash(passwordEncoder.encode(request.password()));
     }
@@ -195,6 +203,32 @@ public class UserService {
     };
     return roleRepository.findByName(roleName.name())
         .orElseThrow(() -> new BadRequestException("Role is invalid."));
+  }
+
+  private Set<String> normalizePermissions(List<String> requested, RoleName roleName) {
+    if (requested == null) {
+      return UserPermissionCatalog.defaultsForRole(roleName);
+    }
+
+    Set<String> normalized = new LinkedHashSet<>();
+    List<String> unknown = new ArrayList<>();
+    for (String permission : requested) {
+      if (!StringUtils.hasText(permission)) {
+        continue;
+      }
+      String trimmed = permission.trim();
+      if (!UserPermissionCatalog.ALL_PERMISSIONS.contains(trimmed)) {
+        unknown.add(trimmed);
+        continue;
+      }
+      normalized.add(trimmed);
+    }
+
+    if (!unknown.isEmpty()) {
+      throw new BadRequestException("Unknown permissions: " + String.join(", ", unknown));
+    }
+
+    return normalized;
   }
 
   private void revokeRefreshTokens(UserEntity user) {

@@ -32,6 +32,7 @@ public class UserMapper {
         user.getLanguage(),
         user.isActive(),
         user.getRoles().stream().map(role -> role.getName()).toList(),
+        user.getPermissions().stream().toList(),
         user.getCreatedAt(),
         user.getUpdatedAt()
     );

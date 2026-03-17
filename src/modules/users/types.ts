@@ -12,6 +12,7 @@ export type User = {
   language: string | null;
   active: boolean;
   roles: string[];
+  permissions: string[];
   createdAt: string;
   updatedAt: string;
 };
@@ -23,6 +24,7 @@ export type CreateUserPayload = {
   language: string;
   password: string;
   role: UserRole;
+  permissions: string[];
 };
 
 export type UpdateUserPayload = {
@@ -32,6 +34,7 @@ export type UpdateUserPayload = {
   language: string;
   password?: string;
   role: UserRole;
+  permissions: string[];
 };
 
 export const USER_ROLE_OPTIONS: { value: UserRole; label: string }[] = [

@@ -3,6 +3,8 @@ package com.fawnix.identity.users.entity;
 import com.fawnix.identity.auth.entity.RoleEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.CollectionTable;
+import jakarta.persistence.ElementCollection;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
@@ -52,6 +54,14 @@ public class UserEntity {
       inverseJoinColumns = @JoinColumn(name = "role_id")
   )
   private Set<RoleEntity> roles = new LinkedHashSet<>();
+
+  @ElementCollection(fetch = FetchType.EAGER)
+  @CollectionTable(
+      name = "user_permissions",
+      joinColumns = @JoinColumn(name = "user_id")
+  )
+  @Column(name = "permission", length = 100, nullable = false)
+  private Set<String> permissions = new LinkedHashSet<>();
 
   protected UserEntity() {
   }
@@ -156,5 +166,13 @@ public class UserEntity {
 
   public void setRoles(Set<RoleEntity> roles) {
     this.roles = roles;
+  }
+
+  public Set<String> getPermissions() {
+    return permissions;
+  }
+
+  public void setPermissions(Set<String> permissions) {
+    this.permissions = permissions;
   }
 }

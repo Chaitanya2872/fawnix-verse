@@ -3,6 +3,7 @@ package com.fawnix.identity.security.service;
 import com.fawnix.identity.users.entity.UserEntity;
 import java.util.Collection;
 import java.util.List;
+import java.util.stream.Stream;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -29,8 +30,10 @@ public class AppUserDetails implements UserDetails {
 
   @Override
   public Collection<? extends GrantedAuthority> getAuthorities() {
-    return user.getRoles().stream()
-        .map(role -> new SimpleGrantedAuthority(role.getName()))
+    return Stream.concat(
+            user.getRoles().stream().map(role -> new SimpleGrantedAuthority(role.getName())),
+            user.getPermissions().stream().map(SimpleGrantedAuthority::new)
+        )
         .toList();
   }
 
@@ -66,5 +69,9 @@ public class AppUserDetails implements UserDetails {
 
   public List<String> getRoleNames() {
     return user.getRoles().stream().map(role -> role.getName()).toList();
+  }
+
+  public List<String> getPermissionNames() {
+    return user.getPermissions().stream().toList();
   }
 }

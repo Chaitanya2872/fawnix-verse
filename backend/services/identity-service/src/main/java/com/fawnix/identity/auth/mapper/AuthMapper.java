@@ -12,7 +12,8 @@ public class AuthMapper {
         userDetails.getUserId(),
         userDetails.getFullName(),
         userDetails.getUsername(),
-        userDetails.getRoleNames()
+        userDetails.getRoleNames(),
+        userDetails.getPermissionNames()
     );
   }
 }

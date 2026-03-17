@@ -3,6 +3,7 @@ export interface CurrentUser {
   name: string;
   email: string;
   roles: string[];
+  permissions: string[];
 }
 
 export interface LoginRequest {

@@ -3,6 +3,7 @@ package com.fawnix.identity.common.config;
 import com.fawnix.identity.auth.entity.RoleEntity;
 import com.fawnix.identity.auth.entity.RoleName;
 import com.fawnix.identity.auth.repository.RoleRepository;
+import com.fawnix.identity.users.permission.UserPermissionCatalog;
 import com.fawnix.identity.users.entity.UserEntity;
 import com.fawnix.identity.users.repository.UserRepository;
 import java.time.Instant;
@@ -86,6 +87,9 @@ public class DataSeeder implements ApplicationRunner {
   private UserEntity ensureUser(String id, String fullName, String email, String rawPassword, Set<RoleEntity> roles) {
     return userRepository.findById(id).orElseGet(() -> {
       Instant now = Instant.now();
+      RoleName roleName = roles.iterator().next() != null
+          ? RoleName.valueOf(roles.iterator().next().getName())
+          : RoleName.ROLE_VIEWER;
       UserEntity user = new UserEntity(
           id,
           fullName,
@@ -98,6 +102,7 @@ public class DataSeeder implements ApplicationRunner {
           now
       );
       user.setRoles(roles);
+      user.setPermissions(UserPermissionCatalog.defaultsForRole(roleName));
       return userRepository.save(user);
     });
   }

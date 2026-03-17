@@ -33,6 +33,7 @@ public class JwtService {
         .claim("email", userDetails.getUsername())
         .claim("name", userDetails.getFullName())
         .claim("roles", userDetails.getRoleNames())
+        .claim("permissions", userDetails.getPermissionNames())
         .signWith(getSigningKey())
         .compact();
   }

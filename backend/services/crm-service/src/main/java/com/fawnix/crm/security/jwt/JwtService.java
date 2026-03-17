@@ -26,7 +26,8 @@ public class JwtService {
         claims.getSubject(),
         String.valueOf(claims.get("email")),
         String.valueOf(claims.get("name")),
-        extractRoles(claims)
+        extractRoles(claims),
+        extractPermissions(claims)
     );
   }
 
@@ -43,6 +44,15 @@ public class JwtService {
     Object rawRoles = claims.get("roles");
     if (rawRoles instanceof List<?> roles) {
       return roles.stream().map(String::valueOf).toList();
+    }
+    return List.of();
+  }
+
+  @SuppressWarnings("unchecked")
+  private List<String> extractPermissions(Claims claims) {
+    Object rawPermissions = claims.get("permissions");
+    if (rawPermissions instanceof List<?> permissions) {
+      return permissions.stream().map(String::valueOf).toList();
     }
     return List.of();
   }

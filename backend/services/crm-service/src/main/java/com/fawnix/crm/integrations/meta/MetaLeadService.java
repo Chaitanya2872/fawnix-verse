@@ -32,7 +32,8 @@ public class MetaLeadService {
       "system-meta",
       "meta@fawnix.local",
       "Meta Lead",
-      List.of("ROLE_ADMIN")
+      List.of("ROLE_ADMIN"),
+      List.of()
   );
 
   private final MetaLeadProperties properties;

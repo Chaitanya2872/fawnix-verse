@@ -16,12 +16,16 @@ import {
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { hasStoredSession } from "@/services/api-client";
+import { useCurrentUser } from "@/modules/auth/hooks";
+import { PERMISSIONS, type Permission, hasPermission } from "@/modules/auth/permissions";
 
 type SidebarNavItem = {
   label: string;
   to: string;
   icon: LucideIcon;
   end?: boolean;
+  permission?: Permission;
 };
 
 type SidebarNavSection = {
@@ -33,37 +37,37 @@ const ERP_NAV_SECTIONS: readonly SidebarNavSection[] = [
   {
     heading: "Main",
     items: [
-      { label: "Dashboard", to: "/", icon: LayoutDashboard, end: true },
+      { label: "Dashboard", to: "/", icon: LayoutDashboard, end: true, permission: PERMISSIONS.PAGE_DASHBOARD },
     ],
   },
   {
     heading: "Operations",
     items: [
-      { label: "Inventory", to: "/inventory", icon: Boxes },
-      { label: "Sales", to: "/sales", icon: ShoppingCart },
-      { label: "Purchases", to: "/purchases", icon: ShoppingBag },
+      { label: "Inventory", to: "/inventory", icon: Boxes, permission: PERMISSIONS.PAGE_INVENTORY },
+      { label: "Sales", to: "/sales", icon: ShoppingCart, permission: PERMISSIONS.PAGE_SALES },
+      { label: "Purchases", to: "/purchases", icon: ShoppingBag, permission: PERMISSIONS.PAGE_PURCHASES },
     ],
   },
   {
     heading: "CRM",
     items: [
-      { label: "Leads", to: "/crm/leads", icon: UserPlus },
-      { label: "Pre-Sales", to: "/crm/presales", icon: Target },
-      { label: "Opportunities", to: "/crm/opportunities", icon: Target },
+      { label: "Leads", to: "/crm/leads", icon: UserPlus, permission: PERMISSIONS.PAGE_CRM_LEADS },
+      { label: "Pre-Sales", to: "/crm/presales", icon: Target, permission: PERMISSIONS.PAGE_CRM_PRESALES },
+      { label: "Opportunities", to: "/crm/opportunities", icon: Target, permission: PERMISSIONS.PAGE_CRM_OPPORTUNITIES },
     ],
   },
   {
     heading: "Finance",
     items: [
-      { label: "Accounting", to: "/accounting", icon: Calculator },
-      { label: "Reports", to: "/reports", icon: BarChart3 },
+      { label: "Accounting", to: "/accounting", icon: Calculator, permission: PERMISSIONS.PAGE_ACCOUNTING },
+      { label: "Reports", to: "/reports", icon: BarChart3, permission: PERMISSIONS.PAGE_REPORTS },
     ],
   },
   {
     heading: "Administration",
     items: [
-      { label: "Users", to: "/users", icon: Users },
-      { label: "Settings", to: "/settings", icon: Settings },
+      { label: "Users", to: "/users", icon: Users, permission: PERMISSIONS.PAGE_ADMIN_USERS },
+      { label: "Settings", to: "/settings", icon: Settings, permission: PERMISSIONS.PAGE_ADMIN_SETTINGS },
     ],
   },
 ];
@@ -71,6 +75,12 @@ const ERP_NAV_SECTIONS: readonly SidebarNavSection[] = [
 export function Sidebar() {
   const [isExpanded, setIsExpanded] = useState(false);
   const isCollapsed = !isExpanded;
+  const { data: currentUser } = useCurrentUser({ enabled: hasStoredSession() });
+
+  const isItemVisible = (item: SidebarNavItem) => {
+    if (!item.permission) return true;
+    return hasPermission(currentUser, item.permission);
+  };
 
   function handleBlur(event: FocusEvent<HTMLElement>): void {
     const nextFocusedElement = event.relatedTarget;
@@ -120,7 +130,12 @@ export function Sidebar() {
         </div>
 
         <nav className="flex-1 space-y-5 overflow-y-auto px-3 py-4">
-          {ERP_NAV_SECTIONS.map((section) => (
+          {ERP_NAV_SECTIONS.map((section) => {
+            const visibleItems = section.items.filter(isItemVisible);
+            if (visibleItems.length === 0) {
+              return null;
+            }
+            return (
             <section key={section.heading} className="space-y-2">
               <h2
                 className={cn(
@@ -132,7 +147,7 @@ export function Sidebar() {
               </h2>
 
               <ul className="space-y-1">
-                {section.items.map((item) => {
+                {visibleItems.map((item) => {
                   const Icon = item.icon;
                   return (
                     <li key={item.to}>
@@ -179,7 +194,8 @@ export function Sidebar() {
                 })}
               </ul>
             </section>
-          ))}
+            );
+          })}
         </nav>
       </div>
     </aside>

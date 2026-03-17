@@ -2,6 +2,7 @@ package com.fawnix.crm.security.service;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.stream.Stream;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -12,12 +13,20 @@ public class AppUserDetails implements UserDetails {
   private final String email;
   private final String fullName;
   private final List<String> roleNames;
+  private final List<String> permissionNames;
 
-  public AppUserDetails(String userId, String email, String fullName, List<String> roleNames) {
+  public AppUserDetails(
+      String userId,
+      String email,
+      String fullName,
+      List<String> roleNames,
+      List<String> permissionNames
+  ) {
     this.userId = userId;
     this.email = email;
     this.fullName = fullName;
     this.roleNames = roleNames;
+    this.permissionNames = permissionNames;
   }
 
   public String getUserId() {
@@ -32,9 +41,17 @@ public class AppUserDetails implements UserDetails {
     return roleNames;
   }
 
+  public List<String> getPermissionNames() {
+    return permissionNames;
+  }
+
   @Override
   public Collection<? extends GrantedAuthority> getAuthorities() {
-    return roleNames.stream().map(SimpleGrantedAuthority::new).toList();
+    return Stream.concat(
+            roleNames.stream().map(SimpleGrantedAuthority::new),
+            permissionNames.stream().map(SimpleGrantedAuthority::new)
+        )
+        .toList();
   }
 
   @Override

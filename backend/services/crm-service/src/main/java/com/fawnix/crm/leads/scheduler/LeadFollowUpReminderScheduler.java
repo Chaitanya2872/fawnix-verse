@@ -23,7 +23,8 @@ public class LeadFollowUpReminderScheduler {
       "system-followup",
       "followup@fawnix.local",
       "Follow-up Reminder",
-      List.of("ROLE_ADMIN")
+      List.of("ROLE_ADMIN"),
+      List.of()
   );
 
   private final LeadRepository leadRepository;

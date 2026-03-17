@@ -19,6 +19,7 @@ public final class UserDtos {
       String language,
       boolean active,
       List<String> roles,
+      List<String> permissions,
       Instant createdAt,
       Instant updatedAt
   ) {
@@ -30,7 +31,8 @@ public final class UserDtos {
       @NotBlank @Size(max = 40) String phoneNumber,
       @Size(max = 40) String language,
       @NotBlank @Size(min = 8, max = 72) String password,
-      @NotBlank String role
+      @NotBlank String role,
+      List<String> permissions
   ) {
   }
 
@@ -40,7 +42,8 @@ public final class UserDtos {
       @NotBlank @Size(max = 40) String phoneNumber,
       @Size(max = 40) String language,
       @Size(min = 8, max = 72) String password,
-      @NotBlank String role
+      @NotBlank String role,
+      List<String> permissions
   ) {
   }
 

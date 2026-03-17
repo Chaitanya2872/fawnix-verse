@@ -38,6 +38,7 @@ import {
   type User,
   type UserRole,
 } from "./types";
+import { PERMISSION_GROUPS, ROLE_DEFAULT_PERMISSIONS, uniquePermissions } from "./permissions";
 
 type UserFormState = {
   fullName: string;
@@ -46,6 +47,7 @@ type UserFormState = {
   language: string;
   password: string;
   role: UserRole;
+  permissions: string[];
 };
 
 const EMPTY_FORM: UserFormState = {
@@ -55,6 +57,7 @@ const EMPTY_FORM: UserFormState = {
   language: "",
   password: "",
   role: "ROLE_SALES_REP",
+  permissions: [],
 };
 
 const selectClassName =
@@ -68,6 +71,7 @@ function buildFormFromUser(user: User): UserFormState {
     language: user.language ?? "",
     password: "",
     role: getPrimaryRole(user.roles),
+    permissions: user.permissions ?? [],
   };
 }
 
@@ -88,10 +92,14 @@ function StatusBadge({ active }: { active: boolean }) {
 function UserFormFields({
   form,
   onChange,
+  onTogglePermission,
+  onResetPermissions,
   passwordHint,
 }: {
   form: UserFormState;
   onChange: <K extends keyof UserFormState>(field: K, value: UserFormState[K]) => void;
+  onTogglePermission: (permission: string) => void;
+  onResetPermissions: () => void;
   passwordHint?: string;
 }) {
   return (
@@ -173,6 +181,39 @@ function UserFormFields({
           ))}
         </select>
       </div>
+      <div className="grid gap-2">
+        <div className="flex items-center justify-between gap-3">
+          <Label>Permissions</Label>
+          <Button type="button" variant="outline" size="sm" onClick={onResetPermissions}>
+            Reset to Role Defaults
+          </Button>
+        </div>
+        <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 space-y-4">
+          {PERMISSION_GROUPS.map((group) => (
+            <div key={group.heading} className="space-y-2">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                {group.heading}
+              </p>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {group.options.map((option) => (
+                  <label key={option.value} className="flex items-start gap-2 text-sm text-slate-700">
+                    <input
+                      type="checkbox"
+                      className="mt-1 h-4 w-4 rounded border-slate-300"
+                      checked={form.permissions.includes(option.value)}
+                      onChange={() => onTogglePermission(option.value)}
+                    />
+                    <span className="leading-5">{option.label}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+        <p className="text-xs text-slate-500">
+          Admins always have full access even if permissions are unset.
+        </p>
+      </div>
     </div>
   );
 }
@@ -205,8 +246,32 @@ export default function UsersPage() {
     setFormState((prev) => ({ ...prev, [field]: value }));
   };
 
+  const handleTogglePermission = (permission: string) => {
+    setFormState((prev) => {
+      const exists = prev.permissions.includes(permission);
+      const next = exists
+        ? prev.permissions.filter((item) => item !== permission)
+        : [...prev.permissions, permission];
+      return { ...prev, permissions: next };
+    });
+  };
+
+  const resetPermissionsToRoleDefaults = () => {
+    setFormState((prev) => ({
+      ...prev,
+      permissions: uniquePermissions(
+        ROLE_DEFAULT_PERMISSIONS[prev.role] ?? []
+      ),
+    }));
+  };
+
   const openCreateDialog = () => {
-    setFormState(EMPTY_FORM);
+    setFormState({
+      ...EMPTY_FORM,
+      permissions: uniquePermissions(
+        ROLE_DEFAULT_PERMISSIONS[EMPTY_FORM.role] ?? []
+      ),
+    });
     setFormError(null);
     setPageError(null);
     setIsCreateOpen(true);
@@ -231,6 +296,7 @@ export default function UsersPage() {
       password: formState.password,
       role: formState.role,
       language: formState.language,
+      permissions: formState.permissions,
     };
 
     try {
@@ -252,6 +318,7 @@ export default function UsersPage() {
       phoneNumber: formState.phoneNumber.trim(),
       role: formState.role,
       language: formState.language,
+      permissions: formState.permissions,
     };
 
     if (formState.password.trim()) {
@@ -423,7 +490,12 @@ export default function UsersPage() {
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleCreateSubmit} className="space-y-5">
-            <UserFormFields form={formState} onChange={handleFormChange} />
+            <UserFormFields
+              form={formState}
+              onChange={handleFormChange}
+              onTogglePermission={handleTogglePermission}
+              onResetPermissions={resetPermissionsToRoleDefaults}
+            />
             {formError ? (
               <div className="rounded-md border border-red-100 bg-red-50 p-3 text-sm text-red-700">
                 {formError}
@@ -453,6 +525,8 @@ export default function UsersPage() {
             <UserFormFields
               form={formState}
               onChange={handleFormChange}
+              onTogglePermission={handleTogglePermission}
+              onResetPermissions={resetPermissionsToRoleDefaults}
               passwordHint="Leave blank to keep the current password."
             />
             {activeUser ? (

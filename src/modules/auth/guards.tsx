@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 
 import { clearAuthTokens, hasStoredSession } from "@/services/api-client";
+import { hasPermission, type Permission } from "@/modules/auth/permissions";
 import { useCurrentUser } from "./hooks";
 
 type AuthStatusScreenProps = {
@@ -96,4 +97,30 @@ export function ProtectedRoute() {
   }
 
   return <Outlet />;
+}
+
+export function RequirePermission({
+  permission,
+  children,
+}: {
+  permission: Permission;
+  children: JSX.Element;
+}) {
+  const sessionPresent = hasStoredSession();
+  const currentUserQuery = useCurrentUser({ enabled: sessionPresent });
+
+  if (currentUserQuery.isPending) {
+    return (
+      <AuthStatusScreen
+        title="Checking permissions"
+        description="Verifying your access to this module."
+      />
+    );
+  }
+
+  if (!currentUserQuery.data || !hasPermission(currentUserQuery.data, permission)) {
+    return <Navigate to="/unauthorized" replace />;
+  }
+
+  return children;
 }

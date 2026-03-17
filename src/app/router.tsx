@@ -1,7 +1,9 @@
 import { Navigate, createBrowserRouter } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
 import AuthPage from "@/modules/auth/page";
-import { ProtectedRoute, PublicOnlyRoute } from "@/modules/auth/guards";
+import { ProtectedRoute, PublicOnlyRoute, RequirePermission } from "@/modules/auth/guards";
+import { PERMISSIONS } from "@/modules/auth/permissions";
+import UnauthorizedPage from "@/modules/auth/unauthorized";
 
 // import DashboardPage from "@/modules/dashboard/page";
 import InventoryPage from "@/modules/inventory/page";
@@ -34,19 +36,72 @@ export const router = createBrowserRouter([
         children: [
           { index: true, element: <Navigate to="/crm/leads" replace /> },
           //   { index: true, element: <DashboardPage /> },
-          { path: "inventory", element: <InventoryPage /> },
+          {
+            path: "inventory",
+            element: (
+              <RequirePermission permission={PERMISSIONS.PAGE_INVENTORY}>
+                <InventoryPage />
+              </RequirePermission>
+            ),
+          },
           //   { path: "sales", element: <SalesPage /> },
           //   { path: "purchases", element: <PurchasesPage /> },
-          { path: "crm/leads", element: <LeadsPage /> },
-          { path: "crm/leads/:id", element: <LeadsPage /> },
-          { path: "crm/presales", element: <PreSalesOverviewPage /> },
+          {
+            path: "crm/leads",
+            element: (
+              <RequirePermission permission={PERMISSIONS.PAGE_CRM_LEADS}>
+                <LeadsPage />
+              </RequirePermission>
+            ),
+          },
+          {
+            path: "crm/leads/:id",
+            element: (
+              <RequirePermission permission={PERMISSIONS.PAGE_CRM_LEADS}>
+                <LeadsPage />
+              </RequirePermission>
+            ),
+          },
+          {
+            path: "crm/presales",
+            element: (
+              <RequirePermission permission={PERMISSIONS.PAGE_CRM_PRESALES}>
+                <PreSalesOverviewPage />
+              </RequirePermission>
+            ),
+          },
           //   { path: "accounting", element: <AccountingPage /> },
-          { path: "reports", element: <ReportsPage /> },
-          { path: "users", element: <UsersPage /> },
-          { path: "settings", element: <IntegrationsPage /> },
+          {
+            path: "reports",
+            element: (
+              <RequirePermission permission={PERMISSIONS.PAGE_REPORTS}>
+                <ReportsPage />
+              </RequirePermission>
+            ),
+          },
+          {
+            path: "users",
+            element: (
+              <RequirePermission permission={PERMISSIONS.PAGE_ADMIN_USERS}>
+                <UsersPage />
+              </RequirePermission>
+            ),
+          },
+          {
+            path: "settings",
+            element: (
+              <RequirePermission permission={PERMISSIONS.PAGE_ADMIN_SETTINGS}>
+                <IntegrationsPage />
+              </RequirePermission>
+            ),
+          },
         ],
       },
     ],
+  },
+  {
+    path: "/unauthorized",
+    element: <UnauthorizedPage />,
   },
   {
     path: "*",
