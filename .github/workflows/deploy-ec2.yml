@@ -1,77 +1,116 @@
-name: Deploy To EC2
-
+name: 🚀 Deploy To EC2 (Production)
+ 
 on:
   push:
     branches:
       - master
+ 
   workflow_dispatch:
     inputs:
       branch:
-        description: Branch to deploy
+        description: "Branch to deploy"
         required: false
         default: master
-
+ 
 permissions:
   contents: read
-
+ 
 concurrency:
   group: deploy-ec2
   cancel-in-progress: false
-
+ 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+ 
     env:
       DEPLOY_BRANCH: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.branch || github.ref_name }}
       EC2_HOST: ${{ vars.EC2_HOST }}
       EC2_USER: ${{ vars.EC2_USER }}
       EC2_PORT: ${{ vars.EC2_SSH_PORT }}
       EC2_DEPLOY_DIR: ${{ vars.EC2_DEPLOY_DIR }}
+      REPO_URL: https://github.com/Chaitanya2872/fawnix-verse.git
+ 
     steps:
-      - name: Validate deploy configuration
-        run: |
-          test -n "${EC2_HOST}" || { echo "Missing repo variable: EC2_HOST"; exit 1; }
-          test -n "${EC2_USER}" || { echo "Missing repo variable: EC2_USER"; exit 1; }
-          test -n "${EC2_DEPLOY_DIR}" || { echo "Missing repo variable: EC2_DEPLOY_DIR"; exit 1; }
-          test -n "${{ secrets.EC2_PEM_KEY }}" || { echo "Missing repository secret: EC2_PEM_KEY"; exit 1; }
-
-      - name: Prepare SSH key
-        run: |
-          mkdir -p ~/.ssh
-          printf '%s' "${{ secrets.EC2_PEM_KEY }}" > ~/.ssh/ec2.pem
-          chmod 600 ~/.ssh/ec2.pem
-          ssh-keyscan -p "${EC2_PORT:-22}" -H "${EC2_HOST}" >> ~/.ssh/known_hosts
-
-      - name: Deploy on EC2
-        run: |
-          ssh -i ~/.ssh/ec2.pem -p "${EC2_PORT:-22}" "${EC2_USER}@${EC2_HOST}" <<'EOF'
-          set -e
-          if cd "${EC2_DEPLOY_DIR}"; then
-            git pull origin "${DEPLOY_BRANCH}"
-            if [ ! -f PRD/.env ]; then
-              cp PRD/.env.example PRD/.env
-            fi
-            docker compose -f PRD/compose.yml --env-file PRD/.env up -d --build || {
-              echo "Docker Compose failed. Showing status and recent logs..."
-              docker compose -f PRD/compose.yml --env-file PRD/.env ps || true
-              docker compose -f PRD/compose.yml --env-file PRD/.env logs --tail 200 || true
-              exit 1
-            }
-            exit 0
-          fi
-
-          if sudo -n true 2>/dev/null; then
-            sudo -n bash -lc "cd '${EC2_DEPLOY_DIR}' \
-              && git pull origin '${DEPLOY_BRANCH}' \
-              && if [ ! -f PRD/.env ]; then cp PRD/.env.example PRD/.env; fi \
-              && docker compose -f PRD/compose.yml --env-file PRD/.env up -d --build \
-              || { echo 'Docker Compose failed. Showing status and recent logs...'; \
-                   docker compose -f PRD/compose.yml --env-file PRD/.env ps || true; \
-                   docker compose -f PRD/compose.yml --env-file PRD/.env logs --tail 200 || true; \
-                   exit 1; }"
-            exit 0
-          fi
-
-          echo "Cannot access ${EC2_DEPLOY_DIR}. Set EC2_DEPLOY_DIR to a path owned by ${EC2_USER}, or grant passwordless sudo."
+ 
+    # ✅ Validate config
+    - name: Validate configuration
+      run: |
+        test -n "${EC2_HOST}" || { echo "Missing EC2_HOST"; exit 1; }
+        test -n "${EC2_USER}" || { echo "Missing EC2_USER"; exit 1; }
+        test -n "${EC2_DEPLOY_DIR}" || { echo "Missing EC2_DEPLOY_DIR"; exit 1; }
+        test -n "${{ secrets.EC2_PEM_KEY }}" || { echo "Missing EC2_PEM_KEY"; exit 1; }
+ 
+    # ✅ Setup SSH
+    - name: Setup SSH
+      run: |
+        mkdir -p ~/.ssh
+        printf '%s' "${{ secrets.EC2_PEM_KEY }}" > ~/.ssh/ec2.pem
+        chmod 600 ~/.ssh/ec2.pem
+        ssh-keyscan -p "${EC2_PORT:-22}" -H "${EC2_HOST}" >> ~/.ssh/known_hosts
+ 
+    # 🚀 Deploy
+    - name: Deploy Application
+      run: |
+        ssh -i ~/.ssh/ec2.pem -p "${EC2_PORT:-22}" "${EC2_USER}@${EC2_HOST}" << 'EOF'
+        set -e
+ 
+        echo "🚀 Starting Deployment..."
+ 
+        # 📁 Create directory if not exists
+        mkdir -p "${EC2_DEPLOY_DIR}"
+        cd "${EC2_DEPLOY_DIR}"
+ 
+        echo "📂 Current Directory: $(pwd)"
+ 
+        # 🔄 Clone or Pull
+        if [ ! -d ".git" ]; then
+          echo "📥 Cloning repository..."
+          git clone "${REPO_URL}" .
+        else
+          echo "🔄 Pulling latest code..."
+          git fetch origin
+          git reset --hard origin/${DEPLOY_BRANCH}
+        fi
+ 
+        # ⚙️ Setup ENV
+        if [ ! -f PRD/.env ]; then
+          echo "⚙️ Creating .env file..."
+          cp PRD/.env.example PRD/.env
+        fi
+ 
+        # 🐳 Ensure Docker exists
+        if ! command -v docker &> /dev/null; then
+          echo "❌ Docker not installed"
           exit 1
-          EOF
+        fi
+ 
+        # 🔍 Show current running containers
+        echo "📊 Running Containers Before Deploy:"
+        docker ps || true
+ 
+        # 🚀 Deploy (zero-downtime style)
+        echo "🚀 Building & Starting Services..."
+        docker compose -f PRD/compose.yml --env-file PRD/.env up -d --build
+ 
+        # 🧹 Cleanup unused images
+        echo "🧹 Cleaning old images..."
+        docker image prune -f || true
+ 
+        # 📊 Show running containers after deploy
+        echo "📊 Running Containers After Deploy:"
+        docker ps
+ 
+        # 🔥 Health Check (basic)
+        echo "🔎 Checking services health..."
+        sleep 10
+ 
+        if ! docker ps | grep -q "prd-"; then
+          echo "❌ Deployment failed: No containers running!"
+          docker compose -f PRD/compose.yml --env-file PRD/.env logs --tail=200
+          exit 1
+        fi
+ 
+        echo "✅ Deployment Successful!"
+ 
+        EOF
