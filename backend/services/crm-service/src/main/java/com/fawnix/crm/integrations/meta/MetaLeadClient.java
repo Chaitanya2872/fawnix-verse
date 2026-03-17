@@ -2,6 +2,7 @@ package com.fawnix.crm.integrations.meta;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fawnix.crm.common.exception.BadRequestException;
 import java.io.IOException;
 import java.time.Instant;
 import java.time.OffsetDateTime;
@@ -14,6 +15,8 @@ import java.util.Map;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestClientException;
+import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.client.RestTemplate;
 
 @Service
@@ -39,7 +42,7 @@ public class MetaLeadClient {
   public MetaLeadDetails fetchLead(String leadgenId) {
     String accessToken = settingsService.resolveAccessToken();
     if (accessToken == null || accessToken.isBlank()) {
-      throw new IllegalStateException("META_ACCESS_TOKEN is required to fetch lead details.");
+      throw new BadRequestException("Meta access token is required to fetch lead details.");
     }
 
     String version = properties.apiVersion() == null || properties.apiVersion().isBlank()
@@ -49,10 +52,17 @@ public class MetaLeadClient {
         + "?access_token=" + accessToken
         + "&fields=created_time,field_data,ad_id,form_id";
 
-    ResponseEntity<String> response = restTemplate.getForEntity(url, String.class);
-    String body = response.getBody();
+    String body;
+    try {
+      ResponseEntity<String> response = restTemplate.getForEntity(url, String.class);
+      body = response.getBody();
+    } catch (RestClientResponseException ex) {
+      throw new BadRequestException(extractMetaError(ex.getResponseBodyAsString(), ex.getRawStatusCode()));
+    } catch (RestClientException ex) {
+      throw new BadRequestException("Unable to reach Meta API.");
+    }
     if (body == null || body.isBlank()) {
-      throw new IllegalStateException("Meta lead response was empty.");
+      throw new BadRequestException("Meta lead response was empty.");
     }
 
     try {
@@ -91,10 +101,10 @@ public class MetaLeadClient {
   public MetaLeadPage fetchFormLeads(String formId, String afterCursor, int limit) {
     String accessToken = settingsService.resolveAccessToken();
     if (accessToken == null || accessToken.isBlank()) {
-      throw new IllegalStateException("META_ACCESS_TOKEN is required to fetch lead details.");
+      throw new BadRequestException("Meta access token is required to fetch form leads.");
     }
     if (formId == null || formId.isBlank()) {
-      throw new IllegalStateException("META_FORM_ID is required to fetch form leads.");
+      throw new BadRequestException("Meta form ID is required to fetch form leads.");
     }
 
     int resolvedLimit = limit > 0 ? limit : 25;
@@ -109,10 +119,17 @@ public class MetaLeadClient {
       url += "&after=" + afterCursor;
     }
 
-    ResponseEntity<String> response = restTemplate.getForEntity(url, String.class);
-    String body = response.getBody();
+    String body;
+    try {
+      ResponseEntity<String> response = restTemplate.getForEntity(url, String.class);
+      body = response.getBody();
+    } catch (RestClientResponseException ex) {
+      throw new BadRequestException(extractMetaError(ex.getResponseBodyAsString(), ex.getRawStatusCode()));
+    } catch (RestClientException ex) {
+      throw new BadRequestException("Unable to reach Meta API.");
+    }
     if (body == null || body.isBlank()) {
-      throw new IllegalStateException("Meta lead response was empty.");
+      throw new BadRequestException("Meta lead response was empty.");
     }
 
     try {
@@ -189,5 +206,19 @@ public class MetaLeadClient {
     } catch (DateTimeParseException ignored) {
     }
     return null;
+  }
+
+  private String extractMetaError(String responseBody, int statusCode) {
+    if (responseBody != null && !responseBody.isBlank()) {
+      try {
+        JsonNode root = objectMapper.readTree(responseBody);
+        String message = root.path("error").path("message").asText(null);
+        if (message != null && !message.isBlank()) {
+          return "Meta API error (" + statusCode + "): " + message;
+        }
+      } catch (IOException ignored) {
+      }
+    }
+    return "Meta API request failed with status " + statusCode + ".";
   }
 }

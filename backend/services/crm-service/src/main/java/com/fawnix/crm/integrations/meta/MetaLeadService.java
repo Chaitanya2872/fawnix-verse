@@ -104,6 +104,10 @@ public class MetaLeadService {
   }
 
   public MetaLeadFetchResult fetchLatestLeads(int limit) {
+    String accessToken = settingsService.resolveAccessToken();
+    if (!StringUtils.hasText(accessToken)) {
+      throw new BadRequestException("Meta access token is required to fetch leads.");
+    }
     String formId = settingsService.resolveFormId();
     if (!StringUtils.hasText(formId)) {
       throw new BadRequestException("Meta form ID is required to fetch leads.");
