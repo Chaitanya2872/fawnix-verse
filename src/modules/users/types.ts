@@ -9,6 +9,7 @@ export type User = {
   name: string;
   email: string;
   phoneNumber: string | null;
+  language: string | null;
   active: boolean;
   roles: string[];
   createdAt: string;
@@ -19,6 +20,7 @@ export type CreateUserPayload = {
   fullName: string;
   email: string;
   phoneNumber: string;
+  language: string;
   password: string;
   role: UserRole;
 };
@@ -27,6 +29,7 @@ export type UpdateUserPayload = {
   fullName: string;
   email: string;
   phoneNumber: string;
+  language: string;
   password?: string;
   role: UserRole;
 };
@@ -36,6 +39,12 @@ export const USER_ROLE_OPTIONS: { value: UserRole; label: string }[] = [
   { value: "ROLE_SALES_MANAGER", label: "Manager" },
   { value: "ROLE_SALES_REP", label: "Employee" },
   { value: "ROLE_VIEWER", label: "Viewer" },
+];
+
+export const USER_LANGUAGE_OPTIONS: { value: string; label: string }[] = [
+  { value: "English", label: "English" },
+  { value: "Telugu", label: "Telugu" },
+  { value: "Hindi", label: "Hindi" },
 ];
 
 const ROLE_LABELS: Record<string, string> = {

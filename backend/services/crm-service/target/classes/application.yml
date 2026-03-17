@@ -49,6 +49,23 @@ app:
       default-priority: ${META_LEAD_PRIORITY:MEDIUM}
       default-source: ${META_LEAD_SOURCE:SOCIAL}
       default-tags: ${META_LEAD_TAGS:meta}
+    whatsapp:
+      enabled: ${WHATSAPP_ENABLED:false}
+      verify-token: ${WHATSAPP_VERIFY_TOKEN:}
+      app-secret: ${WHATSAPP_APP_SECRET:}
+      access-token: ${WHATSAPP_ACCESS_TOKEN:}
+      api-version: ${WHATSAPP_API_VERSION:v19.0}
+      phone-number-id: ${WHATSAPP_PHONE_NUMBER_ID:}
+      business-account-id: ${WHATSAPP_BUSINESS_ACCOUNT_ID:}
+      template-name: ${WHATSAPP_TEMPLATE_NAME:fawnix_lead_intro}
+      template-language: ${WHATSAPP_TEMPLATE_LANGUAGE:en_US}
+      template-use-lead-name: ${WHATSAPP_TEMPLATE_USE_LEAD_NAME:false}
+      default-country-code: ${WHATSAPP_DEFAULT_COUNTRY_CODE:}
+  leads:
+    follow-up-reminders:
+      enabled: ${CRM_FOLLOW_UP_REMINDERS_ENABLED:true}
+      lookahead-minutes: ${CRM_FOLLOW_UP_REMINDERS_LOOKAHEAD_MINUTES:0}
+      delay-ms: ${CRM_FOLLOW_UP_REMINDERS_DELAY_MS:60000}
   security:
     jwt:
       issuer: fawnix-verse

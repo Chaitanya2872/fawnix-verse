@@ -76,6 +76,9 @@ export type LeadActivityType =
   | "assignment_change"
   | "remark_added"
   | "remark_edited"
+  | "follow_up_reminder"
+  | "scheduled"
+  | "schedule_updated"
   | "converted";
 
 export interface LeadActivity {
@@ -93,6 +96,26 @@ export interface Lead {
   company: string;
   email: string;
   phone: string;
+  externalLeadId: string | null;
+  sourceMonth: string | null;
+  sourceDate: string | null;
+  alternativePhone: string | null;
+  projectStage: string | null;
+  expectedTimeline: string | null;
+  propertyType: string | null;
+  sqft: string | null;
+  community: string | null;
+  projectLocation: string | null;
+  projectState: string | null;
+  presalesResponse: string | null;
+  demoVisit: string | null;
+  presalesRemarks: string | null;
+  adSetName: string | null;
+  campaignName: string | null;
+  metaLeadId: string | null;
+  metaFormId: string | null;
+  metaAdId: string | null;
+  sourceCreatedAt: string | null;
   status: LeadStatus;
   source: LeadSource;
   priority: LeadPriority;
@@ -109,6 +132,94 @@ export interface Lead {
   convertedAt: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export const LeadScheduleType = {
+  VISIT: "VISIT",
+  DEMO: "DEMO",
+} as const;
+export type LeadScheduleType =
+  (typeof LeadScheduleType)[keyof typeof LeadScheduleType];
+
+export const LeadScheduleStatus = {
+  SCHEDULED: "SCHEDULED",
+  COMPLETED: "COMPLETED",
+  CANCELLED: "CANCELLED",
+} as const;
+export type LeadScheduleStatus =
+  (typeof LeadScheduleStatus)[keyof typeof LeadScheduleStatus];
+
+export const LeadScheduleMode = {
+  ON_SITE: "ON_SITE",
+  REMOTE: "REMOTE",
+} as const;
+export type LeadScheduleMode =
+  (typeof LeadScheduleMode)[keyof typeof LeadScheduleMode];
+
+export interface LeadSchedule {
+  id: string;
+  leadId: string;
+  type: LeadScheduleType;
+  status: LeadScheduleStatus;
+  scheduledAt: string;
+  location: string | null;
+  mode: LeadScheduleMode | null;
+  notes: string | null;
+  assignedTo: string;
+  assignedToUserId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type CreateLeadScheduleInput = {
+  type: LeadScheduleType;
+  scheduledAt: string;
+  location?: string | null;
+  mode?: LeadScheduleMode | null;
+  notes?: string | null;
+  assignedTo?: string | null;
+  assignedToUserId?: string | null;
+};
+
+export type UpdateLeadScheduleInput = Partial<{
+  type: LeadScheduleType;
+  status: LeadScheduleStatus;
+  scheduledAt: string;
+  location: string | null;
+  mode: LeadScheduleMode | null;
+  notes: string | null;
+  assignedTo: string | null;
+  assignedToUserId: string | null;
+}>;
+
+export type LeadImportError = {
+  row: number;
+  message: string;
+};
+
+export type LeadImportResult = {
+  total: number;
+  created: number;
+  updated: number;
+  skipped: number;
+  errors: LeadImportError[];
+};
+
+export interface LeadWhatsappQuestionnaire {
+  id: string;
+  leadId: string;
+  phone: string;
+  waId: string | null;
+  language: string | null;
+  interestAreas: string[];
+  demoPreference: string | null;
+  callbackPreference: string | null;
+  callbackTimeText: string | null;
+  ownershipRole: string | null;
+  step: string;
+  createdAt: string;
+  updatedAt: string;
+  completedAt: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -249,14 +360,3 @@ export const LEAD_SOURCE_LABELS: Record<LeadSource, string> = {
   EVENT: "Event",
   OTHER: "Other",
 };
-
-export const SALES_REPS = [
-  "Sarah Kim",
-  "Mike Rodriguez",
-  "James Lee",
-  "Priya Singh",
-  "Alex Johnson",
-  "Emma Davis",
-] as const;
-
-export type SalesRep = (typeof SALES_REPS)[number];

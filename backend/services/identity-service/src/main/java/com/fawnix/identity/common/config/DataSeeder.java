@@ -91,6 +91,7 @@ public class DataSeeder implements ApplicationRunner {
           fullName,
           email,
           null,
+          null,
           passwordEncoder.encode(rawPassword),
           true,
           now,

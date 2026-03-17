@@ -30,6 +30,9 @@ public class UserEntity {
   @Column(name = "phone_number", length = 40)
   private String phoneNumber;
 
+  @Column(length = 40)
+  private String language;
+
   @Column(name = "password_hash", nullable = false, length = 255)
   private String passwordHash;
 
@@ -58,6 +61,7 @@ public class UserEntity {
       String fullName,
       String email,
       String phoneNumber,
+      String language,
       String passwordHash,
       boolean active,
       Instant createdAt,
@@ -67,6 +71,7 @@ public class UserEntity {
     this.fullName = fullName;
     this.email = email;
     this.phoneNumber = phoneNumber;
+    this.language = language;
     this.passwordHash = passwordHash;
     this.active = active;
     this.createdAt = createdAt;
@@ -103,6 +108,14 @@ public class UserEntity {
 
   public void setPhoneNumber(String phoneNumber) {
     this.phoneNumber = phoneNumber;
+  }
+
+  public String getLanguage() {
+    return language;
+  }
+
+  public void setLanguage(String language) {
+    this.language = language;
   }
 
   public String getPasswordHash() {

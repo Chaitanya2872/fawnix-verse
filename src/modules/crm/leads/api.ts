@@ -6,9 +6,14 @@ import {
   type CreateLeadRemarkInput,
   type EditLeadRemarkInput,
   type Lead,
+  type LeadImportResult,
   type LeadFilter,
   type LeadFormData,
+  type LeadSchedule,
+  type CreateLeadScheduleInput,
+  type UpdateLeadScheduleInput,
   type LeadUpdateData,
+  type LeadWhatsappQuestionnaire,
   type LeadsSummary,
   type PaginatedLeads,
   getLeadStatusTransitions,
@@ -38,6 +43,26 @@ function normalizeLead(lead: Lead): Lead {
     lastContactedAt: lead.lastContactedAt ?? null,
     followUpAt: lead.followUpAt ?? null,
     convertedAt: lead.convertedAt ?? null,
+    externalLeadId: lead.externalLeadId ?? null,
+    sourceMonth: lead.sourceMonth ?? null,
+    sourceDate: lead.sourceDate ?? null,
+    alternativePhone: lead.alternativePhone ?? null,
+    projectStage: lead.projectStage ?? null,
+    expectedTimeline: lead.expectedTimeline ?? null,
+    propertyType: lead.propertyType ?? null,
+    sqft: lead.sqft ?? null,
+    community: lead.community ?? null,
+    projectLocation: lead.projectLocation ?? null,
+    projectState: lead.projectState ?? null,
+    presalesResponse: lead.presalesResponse ?? null,
+    demoVisit: lead.demoVisit ?? null,
+    presalesRemarks: lead.presalesRemarks ?? null,
+    adSetName: lead.adSetName ?? null,
+    campaignName: lead.campaignName ?? null,
+    metaLeadId: lead.metaLeadId ?? null,
+    metaFormId: lead.metaFormId ?? null,
+    metaAdId: lead.metaAdId ?? null,
+    sourceCreatedAt: lead.sourceCreatedAt ?? null,
   };
 }
 
@@ -72,6 +97,32 @@ export async function fetchLeadById(id: string): Promise<Lead> {
     return normalizeLead(response.data);
   } catch (error) {
     rethrowApiError(error, "Failed to load lead details.");
+  }
+}
+
+export async function fetchLeadQuestionnaire(
+  id: string
+): Promise<LeadWhatsappQuestionnaire | null> {
+  try {
+    await ensureApiSession();
+    const response = await api.get<LeadWhatsappQuestionnaire | null>(
+      `/leads/${id}/questionnaire`,
+      {
+        validateStatus: (status) => status === 200 || status === 204,
+      }
+    );
+    if (response.status === 204) {
+      return null;
+    }
+    if (!response.data) {
+      return null;
+    }
+    return {
+      ...response.data,
+      interestAreas: response.data.interestAreas ?? [],
+    };
+  } catch (error) {
+    rethrowApiError(error, "Failed to load lead questionnaire.");
   }
 }
 
@@ -179,6 +230,61 @@ export async function deleteLead(id: string): Promise<void> {
     await api.delete(`/leads/${id}`);
   } catch (error) {
     rethrowApiError(error, "Failed to delete lead.");
+  }
+}
+
+export async function importLeads(file: File): Promise<LeadImportResult> {
+  try {
+    await ensureApiSession();
+    const formData = new FormData();
+    formData.append("file", file);
+    const response = await api.post<LeadImportResult>("/leads/import", formData);
+    return response.data;
+  } catch (error) {
+    rethrowApiError(error, "Failed to import leads.");
+  }
+}
+
+export async function fetchLeadSchedules(leadId: string): Promise<LeadSchedule[]> {
+  try {
+    await ensureApiSession();
+    const response = await api.get<LeadSchedule[]>(`/leads/${leadId}/schedules`);
+    return response.data ?? [];
+  } catch (error) {
+    rethrowApiError(error, "Failed to load schedules.");
+  }
+}
+
+export async function createLeadSchedule(
+  leadId: string,
+  input: CreateLeadScheduleInput
+): Promise<LeadSchedule> {
+  try {
+    await ensureApiSession();
+    const response = await api.post<LeadSchedule>(
+      `/leads/${leadId}/schedules`,
+      input
+    );
+    return response.data;
+  } catch (error) {
+    rethrowApiError(error, "Failed to create schedule.");
+  }
+}
+
+export async function updateLeadSchedule(
+  leadId: string,
+  scheduleId: string,
+  input: UpdateLeadScheduleInput
+): Promise<LeadSchedule> {
+  try {
+    await ensureApiSession();
+    const response = await api.patch<LeadSchedule>(
+      `/leads/${leadId}/schedules/${scheduleId}`,
+      input
+    );
+    return response.data;
+  } catch (error) {
+    rethrowApiError(error, "Failed to update schedule.");
   }
 }
 

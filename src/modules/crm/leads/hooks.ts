@@ -8,23 +8,32 @@ import {
   assignLead,
   contactLeadWithRecording,
   createLead,
+  createLeadSchedule,
   createLeadRemark,
   deleteLead,
   editLeadRemark,
+  fetchLeadSchedules,
   fetchLeadAssignees,
   fetchLeadById,
+  fetchLeadQuestionnaire,
   fetchLeads,
+  importLeads,
   updateLeadPriority,
   updateLead,
+  updateLeadSchedule,
 } from "./api";
 import {
   type AssignLeadInput,
   type AssigneeOption,
   type ContactLeadRecordingInput,
   type CreateLeadRemarkInput,
+  type CreateLeadScheduleInput,
   type EditLeadRemarkInput,
+  type LeadImportResult,
   type LeadFilter,
   type LeadFormData,
+  type LeadSchedule,
+  type UpdateLeadScheduleInput,
   type LeadUpdateData,
 } from "./types";
 
@@ -34,6 +43,10 @@ export const leadsKeys = {
   list: (filter: LeadFilter) => [...leadsKeys.lists(), filter] as const,
   details: () => [...leadsKeys.all, "detail"] as const,
   detail: (id: string) => [...leadsKeys.details(), id] as const,
+  questionnaires: () => [...leadsKeys.all, "questionnaire"] as const,
+  questionnaire: (id: string) => [...leadsKeys.questionnaires(), id] as const,
+  schedules: () => [...leadsKeys.all, "schedules"] as const,
+  schedule: (leadId: string) => [...leadsKeys.schedules(), leadId] as const,
   assignees: () => [...leadsKeys.all, "assignees"] as const,
 };
 
@@ -51,6 +64,24 @@ export function useLeadDetail(id: string | null) {
     queryKey: leadsKeys.detail(id ?? ""),
     queryFn: () => fetchLeadById(id ?? ""),
     enabled: Boolean(id),
+    staleTime: 30_000,
+  });
+}
+
+export function useLeadQuestionnaire(id: string | null) {
+  return useQuery({
+    queryKey: leadsKeys.questionnaire(id ?? ""),
+    queryFn: () => fetchLeadQuestionnaire(id ?? ""),
+    enabled: Boolean(id),
+    staleTime: 30_000,
+  });
+}
+
+export function useLeadSchedules(leadId: string | null) {
+  return useQuery({
+    queryKey: leadsKeys.schedule(leadId ?? ""),
+    queryFn: () => fetchLeadSchedules(leadId ?? ""),
+    enabled: Boolean(leadId),
     staleTime: 30_000,
   });
 }
@@ -176,6 +207,55 @@ export function useDeleteLead() {
     mutationFn: (id: string) => deleteLead(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: leadsKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: leadsKeys.details() });
+    },
+  });
+}
+
+export function useImportLeads() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (file: File) => importLeads(file),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: leadsKeys.lists() });
+    },
+  });
+}
+
+export function useCreateLeadSchedule() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      leadId,
+      input,
+    }: {
+      leadId: string;
+      input: CreateLeadScheduleInput;
+    }) => createLeadSchedule(leadId, input),
+    onSuccess: (schedule) => {
+      queryClient.invalidateQueries({ queryKey: leadsKeys.schedule(schedule.leadId) });
+      queryClient.invalidateQueries({ queryKey: leadsKeys.details() });
+    },
+  });
+}
+
+export function useUpdateLeadSchedule() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      leadId,
+      scheduleId,
+      input,
+    }: {
+      leadId: string;
+      scheduleId: string;
+      input: UpdateLeadScheduleInput;
+    }) => updateLeadSchedule(leadId, scheduleId, input),
+    onSuccess: (schedule) => {
+      queryClient.invalidateQueries({ queryKey: leadsKeys.schedule(schedule.leadId) });
       queryClient.invalidateQueries({ queryKey: leadsKeys.details() });
     },
   });

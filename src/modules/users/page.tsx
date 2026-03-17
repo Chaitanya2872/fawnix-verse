@@ -29,6 +29,7 @@ import {
 } from "./hooks";
 import {
   USER_ROLE_OPTIONS,
+  USER_LANGUAGE_OPTIONS,
   getPrimaryRole,
   getRoleLabel,
   getRoleLabelFromValue,
@@ -42,6 +43,7 @@ type UserFormState = {
   fullName: string;
   email: string;
   phoneNumber: string;
+  language: string;
   password: string;
   role: UserRole;
 };
@@ -50,6 +52,7 @@ const EMPTY_FORM: UserFormState = {
   fullName: "",
   email: "",
   phoneNumber: "",
+  language: "",
   password: "",
   role: "ROLE_SALES_REP",
 };
@@ -62,6 +65,7 @@ function buildFormFromUser(user: User): UserFormState {
     fullName: user.name ?? "",
     email: user.email ?? "",
     phoneNumber: user.phoneNumber ?? "",
+    language: user.language ?? "",
     password: "",
     role: getPrimaryRole(user.roles),
   };
@@ -152,6 +156,23 @@ function UserFormFields({
           ))}
         </select>
       </div>
+      <div className="grid gap-2">
+        <Label htmlFor="language">Language</Label>
+        <select
+          id="language"
+          className={selectClassName}
+          value={form.language}
+          onChange={(event) => onChange("language", event.target.value)}
+          required
+        >
+          <option value="">Select language</option>
+          {USER_LANGUAGE_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </div>
     </div>
   );
 }
@@ -209,6 +230,7 @@ export default function UsersPage() {
       phoneNumber: formState.phoneNumber.trim(),
       password: formState.password,
       role: formState.role,
+      language: formState.language,
     };
 
     try {
@@ -229,6 +251,7 @@ export default function UsersPage() {
       email: formState.email.trim(),
       phoneNumber: formState.phoneNumber.trim(),
       role: formState.role,
+      language: formState.language,
     };
 
     if (formState.password.trim()) {
@@ -333,6 +356,7 @@ export default function UsersPage() {
                     <th className="px-4 py-3">Email</th>
                     <th className="px-4 py-3">Phone</th>
                     <th className="px-4 py-3">Role</th>
+                    <th className="px-4 py-3">Language</th>
                     <th className="px-4 py-3">Status</th>
                     <th className="px-4 py-3 text-right">Actions</th>
                   </tr>
@@ -349,6 +373,9 @@ export default function UsersPage() {
                       </td>
                       <td className="px-4 py-3 text-slate-600">
                         {getRoleLabel(user.roles)}
+                      </td>
+                      <td className="px-4 py-3 text-slate-600">
+                        {user.language ?? "-"}
                       </td>
                       <td className="px-4 py-3">
                         <StatusBadge active={user.active} />

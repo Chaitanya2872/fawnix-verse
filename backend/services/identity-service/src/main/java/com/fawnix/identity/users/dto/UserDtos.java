@@ -16,6 +16,7 @@ public final class UserDtos {
       String name,
       String email,
       String phoneNumber,
+      String language,
       boolean active,
       List<String> roles,
       Instant createdAt,
@@ -27,6 +28,7 @@ public final class UserDtos {
       @NotBlank @Size(max = 120) String fullName,
       @NotBlank @Email @Size(max = 160) String email,
       @NotBlank @Size(max = 40) String phoneNumber,
+      @Size(max = 40) String language,
       @NotBlank @Size(min = 8, max = 72) String password,
       @NotBlank String role
   ) {
@@ -36,6 +38,7 @@ public final class UserDtos {
       @NotBlank @Size(max = 120) String fullName,
       @NotBlank @Email @Size(max = 160) String email,
       @NotBlank @Size(max = 40) String phoneNumber,
+      @Size(max = 40) String language,
       @Size(min = 8, max = 72) String password,
       @NotBlank String role
   ) {

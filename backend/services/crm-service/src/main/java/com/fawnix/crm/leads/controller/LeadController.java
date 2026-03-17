@@ -1,6 +1,8 @@
 package com.fawnix.crm.leads.controller;
 
 import com.fawnix.crm.leads.dto.LeadDtos;
+import com.fawnix.crm.integrations.whatsapp.WhatsappQuestionnaireService;
+import com.fawnix.crm.leads.service.LeadImportService;
 import com.fawnix.crm.leads.service.LeadService;
 import com.fawnix.crm.security.service.AppUserDetails;
 import jakarta.validation.Valid;
@@ -26,9 +28,17 @@ import org.springframework.web.multipart.MultipartFile;
 public class LeadController {
 
   private final LeadService leadService;
+  private final WhatsappQuestionnaireService whatsappQuestionnaireService;
+  private final LeadImportService leadImportService;
 
-  public LeadController(LeadService leadService) {
+  public LeadController(
+      LeadService leadService,
+      WhatsappQuestionnaireService whatsappQuestionnaireService,
+      LeadImportService leadImportService
+  ) {
     this.leadService = leadService;
+    this.whatsappQuestionnaireService = whatsappQuestionnaireService;
+    this.leadImportService = leadImportService;
   }
 
   @GetMapping
@@ -52,6 +62,16 @@ public class LeadController {
     return leadService.getLead(id);
   }
 
+  @GetMapping("/{id}/questionnaire")
+  @PreAuthorize("hasAnyRole('ADMIN','SALES_MANAGER') or @leadSecurityService.canManageLead(authentication, #id)")
+  public ResponseEntity<LeadDtos.LeadWhatsappQuestionnaireResponse> getLeadQuestionnaire(
+      @PathVariable String id
+  ) {
+    return whatsappQuestionnaireService.getQuestionnaire(id)
+        .map(ResponseEntity::ok)
+        .orElseGet(() -> ResponseEntity.noContent().build());
+  }
+
   @PostMapping
   @PreAuthorize("hasAnyRole('ADMIN','SALES_MANAGER')")
   public LeadDtos.LeadResponse createLead(
@@ -59,6 +79,15 @@ public class LeadController {
       @AuthenticationPrincipal AppUserDetails userDetails
   ) {
     return leadService.createLead(request, userDetails);
+  }
+
+  @PostMapping(path = "/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+  @PreAuthorize("hasAnyRole('ADMIN','SALES_MANAGER')")
+  public LeadDtos.LeadImportResult importLeads(
+      @RequestPart("file") MultipartFile file,
+      @AuthenticationPrincipal AppUserDetails userDetails
+  ) {
+    return leadImportService.importLeads(file, userDetails);
   }
 
   @PatchMapping("/{id}")

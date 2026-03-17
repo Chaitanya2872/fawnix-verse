@@ -16,10 +16,16 @@ public class MetaLeadWebhookController {
 
   private final MetaLeadProperties properties;
   private final MetaLeadService metaLeadService;
+  private final MetaIntegrationSettingsService settingsService;
 
-  public MetaLeadWebhookController(MetaLeadProperties properties, MetaLeadService metaLeadService) {
+  public MetaLeadWebhookController(
+      MetaLeadProperties properties,
+      MetaLeadService metaLeadService,
+      MetaIntegrationSettingsService settingsService
+  ) {
     this.properties = properties;
     this.metaLeadService = metaLeadService;
+    this.settingsService = settingsService;
   }
 
   @GetMapping("/webhook")
@@ -31,7 +37,8 @@ public class MetaLeadWebhookController {
     if (!"subscribe".equalsIgnoreCase(mode)) {
       return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Unsupported mode");
     }
-    if (properties.verifyToken() != null && properties.verifyToken().equals(verifyToken)) {
+    String resolvedToken = settingsService.resolveVerifyToken();
+    if (resolvedToken != null && resolvedToken.equals(verifyToken)) {
       return ResponseEntity.ok(challenge != null ? challenge : "");
     }
     return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Invalid verify token");

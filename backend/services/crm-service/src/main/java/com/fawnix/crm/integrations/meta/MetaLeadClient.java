@@ -4,6 +4,9 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -18,19 +21,22 @@ public class MetaLeadClient {
   private final RestTemplate restTemplate;
   private final ObjectMapper objectMapper;
   private final MetaLeadProperties properties;
+  private final MetaIntegrationSettingsService settingsService;
 
   public MetaLeadClient(
       RestTemplate restTemplate,
       ObjectMapper objectMapper,
-      MetaLeadProperties properties
+      MetaLeadProperties properties,
+      MetaIntegrationSettingsService settingsService
   ) {
     this.restTemplate = restTemplate;
     this.objectMapper = objectMapper;
     this.properties = properties;
+    this.settingsService = settingsService;
   }
 
   public MetaLeadDetails fetchLead(String leadgenId) {
-    String accessToken = properties.accessToken();
+    String accessToken = settingsService.resolveAccessToken();
     if (accessToken == null || accessToken.isBlank()) {
       throw new IllegalStateException("META_ACCESS_TOKEN is required to fetch lead details.");
     }
@@ -66,11 +72,7 @@ public class MetaLeadClient {
         fieldData.put(name, values);
       }
 
-      Instant createdTime = null;
-      String createdRaw = root.path("created_time").asText(null);
-      if (createdRaw != null && !createdRaw.isBlank()) {
-        createdTime = Instant.parse(createdRaw);
-      }
+      Instant createdTime = parseCreatedTime(root.path("created_time").asText(null));
 
       return new MetaLeadDetails(
           leadgenId,
@@ -93,5 +95,21 @@ public class MetaLeadClient {
       String formId,
       String rawPayload
   ) {
+  }
+
+  private Instant parseCreatedTime(String createdRaw) {
+    if (createdRaw == null || createdRaw.isBlank()) {
+      return null;
+    }
+    try {
+      return Instant.parse(createdRaw);
+    } catch (DateTimeParseException ignored) {
+    }
+    try {
+      DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssZ");
+      return OffsetDateTime.parse(createdRaw, formatter).toInstant();
+    } catch (DateTimeParseException ignored) {
+    }
+    return null;
   }
 }

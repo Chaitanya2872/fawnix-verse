@@ -7,6 +7,7 @@ import { ProtectedRoute, PublicOnlyRoute } from "@/modules/auth/guards";
 import InventoryPage from "@/modules/inventory/page";
 import LeadsPage from "@/modules/crm/leads/page";
 import PreSalesOverviewPage from "@/modules/crm/presales/page";
+import IntegrationsPage from "@/modules/integrations/page";
 import ReportsPage from "@/modules/reports/page";
 import UsersPage from "@/modules/users/page";
 // import SalesPage from "@/modules/sales/page";
@@ -37,10 +38,12 @@ export const router = createBrowserRouter([
           //   { path: "sales", element: <SalesPage /> },
           //   { path: "purchases", element: <PurchasesPage /> },
           { path: "crm/leads", element: <LeadsPage /> },
+          { path: "crm/leads/:id", element: <LeadsPage /> },
           { path: "crm/presales", element: <PreSalesOverviewPage /> },
           //   { path: "accounting", element: <AccountingPage /> },
           { path: "reports", element: <ReportsPage /> },
           { path: "users", element: <UsersPage /> },
+          { path: "settings", element: <IntegrationsPage /> },
         ],
       },
     ],

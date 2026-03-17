@@ -5,6 +5,7 @@ import com.fawnix.crm.activities.service.LeadActivityService;
 import com.fawnix.crm.common.exception.BadRequestException;
 import com.fawnix.crm.common.exception.ResourceNotFoundException;
 import com.fawnix.crm.contact.service.LeadContactRecordingService;
+import com.fawnix.crm.integrations.whatsapp.WhatsappQuestionnaireService;
 import com.fawnix.crm.leads.dto.LeadDtos;
 import com.fawnix.crm.leads.entity.LeadEntity;
 import com.fawnix.crm.leads.entity.LeadPriority;
@@ -50,6 +51,7 @@ public class LeadService {
   private final IdentityUserClient identityUserClient;
   private final LeadContactRecordingService leadContactRecordingService;
   private final LeadStatusHistoryService leadStatusHistoryService;
+  private final WhatsappQuestionnaireService whatsappQuestionnaireService;
 
   public LeadService(
       LeadRepository leadRepository,
@@ -59,7 +61,8 @@ public class LeadService {
       LeadActivityService leadActivityService,
       IdentityUserClient identityUserClient,
       LeadContactRecordingService leadContactRecordingService,
-      LeadStatusHistoryService leadStatusHistoryService
+      LeadStatusHistoryService leadStatusHistoryService,
+      WhatsappQuestionnaireService whatsappQuestionnaireService
   ) {
     this.leadRepository = leadRepository;
     this.leadRequestValidator = leadRequestValidator;
@@ -69,6 +72,7 @@ public class LeadService {
     this.identityUserClient = identityUserClient;
     this.leadContactRecordingService = leadContactRecordingService;
     this.leadStatusHistoryService = leadStatusHistoryService;
+    this.whatsappQuestionnaireService = whatsappQuestionnaireService;
   }
 
   @Transactional(readOnly = true)
@@ -132,6 +136,26 @@ public class LeadService {
     lead.setCompany(request.company().trim());
     lead.setEmail(trimToNull(request.email()));
     lead.setPhone(trimToNull(request.phone()));
+    lead.setExternalLeadId(trimToNull(request.externalLeadId()));
+    lead.setSourceMonth(trimToNull(request.sourceMonth()));
+    lead.setSourceDate(trimToNull(request.sourceDate()));
+    lead.setAlternativePhone(trimToNull(request.alternativePhone()));
+    lead.setProjectStage(trimToNull(request.projectStage()));
+    lead.setExpectedTimeline(trimToNull(request.expectedTimeline()));
+    lead.setPropertyType(trimToNull(request.propertyType()));
+    lead.setSqft(trimToNull(request.sqft()));
+    lead.setCommunity(trimToNull(request.community()));
+    lead.setProjectLocation(trimToNull(request.projectLocation()));
+    lead.setProjectState(trimToNull(request.projectState()));
+    lead.setPresalesResponse(trimToNull(request.presalesResponse()));
+    lead.setDemoVisit(trimToNull(request.demoVisit()));
+    lead.setPresalesRemarks(trimToNull(request.presalesRemarks()));
+    lead.setAdSetName(trimToNull(request.adSetName()));
+    lead.setCampaignName(trimToNull(request.campaignName()));
+    lead.setMetaLeadId(trimToNull(request.metaLeadId()));
+    lead.setMetaFormId(trimToNull(request.metaFormId()));
+    lead.setMetaAdId(trimToNull(request.metaAdId()));
+    lead.setSourceCreatedAt(request.sourceCreatedAt());
     lead.setSource(leadRequestValidator.parseSource(request.source()));
     lead.setStatus(leadRequestValidator.parseStatus(request.status()));
     lead.setPriority(leadRequestValidator.parsePriority(request.priority()));
@@ -183,6 +207,7 @@ public class LeadService {
 
     LeadEntity saved = leadRepository.save(lead);
     leadStatusHistoryService.recordInitial(saved, saved.getStatus(), currentUser, now);
+    whatsappQuestionnaireService.sendIntro(saved);
     return leadMapper.toResponse(saved);
   }
 
@@ -202,6 +227,66 @@ public class LeadService {
     }
     if (request.phone() != null) {
       lead.setPhone(trimToNull(request.phone()));
+    }
+    if (request.externalLeadId() != null) {
+      lead.setExternalLeadId(trimToNull(request.externalLeadId()));
+    }
+    if (request.sourceMonth() != null) {
+      lead.setSourceMonth(trimToNull(request.sourceMonth()));
+    }
+    if (request.sourceDate() != null) {
+      lead.setSourceDate(trimToNull(request.sourceDate()));
+    }
+    if (request.alternativePhone() != null) {
+      lead.setAlternativePhone(trimToNull(request.alternativePhone()));
+    }
+    if (request.projectStage() != null) {
+      lead.setProjectStage(trimToNull(request.projectStage()));
+    }
+    if (request.expectedTimeline() != null) {
+      lead.setExpectedTimeline(trimToNull(request.expectedTimeline()));
+    }
+    if (request.propertyType() != null) {
+      lead.setPropertyType(trimToNull(request.propertyType()));
+    }
+    if (request.sqft() != null) {
+      lead.setSqft(trimToNull(request.sqft()));
+    }
+    if (request.community() != null) {
+      lead.setCommunity(trimToNull(request.community()));
+    }
+    if (request.projectLocation() != null) {
+      lead.setProjectLocation(trimToNull(request.projectLocation()));
+    }
+    if (request.projectState() != null) {
+      lead.setProjectState(trimToNull(request.projectState()));
+    }
+    if (request.presalesResponse() != null) {
+      lead.setPresalesResponse(trimToNull(request.presalesResponse()));
+    }
+    if (request.demoVisit() != null) {
+      lead.setDemoVisit(trimToNull(request.demoVisit()));
+    }
+    if (request.presalesRemarks() != null) {
+      lead.setPresalesRemarks(trimToNull(request.presalesRemarks()));
+    }
+    if (request.adSetName() != null) {
+      lead.setAdSetName(trimToNull(request.adSetName()));
+    }
+    if (request.campaignName() != null) {
+      lead.setCampaignName(trimToNull(request.campaignName()));
+    }
+    if (request.metaLeadId() != null) {
+      lead.setMetaLeadId(trimToNull(request.metaLeadId()));
+    }
+    if (request.metaFormId() != null) {
+      lead.setMetaFormId(trimToNull(request.metaFormId()));
+    }
+    if (request.metaAdId() != null) {
+      lead.setMetaAdId(trimToNull(request.metaAdId()));
+    }
+    if (request.sourceCreatedAt() != null) {
+      lead.setSourceCreatedAt(request.sourceCreatedAt());
     }
     if (request.source() != null) {
       lead.setSource(leadRequestValidator.parseSource(request.source()));
@@ -239,6 +324,7 @@ public class LeadService {
     }
     if (request.followUpAt() != null) {
       lead.setFollowUpAt(request.followUpAt());
+      lead.setFollowUpReminderSentAt(null);
     }
     if (request.notes() != null) {
       String nextNotes = request.notes().trim();

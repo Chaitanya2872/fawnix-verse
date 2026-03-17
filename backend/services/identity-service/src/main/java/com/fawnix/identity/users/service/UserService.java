@@ -74,6 +74,7 @@ public class UserService {
         request.fullName().trim(),
         email,
         normalizePhone(request.phoneNumber()),
+        normalizeLanguage(request.language()),
         passwordEncoder.encode(request.password()),
         true,
         now,
@@ -92,6 +93,7 @@ public class UserService {
     user.setFullName(request.fullName().trim());
     user.setEmail(email);
     user.setPhoneNumber(normalizePhone(request.phoneNumber()));
+    user.setLanguage(normalizeLanguage(request.language()));
     user.setRoles(Set.of(role));
     if (request.password() != null && !request.password().isBlank()) {
       user.setPasswordHash(passwordEncoder.encode(request.password()));
@@ -168,6 +170,14 @@ public class UserService {
       return null;
     }
     String trimmed = phoneNumber.trim();
+    return trimmed.isEmpty() ? null : trimmed;
+  }
+
+  private String normalizeLanguage(String language) {
+    if (language == null) {
+      return null;
+    }
+    String trimmed = language.trim();
     return trimmed.isEmpty() ? null : trimmed;
   }
 

@@ -26,7 +26,27 @@ public final class LeadDtos {
       @DecimalMin(value = "0.0", inclusive = true) BigDecimal estimatedValue,
       String notes,
       List<String> tags,
-      Instant followUpAt
+      Instant followUpAt,
+      String externalLeadId,
+      String sourceMonth,
+      String sourceDate,
+      String alternativePhone,
+      String projectStage,
+      String expectedTimeline,
+      String propertyType,
+      String sqft,
+      String community,
+      String projectLocation,
+      String projectState,
+      String presalesResponse,
+      String demoVisit,
+      String presalesRemarks,
+      String adSetName,
+      String campaignName,
+      String metaLeadId,
+      String metaFormId,
+      String metaAdId,
+      Instant sourceCreatedAt
   ) {
   }
 
@@ -45,7 +65,27 @@ public final class LeadDtos {
       List<String> tags,
       Instant lastContactedAt,
       Instant followUpAt,
-      Instant convertedAt
+      Instant convertedAt,
+      String externalLeadId,
+      String sourceMonth,
+      String sourceDate,
+      String alternativePhone,
+      String projectStage,
+      String expectedTimeline,
+      String propertyType,
+      String sqft,
+      String community,
+      String projectLocation,
+      String projectState,
+      String presalesResponse,
+      String demoVisit,
+      String presalesRemarks,
+      String adSetName,
+      String campaignName,
+      String metaLeadId,
+      String metaFormId,
+      String metaAdId,
+      Instant sourceCreatedAt
   ) {
   }
 
@@ -124,6 +164,26 @@ public final class LeadDtos {
       String company,
       String email,
       String phone,
+      String externalLeadId,
+      String sourceMonth,
+      String sourceDate,
+      String alternativePhone,
+      String projectStage,
+      String expectedTimeline,
+      String propertyType,
+      String sqft,
+      String community,
+      String projectLocation,
+      String projectState,
+      String presalesResponse,
+      String demoVisit,
+      String presalesRemarks,
+      String adSetName,
+      String campaignName,
+      String metaLeadId,
+      String metaFormId,
+      String metaAdId,
+      Instant sourceCreatedAt,
       String status,
       String source,
       String priority,
@@ -140,6 +200,78 @@ public final class LeadDtos {
       Instant convertedAt,
       Instant createdAt,
       Instant updatedAt
+  ) {
+  }
+
+  public record LeadWhatsappQuestionnaireResponse(
+      String id,
+      String leadId,
+      String phone,
+      String waId,
+      String language,
+      List<String> interestAreas,
+      String demoPreference,
+      String callbackPreference,
+      String callbackTimeText,
+      String ownershipRole,
+      String step,
+      Instant createdAt,
+      Instant updatedAt,
+      Instant completedAt
+  ) {
+  }
+
+  public record LeadScheduleResponse(
+      String id,
+      String leadId,
+      String type,
+      String status,
+      Instant scheduledAt,
+      String location,
+      String mode,
+      String notes,
+      String assignedTo,
+      String assignedToUserId,
+      Instant createdAt,
+      Instant updatedAt
+  ) {
+  }
+
+  public record CreateLeadScheduleRequest(
+      @NotBlank String type,
+      Instant scheduledAt,
+      String location,
+      String mode,
+      String notes,
+      String assignedTo,
+      String assignedToUserId
+  ) {
+  }
+
+  public record UpdateLeadScheduleRequest(
+      String type,
+      String status,
+      Instant scheduledAt,
+      String location,
+      String mode,
+      String notes,
+      String assignedTo,
+      String assignedToUserId
+  ) {
+  }
+
+  public record LeadImportError(
+      int row,
+      String message
+  ) {
+  }
+
+  public record LeadImportResult(
+      int total,
+      int created,
+      int updated,
+      int skipped,
+      List<LeadImportError> errors
   ) {
   }
 

@@ -29,6 +29,7 @@ public class UserMapper {
         user.getFullName(),
         user.getEmail(),
         user.getPhoneNumber(),
+        user.getLanguage(),
         user.isActive(),
         user.getRoles().stream().map(role -> role.getName()).toList(),
         user.getCreatedAt(),

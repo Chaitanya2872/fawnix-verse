@@ -40,6 +40,7 @@ public class MetaLeadService {
   private final LeadService leadService;
   private final LeadRequestValidator leadRequestValidator;
   private final ObjectMapper objectMapper;
+  private final MetaIntegrationSettingsService settingsService;
 
   public MetaLeadService(
       MetaLeadProperties properties,
@@ -47,7 +48,8 @@ public class MetaLeadService {
       MetaLeadIngestionRepository ingestionRepository,
       LeadService leadService,
       LeadRequestValidator leadRequestValidator,
-      ObjectMapper objectMapper
+      ObjectMapper objectMapper,
+      MetaIntegrationSettingsService settingsService
   ) {
     this.properties = properties;
     this.metaLeadClient = metaLeadClient;
@@ -55,6 +57,7 @@ public class MetaLeadService {
     this.leadService = leadService;
     this.leadRequestValidator = leadRequestValidator;
     this.objectMapper = objectMapper;
+    this.settingsService = settingsService;
   }
 
   public void handleWebhook(String payload, String signatureHeader) {
@@ -100,7 +103,21 @@ public class MetaLeadService {
   }
 
   private void processLeadgen(String leadgenId, String pageId, String formId, String adId) {
+    String configuredFormId = settingsService.resolveFormId();
+    if (StringUtils.hasText(configuredFormId)
+        && StringUtils.hasText(formId)
+        && !configuredFormId.equals(formId)) {
+      LOGGER.info("Skipping Meta lead {} for form {} (configured {}).", leadgenId, formId, configuredFormId);
+      return;
+    }
+
     MetaLeadClient.MetaLeadDetails details = metaLeadClient.fetchLead(leadgenId);
+    if (StringUtils.hasText(configuredFormId)
+        && StringUtils.hasText(details.formId())
+        && !configuredFormId.equals(details.formId())) {
+      LOGGER.info("Skipping Meta lead {} fetched from form {} (configured {}).", leadgenId, details.formId(), configuredFormId);
+      return;
+    }
     LeadDtos.CreateLeadRequest request = buildLeadRequest(details);
     var created = leadService.createLead(request, SYSTEM_ACTOR);
 
@@ -136,6 +153,9 @@ public class MetaLeadService {
 
     String email = firstValue(fields, "email", "email_address");
     String phone = firstValue(fields, "phone_number", "phone");
+    String projectLocation = firstValue(fields, "location_of_the_property?", "location_of_the_property", "location");
+    String expectedTimeline = firstValue(fields, "how_soon_do_you_wish_to_automate_your_home?", "expected_timeline");
+    String propertyType = firstValue(fields, "property_type?", "property_type");
 
     LeadStatus status = leadRequestValidator.parseStatus(
         defaultOr(properties.defaultStatus(), LeadStatus.NEW.name())
@@ -162,6 +182,10 @@ public class MetaLeadService {
 
     String notes = buildNotes(details);
 
+    if (!StringUtils.hasText(company)) {
+      company = firstNonBlank(projectLocation, propertyType, "Meta Lead");
+    }
+
     return new LeadDtos.CreateLeadRequest(
         fullName,
         company,
@@ -175,7 +199,27 @@ public class MetaLeadService {
         null,
         notes,
         tags,
-        null
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        expectedTimeline,
+        propertyType,
+        null,
+        null,
+        projectLocation,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        details.leadgenId(),
+        details.formId(),
+        details.adId(),
+        details.createdTime()
     );
   }
 
@@ -196,7 +240,7 @@ public class MetaLeadService {
   }
 
   private boolean verifySignature(String payload, String signatureHeader) {
-    String secret = properties.appSecret();
+    String secret = settingsService.resolveAppSecret();
     if (!StringUtils.hasText(secret)) {
       return true;
     }
@@ -241,6 +285,15 @@ public class MetaLeadService {
 
   private String safe(String value) {
     return value == null ? "" : value;
+  }
+
+  private String firstNonBlank(String... values) {
+    for (String value : values) {
+      if (StringUtils.hasText(value)) {
+        return value.trim();
+      }
+    }
+    return null;
   }
 
   private String defaultOr(String value, String fallback) {

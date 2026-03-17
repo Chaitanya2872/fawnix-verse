@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import {
   AlertCircle,
   ArrowUpRight,
@@ -37,15 +38,21 @@ import {
   type LeadContactRecording,
   type LeadFilter,
   type LeadFormData,
+  type LeadImportResult,
   type LeadRemark,
+  type LeadSchedule,
+  type CreateLeadScheduleInput,
+  type UpdateLeadScheduleInput,
   LeadPriority,
   LeadSource,
   LeadStatus,
+  LeadScheduleMode,
+  LeadScheduleStatus,
+  LeadScheduleType,
   getLeadStatusTransitions,
   LEAD_SOURCE_LABELS,
   LEAD_STATUS_LABELS,
   LEAD_STATUS_ORDER,
-  SALES_REPS,
 } from "./types";
 import {
   useAssignLead,
@@ -56,7 +63,12 @@ import {
   useEditLeadRemark,
   useLeadAssignees,
   useLeadDetail,
+  useLeadQuestionnaire,
+  useLeadSchedules,
+  useCreateLeadSchedule,
+  useUpdateLeadSchedule,
   useLeads,
+  useImportLeads,
   useUpdateLead,
 } from "./hooks";
 import { LeadsLayout } from "./layout";
@@ -116,6 +128,11 @@ function getActivityTone(activity: LeadActivity) {
     case "remark_added":
     case "remark_edited":
       return "border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-800 dark:bg-sky-950 dark:text-sky-300";
+    case "follow_up_reminder":
+      return "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300";
+    case "scheduled":
+    case "schedule_updated":
+      return "border-indigo-200 bg-indigo-50 text-indigo-700 dark:border-indigo-800 dark:bg-indigo-950 dark:text-indigo-300";
     case "converted":
       return "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300";
     case "status_change":
@@ -270,12 +287,6 @@ function StatCard({ label, value, sub, icon, accent }: { label: string; value: s
 // Create Lead Dialog
 // ---------------------------------------------------------------------------
 
-const FALLBACK_ASSIGNEES: AssigneeOption[] = SALES_REPS.map((name) => ({
-  id: name,
-  name,
-  email: "",
-}));
-
 const BASE_FORM: LeadFormData = {
   name: "",
   company: "",
@@ -284,8 +295,8 @@ const BASE_FORM: LeadFormData = {
   status: LeadStatus.NEW,
   source: LeadSource.WEBSITE,
   priority: LeadPriority.MEDIUM,
-  assignedTo: FALLBACK_ASSIGNEES[0]?.name ?? "",
-  assignedToUserId: FALLBACK_ASSIGNEES[0]?.id ?? null,
+  assignedTo: "",
+  assignedToUserId: null,
   estimatedValue: 0,
   notes: "",
   tags: [],
@@ -299,7 +310,7 @@ function findAssigneeByName(assignees: AssigneeOption[], name: string) {
 }
 
 function buildDefaultForm(assignees: AssigneeOption[]) {
-  const defaultAssignee = assignees[0] ?? FALLBACK_ASSIGNEES[0] ?? null;
+  const defaultAssignee = assignees[0] ?? null;
 
   return {
     ...BASE_FORM,
@@ -398,7 +409,7 @@ function CreateLeadDialog({
             {/* Contact info */}
             <div>
               <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Contact Information</h3>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className={labelCls}>Full Name <span className="text-red-500">*</span></label>
                   <input value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} placeholder="Jordan Pierce" className={inputCls} />
@@ -421,7 +432,7 @@ function CreateLeadDialog({
             {/* Lead details */}
             <div>
               <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Lead Details</h3>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 <div>
                   <label className={labelCls}>Status</label>
                   <select value={form.status} onChange={(e) => setForm((p) => ({ ...p, status: e.target.value as LeadStatus }))} className={inputCls}>
@@ -445,11 +456,15 @@ function CreateLeadDialog({
                 <div>
                   <label className={labelCls}>Assign To</label>
                   <select value={form.assignedTo} onChange={(e) => updateAssignee(e.target.value)} className={inputCls}>
-                    {assignees.map((assignee) => (
-                      <option key={assignee.id} value={assignee.name}>
-                        {assignee.name}
-                      </option>
-                    ))}
+                    {assignees.length === 0 ? (
+                      <option value="">Auto assign</option>
+                    ) : (
+                      assignees.map((assignee) => (
+                        <option key={assignee.id} value={assignee.name}>
+                          {assignee.name}
+                        </option>
+                      ))
+                    )}
                   </select>
                 </div>
                 <div>
@@ -520,7 +535,7 @@ function CreateLeadDialog({
 }
 
 // ---------------------------------------------------------------------------
-// Lead Detail Slide-over
+// Lead Detail Full Page
 // ---------------------------------------------------------------------------
 
 function RemarkCard({
@@ -668,7 +683,7 @@ function ContactRecordingCard({ recording }: { recording: LeadContactRecording }
             Saved by {recording.createdBy} on {fmtDateTime(recording.createdAt)}
           </p>
           <p className="text-[11px] text-muted-foreground">
-            Contacted at {fmtDateTime(recording.contactedAt)} • {fmtBytes(recording.audioSize)}
+            Contacted at {fmtDateTime(recording.contactedAt)} - {fmtBytes(recording.audioSize)}
           </p>
         </div>
         <button
@@ -887,6 +902,141 @@ function DeleteLeadDialog({
   );
 }
 
+function ImportLeadsDialog({
+  open,
+  file,
+  onFileChange,
+  onClose,
+  onImport,
+  isLoading,
+  result,
+  errorMessage,
+}: {
+  open: boolean;
+  file: File | null;
+  onFileChange: (file: File | null) => void;
+  onClose: () => void;
+  onImport: () => void;
+  isLoading?: boolean;
+  result?: LeadImportResult | null;
+  errorMessage?: string | null;
+}) {
+  if (!open) return null;
+
+  const hasErrors = Boolean(result?.errors?.length);
+  const actionLabel = result ? "Import Again" : "Import Leads";
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative z-10 w-full max-w-xl rounded-2xl border border-border bg-card p-6 shadow-2xl">
+        <div className="mb-4 flex items-start justify-between gap-4">
+          <div>
+            <h3 className="text-base font-semibold text-card-foreground">Import Leads</h3>
+            <p className="text-xs text-muted-foreground">
+              Upload a CSV or XLSX file. Existing leads with the same email or phone will be updated.
+            </p>
+          </div>
+          <button onClick={onClose} className="flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground hover:bg-accent">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="space-y-4">
+          <label className="flex flex-col gap-2 rounded-xl border border-dashed border-border bg-muted/20 px-4 py-4 text-sm text-muted-foreground">
+            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Choose file</span>
+            <input
+              type="file"
+              accept=".csv,.xlsx"
+              onChange={(e) => onFileChange(e.target.files?.[0] ?? null)}
+              className="text-sm"
+            />
+            <span className="text-[11px] text-muted-foreground">
+              Required columns: name, company. Optional: email, phone, alternative number, lead id, month, date,
+              project stage, expected timeline, property type, sqft, community, project location, project state,
+              pre-sales, response, demo visit, pre-sales remarks, ad set name, campaign name, status, priority,
+              source, estimated_value, tags, notes, follow_up_at, assigned_to, assigned_to_user_id.
+            </span>
+          </label>
+
+          {file && (
+            <div className="flex items-center justify-between rounded-lg border border-border bg-background px-3 py-2 text-xs">
+              <div>
+                <p className="font-medium text-foreground">{file.name}</p>
+                <p className="text-muted-foreground">{fmtBytes(file.size)}</p>
+              </div>
+              <button
+                onClick={() => onFileChange(null)}
+                className="rounded-md border border-border px-2 py-1 text-[11px] font-semibold text-muted-foreground hover:bg-accent"
+              >
+                Remove
+              </button>
+            </div>
+          )}
+
+          {errorMessage && (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700">
+              {errorMessage}
+            </div>
+          )}
+
+          {result && (
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-3 text-xs text-emerald-700">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="font-semibold">Import summary</span>
+                <span>Total: {result.total}</span>
+              </div>
+              <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                <div className="rounded-md border border-emerald-200 bg-white/80 px-2 py-1 text-center">
+                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Created</p>
+                  <p className="text-sm font-semibold">{result.created}</p>
+                </div>
+                <div className="rounded-md border border-emerald-200 bg-white/80 px-2 py-1 text-center">
+                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Updated</p>
+                  <p className="text-sm font-semibold">{result.updated}</p>
+                </div>
+                <div className="rounded-md border border-emerald-200 bg-white/80 px-2 py-1 text-center">
+                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Skipped</p>
+                  <p className="text-sm font-semibold">{result.skipped}</p>
+                </div>
+              </div>
+              {hasErrors && (
+                <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-amber-700">
+                  <p className="text-xs font-semibold">Rows with errors:</p>
+                  <div className="mt-2 max-h-32 space-y-1 overflow-auto text-[11px]">
+                    {result.errors.map((err) => (
+                      <div key={`${err.row}-${err.message}`}>
+                        Row {err.row}: {err.message}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="mt-5 flex items-center justify-end gap-3">
+          <button
+            onClick={onClose}
+            className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground"
+          >
+            Close
+          </button>
+          <button
+            onClick={onImport}
+            disabled={isLoading || !file}
+            className="inline-flex items-center gap-2 rounded-lg bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-700 disabled:opacity-50"
+          >
+            {isLoading && <Loader2 className="h-4 w-4 animate-spin" />}
+            {actionLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function LeadDetailPanel({
   lead,
   assignees,
@@ -928,6 +1078,29 @@ function LeadDetailPanel({
   const draftAssigneeValue =
     draftAssignee?.leadId === lead.id ? draftAssignee.value : lead.assignedTo;
   const [remarkInput, setRemarkInput] = useState("");
+  const questionnaireQuery = useLeadQuestionnaire(lead.id);
+  const questionnaire = questionnaireQuery.data;
+  const schedulesQuery = useLeadSchedules(lead.id);
+  const createSchedule = useCreateLeadSchedule();
+  const updateSchedule = useUpdateLeadSchedule();
+  const schedules = schedulesQuery.data ?? [];
+  const [scheduleDraft, setScheduleDraft] = useState<{
+    type: LeadScheduleType;
+    scheduledAt: string;
+    location: string;
+    mode: LeadScheduleMode | "";
+    notes: string;
+    assignedTo: string;
+    assignedToUserId: string | null;
+  }>({
+    type: LeadScheduleType.DEMO,
+    scheduledAt: "",
+    location: "",
+    mode: "",
+    notes: "",
+    assignedTo: lead.assignedTo ?? "",
+    assignedToUserId: lead.assignedToUserId ?? null,
+  });
 
   function handleAddRemark() {
     const nextRemark = remarkInput.trim();
@@ -937,11 +1110,74 @@ function LeadDetailPanel({
     setRemarkInput("");
   }
 
+  function handleCreateSchedule() {
+    if (!scheduleDraft.scheduledAt) {
+      return;
+    }
+    const scheduledAt = fromDateTimeLocal(scheduleDraft.scheduledAt);
+    if (!scheduledAt) {
+      return;
+    }
+    const input: CreateLeadScheduleInput = {
+      type: scheduleDraft.type,
+      scheduledAt,
+      location: scheduleDraft.location || null,
+      mode: scheduleDraft.mode ? (scheduleDraft.mode as LeadScheduleMode) : null,
+      notes: scheduleDraft.notes || null,
+      assignedTo: scheduleDraft.assignedTo || null,
+      assignedToUserId: scheduleDraft.assignedToUserId || null,
+    };
+    createSchedule.mutate(
+      { leadId: lead.id, input },
+      {
+        onSuccess: () => {
+          setScheduleDraft((previous) => ({
+            ...previous,
+            scheduledAt: "",
+            location: "",
+            mode: "",
+            notes: "",
+          }));
+        },
+      }
+    );
+  }
+
+  function handleUpdateScheduleStatus(scheduleId: string, status: LeadScheduleStatus) {
+    updateSchedule.mutate({
+      leadId: lead.id,
+      scheduleId,
+      input: { status },
+    });
+  }
+
+  useEffect(() => {
+    setScheduleDraft({
+      type: LeadScheduleType.DEMO,
+      scheduledAt: "",
+      location: "",
+      mode: "",
+      notes: "",
+      assignedTo: lead.assignedTo ?? "",
+      assignedToUserId: lead.assignedToUserId ?? null,
+    });
+  }, [lead.id, lead.assignedTo, lead.assignedToUserId]);
+
+  useEffect(() => {
+    if (scheduleDraft.assignedToUserId || scheduleDraft.assignedTo || assignees.length === 0) {
+      return;
+    }
+    setScheduleDraft((previous) => ({
+      ...previous,
+      assignedTo: assignees[0]?.name ?? "",
+      assignedToUserId: assignees[0]?.id ?? null,
+    }));
+  }, [assignees, scheduleDraft.assignedToUserId, scheduleDraft.assignedTo]);
+
   return (
-    <div className="fixed inset-0 z-40 flex justify-end">
-      <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative z-10 flex w-full max-w-lg flex-col border-l border-border bg-card shadow-2xl">
-        <div className="flex items-start justify-between border-b border-border px-6 py-5">
+    <div className="w-full px-4 pb-10 pt-6 lg:px-6">
+      <div className="mx-auto flex w-full max-w-6xl flex-col rounded-2xl border border-border bg-card shadow-2xl">
+        <div className="flex flex-wrap items-start justify-between gap-4 border-b border-border px-6 py-5">
           <div className="flex items-start gap-3">
             <div className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl text-sm font-bold ${REP_COLORS[lead.assignedTo] ?? "bg-slate-100 text-slate-700"}`}>
               {getInitials(lead.name)}
@@ -955,12 +1191,16 @@ function LeadDetailPanel({
               </div>
             </div>
           </div>
-          <button onClick={onClose} className="flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground hover:bg-accent">
-            <X className="h-4 w-4" />
+          <button
+            onClick={onClose}
+            className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-xs font-semibold text-muted-foreground hover:bg-accent hover:text-foreground"
+          >
+            <ChevronLeft className="h-4 w-4" />
+            Back to Leads
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        <div className="p-6 space-y-6">
           <div>
             <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Pipeline Stage</p>
             <PipelineProgress status={lead.status} />
@@ -988,10 +1228,341 @@ function LeadDetailPanel({
                   {lead.phone}
                 </a>
               )}
+              {lead.alternativePhone && (
+                <div className="flex items-center gap-2.5 text-sm text-muted-foreground">
+                  <Phone className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                  {lead.alternativePhone}
+                </div>
+              )}
               <div className="flex items-center gap-2.5 text-sm">
                 <Building2 className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                 {lead.company}
               </div>
+            </div>
+          </div>
+
+          <div>
+            <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Project Details</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="rounded-lg border border-border bg-muted/20 px-3 py-2">
+                <p className="text-[11px] text-muted-foreground">Project Stage</p>
+                <p className="text-sm font-medium">{lead.projectStage ?? "-"}</p>
+              </div>
+              <div className="rounded-lg border border-border bg-muted/20 px-3 py-2">
+                <p className="text-[11px] text-muted-foreground">Expected Timeline</p>
+                <p className="text-sm font-medium">{lead.expectedTimeline ?? "-"}</p>
+              </div>
+              <div className="rounded-lg border border-border bg-muted/20 px-3 py-2">
+                <p className="text-[11px] text-muted-foreground">Property Type</p>
+                <p className="text-sm font-medium">{lead.propertyType ?? "-"}</p>
+              </div>
+              <div className="rounded-lg border border-border bg-muted/20 px-3 py-2">
+                <p className="text-[11px] text-muted-foreground">SQFT</p>
+                <p className="text-sm font-medium">{lead.sqft ?? "-"}</p>
+              </div>
+              <div className="rounded-lg border border-border bg-muted/20 px-3 py-2">
+                <p className="text-[11px] text-muted-foreground">Community</p>
+                <p className="text-sm font-medium">{lead.community ?? "-"}</p>
+              </div>
+              <div className="rounded-lg border border-border bg-muted/20 px-3 py-2">
+                <p className="text-[11px] text-muted-foreground">Project Location</p>
+                <p className="text-sm font-medium">{lead.projectLocation ?? "-"}</p>
+              </div>
+              <div className="rounded-lg border border-border bg-muted/20 px-3 py-2">
+                <p className="text-[11px] text-muted-foreground">Project State</p>
+                <p className="text-sm font-medium">{lead.projectState ?? "-"}</p>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Pre-Sales</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="rounded-lg border border-border bg-muted/20 px-3 py-2">
+                <p className="text-[11px] text-muted-foreground">Response</p>
+                <p className="text-sm font-medium">{lead.presalesResponse ?? "-"}</p>
+              </div>
+              <div className="rounded-lg border border-border bg-muted/20 px-3 py-2">
+                <p className="text-[11px] text-muted-foreground">Demo Visit</p>
+                <p className="text-sm font-medium">{lead.demoVisit ?? "-"}</p>
+              </div>
+              <div className="sm:col-span-2 rounded-lg border border-border bg-muted/20 px-3 py-2">
+                <p className="text-[11px] text-muted-foreground">Pre-Sales Remarks</p>
+                <p className="text-sm font-medium">{lead.presalesRemarks ?? "-"}</p>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Marketing</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="rounded-lg border border-border bg-muted/20 px-3 py-2">
+                <p className="text-[11px] text-muted-foreground">Ad Set</p>
+                <p className="text-sm font-medium">{lead.adSetName ?? "-"}</p>
+              </div>
+              <div className="rounded-lg border border-border bg-muted/20 px-3 py-2">
+                <p className="text-[11px] text-muted-foreground">Campaign</p>
+                <p className="text-sm font-medium">{lead.campaignName ?? "-"}</p>
+              </div>
+              <div className="rounded-lg border border-border bg-muted/20 px-3 py-2">
+                <p className="text-[11px] text-muted-foreground">Lead ID</p>
+                <p className="text-sm font-medium">{lead.externalLeadId ?? lead.metaLeadId ?? "-"}</p>
+              </div>
+              <div className="rounded-lg border border-border bg-muted/20 px-3 py-2">
+                <p className="text-[11px] text-muted-foreground">Source Created</p>
+                <p className="text-sm font-medium">{lead.sourceCreatedAt ? fmtDateTime(lead.sourceCreatedAt) : "-"}</p>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">WhatsApp Questionnaire</p>
+              {questionnaire?.completedAt ? (
+                <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                  Completed
+                </span>
+              ) : questionnaire ? (
+                <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300">
+                  In progress
+                </span>
+              ) : null}
+            </div>
+            {questionnaireQuery.isLoading ? (
+              <div className="rounded-xl border border-border bg-muted/20 px-4 py-4 text-sm text-muted-foreground">
+                Loading questionnaire details...
+              </div>
+            ) : questionnaireQuery.isError ? (
+              <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-4 text-sm text-red-700">
+                Unable to load questionnaire details.
+              </div>
+            ) : !questionnaire ? (
+              <div className="rounded-xl border border-dashed border-border bg-muted/20 px-4 py-4 text-sm text-muted-foreground">
+                No WhatsApp questionnaire data yet.
+              </div>
+            ) : (
+              <div className="space-y-3 rounded-xl border border-border bg-muted/10 p-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="rounded-lg border border-border bg-background px-3 py-2">
+                    <p className="text-[11px] text-muted-foreground">Language</p>
+                    <p className="text-sm font-medium">{questionnaire.language ?? "-"}</p>
+                  </div>
+                  <div className="rounded-lg border border-border bg-background px-3 py-2">
+                    <p className="text-[11px] text-muted-foreground">Ownership</p>
+                    <p className="text-sm font-medium">{questionnaire.ownershipRole ?? "-"}</p>
+                  </div>
+                  <div className="rounded-lg border border-border bg-background px-3 py-2">
+                    <p className="text-[11px] text-muted-foreground">Demo Preference</p>
+                    <p className="text-sm font-medium">{questionnaire.demoPreference ?? "-"}</p>
+                  </div>
+                  <div className="rounded-lg border border-border bg-background px-3 py-2">
+                    <p className="text-[11px] text-muted-foreground">Callback</p>
+                    <p className="text-sm font-medium">
+                      {questionnaire.callbackPreference ?? "-"}
+                      {questionnaire.callbackTimeText ? ` - ${questionnaire.callbackTimeText}` : ""}
+                    </p>
+                  </div>
+                </div>
+                <div className="rounded-lg border border-border bg-background px-3 py-2">
+                  <p className="text-[11px] text-muted-foreground">Interest Areas</p>
+                  {questionnaire.interestAreas.length === 0 ? (
+                    <p className="text-sm font-medium">-</p>
+                  ) : (
+                    <div className="mt-1 flex flex-wrap gap-1.5">
+                      {questionnaire.interestAreas.map((item) => (
+                        <span
+                          key={item}
+                          className="rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[11px] font-medium text-sky-700 dark:border-sky-800 dark:bg-sky-950 dark:text-sky-300"
+                        >
+                          {item}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-muted-foreground">
+                  <span>Step: {questionnaire.step}</span>
+                  <span>Updated: {fmtDateTime(questionnaire.updatedAt)}</span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div>
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Visits & Demos</p>
+              {schedulesQuery.isLoading && (
+                <span className="text-[11px] text-muted-foreground">Loading...</span>
+              )}
+            </div>
+
+            <div className="space-y-4 rounded-xl border border-border bg-muted/10 p-4">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-muted-foreground">Type</label>
+                  <select
+                    value={scheduleDraft.type}
+                    onChange={(e) =>
+                      setScheduleDraft((previous) => ({
+                        ...previous,
+                        type: e.target.value as LeadScheduleType,
+                      }))
+                    }
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-sky-500"
+                  >
+                    <option value={LeadScheduleType.DEMO}>Demo</option>
+                    <option value={LeadScheduleType.VISIT}>Visit</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-muted-foreground">Scheduled At</label>
+                  <input
+                    type="datetime-local"
+                    value={scheduleDraft.scheduledAt}
+                    onChange={(e) =>
+                      setScheduleDraft((previous) => ({
+                        ...previous,
+                        scheduledAt: e.target.value,
+                      }))
+                    }
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-sky-500"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-muted-foreground">Mode</label>
+                  <select
+                    value={scheduleDraft.mode}
+                    onChange={(e) =>
+                      setScheduleDraft((previous) => ({
+                        ...previous,
+                        mode: e.target.value as LeadScheduleMode,
+                      }))
+                    }
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-sky-500"
+                  >
+                    <option value="">Select</option>
+                    <option value={LeadScheduleMode.ON_SITE}>On-site</option>
+                    <option value={LeadScheduleMode.REMOTE}>Remote</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-muted-foreground">Location</label>
+                  <input
+                    value={scheduleDraft.location}
+                    onChange={(e) =>
+                      setScheduleDraft((previous) => ({
+                        ...previous,
+                        location: e.target.value,
+                      }))
+                    }
+                    placeholder="Office / Site / Zoom"
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-sky-500"
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="mb-1 block text-xs font-medium text-muted-foreground">Assigned To</label>
+                  <select
+                    value={scheduleDraft.assignedToUserId ?? ""}
+                    onChange={(e) => {
+                      const selected = assignees.find((a) => a.id === e.target.value);
+                      setScheduleDraft((previous) => ({
+                        ...previous,
+                        assignedToUserId: selected?.id ?? null,
+                        assignedTo: selected?.name ?? "",
+                      }));
+                    }}
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-sky-500"
+                  >
+                    <option value="">Use lead assignee</option>
+                    {assignees.map((assignee) => (
+                      <option key={assignee.id} value={assignee.id}>
+                        {assignee.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="mb-1 block text-xs font-medium text-muted-foreground">Notes</label>
+                  <textarea
+                    rows={2}
+                    value={scheduleDraft.notes}
+                    onChange={(e) =>
+                      setScheduleDraft((previous) => ({
+                        ...previous,
+                        notes: e.target.value,
+                      }))
+                    }
+                    placeholder="Add any special instructions..."
+                    className="w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-sky-500"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end">
+                <button
+                  onClick={handleCreateSchedule}
+                  disabled={createSchedule.isPending || !scheduleDraft.scheduledAt}
+                  className="inline-flex items-center gap-2 rounded-lg bg-sky-600 px-3 py-2 text-xs font-semibold text-white hover:bg-sky-700 disabled:opacity-50"
+                >
+                  {createSchedule.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                  Add Schedule
+                </button>
+              </div>
+
+              {schedulesQuery.isError && (
+                <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700">
+                  Failed to load schedules.
+                </div>
+              )}
+
+              {schedules.length === 0 ? (
+                <div className="rounded-lg border border-dashed border-border bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
+                  No visits or demos scheduled yet.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {schedules.map((schedule) => (
+                    <div key={schedule.id} className="rounded-lg border border-border bg-background px-3 py-2">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                          <p className="text-sm font-medium">
+                            {schedule.type === LeadScheduleType.DEMO ? "Demo" : "Visit"} - {fmtDateTime(schedule.scheduledAt)}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {schedule.mode ? schedule.mode.replace("_", " ").toLowerCase() : "mode not set"}
+                            {schedule.location ? ` - ${schedule.location}` : ""}
+                          </p>
+                          {schedule.notes && (
+                            <p className="mt-1 text-xs text-muted-foreground">{schedule.notes}</p>
+                          )}
+                          {schedule.assignedTo && (
+                            <p className="mt-1 text-xs text-muted-foreground">Assigned to {schedule.assignedTo}</p>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2 text-xs">
+                          <span className="rounded-full border border-border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                            {schedule.status.replace("_", " ")}
+                          </span>
+                          <button
+                            onClick={() => handleUpdateScheduleStatus(schedule.id, LeadScheduleStatus.COMPLETED)}
+                            disabled={updateSchedule.isPending || schedule.status === LeadScheduleStatus.COMPLETED}
+                            className="rounded-md border border-emerald-200 px-2 py-1 text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
+                          >
+                            Complete
+                          </button>
+                          <button
+                            onClick={() => handleUpdateScheduleStatus(schedule.id, LeadScheduleStatus.CANCELLED)}
+                            disabled={updateSchedule.isPending || schedule.status === LeadScheduleStatus.CANCELLED}
+                            className="rounded-md border border-red-200 px-2 py-1 text-red-700 hover:bg-red-50 disabled:opacity-50"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
@@ -1334,6 +1905,9 @@ const PAGE_SIZE = 10;
 
 export default function LeadsPage() {
   const { data: currentUser } = useCurrentUser();
+  const navigate = useNavigate();
+  const { id: routeLeadId } = useParams<{ id?: string }>();
+  const isDetailView = Boolean(routeLeadId);
 
   const [filter, setFilter] = useState<LeadFilter>({
     search: "", status: "ALL", source: "ALL", assignedTo: "",
@@ -1342,16 +1916,19 @@ export default function LeadsPage() {
   const [quickView, setQuickView] = useState<QuickView>("ALL");
   const [formState, setFormState] = useState<{ mode: LeadDialogMode; lead: Lead | null } | null>(null);
   const [contactRecordingLead, setContactRecordingLead] = useState<Lead | null>(null);
-  const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deletingLeadId, setDeletingLeadId] = useState<string | null>(null);
   const [deleteLeadTarget, setDeleteLeadTarget] = useState<Lead | null>(null);
   const [showFilters, setShowFilters] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importResult, setImportResult] = useState<LeadImportResult | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
 
   const assigneesQuery = useLeadAssignees();
-  const assignees = assigneesQuery.data?.length ? assigneesQuery.data : FALLBACK_ASSIGNEES;
+  const assignees = assigneesQuery.data ?? [];
   const { data, isLoading, isError, error } = useLeads(filter);
-  const leadDetail = useLeadDetail(selectedLeadId);
+  const leadDetail = useLeadDetail(isDetailView ? routeLeadId ?? null : null);
   const createLead = useCreateLead();
   const updateLead = useUpdateLead();
   const assignLead = useAssignLead();
@@ -1359,6 +1936,7 @@ export default function LeadsPage() {
   const createLeadRemark = useCreateLeadRemark();
   const editLeadRemark = useEditLeadRemark();
   const deleteLead = useDeleteLead();
+  const importLeads = useImportLeads();
   const formSeed = useMemo(
     () =>
       formState?.mode === "edit" && formState.lead
@@ -1399,10 +1977,7 @@ export default function LeadsPage() {
   }
 
   const leads = data?.data ?? [];
-  const selectedLeadPreview = selectedLeadId
-    ? leads.find((lead) => lead.id === selectedLeadId) ?? null
-    : null;
-  const selectedLead = leadDetail.data ?? selectedLeadPreview;
+  const selectedLead = leadDetail.data ?? null;
   const summary = data?.summary ?? {
     totalPipelineValue: 0,
     newCount: 0,
@@ -1524,6 +2099,32 @@ export default function LeadsPage() {
     });
   }
 
+  function openImportDialog() {
+    setImportError(null);
+    setImportResult(null);
+    setImportFile(null);
+    setImportOpen(true);
+  }
+
+  function closeImportDialog() {
+    setImportOpen(false);
+  }
+
+  async function handleImportLeads() {
+    if (!importFile) {
+      setImportError("Please choose a CSV or XLSX file.");
+      return;
+    }
+    setImportError(null);
+    setImportResult(null);
+    try {
+      const result = await importLeads.mutateAsync(importFile);
+      setImportResult(result);
+    } catch (error) {
+      setImportError(error instanceof Error ? error.message : "Failed to import leads.");
+    }
+  }
+
   async function handleConfirmDeleteLead() {
     if (!deleteLeadTarget) {
       return;
@@ -1533,9 +2134,6 @@ export default function LeadsPage() {
     setDeletingLeadId(deleteLeadTarget.id);
     try {
       await deleteLead.mutateAsync(deleteLeadTarget.id);
-      if (selectedLeadId === deleteLeadTarget.id) {
-        setSelectedLeadId(null);
-      }
       if (formState?.lead?.id === deleteLeadTarget.id) {
         setFormState(null);
       }
@@ -1565,25 +2163,97 @@ export default function LeadsPage() {
       },
       {
         onSuccess: () => {
-          setSelectedLeadId(contactRecordingLead.id);
           closeContactRecordingDialog();
         },
       }
     );
   }
 
-  const AddButton = (
-    <button
-      onClick={openCreateDialog}
-      className="inline-flex items-center gap-2 rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white shadow hover:bg-sky-700"
-    >
-      <Plus className="h-4 w-4" /> Create Lead
-    </button>
+  const ActionButtons = (
+    <div className="flex flex-wrap items-center gap-2">
+      <button
+        onClick={openImportDialog}
+        className="inline-flex items-center gap-2 rounded-xl border border-border bg-background px-3 py-2.5 text-sm font-semibold text-foreground hover:bg-accent"
+      >
+        <FileText className="h-4 w-4" /> Import
+      </button>
+      <button
+        onClick={openCreateDialog}
+        className="inline-flex items-center gap-2 rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white shadow hover:bg-sky-700"
+      >
+        <Plus className="h-4 w-4" /> Create Lead
+      </button>
+    </div>
   );
+
+  if (isDetailView) {
+    if (leadDetail.isLoading) {
+      return (
+        <div className="flex h-full w-full items-center justify-center">
+          <div className="flex items-center gap-2 rounded-xl border border-border bg-card px-6 py-4 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Loading lead details...
+          </div>
+        </div>
+      );
+    }
+
+    if (leadDetail.isError || !selectedLead) {
+      return (
+        <div className="flex h-full w-full items-center justify-center">
+          <div className="space-y-3 rounded-xl border border-red-200 bg-red-50 px-6 py-4 text-sm text-red-700">
+            <p>
+              {leadDetail.error instanceof Error
+                ? leadDetail.error.message
+                : "Unable to load lead details."}
+            </p>
+            <button
+              onClick={() => navigate("/crm/leads")}
+              className="rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-100"
+            >
+              Back to Leads
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <>
+        <LeadDetailPanel
+          lead={selectedLead}
+          assignees={assignees}
+          onClose={() => navigate("/crm/leads")}
+          onStatusChange={(s) => handleStatusChange(selectedLead, s)}
+          onConvert={() => handleConvert(selectedLead)}
+          onAssignLead={(assignee) => handleAssignLead(selectedLead.id, assignee)}
+          onAddRemark={(content) => handleAddRemark(selectedLead.id, content)}
+          onEditRemark={(remarkId, content) => handleEditRemark(selectedLead.id, remarkId, content)}
+          isUpdating={updateLead.isPending}
+          isAssigning={assignLead.isPending}
+          isCreatingRemark={createLeadRemark.isPending}
+          editingRemarkId={editLeadRemark.isPending ? editLeadRemark.variables?.remarkId ?? null : null}
+          isRefreshing={leadDetail.isFetching}
+          assignError={assignError}
+          remarkError={remarkError}
+        />
+
+        {contactRecordingLead && (
+          <ContactRecordingDialog
+            lead={contactRecordingLead}
+            onClose={closeContactRecordingDialog}
+            onSave={handleSaveContactRecording}
+            isLoading={contactLeadRecording.isPending}
+            errorMessage={contactRecordingError}
+          />
+        )}
+      </>
+    );
+  }
 
   return (
     <>
-      <LeadsLayout actionButton={AddButton}>
+      <LeadsLayout actionButton={ActionButtons}>
         {/* Stats */}
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
           <StatCard label="Total Leads" value={data?.total ?? "-"} sub="All statuses" icon={<Users className="h-5 w-5 text-sky-600" />} accent="bg-sky-50 dark:bg-sky-950" />
@@ -1717,13 +2387,13 @@ export default function LeadsPage() {
         </div>
 
         {/* Table */}
-        <div className="overflow-hidden rounded-2xl border border-border bg-card">
+        <div className="overflow-x-auto rounded-2xl border border-border bg-card">
           {deleteError ? (
             <div className="border-b border-red-100 bg-red-50 px-4 py-2 text-xs font-medium text-red-700">
               {deleteError}
             </div>
           ) : null}
-          <table className="w-full text-sm">
+          <table className="min-w-[900px] w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-muted/50">
                 {["Lead", "Company", "Contact", "Status", "Priority", "Assigned To", "Est. Value", ""].map((h) => (
@@ -1754,7 +2424,7 @@ export default function LeadsPage() {
                 leads.map((lead, idx) => (
                   <tr
                     key={lead.id}
-                    onClick={() => setSelectedLeadId(lead.id)}
+                    onClick={() => navigate(`/crm/leads/${lead.id}`)}
                     className={`cursor-pointer transition-colors hover:bg-muted/40 ${idx !== 0 ? "border-t border-border" : ""}`}
                   >
                     {/* Lead name */}
@@ -1809,7 +2479,7 @@ export default function LeadsPage() {
                     <td className="px-5 py-4" onClick={(e) => e.stopPropagation()}>
                       <RowActions
                         lead={lead}
-                        onView={() => setSelectedLeadId(lead.id)}
+                        onView={() => navigate(`/crm/leads/${lead.id}`)}
                         onEdit={() => openEditDialog(lead)}
                         onStatusChange={(s) => handleStatusChange(lead, s)}
                         onAssign={(assignee) => handleAssignLead(lead.id, assignee)}
@@ -1885,25 +2555,16 @@ export default function LeadsPage() {
         errorMessage={deleteError}
       />
 
-      {selectedLead && (
-        <LeadDetailPanel
-          lead={selectedLead}
-          assignees={assignees}
-          onClose={() => setSelectedLeadId(null)}
-          onStatusChange={(s) => handleStatusChange(selectedLead, s)}
-          onConvert={() => handleConvert(selectedLead)}
-          onAssignLead={(assignee) => handleAssignLead(selectedLead.id, assignee)}
-          onAddRemark={(content) => handleAddRemark(selectedLead.id, content)}
-          onEditRemark={(remarkId, content) => handleEditRemark(selectedLead.id, remarkId, content)}
-          isUpdating={updateLead.isPending}
-          isAssigning={assignLead.isPending}
-          isCreatingRemark={createLeadRemark.isPending}
-          editingRemarkId={editLeadRemark.isPending ? editLeadRemark.variables?.remarkId ?? null : null}
-          isRefreshing={leadDetail.isFetching}
-          assignError={assignError}
-          remarkError={remarkError}
-        />
-      )}
+      <ImportLeadsDialog
+        open={importOpen}
+        file={importFile}
+        onFileChange={setImportFile}
+        onClose={closeImportDialog}
+        onImport={handleImportLeads}
+        isLoading={importLeads.isPending}
+        result={importResult}
+        errorMessage={importError}
+      />
     </>
   );
 }
