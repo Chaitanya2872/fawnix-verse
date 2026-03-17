@@ -2,6 +2,7 @@ import { api, ensureApiSession, getApiErrorMessage } from "@/services/api-client
 import type {
   MetaIntegrationSettings,
   MetaIntegrationTestResult,
+  MetaLeadFetchResult,
   WhatsappIntegrationSettings,
   WhatsappIntegrationTestResult,
 } from "./types";
@@ -51,6 +52,18 @@ export async function testMetaIntegration(): Promise<MetaIntegrationTestResult> 
     return response.data;
   } catch (error) {
     rethrowApiError(error, "Failed to test Meta integration.");
+  }
+}
+
+export async function fetchLatestMetaLeads(): Promise<MetaLeadFetchResult> {
+  try {
+    await ensureApiSession();
+    const response = await api.post<MetaLeadFetchResult>(
+      "/integrations/meta/fetch-latest"
+    );
+    return response.data;
+  } catch (error) {
+    rethrowApiError(error, "Failed to fetch Meta leads.");
   }
 }
 

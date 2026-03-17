@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   fetchMetaIntegrationSettings,
+  fetchLatestMetaLeads,
   fetchWhatsappIntegrationSettings,
   testMetaIntegration,
   testWhatsappIntegration,
@@ -10,6 +11,7 @@ import {
 import type {
   MetaIntegrationSettings,
   MetaIntegrationTestResult,
+  MetaLeadFetchResult,
   WhatsappIntegrationSettings,
   WhatsappIntegrationTestResult,
 } from "./types";
@@ -44,6 +46,12 @@ export function useUpdateMetaIntegrationSettings() {
 export function useTestMetaIntegration() {
   return useMutation({
     mutationFn: () => testMetaIntegration(),
+  });
+}
+
+export function useFetchLatestMetaLeads() {
+  return useMutation<MetaLeadFetchResult>({
+    mutationFn: () => fetchLatestMetaLeads(),
   });
 }
 

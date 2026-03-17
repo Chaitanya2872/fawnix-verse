@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -22,7 +23,7 @@ public class WhatsappClient {
   private final WhatsappIntegrationSettingsService settingsService;
 
   public WhatsappClient(
-      RestTemplate restTemplate,
+      @Qualifier("externalRestTemplate") RestTemplate restTemplate,
       ObjectMapper objectMapper,
       WhatsappProperties properties,
       WhatsappIntegrationSettingsService settingsService

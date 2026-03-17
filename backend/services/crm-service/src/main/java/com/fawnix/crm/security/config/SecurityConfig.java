@@ -7,6 +7,7 @@ import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.cloud.client.loadbalancer.LoadBalanced;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -51,7 +52,13 @@ public class SecurityConfig {
 
   @Bean
   @LoadBalanced
+  @Primary
   public RestTemplate restTemplate(RestTemplateBuilder builder) {
+    return builder.build();
+  }
+
+  @Bean(name = "externalRestTemplate")
+  public RestTemplate externalRestTemplate(RestTemplateBuilder builder) {
     return builder.build();
   }
 }

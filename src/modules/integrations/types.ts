@@ -14,6 +14,13 @@ export interface MetaIntegrationTestResult {
   formName: string | null;
 }
 
+export interface MetaLeadFetchResult {
+  processed: number;
+  created: number;
+  skipped: number;
+  nextCursor: string | null;
+}
+
 export interface WhatsappIntegrationSettings {
   accessToken: string;
   phoneNumberId: string;

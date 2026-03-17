@@ -2,6 +2,7 @@ package com.fawnix.crm.integrations.whatsapp;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestTemplate;
@@ -17,7 +18,7 @@ public class WhatsappIntegrationTestService {
   public WhatsappIntegrationTestService(
       WhatsappIntegrationSettingsService settingsService,
       WhatsappProperties properties,
-      RestTemplate restTemplate,
+      @Qualifier("externalRestTemplate") RestTemplate restTemplate,
       ObjectMapper objectMapper
   ) {
     this.settingsService = settingsService;

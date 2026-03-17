@@ -14,6 +14,7 @@ import { useCurrentUser } from "@/modules/auth/hooks";
 import { hasStoredSession } from "@/services/api-client";
 import {
   useMetaIntegrationSettings,
+  useFetchLatestMetaLeads,
   useTestMetaIntegration,
   useTestWhatsappIntegration,
   useUpdateMetaIntegrationSettings,
@@ -55,6 +56,7 @@ export default function IntegrationsPage() {
   const updateMetaMutation = useUpdateMetaIntegrationSettings();
   const updateWhatsappMutation = useUpdateWhatsappIntegrationSettings();
   const testMetaMutation = useTestMetaIntegration();
+  const fetchMetaLeadsMutation = useFetchLatestMetaLeads();
   const testWhatsappMutation = useTestWhatsappIntegration();
 
   const [metaFormState, setMetaFormState] =
@@ -68,6 +70,7 @@ export default function IntegrationsPage() {
   const [showWhatsappToken, setShowWhatsappToken] = useState(false);
   const [showWhatsappSecret, setShowWhatsappSecret] = useState(false);
   const [metaTestMessage, setMetaTestMessage] = useState<string | null>(null);
+  const [metaFetchMessage, setMetaFetchMessage] = useState<string | null>(null);
   const [whatsappTestMessage, setWhatsappTestMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -96,6 +99,7 @@ export default function IntegrationsPage() {
   const handleMetaSubmit = (event: FormEvent) => {
     event.preventDefault();
     setMetaStatusMessage(null);
+    setMetaFetchMessage(null);
 
     updateMetaMutation.mutate(metaFormState, {
       onSuccess: () => setMetaStatusMessage("Meta settings saved successfully."),
@@ -250,6 +254,11 @@ export default function IntegrationsPage() {
                 {metaTestMessage}
               </div>
             ) : null}
+            {metaFetchMessage ? (
+              <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                {metaFetchMessage}
+              </div>
+            ) : null}
 
             <div className="flex flex-wrap items-center gap-3">
               <Button type="submit" disabled={updateMetaMutation.isPending}>
@@ -279,6 +288,32 @@ export default function IntegrationsPage() {
                 }}
               >
                 {testMetaMutation.isPending ? "Testing..." : "Test Connection"}
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={fetchMetaLeadsMutation.isPending}
+                onClick={() => {
+                  setMetaFetchMessage(null);
+                  fetchMetaLeadsMutation.mutate(undefined, {
+                    onSuccess: (data) => {
+                      setMetaFetchMessage(
+                        `Fetched ${data.processed} leads - created ${data.created}, skipped ${data.skipped}.`
+                      );
+                    },
+                    onError: (error) => {
+                      setMetaFetchMessage(
+                        error instanceof Error
+                          ? error.message
+                          : "Failed to fetch Meta leads."
+                      );
+                    },
+                  });
+                }}
+              >
+                {fetchMetaLeadsMutation.isPending
+                  ? "Fetching..."
+                  : "Fetch Latest Leads"}
               </Button>
               {metaSettingsQuery.isLoading ? (
                 <span className="text-xs text-slate-400">Loading...</span>

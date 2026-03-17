@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
@@ -24,7 +25,7 @@ public class MetaLeadClient {
   private final MetaIntegrationSettingsService settingsService;
 
   public MetaLeadClient(
-      RestTemplate restTemplate,
+      @Qualifier("externalRestTemplate") RestTemplate restTemplate,
       ObjectMapper objectMapper,
       MetaLeadProperties properties,
       MetaIntegrationSettingsService settingsService
@@ -87,6 +88,77 @@ public class MetaLeadClient {
     }
   }
 
+  public MetaLeadPage fetchFormLeads(String formId, String afterCursor, int limit) {
+    String accessToken = settingsService.resolveAccessToken();
+    if (accessToken == null || accessToken.isBlank()) {
+      throw new IllegalStateException("META_ACCESS_TOKEN is required to fetch lead details.");
+    }
+    if (formId == null || formId.isBlank()) {
+      throw new IllegalStateException("META_FORM_ID is required to fetch form leads.");
+    }
+
+    int resolvedLimit = limit > 0 ? limit : 25;
+    String version = properties.apiVersion() == null || properties.apiVersion().isBlank()
+        ? "v19.0"
+        : properties.apiVersion().trim();
+    String url = "https://graph.facebook.com/" + version + "/" + formId
+        + "/leads?access_token=" + accessToken
+        + "&fields=created_time,field_data,ad_id,form_id"
+        + "&limit=" + resolvedLimit;
+    if (afterCursor != null && !afterCursor.isBlank()) {
+      url += "&after=" + afterCursor;
+    }
+
+    ResponseEntity<String> response = restTemplate.getForEntity(url, String.class);
+    String body = response.getBody();
+    if (body == null || body.isBlank()) {
+      throw new IllegalStateException("Meta lead response was empty.");
+    }
+
+    try {
+      JsonNode root = objectMapper.readTree(body);
+      List<MetaLeadDetails> leads = new ArrayList<>();
+      for (JsonNode leadNode : root.path("data")) {
+        String leadgenId = leadNode.path("id").asText(null);
+        if (leadgenId == null) {
+          continue;
+        }
+        Map<String, List<String>> fieldData = new HashMap<>();
+        for (JsonNode field : leadNode.path("field_data")) {
+          String name = field.path("name").asText(null);
+          if (name == null) {
+            continue;
+          }
+          List<String> values = new ArrayList<>();
+          for (JsonNode valueNode : field.path("values")) {
+            String value = valueNode.asText(null);
+            if (value != null) {
+              values.add(value);
+            }
+          }
+          fieldData.put(name, values);
+        }
+
+        Instant createdTime = parseCreatedTime(leadNode.path("created_time").asText(null));
+        String rawPayload = objectMapper.writeValueAsString(leadNode);
+
+        leads.add(new MetaLeadDetails(
+            leadgenId,
+            createdTime,
+            fieldData,
+            leadNode.path("ad_id").asText(null),
+            leadNode.path("form_id").asText(formId),
+            rawPayload
+        ));
+      }
+
+      String nextCursor = root.path("paging").path("cursors").path("after").asText(null);
+      return new MetaLeadPage(leads, nextCursor);
+    } catch (IOException ex) {
+      throw new IllegalStateException("Failed to parse Meta lead response.", ex);
+    }
+  }
+
   public record MetaLeadDetails(
       String leadgenId,
       Instant createdTime,
@@ -94,6 +166,12 @@ public class MetaLeadClient {
       String adId,
       String formId,
       String rawPayload
+  ) {
+  }
+
+  public record MetaLeadPage(
+      List<MetaLeadDetails> leads,
+      String nextCursor
   ) {
   }
 

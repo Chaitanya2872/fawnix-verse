@@ -2,6 +2,7 @@ package com.fawnix.crm.integrations.meta;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fawnix.crm.common.exception.BadRequestException;
 import com.fawnix.crm.leads.dto.LeadDtos;
 import com.fawnix.crm.leads.entity.LeadPriority;
 import com.fawnix.crm.leads.entity.LeadSource;
@@ -9,8 +10,8 @@ import com.fawnix.crm.leads.entity.LeadStatus;
 import com.fawnix.crm.leads.service.LeadService;
 import com.fawnix.crm.leads.validator.LeadRequestValidator;
 import com.fawnix.crm.security.service.AppUserDetails;
-import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -102,6 +103,32 @@ public class MetaLeadService {
     }
   }
 
+  public MetaLeadFetchResult fetchLatestLeads(int limit) {
+    String formId = settingsService.resolveFormId();
+    if (!StringUtils.hasText(formId)) {
+      throw new BadRequestException("Meta form ID is required to fetch leads.");
+    }
+
+    MetaLeadClient.MetaLeadPage page = metaLeadClient.fetchFormLeads(formId, null, limit);
+    int created = 0;
+    int skipped = 0;
+
+    for (MetaLeadClient.MetaLeadDetails details : page.leads()) {
+      if (details.leadgenId() == null || details.leadgenId().isBlank()) {
+        skipped++;
+        continue;
+      }
+      if (ingestionRepository.existsByLeadgenId(details.leadgenId())) {
+        skipped++;
+        continue;
+      }
+      processLeadDetails(details, null, details.formId(), details.adId());
+      created++;
+    }
+
+    return new MetaLeadFetchResult(page.leads().size(), created, skipped, page.nextCursor());
+  }
+
   private void processLeadgen(String leadgenId, String pageId, String formId, String adId) {
     String configuredFormId = settingsService.resolveFormId();
     if (StringUtils.hasText(configuredFormId)
@@ -118,12 +145,16 @@ public class MetaLeadService {
       LOGGER.info("Skipping Meta lead {} fetched from form {} (configured {}).", leadgenId, details.formId(), configuredFormId);
       return;
     }
+    processLeadDetails(details, pageId, formId, adId);
+  }
+
+  private void processLeadDetails(MetaLeadClient.MetaLeadDetails details, String pageId, String formId, String adId) {
     LeadDtos.CreateLeadRequest request = buildLeadRequest(details);
     var created = leadService.createLead(request, SYSTEM_ACTOR);
 
     MetaLeadIngestionEntity ingestion = new MetaLeadIngestionEntity();
     ingestion.setId(UUID.randomUUID().toString());
-    ingestion.setLeadgenId(leadgenId);
+    ingestion.setLeadgenId(details.leadgenId());
     ingestion.setLeadId(created.id());
     ingestion.setPageId(pageId);
     ingestion.setFormId(formId != null ? formId : details.formId());
@@ -237,6 +268,14 @@ public class MetaLeadService {
       builder.append(" Created: ").append(details.createdTime()).append(".");
     }
     return builder.toString();
+  }
+
+  public record MetaLeadFetchResult(
+      int processed,
+      int created,
+      int skipped,
+      String nextCursor
+  ) {
   }
 
   private boolean verifySignature(String payload, String signatureHeader) {
