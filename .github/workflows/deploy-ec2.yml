@@ -44,14 +44,19 @@ jobs:
 
       - name: Deploy on EC2
         run: |
-          ssh -i ~/.ssh/ec2.pem -p "${EC2_PORT:-22}" "${EC2_USER}@${EC2_HOST}" <<EOF
+          ssh -i ~/.ssh/ec2.pem -p "${EC2_PORT:-22}" "${EC2_USER}@${EC2_HOST}" <<'EOF'
           set -e
           if cd "${EC2_DEPLOY_DIR}"; then
             git pull origin "${DEPLOY_BRANCH}"
             if [ ! -f PRD/.env ]; then
               cp PRD/.env.example PRD/.env
             fi
-            docker compose -f PRD/compose.yml --env-file PRD/.env up -d --build
+            docker compose -f PRD/compose.yml --env-file PRD/.env up -d --build || {
+              echo "Docker Compose failed. Showing status and recent logs..."
+              docker compose -f PRD/compose.yml --env-file PRD/.env ps || true
+              docker compose -f PRD/compose.yml --env-file PRD/.env logs --tail 200 || true
+              exit 1
+            }
             exit 0
           fi
 
@@ -59,7 +64,11 @@ jobs:
             sudo -n bash -lc "cd '${EC2_DEPLOY_DIR}' \
               && git pull origin '${DEPLOY_BRANCH}' \
               && if [ ! -f PRD/.env ]; then cp PRD/.env.example PRD/.env; fi \
-              && docker compose -f PRD/compose.yml --env-file PRD/.env up -d --build"
+              && docker compose -f PRD/compose.yml --env-file PRD/.env up -d --build \
+              || { echo 'Docker Compose failed. Showing status and recent logs...'; \
+                   docker compose -f PRD/compose.yml --env-file PRD/.env ps || true; \
+                   docker compose -f PRD/compose.yml --env-file PRD/.env logs --tail 200 || true; \
+                   exit 1; }"
             exit 0
           fi
 
