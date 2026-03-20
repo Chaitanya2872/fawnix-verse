@@ -41,6 +41,9 @@ public class DataSeeder implements ApplicationRunner {
   @Value("${app.security.dev-admin-password}")
   private String devAdminPassword;
 
+  @Value("${app.seed.sample-users:false}")
+  private boolean seedSampleUsers;
+
   public DataSeeder(
       RoleRepository roleRepository,
       UserRepository userRepository,
@@ -75,6 +78,9 @@ public class DataSeeder implements ApplicationRunner {
 
   private void ensureUsers(Map<String, RoleEntity> roles) {
     ensureUser(ADMIN_ID, "Admin User", devAdminEmail, devAdminPassword, Set.of(roles.get(RoleName.ROLE_ADMIN.name())));
+    if (!seedSampleUsers) {
+      return;
+    }
     ensureUser(SALES_MANAGER_ID, "Mia Thompson", "manager@fawnix.com", "Manager@123", Set.of(roles.get(RoleName.ROLE_SALES_MANAGER.name())));
     ensureUser(SARAH_KIM_ID, "Sarah Kim", "sarah.kim@fawnix.com", "Sales@123", Set.of(roles.get(RoleName.ROLE_SALES_REP.name())));
     ensureUser(MIKE_RODRIGUEZ_ID, "Mike Rodriguez", "mike.rodriguez@fawnix.com", "Sales@123", Set.of(roles.get(RoleName.ROLE_SALES_REP.name())));

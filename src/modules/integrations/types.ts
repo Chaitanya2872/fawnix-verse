@@ -29,6 +29,8 @@ export interface WhatsappIntegrationSettings {
   appSecret: string;
   templateName: string;
   templateLanguage: string;
+  assignTemplateName: string;
+  assignTemplateLanguage: string;
   templateUseLeadName: boolean;
   defaultCountryCode: string;
 }

@@ -10,7 +10,12 @@ import org.springframework.stereotype.Component;
 public class UserMapper {
 
   public AssigneeResponse toAssignee(UserEntity user) {
-    return new AssigneeResponse(user.getId(), user.getFullName(), user.getEmail());
+    return new AssigneeResponse(
+        user.getId(),
+        user.getFullName(),
+        user.getEmail(),
+        user.getPhoneNumber()
+    );
   }
 
   public InternalUserResponse toInternalUser(UserEntity user) {
@@ -18,6 +23,7 @@ public class UserMapper {
         user.getId(),
         user.getFullName(),
         user.getEmail(),
+        user.getPhoneNumber(),
         user.isActive(),
         user.getRoles().stream().map(role -> role.getName()).toList()
     );

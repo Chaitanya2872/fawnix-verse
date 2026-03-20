@@ -14,6 +14,8 @@ public record WhatsappProperties(
     String templateName,
     String templateLanguage,
     boolean templateUseLeadName,
+    String assignTemplateName,
+    String assignTemplateLanguage,
     String defaultCountryCode
 ) {
 }

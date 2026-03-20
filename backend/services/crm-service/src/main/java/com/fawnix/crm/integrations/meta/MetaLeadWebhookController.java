@@ -57,7 +57,7 @@ public class MetaLeadWebhookController {
   @PostMapping("/fetch-latest")
   @PreAuthorize("hasAnyRole('ADMIN','SALES_MANAGER')")
   public ResponseEntity<MetaLeadService.MetaLeadFetchResult> fetchLatest(
-      @RequestParam(name = "limit", defaultValue = "25") int limit
+      @RequestParam(name = "limit", defaultValue = "100") int limit
   ) {
     return ResponseEntity.ok(metaLeadService.fetchLatestLeads(limit));
   }

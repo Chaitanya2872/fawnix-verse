@@ -34,6 +34,7 @@ management:
 app:
   seed:
     enabled: ${APP_SEED_ENABLED:false}
+    sample-users: ${APP_SEED_SAMPLE_USERS:false}
   cors:
     allowed-origins:
       - ${FRONTEND_ORIGIN:http://localhost:5173}

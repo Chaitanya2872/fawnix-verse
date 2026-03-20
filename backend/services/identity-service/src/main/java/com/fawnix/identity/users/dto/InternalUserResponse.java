@@ -6,6 +6,7 @@ public record InternalUserResponse(
     String id,
     String name,
     String email,
+    String phoneNumber,
     boolean active,
     List<String> roles
 ) {

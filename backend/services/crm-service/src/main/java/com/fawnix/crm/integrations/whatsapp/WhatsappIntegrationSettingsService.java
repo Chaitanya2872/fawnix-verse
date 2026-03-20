@@ -46,6 +46,8 @@ public class WhatsappIntegrationSettingsService {
     entity.setTemplateName(trimOrNull(request.templateName()));
     entity.setTemplateLanguage(trimOrNull(request.templateLanguage()));
     entity.setTemplateUseLeadName(request.templateUseLeadName());
+    entity.setAssignTemplateName(trimOrNull(request.assignTemplateName()));
+    entity.setAssignTemplateLanguage(trimOrNull(request.assignTemplateLanguage()));
     entity.setDefaultCountryCode(trimOrNull(request.defaultCountryCode()));
     entity.setUpdatedAt(Instant.now());
 
@@ -88,6 +90,14 @@ public class WhatsappIntegrationSettingsService {
     return properties.templateUseLeadName();
   }
 
+  public String resolveAssignTemplateName() {
+    return resolveValue(WhatsappIntegrationSettingsEntity::getAssignTemplateName, properties.assignTemplateName());
+  }
+
+  public String resolveAssignTemplateLanguage() {
+    return resolveValue(WhatsappIntegrationSettingsEntity::getAssignTemplateLanguage, properties.assignTemplateLanguage());
+  }
+
   public String resolveDefaultCountryCode() {
     return resolveValue(WhatsappIntegrationSettingsEntity::getDefaultCountryCode, properties.defaultCountryCode());
   }
@@ -119,6 +129,8 @@ public class WhatsappIntegrationSettingsService {
       String templateName,
       String templateLanguage,
       Boolean templateUseLeadName,
+      String assignTemplateName,
+      String assignTemplateLanguage,
       String defaultCountryCode
   ) {
   }

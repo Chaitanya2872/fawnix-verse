@@ -159,7 +159,7 @@ public class LeadService {
     lead.setSource(leadRequestValidator.parseSource(request.source()));
     lead.setStatus(leadRequestValidator.parseStatus(request.status()));
     lead.setPriority(leadRequestValidator.parsePriority(request.priority()));
-    applyAssignee(lead, resolveAssignee(request.assignedToUserId(), request.assignedTo(), true));
+    applyAssignee(lead, resolveAssignee(request.assignedToUserId(), request.assignedTo(), false));
     lead.setEstimatedValue(request.estimatedValue() != null ? request.estimatedValue() : BigDecimal.ZERO);
     lead.setNotes("");
     lead.setCreatedAt(now);
@@ -312,6 +312,11 @@ public class LeadService {
             currentUser,
             now
         );
+        whatsappQuestionnaireService.sendAssignmentNotification(
+            lead,
+            nextAssignee.name(),
+            nextAssignee.phoneNumber()
+        );
       }
     }
     if (request.status() != null) {
@@ -413,6 +418,11 @@ public class LeadService {
           currentUser.getFullName() + " reassigned the lead from " + previousAssignee + " to " + assignee.name() + ".",
           currentUser,
           now
+      );
+      whatsappQuestionnaireService.sendAssignmentNotification(
+          lead,
+          assignee.name(),
+          assignee.phoneNumber()
       );
       if (lead.getStatus() == LeadStatus.QUALIFIED || lead.getStatus() == LeadStatus.UNQUALIFIED) {
         updateStatusInternal(lead, LeadStatus.ASSIGNED_TO_SALESPERSON, currentUser, now, null);

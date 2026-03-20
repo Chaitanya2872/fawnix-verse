@@ -143,3 +143,107 @@
         @apply bg-background text-foreground;
     }
 }
+
+@keyframes loginFloat {
+    0% {
+        transform: translateY(0);
+    }
+    50% {
+        transform: translateY(-8px);
+    }
+    100% {
+        transform: translateY(0);
+    }
+}
+
+@keyframes loginReveal {
+    0% {
+        opacity: 0;
+        transform: translateY(14px);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes loginShimmer {
+    0% {
+        background-position: 0% 50%;
+    }
+    100% {
+        background-position: 200% 50%;
+    }
+}
+
+@keyframes loginPulse {
+    0%,
+    100% {
+        opacity: 0.6;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 1;
+        transform: scale(1.04);
+    }
+}
+
+@keyframes loginOrbit {
+    0% {
+        transform: rotate(0deg);
+    }
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+.login-float {
+    animation: loginFloat 8s ease-in-out infinite;
+}
+
+.login-float-delay {
+    animation-delay: -2s;
+}
+
+.login-float-slow {
+    animation: loginFloat 10s ease-in-out infinite;
+}
+
+.login-float-slower {
+    animation: loginFloat 12s ease-in-out infinite;
+}
+
+.login-reveal {
+    opacity: 0;
+    animation: loginReveal 0.8s ease forwards;
+}
+
+.login-reveal-delay-1 {
+    animation-delay: 0.12s;
+}
+
+.login-reveal-delay-2 {
+    animation-delay: 0.24s;
+}
+
+.login-shimmer {
+    background-size: 200% 100%;
+    animation: loginShimmer 3.6s ease-in-out infinite;
+}
+
+.login-pulse {
+    animation: loginPulse 6s ease-in-out infinite;
+}
+
+.login-orbit {
+    background: conic-gradient(
+        from 0deg,
+        rgba(52, 211, 153, 0.55),
+        rgba(34, 211, 238, 0.15),
+        rgba(59, 130, 246, 0.3),
+        rgba(52, 211, 153, 0.55)
+    );
+    mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 2px));
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 2px));
+    animation: loginOrbit 18s linear infinite;
+}

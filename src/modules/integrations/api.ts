@@ -55,11 +55,17 @@ export async function testMetaIntegration(): Promise<MetaIntegrationTestResult> 
   }
 }
 
-export async function fetchLatestMetaLeads(): Promise<MetaLeadFetchResult> {
+export async function fetchLatestMetaLeads(limit?: number): Promise<MetaLeadFetchResult> {
   try {
     await ensureApiSession();
     const response = await api.post<MetaLeadFetchResult>(
-      "/integrations/meta/fetch-latest"
+      "/integrations/meta/fetch-latest",
+      null,
+      {
+        params: {
+          limit,
+        },
+      }
     );
     return response.data;
   } catch (error) {
@@ -81,6 +87,8 @@ export async function fetchWhatsappIntegrationSettings(): Promise<WhatsappIntegr
       appSecret: "",
       templateName: "",
       templateLanguage: "",
+      assignTemplateName: "",
+      assignTemplateLanguage: "",
       templateUseLeadName: false,
       defaultCountryCode: "",
     };

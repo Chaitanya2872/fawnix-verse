@@ -1,6 +1,7 @@
 FROM maven:3.9.9-eclipse-temurin-17 AS build
 
 ARG MODULE_PATH
+ENV MAVEN_OPTS="-Dhttps.protocols=TLSv1.2 -Dmaven.wagon.http.retryHandler.count=3 -Dmaven.wagon.http.retryHandler.requestSentEnabled=true"
 
 WORKDIR /workspace
 

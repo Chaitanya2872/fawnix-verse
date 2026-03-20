@@ -11,11 +11,9 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
-  FileAudio,
   FileText,
   Loader2,
   Mail,
-  Mic,
   MoreHorizontal,
   Phone,
   Plus,
@@ -35,12 +33,12 @@ import {
   type AssigneeOption,
   type Lead,
   type LeadActivity,
-  type LeadContactRecording,
   type LeadFilter,
   type LeadFormData,
   type LeadImportResult,
   type LeadRemark,
   type LeadSchedule,
+  type LeadUpdateData,
   type CreateLeadScheduleInput,
   type UpdateLeadScheduleInput,
   LeadPriority,
@@ -56,7 +54,6 @@ import {
 } from "./types";
 import {
   useAssignLead,
-  useContactLeadRecording,
   useCreateLead,
   useCreateLeadRemark,
   useDeleteLead,
@@ -76,6 +73,20 @@ import { useCurrentUser } from "@/modules/auth/hooks";
 
 const fmt = (v: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", notation: "compact", maximumFractionDigits: 1 }).format(v);
+
+const fmtBytes = (value: number) => {
+  if (!Number.isFinite(value)) return "-";
+  if (value < 1024) return `${value} B`;
+  const units = ["KB", "MB", "GB", "TB"];
+  let size = value;
+  let index = -1;
+  while (size >= 1024 && index < units.length - 1) {
+    size /= 1024;
+    index += 1;
+  }
+  const digits = size >= 10 || index === 0 ? 1 : 2;
+  return `${size.toFixed(digits)} ${units[index]}`;
+};
 
 const fmtDate = (s: string) =>
   new Date(s).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
@@ -104,12 +115,6 @@ function fromDateTimeLocal(value: string) {
   if (Number.isNaN(date.getTime())) return null;
   return date.toISOString();
 }
-
-const fmtBytes = (size: number) => {
-  if (size < 1024) return `${size} B`;
-  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
-  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
-};
 
 function getInitials(name: string) {
   return name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
@@ -310,12 +315,10 @@ function findAssigneeByName(assignees: AssigneeOption[], name: string) {
 }
 
 function buildDefaultForm(assignees: AssigneeOption[]) {
-  const defaultAssignee = assignees[0] ?? null;
-
   return {
     ...BASE_FORM,
-    assignedTo: defaultAssignee?.name ?? "",
-    assignedToUserId: defaultAssignee?.id ?? null,
+    assignedTo: "",
+    assignedToUserId: null,
   };
 }
 
@@ -365,11 +368,19 @@ function CreateLeadDialog({
   }, [assignees, form.assignedTo, form.assignedToUserId]);
 
   function updateAssignee(name: string) {
+    if (!name) {
+      setForm((previous) => ({
+        ...previous,
+        assignedTo: "",
+        assignedToUserId: null,
+      }));
+      return;
+    }
     const nextAssignee = findAssigneeByName(assignees, name);
     setForm((previous) => ({
       ...previous,
       assignedTo: name,
-      assignedToUserId: nextAssignee?.id ?? previous.assignedToUserId ?? null,
+      assignedToUserId: nextAssignee?.id ?? null,
     }));
   }
 
@@ -456,15 +467,12 @@ function CreateLeadDialog({
                 <div>
                   <label className={labelCls}>Assign To</label>
                   <select value={form.assignedTo} onChange={(e) => updateAssignee(e.target.value)} className={inputCls}>
-                    {assignees.length === 0 ? (
-                      <option value="">Auto assign</option>
-                    ) : (
-                      assignees.map((assignee) => (
-                        <option key={assignee.id} value={assignee.name}>
-                          {assignee.name}
-                        </option>
-                      ))
-                    )}
+                    <option value="">Unassigned</option>
+                    {assignees.map((assignee) => (
+                      <option key={assignee.id} value={assignee.name}>
+                        {assignee.name}
+                      </option>
+                    ))}
                   </select>
                 </div>
                 <div>
@@ -668,184 +676,6 @@ function RemarkCard({
   );
 }
 
-function ContactRecordingCard({ recording }: { recording: LeadContactRecording }) {
-  const [showTranscript, setShowTranscript] = useState(false);
-
-  return (
-    <div className="rounded-xl border border-border bg-card p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <FileAudio className="h-4 w-4 text-sky-600" />
-            <p className="text-sm font-semibold">{recording.audioFileName}</p>
-          </div>
-          <p className="text-[11px] text-muted-foreground">
-            Saved by {recording.createdBy} on {fmtDateTime(recording.createdAt)}
-          </p>
-          <p className="text-[11px] text-muted-foreground">
-            Contacted at {fmtDateTime(recording.contactedAt)} - {fmtBytes(recording.audioSize)}
-          </p>
-        </div>
-        <button
-          onClick={() => setShowTranscript((value) => !value)}
-          className="text-xs font-medium text-sky-600 hover:underline"
-        >
-          {showTranscript ? "Hide Transcript" : "View Transcript"}
-        </button>
-      </div>
-
-      <div className="mt-3 rounded-xl border border-border bg-muted/20 p-3">
-        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          <FileText className="h-3.5 w-3.5" />
-          Remark Summary
-        </div>
-        <p className="mt-2 whitespace-pre-wrap text-sm text-foreground">
-          {recording.remarksSummary}
-        </p>
-      </div>
-
-      {recording.conversationSummary && recording.conversationSummary !== recording.remarksSummary && (
-        <div className="mt-3 rounded-xl border border-border bg-muted/20 p-3">
-          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            <Mic className="h-3.5 w-3.5" />
-            Conversation Highlights
-          </div>
-          <p className="mt-2 whitespace-pre-wrap text-sm text-foreground">
-            {recording.conversationSummary}
-          </p>
-        </div>
-      )}
-
-      {showTranscript && (
-        <div className="mt-3 rounded-xl border border-border bg-muted/20 p-3">
-          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            <FileText className="h-3.5 w-3.5" />
-            Transcript
-          </div>
-          <p className="mt-2 max-h-64 overflow-y-auto whitespace-pre-wrap text-sm leading-relaxed text-foreground">
-            {recording.transcript}
-          </p>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function ContactRecordingDialog({
-  lead,
-  onClose,
-  onSave,
-  isLoading,
-  errorMessage,
-}: {
-  lead: Lead;
-  onClose: () => void;
-  onSave: (file: File) => void;
-  isLoading?: boolean;
-  errorMessage?: string | null;
-}) {
-  const [audioFile, setAudioFile] = useState<File | null>(null);
-  const previewUrl = useMemo(
-    () => (audioFile ? URL.createObjectURL(audioFile) : null),
-    [audioFile]
-  );
-
-  useEffect(() => {
-    return () => {
-      if (previewUrl) {
-        URL.revokeObjectURL(previewUrl);
-      }
-    };
-  }, [previewUrl]);
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative z-10 flex w-full max-w-2xl flex-col rounded-2xl border border-border bg-card shadow-2xl">
-        <div className="flex items-center justify-between border-b border-border px-6 py-4">
-          <div>
-            <h2 className="text-base font-semibold">Move Lead to Contacted</h2>
-            <p className="text-xs text-muted-foreground">
-              Upload the call recording for {lead.name}. We&apos;ll transcribe it and save both a remarks summary and conversation highlights.
-            </p>
-          </div>
-          <button onClick={onClose} className="flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground">
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-
-        <div className="space-y-5 p-6">
-          <div className="rounded-xl border border-border bg-muted/20 p-4">
-            <p className="text-sm font-semibold">{lead.name}</p>
-            <p className="mt-1 text-sm text-muted-foreground">{lead.company}</p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <StatusBadge status={lead.status} />
-              <span className="inline-flex items-center rounded-full border border-border px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground">
-                {lead.assignedTo}
-              </span>
-            </div>
-          </div>
-
-          <div>
-            <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
-              Audio Recording <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="file"
-              accept="audio/*,.mp3,.wav,.m4a,.aac,.ogg,.webm"
-              onChange={(event) => setAudioFile(event.target.files?.[0] ?? null)}
-              className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm text-foreground outline-none file:mr-4 file:rounded-md file:border-0 file:bg-sky-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-sky-700 focus:border-sky-500 focus:ring-1 focus:ring-sky-500/30"
-            />
-            <p className="mt-2 text-xs text-muted-foreground">
-              Supported formats: WAV, MP3, M4A, AAC, OGG, and WEBM.
-            </p>
-          </div>
-
-          {audioFile && (
-            <div className="rounded-xl border border-border bg-muted/20 p-4">
-              <div className="flex items-center gap-2">
-                <FileAudio className="h-4 w-4 text-sky-600" />
-                <p className="text-sm font-semibold">{audioFile.name}</p>
-                <span className="text-xs text-muted-foreground">{fmtBytes(audioFile.size)}</span>
-              </div>
-              {previewUrl && (
-                <audio controls src={previewUrl} className="mt-3 w-full" />
-              )}
-            </div>
-          )}
-
-          <div className="rounded-xl border border-dashed border-sky-200 bg-sky-50/70 p-4 text-sm text-sky-900 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-100">
-            Saving this will:
-            <div className="mt-2 text-sm">
-              1. Move the lead to <span className="font-semibold">Contacted</span>
-            </div>
-            <div className="mt-1 text-sm">
-              2. Send the recording to your configured speech-to-text service
-            </div>
-            <div className="mt-1 text-sm">
-              3. Save the transcript, conversation highlights, and a new remarks summary
-            </div>
-          </div>
-        </div>
-
-        <div className="flex items-center justify-end gap-3 border-t border-border px-6 py-4">
-          {errorMessage && <p className="mr-auto text-xs font-medium text-red-600">{errorMessage}</p>}
-          <button onClick={onClose} className="rounded-lg px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground">
-            Cancel
-          </button>
-          <button
-            onClick={() => audioFile && onSave(audioFile)}
-            disabled={isLoading || !audioFile}
-            className="inline-flex items-center gap-2 rounded-lg bg-sky-600 px-5 py-2 text-sm font-semibold text-white shadow hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {isLoading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-            Save & Mark Contacted
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function DeleteLeadDialog({
   open,
@@ -895,6 +725,108 @@ function DeleteLeadDialog({
           >
             {isLoading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
             Delete
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StageUpdateDialog({
+  open,
+  lead,
+  targetStatus,
+  remark,
+  onRemarkChange,
+  onClose,
+  onConfirm,
+  isLoading,
+  errorMessage,
+}: {
+  open: boolean;
+  lead: Lead | null;
+  targetStatus: LeadStatus | null;
+  remark: string;
+  onRemarkChange: (value: string) => void;
+  onClose: () => void;
+  onConfirm: () => void;
+  isLoading?: boolean;
+  errorMessage?: string | null;
+}) {
+  if (!open || !lead || !targetStatus) return null;
+
+  const actionLabel = getStageActionLabel(targetStatus);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative z-10 w-full max-w-lg rounded-2xl border border-border bg-card p-6 shadow-2xl">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h3 className="text-base font-semibold text-card-foreground">Update Stage</h3>
+            <p className="text-xs text-muted-foreground">
+              Add a remark before moving the lead to the next stage.
+            </p>
+          </div>
+          <button onClick={onClose} className="flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground hover:bg-accent">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="mt-4 space-y-4">
+          <div className="rounded-xl border border-border bg-muted/20 p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-medium text-muted-foreground">Lead</p>
+                <p className="text-sm font-semibold">{lead.name}</p>
+                <p className="text-xs text-muted-foreground">{lead.company}</p>
+              </div>
+              <StatusBadge status={lead.status} />
+            </div>
+            <div className="mt-3 flex items-center gap-2 text-[11px] text-muted-foreground">
+              <span>Next stage</span>
+              <ChevronRight className="h-3.5 w-3.5" />
+              <span className="font-semibold text-foreground">{LEAD_STATUS_LABELS[targetStatus]}</span>
+            </div>
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+              Stage Remark <span className="text-red-500">*</span>
+            </label>
+            <textarea
+              rows={4}
+              value={remark}
+              onChange={(e) => onRemarkChange(e.target.value)}
+              placeholder={`Add a remark for moving to ${LEAD_STATUS_LABELS[targetStatus]}...`}
+              className="w-full resize-none rounded-lg border border-border bg-background px-3 py-2.5 text-sm text-foreground outline-none transition-colors focus:border-sky-500 focus:ring-1 focus:ring-sky-500/30"
+            />
+            <p className="mt-2 text-[11px] text-muted-foreground">
+              This remark will be stored in the lead timeline.
+            </p>
+          </div>
+
+          {errorMessage && (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700">
+              {errorMessage}
+            </div>
+          )}
+        </div>
+
+        <div className="mt-6 flex items-center justify-end gap-3">
+          <button
+            onClick={onClose}
+            className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={isLoading || !remark.trim()}
+            className="inline-flex items-center gap-2 rounded-lg bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-700 disabled:opacity-50"
+          >
+            {isLoading && <Loader2 className="h-4 w-4 animate-spin" />}
+            {actionLabel}
           </button>
         </div>
       </div>
@@ -1074,6 +1006,7 @@ function LeadDetailPanel({
   const isLost = lead.status === LeadStatus.LOST;
   const canConvert = lead.status === LeadStatus.PROPOSAL_SENT;
   const stageTargets = getDrawerStageTargets(lead.status);
+  const assignedLabel = lead.assignedTo?.trim() ? lead.assignedTo : "Unassigned";
   const [draftAssignee, setDraftAssignee] = useState<{ leadId: string; value: string } | null>(null);
   const draftAssigneeValue =
     draftAssignee?.leadId === lead.id ? draftAssignee.value : lead.assignedTo;
@@ -1200,7 +1133,9 @@ function LeadDetailPanel({
           </button>
         </div>
 
-        <div className="p-6 space-y-6">
+        <div className="p-6">
+          <div className="grid gap-6 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,0.75fr)]">
+            <div className="space-y-6">
           <div>
             <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Pipeline Stage</p>
             <PipelineProgress status={lead.status} />
@@ -1315,8 +1250,8 @@ function LeadDetailPanel({
             </div>
           </div>
 
-          <div>
-            <div className="mb-2 flex items-center justify-between gap-3">
+              <div>
+                <div className="mb-2 flex items-center justify-between gap-3">
               <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">WhatsApp Questionnaire</p>
               {questionnaire?.completedAt ? (
                 <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
@@ -1566,106 +1501,6 @@ function LeadDetailPanel({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="rounded-xl border border-border bg-muted/30 p-3">
-              <p className="mb-1 text-xs text-muted-foreground">Est. Value</p>
-              <p className="text-lg font-bold text-emerald-600">{fmt(lead.estimatedValue)}</p>
-            </div>
-            <div className="rounded-xl border border-border bg-muted/30 p-3">
-              <p className="mb-1 text-xs text-muted-foreground">Priority</p>
-              <PriorityDot priority={lead.priority} />
-            </div>
-            <div className="rounded-xl border border-border bg-muted/30 p-3">
-              <p className="mb-1 text-xs text-muted-foreground">Source</p>
-              <p className="text-sm font-medium">{LEAD_SOURCE_LABELS[lead.source]}</p>
-            </div>
-            <div className="col-span-2 rounded-xl border border-border bg-muted/30 p-3">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="mb-1 text-xs text-muted-foreground">Assigned To</p>
-                  <div className="flex items-center gap-2">
-                    <RepAvatar name={lead.assignedTo} />
-                    <p className="text-sm font-medium">{lead.assignedTo}</p>
-                  </div>
-                </div>
-                <div className="flex flex-1 flex-wrap items-center justify-end gap-2">
-                  <select
-                    value={draftAssigneeValue}
-                    onChange={(e) =>
-                      setDraftAssignee({ leadId: lead.id, value: e.target.value })
-                    }
-                    className="min-w-[180px] rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-sky-500"
-                  >
-                    {assignees.map((assignee) => (
-                      <option key={assignee.id} value={assignee.name}>
-                        {assignee.name}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    onClick={() => {
-                      const assignee = findAssigneeByName(assignees, draftAssigneeValue);
-                      if (assignee) {
-                        onAssignLead(assignee);
-                      }
-                    }}
-                    disabled={isAssigning || draftAssigneeValue === lead.assignedTo}
-                    className="inline-flex items-center gap-2 rounded-lg bg-sky-600 px-3 py-2 text-xs font-semibold text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {isAssigning && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                    Save Assignment
-                  </button>
-                </div>
-              </div>
-              {assignError && <p className="mt-3 text-xs font-medium text-red-600">{assignError}</p>}
-            </div>
-          </div>
-
-          {lead.tags.length > 0 && (
-            <div>
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Tags</p>
-              <div className="flex flex-wrap gap-1.5">
-                {lead.tags.map((t) => (
-                  <span key={t} className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-0.5 text-xs font-medium text-sky-700 dark:bg-sky-950 dark:border-sky-800 dark:text-sky-300">
-                    {t}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {!isConverted && !isLost && (
-            <div>
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Move to Stage</p>
-              <div className="flex flex-wrap gap-2">
-                {stageTargets.map((s) => (
-                  <button
-                    key={s}
-                    onClick={() => onStatusChange(s)}
-                    disabled={isUpdating}
-                    className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-all hover:scale-105 disabled:opacity-50 ${STATUS_CFG[s].cls}`}
-                  >
-                    {LEAD_STATUS_LABELS[s]}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {lead.contactRecordings.length > 0 && (
-            <div>
-              <div className="mb-2 flex items-center justify-between gap-3">
-                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Contact Recordings</p>
-                <span className="text-[11px] text-muted-foreground">{lead.contactRecordings.length} total</span>
-              </div>
-              <div className="space-y-3">
-                {lead.contactRecordings.map((recording) => (
-                  <ContactRecordingCard key={recording.id} recording={recording} />
-                ))}
-              </div>
-            </div>
-          )}
-
           <div>
             <div className="mb-2 flex items-center justify-between gap-3">
               <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Remarks</p>
@@ -1735,6 +1570,100 @@ function LeadDetailPanel({
             </div>
           </div>
 
+            </div>
+            <div className="space-y-6">
+              <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-xl border border-border bg-muted/30 p-3">
+              <p className="mb-1 text-xs text-muted-foreground">Est. Value</p>
+              <p className="text-lg font-bold text-emerald-600">{fmt(lead.estimatedValue)}</p>
+            </div>
+            <div className="rounded-xl border border-border bg-muted/30 p-3">
+              <p className="mb-1 text-xs text-muted-foreground">Priority</p>
+              <PriorityDot priority={lead.priority} />
+            </div>
+            <div className="rounded-xl border border-border bg-muted/30 p-3">
+              <p className="mb-1 text-xs text-muted-foreground">Source</p>
+              <p className="text-sm font-medium">{LEAD_SOURCE_LABELS[lead.source]}</p>
+            </div>
+            <div className="rounded-xl border border-border bg-muted/30 p-3">
+              <p className="mb-1 text-xs text-muted-foreground">Stage</p>
+              <StatusBadge status={lead.status} />
+            </div>
+            <div className="col-span-2 rounded-xl border border-border bg-muted/30 p-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="mb-1 text-xs text-muted-foreground">Assigned To</p>
+                  <div className="flex items-center gap-2">
+                    <RepAvatar name={assignedLabel} />
+                    <p className="text-sm font-medium">{assignedLabel}</p>
+                  </div>
+                </div>
+                <div className="flex flex-1 flex-wrap items-center justify-end gap-2">
+                  <select
+                    value={draftAssigneeValue}
+                    onChange={(e) =>
+                      setDraftAssignee({ leadId: lead.id, value: e.target.value })
+                    }
+                    className="min-w-[180px] rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-sky-500"
+                  >
+                    <option value="">Unassigned</option>
+                    {assignees.map((assignee) => (
+                      <option key={assignee.id} value={assignee.name}>
+                        {assignee.name}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    onClick={() => {
+                      if (!draftAssigneeValue) return;
+                      const assignee = findAssigneeByName(assignees, draftAssigneeValue);
+                      if (assignee) {
+                        onAssignLead(assignee);
+                      }
+                    }}
+                    disabled={isAssigning || !draftAssigneeValue || draftAssigneeValue === lead.assignedTo}
+                    className="inline-flex items-center gap-2 rounded-lg bg-sky-600 px-3 py-2 text-xs font-semibold text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {isAssigning && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                    Save Assignment
+                  </button>
+                </div>
+              </div>
+              {assignError && <p className="mt-3 text-xs font-medium text-red-600">{assignError}</p>}
+            </div>
+          </div>
+
+          {lead.tags.length > 0 && (
+            <div>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Tags</p>
+              <div className="flex flex-wrap gap-1.5">
+                {lead.tags.map((t) => (
+                  <span key={t} className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-0.5 text-xs font-medium text-sky-700 dark:bg-sky-950 dark:border-sky-800 dark:text-sky-300">
+                    {t}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {!isConverted && !isLost && (
+            <div>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Move to Stage</p>
+              <p className="mb-3 text-[11px] text-muted-foreground">A remark is required for every stage change.</p>
+              <div className="flex flex-wrap gap-2">
+                {stageTargets.map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => onStatusChange(s)}
+                    disabled={isUpdating}
+                    className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-all hover:scale-105 disabled:opacity-50 ${STATUS_CFG[s].cls}`}
+                  >
+                    {LEAD_STATUS_LABELS[s]}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="text-xs text-muted-foreground space-y-1 border-t border-border pt-4">
             <p>Created: {fmtDate(lead.createdAt)}</p>
             {lead.lastContactedAt && <p>Last contacted: {fmtDate(lead.lastContactedAt)}</p>}
@@ -1742,6 +1671,8 @@ function LeadDetailPanel({
             {lead.convertedAt && <p className="text-emerald-600 font-medium">Converted: {fmtDate(lead.convertedAt)}</p>}
           </div>
         </div>
+      </div>
+    </div>
 
         <div className="border-t border-border px-6 py-4 flex gap-3">
           {!isConverted && !isLost && (
@@ -1915,7 +1846,10 @@ export default function LeadsPage() {
   });
   const [quickView, setQuickView] = useState<QuickView>("ALL");
   const [formState, setFormState] = useState<{ mode: LeadDialogMode; lead: Lead | null } | null>(null);
-  const [contactRecordingLead, setContactRecordingLead] = useState<Lead | null>(null);
+  const [stageUpdateTarget, setStageUpdateTarget] = useState<{ lead: Lead; status: LeadStatus } | null>(null);
+  const [stageRemark, setStageRemark] = useState("");
+  const [stageUpdateError, setStageUpdateError] = useState<string | null>(null);
+  const [isStageUpdating, setIsStageUpdating] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deletingLeadId, setDeletingLeadId] = useState<string | null>(null);
   const [deleteLeadTarget, setDeleteLeadTarget] = useState<Lead | null>(null);
@@ -1932,7 +1866,6 @@ export default function LeadsPage() {
   const createLead = useCreateLead();
   const updateLead = useUpdateLead();
   const assignLead = useAssignLead();
-  const contactLeadRecording = useContactLeadRecording();
   const createLeadRemark = useCreateLeadRemark();
   const editLeadRemark = useEditLeadRemark();
   const deleteLead = useDeleteLead();
@@ -1990,7 +1923,6 @@ export default function LeadsPage() {
     ? (updateLead.error instanceof Error ? updateLead.error.message : null)
     : (createLead.error instanceof Error ? createLead.error.message : null);
   const assignError = assignLead.error instanceof Error ? assignLead.error.message : null;
-  const contactRecordingError = contactLeadRecording.error instanceof Error ? contactLeadRecording.error.message : null;
   const remarkError = createLeadRemark.error instanceof Error
     ? createLeadRemark.error.message
     : editLeadRemark.error instanceof Error
@@ -2001,7 +1933,6 @@ export default function LeadsPage() {
     createLead.reset();
     updateLead.reset();
     assignLead.reset();
-    contactLeadRecording.reset();
     createLeadRemark.reset();
     editLeadRemark.reset();
     deleteLead.reset();
@@ -2021,15 +1952,46 @@ export default function LeadsPage() {
     setFormState(null);
   }
 
-  function openContactRecordingDialog(lead: Lead) {
+  function openStageUpdateDialog(lead: Lead, status: LeadStatus) {
     resetMutations();
-    setContactRecordingLead(lead);
+    setStageUpdateError(null);
+    setStageRemark("");
+    setStageUpdateTarget({ lead, status });
   }
 
-  function closeContactRecordingDialog() {
-    contactLeadRecording.reset();
-    setContactRecordingLead(null);
+  function closeStageUpdateDialog() {
+    setStageUpdateTarget(null);
+    setStageUpdateError(null);
+    setStageRemark("");
   }
+
+  async function handleConfirmStageUpdate() {
+    if (!stageUpdateTarget) return;
+
+    const remark = stageRemark.trim();
+    if (!remark) {
+      setStageUpdateError("Please add a remark for this stage update.");
+      return;
+    }
+
+    setStageUpdateError(null);
+    setIsStageUpdating(true);
+    try {
+      const { lead, status } = stageUpdateTarget;
+      const data: LeadUpdateData = { status };
+      if (status === LeadStatus.CONVERTED) {
+        data.convertedAt = new Date().toISOString();
+      }
+      await updateLead.mutateAsync({ id: lead.id, data });
+      await createLeadRemark.mutateAsync({ id: lead.id, input: { content: remark } });
+      closeStageUpdateDialog();
+    } catch (error) {
+      setStageUpdateError(error instanceof Error ? error.message : "Failed to update lead stage.");
+    } finally {
+      setIsStageUpdating(false);
+    }
+  }
+
 
   function openDeleteLeadDialog(lead: Lead) {
     resetMutations();
@@ -2054,24 +2016,16 @@ export default function LeadsPage() {
   }
 
   function handleStatusChange(lead: Lead, status: LeadStatus) {
-    if (status === LeadStatus.CONTACTED && lead.status !== LeadStatus.CONTACTED) {
-      openContactRecordingDialog(lead);
-      return;
-    }
-
     if (status === LeadStatus.CONVERTED) {
       handleConvert(lead);
       return;
     }
 
-    updateLead.mutate({ id: lead.id, data: { status } });
+    openStageUpdateDialog(lead, status);
   }
 
   function handleConvert(lead: Lead) {
-    updateLead.mutate({
-      id: lead.id,
-      data: { status: LeadStatus.CONVERTED, convertedAt: new Date().toISOString() },
-    });
+    openStageUpdateDialog(lead, LeadStatus.CONVERTED);
   }
 
   function handleAssignLead(id: string, assignee: AssigneeOption) {
@@ -2137,36 +2091,12 @@ export default function LeadsPage() {
       if (formState?.lead?.id === deleteLeadTarget.id) {
         setFormState(null);
       }
-      if (contactRecordingLead?.id === deleteLeadTarget.id) {
-        setContactRecordingLead(null);
-      }
       setDeleteLeadTarget(null);
     } catch (error) {
       setDeleteError(error instanceof Error ? error.message : "Failed to delete lead.");
     } finally {
       setDeletingLeadId(null);
     }
-  }
-
-  function handleSaveContactRecording(file: File) {
-    if (!contactRecordingLead) {
-      return;
-    }
-
-    contactLeadRecording.mutate(
-      {
-        id: contactRecordingLead.id,
-        input: {
-          audioFile: file,
-          contactedAt: new Date().toISOString(),
-        },
-      },
-      {
-        onSuccess: () => {
-          closeContactRecordingDialog();
-        },
-      }
-    );
   }
 
   const ActionButtons = (
@@ -2238,15 +2168,6 @@ export default function LeadsPage() {
           remarkError={remarkError}
         />
 
-        {contactRecordingLead && (
-          <ContactRecordingDialog
-            lead={contactRecordingLead}
-            onClose={closeContactRecordingDialog}
-            onSave={handleSaveContactRecording}
-            isLoading={contactLeadRecording.isPending}
-            errorMessage={contactRecordingError}
-          />
-        )}
       </>
     );
   }
@@ -2536,15 +2457,17 @@ export default function LeadsPage() {
         />
       )}
 
-      {contactRecordingLead && (
-        <ContactRecordingDialog
-          lead={contactRecordingLead}
-          onClose={closeContactRecordingDialog}
-          onSave={handleSaveContactRecording}
-          isLoading={contactLeadRecording.isPending}
-          errorMessage={contactRecordingError}
-        />
-      )}
+      <StageUpdateDialog
+        open={Boolean(stageUpdateTarget)}
+        lead={stageUpdateTarget?.lead ?? null}
+        targetStatus={stageUpdateTarget?.status ?? null}
+        remark={stageRemark}
+        onRemarkChange={setStageRemark}
+        onClose={closeStageUpdateDialog}
+        onConfirm={handleConfirmStageUpdate}
+        isLoading={isStageUpdating}
+        errorMessage={stageUpdateError}
+      />
 
       <DeleteLeadDialog
         open={Boolean(deleteLeadTarget)}

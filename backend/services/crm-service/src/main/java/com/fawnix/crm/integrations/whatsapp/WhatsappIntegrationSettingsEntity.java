@@ -38,6 +38,12 @@ public class WhatsappIntegrationSettingsEntity {
   @Column(name = "template_use_lead_name")
   private Boolean templateUseLeadName;
 
+  @Column(name = "assign_template_name", length = 120)
+  private String assignTemplateName;
+
+  @Column(name = "assign_template_language", length = 20)
+  private String assignTemplateLanguage;
+
   @Column(name = "default_country_code", length = 10)
   private String defaultCountryCode;
 
@@ -114,6 +120,22 @@ public class WhatsappIntegrationSettingsEntity {
 
   public void setTemplateUseLeadName(Boolean templateUseLeadName) {
     this.templateUseLeadName = templateUseLeadName;
+  }
+
+  public String getAssignTemplateName() {
+    return assignTemplateName;
+  }
+
+  public void setAssignTemplateName(String assignTemplateName) {
+    this.assignTemplateName = assignTemplateName;
+  }
+
+  public String getAssignTemplateLanguage() {
+    return assignTemplateLanguage;
+  }
+
+  public void setAssignTemplateLanguage(String assignTemplateLanguage) {
+    this.assignTemplateLanguage = assignTemplateLanguage;
   }
 
   public String getDefaultCountryCode() {

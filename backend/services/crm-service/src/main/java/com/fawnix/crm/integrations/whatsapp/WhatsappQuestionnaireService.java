@@ -5,6 +5,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fawnix.crm.leads.dto.LeadDtos;
 import com.fawnix.crm.leads.entity.LeadEntity;
 import com.fawnix.crm.leads.repository.LeadRepository;
+import com.fawnix.crm.remarks.entity.LeadRemarkEntity;
+import com.fawnix.crm.remarks.entity.LeadRemarkVersionEntity;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -118,10 +120,51 @@ public class WhatsappQuestionnaireService {
       questionnaire.setLastMessageId(messageId);
       questionnaireRepository.save(questionnaire);
       leadRepository.save(lead);
+      try {
+        sendLanguageQuestion(questionnaire);
+        questionnaire.setStep(STEP_ASK_LANGUAGE);
+        questionnaire.setUpdatedAt(Instant.now());
+        questionnaireRepository.save(questionnaire);
+      } catch (Exception ex) {
+        LOGGER.warn("Failed to auto-start WhatsApp questionnaire for lead {}.", lead.getId(), ex);
+      }
     } catch (Exception ex) {
       LOGGER.error("Failed to send WhatsApp template for lead {}.", lead.getId(), ex);
       questionnaire.setUpdatedAt(Instant.now());
       questionnaireRepository.save(questionnaire);
+    }
+  }
+
+  public void sendAssignmentNotification(LeadEntity lead, String assigneeName, String assigneePhone) {
+    if (!properties.enabled()) {
+      return;
+    }
+    String phone = normalizePhone(assigneePhone);
+    if (!StringUtils.hasText(phone)) {
+      return;
+    }
+
+    String resolvedTemplateName = settingsService.resolveAssignTemplateName();
+    String templateName = StringUtils.hasText(resolvedTemplateName)
+        ? resolvedTemplateName
+        : "assign_lead";
+    String resolvedTemplateLanguage = settingsService.resolveAssignTemplateLanguage();
+    String languageCode = StringUtils.hasText(resolvedTemplateLanguage)
+        ? resolvedTemplateLanguage
+        : "en_US";
+
+    List<String> bodyParams = List.of(
+        fallbackText(assigneeName, "Sales Executive"),
+        fallbackText(lead.getName(), "New Lead"),
+        fallbackText(resolveLeadContact(lead), "N/A"),
+        fallbackText(resolveLeadRemarks(lead), "No remarks yet"),
+        fallbackText(resolveLeadLocation(lead), "N/A")
+    );
+
+    try {
+      whatsappClient.sendTemplate(phone, templateName, languageCode, bodyParams);
+    } catch (Exception ex) {
+      LOGGER.error("Failed to send WhatsApp assignment template for lead {}.", lead.getId(), ex);
     }
   }
 
@@ -621,6 +664,70 @@ public class WhatsappQuestionnaireService {
       }
     }
     return digits;
+  }
+
+  private String resolveLeadContact(LeadEntity lead) {
+    if (StringUtils.hasText(lead.getPhone())) {
+      return lead.getPhone();
+    }
+    if (StringUtils.hasText(lead.getAlternativePhone())) {
+      return lead.getAlternativePhone();
+    }
+    if (StringUtils.hasText(lead.getEmail())) {
+      return lead.getEmail();
+    }
+    return null;
+  }
+
+  private String resolveLeadRemarks(LeadEntity lead) {
+    if (StringUtils.hasText(lead.getPresalesRemarks())) {
+      return lead.getPresalesRemarks();
+    }
+    for (LeadRemarkEntity remark : lead.getRemarks()) {
+      List<LeadRemarkVersionEntity> versions = remark.getVersions();
+      if (versions == null || versions.isEmpty()) {
+        continue;
+      }
+      LeadRemarkVersionEntity latest = versions.get(versions.size() - 1);
+      if (latest != null && StringUtils.hasText(latest.getContent())) {
+        return latest.getContent();
+      }
+    }
+    return lead.getNotes();
+  }
+
+  private String resolveLeadLocation(LeadEntity lead) {
+    String location = joinNonBlank(
+        ", ",
+        lead.getProjectLocation(),
+        lead.getProjectState(),
+        lead.getCommunity()
+    );
+    if (StringUtils.hasText(location)) {
+      return location;
+    }
+    return lead.getCompany();
+  }
+
+  private String joinNonBlank(String delimiter, String... values) {
+    StringBuilder builder = new StringBuilder();
+    for (String value : values) {
+      if (!StringUtils.hasText(value)) {
+        continue;
+      }
+      if (builder.length() > 0) {
+        builder.append(delimiter);
+      }
+      builder.append(value.trim());
+    }
+    return builder.toString();
+  }
+
+  private String fallbackText(String value, String fallback) {
+    if (!StringUtils.hasText(value)) {
+      return fallback;
+    }
+    return value.trim();
   }
 
   private LeadDtos.LeadWhatsappQuestionnaireResponse toResponse(LeadWhatsappQuestionnaireEntity entity) {

@@ -51,7 +51,14 @@ public class IdentityUserClient {
         return null;
       }
       AssigneeRecord assignee = assignees.get(0);
-      return new IdentityUser(assignee.id(), assignee.name(), assignee.email(), true, List.of());
+      return new IdentityUser(
+          assignee.id(),
+          assignee.name(),
+          assignee.email(),
+          assignee.phoneNumber(),
+          true,
+          List.of()
+      );
     } catch (RestClientException exception) {
       throw new BadRequestException("Unable to load assignees from identity service.");
     }
@@ -86,11 +93,12 @@ public class IdentityUserClient {
       String id,
       String name,
       String email,
+      String phoneNumber,
       boolean active,
       List<String> roles
   ) {
   }
 
-  private record AssigneeRecord(String id, String name, String email) {
+  private record AssigneeRecord(String id, String name, String email, String phoneNumber) {
   }
 }

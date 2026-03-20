@@ -50,8 +50,8 @@ export function useTestMetaIntegration() {
 }
 
 export function useFetchLatestMetaLeads() {
-  return useMutation<MetaLeadFetchResult>({
-    mutationFn: () => fetchLatestMetaLeads(),
+  return useMutation<MetaLeadFetchResult, unknown, number | undefined>({
+    mutationFn: (limit) => fetchLatestMetaLeads(limit),
   });
 }
 

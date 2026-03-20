@@ -114,24 +114,41 @@ public class MetaLeadService {
       throw new BadRequestException("Meta form ID is required to fetch leads.");
     }
 
-    MetaLeadClient.MetaLeadPage page = metaLeadClient.fetchFormLeads(formId, null, limit);
     int created = 0;
     int skipped = 0;
+    int processed = 0;
+    int resolvedLimit = limit > 0 ? limit : 100;
+    String cursor = null;
 
-    for (MetaLeadClient.MetaLeadDetails details : page.leads()) {
-      if (details.leadgenId() == null || details.leadgenId().isBlank()) {
-        skipped++;
-        continue;
+    while (processed < resolvedLimit) {
+      int pageLimit = Math.min(resolvedLimit - processed, 100);
+      MetaLeadClient.MetaLeadPage page = metaLeadClient.fetchFormLeads(formId, cursor, pageLimit);
+      if (page.leads().isEmpty()) {
+        cursor = page.nextCursor();
+        break;
       }
-      if (ingestionRepository.existsByLeadgenId(details.leadgenId())) {
-        skipped++;
-        continue;
+
+      for (MetaLeadClient.MetaLeadDetails details : page.leads()) {
+        if (details.leadgenId() == null || details.leadgenId().isBlank()) {
+          skipped++;
+          continue;
+        }
+        if (ingestionRepository.existsByLeadgenId(details.leadgenId())) {
+          skipped++;
+          continue;
+        }
+        processLeadDetails(details, null, details.formId(), details.adId());
+        created++;
       }
-      processLeadDetails(details, null, details.formId(), details.adId());
-      created++;
+
+      processed += page.leads().size();
+      cursor = page.nextCursor();
+      if (!StringUtils.hasText(cursor)) {
+        break;
+      }
     }
 
-    return new MetaLeadFetchResult(page.leads().size(), created, skipped, page.nextCursor());
+    return new MetaLeadFetchResult(processed, created, skipped, cursor);
   }
 
   private void processLeadgen(String leadgenId, String pageId, String formId, String adId) {

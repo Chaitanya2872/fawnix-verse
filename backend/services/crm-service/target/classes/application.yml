@@ -60,6 +60,8 @@ app:
       template-name: ${WHATSAPP_TEMPLATE_NAME:fawnix_lead_intro}
       template-language: ${WHATSAPP_TEMPLATE_LANGUAGE:en_US}
       template-use-lead-name: ${WHATSAPP_TEMPLATE_USE_LEAD_NAME:false}
+      assign-template-name: ${WHATSAPP_ASSIGN_TEMPLATE_NAME:assign_lead}
+      assign-template-language: ${WHATSAPP_ASSIGN_TEMPLATE_LANGUAGE:en_US}
       default-country-code: ${WHATSAPP_DEFAULT_COUNTRY_CODE:}
   leads:
     follow-up-reminders:

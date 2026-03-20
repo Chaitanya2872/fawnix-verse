@@ -41,6 +41,8 @@ const EMPTY_WHATSAPP_FORM: WhatsappIntegrationSettings = {
   appSecret: "",
   templateName: "fawnix_lead_intro",
   templateLanguage: "en_US",
+  assignTemplateName: "assign_lead",
+  assignTemplateLanguage: "en_US",
   templateUseLeadName: false,
   defaultCountryCode: "",
 };
@@ -72,6 +74,7 @@ export default function IntegrationsPage() {
   const [metaTestMessage, setMetaTestMessage] = useState<string | null>(null);
   const [metaFetchMessage, setMetaFetchMessage] = useState<string | null>(null);
   const [whatsappTestMessage, setWhatsappTestMessage] = useState<string | null>(null);
+  const [metaFetchLimit, setMetaFetchLimit] = useState("100");
 
   useEffect(() => {
     if (metaSettingsQuery.data) {
@@ -289,13 +292,28 @@ export default function IntegrationsPage() {
               >
                 {testMetaMutation.isPending ? "Testing..." : "Test Connection"}
               </Button>
+              <div className="flex items-center gap-2">
+                <Label htmlFor="meta-fetch-limit" className="text-xs text-slate-500">
+                  Fetch limit
+                </Label>
+                <Input
+                  id="meta-fetch-limit"
+                  type="number"
+                  min={1}
+                  value={metaFetchLimit}
+                  onChange={(event) => setMetaFetchLimit(event.target.value)}
+                  className="h-9 w-24"
+                />
+              </div>
               <Button
                 type="button"
                 variant="secondary"
                 disabled={fetchMetaLeadsMutation.isPending}
                 onClick={() => {
                   setMetaFetchMessage(null);
-                  fetchMetaLeadsMutation.mutate(undefined, {
+                  const parsedLimit = Number.parseInt(metaFetchLimit, 10);
+                  const resolvedLimit = Number.isFinite(parsedLimit) ? parsedLimit : 100;
+                  fetchMetaLeadsMutation.mutate(resolvedLimit, {
                     onSuccess: (data) => {
                       setMetaFetchMessage(
                         `Fetched ${data.processed} leads - created ${data.created}, skipped ${data.skipped}.`
@@ -441,6 +459,38 @@ export default function IntegrationsPage() {
                   value={whatsappFormState.templateLanguage}
                   onChange={(event) =>
                     handleWhatsappChange("templateLanguage", event.target.value)
+                  }
+                  placeholder="en_US"
+                />
+              </div>
+            </div>
+
+            <div className="grid gap-2 sm:grid-cols-2 sm:gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="wa-assign-template-name">
+                  Assign Lead Template Name
+                </Label>
+                <Input
+                  id="wa-assign-template-name"
+                  value={whatsappFormState.assignTemplateName}
+                  onChange={(event) =>
+                    handleWhatsappChange("assignTemplateName", event.target.value)
+                  }
+                  placeholder="assign_lead"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="wa-assign-template-language">
+                  Assign Lead Template Language
+                </Label>
+                <Input
+                  id="wa-assign-template-language"
+                  value={whatsappFormState.assignTemplateLanguage}
+                  onChange={(event) =>
+                    handleWhatsappChange(
+                      "assignTemplateLanguage",
+                      event.target.value
+                    )
                   }
                   placeholder="en_US"
                 />

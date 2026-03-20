@@ -38,6 +38,8 @@ public class WhatsappIntegrationSettingsController {
             "",
             "",
             false,
+            "",
+            "",
             ""
         )));
   }
@@ -57,6 +59,8 @@ public class WhatsappIntegrationSettingsController {
             request.templateName(),
             request.templateLanguage(),
             request.templateUseLeadName(),
+            request.assignTemplateName(),
+            request.assignTemplateLanguage(),
             request.defaultCountryCode()
         )
     );
@@ -79,6 +83,8 @@ public class WhatsappIntegrationSettingsController {
         entity.getTemplateName() != null ? entity.getTemplateName() : "",
         entity.getTemplateLanguage() != null ? entity.getTemplateLanguage() : "",
         entity.getTemplateUseLeadName() != null && entity.getTemplateUseLeadName(),
+        entity.getAssignTemplateName() != null ? entity.getAssignTemplateName() : "",
+        entity.getAssignTemplateLanguage() != null ? entity.getAssignTemplateLanguage() : "",
         entity.getDefaultCountryCode() != null ? entity.getDefaultCountryCode() : ""
     );
   }
@@ -92,6 +98,8 @@ public class WhatsappIntegrationSettingsController {
       String templateName,
       String templateLanguage,
       Boolean templateUseLeadName,
+      String assignTemplateName,
+      String assignTemplateLanguage,
       String defaultCountryCode
   ) {
   }
@@ -105,6 +113,8 @@ public class WhatsappIntegrationSettingsController {
       String templateName,
       String templateLanguage,
       boolean templateUseLeadName,
+      String assignTemplateName,
+      String assignTemplateLanguage,
       String defaultCountryCode
   ) {
   }
