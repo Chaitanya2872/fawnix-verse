@@ -12,7 +12,7 @@ import PreSalesOverviewPage from "@/modules/crm/presales/page";
 import IntegrationsPage from "@/modules/integrations/page";
 import ReportsPage from "@/modules/reports/page";
 import UsersPage from "@/modules/users/page";
-// import SalesPage from "@/modules/sales/page";
+import SalesPage from "@/modules/sales/page";
 // import PurchasesPage from "@/modules/purchases/page";
 // import LeadsPage from "@/modules/crm/lead-management/page";
 // import AccountingPage from "@/modules/accounting/page";
@@ -44,7 +44,14 @@ export const router = createBrowserRouter([
               </RequirePermission>
             ),
           },
-          //   { path: "sales", element: <SalesPage /> },
+          {
+            path: "sales",
+            element: (
+              <RequirePermission permission={PERMISSIONS.PAGE_SALES}>
+                <SalesPage />
+              </RequirePermission>
+            ),
+          },
           //   { path: "purchases", element: <PurchasesPage /> },
           {
             path: "crm/leads",
