@@ -56,17 +56,21 @@ public final class UserPermissionCatalog {
       case ROLE_ADMIN -> new LinkedHashSet<>(ALL_PERMISSIONS);
       case ROLE_SALES_MANAGER -> new LinkedHashSet<>(List.of(
           MODULE_CRM,
+          MODULE_SALES,
           MODULE_REPORTS,
           PAGE_DASHBOARD,
           PAGE_CRM_LEADS,
           PAGE_CRM_PRESALES,
+          PAGE_SALES,
           PAGE_REPORTS
       ));
       case ROLE_SALES_REP -> new LinkedHashSet<>(List.of(
           MODULE_CRM,
+          MODULE_SALES,
           PAGE_DASHBOARD,
           PAGE_CRM_LEADS,
-          PAGE_CRM_PRESALES
+          PAGE_CRM_PRESALES,
+          PAGE_SALES
       ));
       case ROLE_VIEWER -> new LinkedHashSet<>(List.of(
           MODULE_REPORTS,

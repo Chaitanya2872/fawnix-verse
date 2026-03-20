@@ -49,6 +49,7 @@ public class UserService {
     this.refreshTokenRepository = refreshTokenRepository;
   }
 
+  @Transactional(readOnly = true)
   public List<AssigneeResponse> getAssignees() {
     return userRepository.findDistinctByActiveTrueAndRoles_NameInOrderByFullNameAsc(
             List.of(RoleName.ROLE_SALES_REP.name(), RoleName.ROLE_SALES_MANAGER.name()))
@@ -57,6 +58,7 @@ public class UserService {
         .toList();
   }
 
+  @Transactional(readOnly = true)
   public List<UserDtos.UserResponse> getUsers() {
     return userRepository.findAllByOrderByFullNameAsc()
         .stream()
@@ -64,6 +66,7 @@ public class UserService {
         .toList();
   }
 
+  @Transactional(readOnly = true)
   public UserDtos.UserResponse getUserById(String userId) {
     return userMapper.toUserResponse(requireUser(userId));
   }
@@ -130,6 +133,7 @@ public class UserService {
     userRepository.delete(user);
   }
 
+  @Transactional(readOnly = true)
   public InternalUserResponse getAssignableUserById(String userId) {
     UserEntity user = userRepository.findById(userId)
         .orElseThrow(() -> new IllegalArgumentException("Assignee not found"));
@@ -137,6 +141,7 @@ public class UserService {
     return userMapper.toInternalUser(user);
   }
 
+  @Transactional(readOnly = true)
   public InternalUserResponse getAssignableUserByName(String name) {
     UserEntity user = userRepository.findByFullNameIgnoreCase(name)
         .orElseThrow(() -> new IllegalArgumentException("Assignee not found"));
