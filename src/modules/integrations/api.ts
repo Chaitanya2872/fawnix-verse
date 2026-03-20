@@ -22,6 +22,7 @@ export async function fetchMetaIntegrationSettings(): Promise<MetaIntegrationSet
       formId: "",
       verifyToken: "",
       appSecret: "",
+      enabled: false,
     };
   } catch (error) {
     rethrowApiError(error, "Failed to load Meta integration settings.");
@@ -33,9 +34,10 @@ export async function updateMetaIntegrationSettings(
 ): Promise<MetaIntegrationSettings> {
   try {
     await ensureApiSession();
+    const { enabled, ...payload } = input;
     const response = await api.put<MetaIntegrationSettings>(
       "/integrations/meta/settings",
-      input
+      payload
     );
     return response.data;
   } catch (error) {

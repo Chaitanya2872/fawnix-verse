@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   AlertCircle,
@@ -1858,10 +1858,13 @@ export default function LeadsPage() {
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importResult, setImportResult] = useState<LeadImportResult | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
+  const [newLeadToast, setNewLeadToast] = useState<{ count: number } | null>(null);
+  const lastTotalRef = useRef<number | null>(null);
+  const lastFilterKeyRef = useRef<string>("");
 
   const assigneesQuery = useLeadAssignees();
   const assignees = assigneesQuery.data ?? [];
-  const { data, isLoading, isError, error } = useLeads(filter);
+  const { data, isLoading, isError, error } = useLeads(filter, { refetchInterval: 15_000 });
   const leadDetail = useLeadDetail(isDetailView ? routeLeadId ?? null : null);
   const createLead = useCreateLead();
   const updateLead = useUpdateLead();
@@ -1918,6 +1921,42 @@ export default function LeadsPage() {
     convertedCount: 0,
     statusCounts: {},
   };
+
+  const filterKey = useMemo(
+    () =>
+      JSON.stringify({
+        search: filter.search,
+        status: filter.status,
+        source: filter.source,
+        assignedTo: filter.assignedTo,
+        priority: filter.priority,
+        pageSize: filter.pageSize,
+      }),
+    [filter.search, filter.status, filter.source, filter.assignedTo, filter.priority, filter.pageSize]
+  );
+
+  useEffect(() => {
+    if (lastFilterKeyRef.current !== filterKey) {
+      lastFilterKeyRef.current = filterKey;
+      lastTotalRef.current = data?.total ?? null;
+      setNewLeadToast(null);
+      return;
+    }
+
+    if (!data) {
+      return;
+    }
+
+    const previousTotal = lastTotalRef.current;
+    if (previousTotal !== null && data.total > previousTotal) {
+      const diff = data.total - previousTotal;
+      setNewLeadToast({ count: diff });
+      if (filter.page !== 1) {
+        setFilter((prev) => ({ ...prev, page: 1 }));
+      }
+    }
+    lastTotalRef.current = data.total;
+  }, [data, filterKey, filter.page]);
 
   const formError = formState?.mode === "edit"
     ? (updateLead.error instanceof Error ? updateLead.error.message : null)
@@ -2174,6 +2213,36 @@ export default function LeadsPage() {
 
   return (
     <>
+      {newLeadToast ? (
+        <div className="fixed right-6 top-6 z-50 w-[280px] rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-800 shadow-xl">
+          <div className="flex items-start gap-3">
+            <span className="mt-1 h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse" />
+            <div className="flex-1">
+              <p className="text-sm font-semibold">New leads arrived</p>
+              <p className="mt-1 text-xs text-emerald-700">
+                {newLeadToast.count} new lead{newLeadToast.count === 1 ? "" : "s"} added.
+              </p>
+              <div className="mt-3 flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    setFilter((prev) => ({ ...prev, page: 1 }));
+                    setNewLeadToast(null);
+                  }}
+                  className="rounded-lg bg-emerald-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-emerald-700"
+                >
+                  View latest
+                </button>
+                <button
+                  onClick={() => setNewLeadToast(null)}
+                  className="rounded-lg border border-emerald-200 px-2.5 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-100"
+                >
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
       <LeadsLayout actionButton={ActionButtons}>
         {/* Stats */}
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">

@@ -120,11 +120,18 @@ public class WhatsappQuestionnaireService {
       questionnaire.setLastMessageId(messageId);
       questionnaireRepository.save(questionnaire);
       leadRepository.save(lead);
+      boolean templateAsksLanguage = "fawnix_lead_intro".equalsIgnoreCase(templateName);
       try {
-        sendLanguageQuestion(questionnaire);
-        questionnaire.setStep(STEP_ASK_LANGUAGE);
-        questionnaire.setUpdatedAt(Instant.now());
-        questionnaireRepository.save(questionnaire);
+        if (templateAsksLanguage) {
+          questionnaire.setStep(STEP_ASK_LANGUAGE);
+          questionnaire.setUpdatedAt(Instant.now());
+          questionnaireRepository.save(questionnaire);
+        } else {
+          sendLanguageQuestion(questionnaire);
+          questionnaire.setStep(STEP_ASK_LANGUAGE);
+          questionnaire.setUpdatedAt(Instant.now());
+          questionnaireRepository.save(questionnaire);
+        }
       } catch (Exception ex) {
         LOGGER.warn("Failed to auto-start WhatsApp questionnaire for lead {}.", lead.getId(), ex);
       }

@@ -296,6 +296,12 @@ export interface LeadsSummary {
   statusCounts: Partial<Record<LeadStatus, number>>;
 }
 
+export interface LeadNotifications {
+  newLeadCount: number;
+  followUpDueCount: number;
+  updatedAt: string;
+}
+
 export interface PaginatedLeads {
   data: Lead[];
   total: number;

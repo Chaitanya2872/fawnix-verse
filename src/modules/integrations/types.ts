@@ -3,6 +3,7 @@ export interface MetaIntegrationSettings {
   formId: string;
   verifyToken: string;
   appSecret: string;
+  enabled: boolean;
 }
 
 export interface MetaIntegrationTestResult {

@@ -284,6 +284,13 @@ public final class LeadDtos {
   ) {
   }
 
+  public record LeadNotificationsResponse(
+      long newLeadCount,
+      long followUpDueCount,
+      Instant updatedAt
+  ) {
+  }
+
   public record PaginatedLeadResponse(
       List<LeadResponse> data,
       long total,

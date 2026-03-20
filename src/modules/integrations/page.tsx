@@ -31,6 +31,7 @@ const EMPTY_META_FORM: MetaIntegrationSettings = {
   formId: "",
   verifyToken: "",
   appSecret: "",
+  enabled: false,
 };
 
 const EMPTY_WHATSAPP_FORM: WhatsappIntegrationSettings = {
@@ -162,6 +163,26 @@ export default function IntegrationsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          <div
+            className={`mb-5 rounded-xl border px-4 py-3 text-sm font-medium ${
+              metaFormState.enabled
+                ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                : "border-amber-200 bg-amber-50 text-amber-800"
+            }`}
+          >
+            {metaFormState.enabled ? (
+              <span>
+                ✅ Meta webhooks are enabled. Incoming leads will be processed
+                automatically.
+              </span>
+            ) : (
+              <span>
+                ❌ Meta webhooks are disabled. Set{" "}
+                <span className="font-semibold">META_LEADS_ENABLED=true</span>{" "}
+                in your server environment.
+              </span>
+            )}
+          </div>
           <form onSubmit={handleMetaSubmit} className="space-y-5">
             <div className="grid gap-2">
               <Label htmlFor="meta-access-token">Page Access Token</Label>

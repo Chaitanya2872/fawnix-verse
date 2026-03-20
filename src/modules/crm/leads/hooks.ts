@@ -13,6 +13,7 @@ import {
   deleteLead,
   editLeadRemark,
   fetchLeadSchedules,
+  fetchLeadNotifications,
   fetchLeadAssignees,
   fetchLeadById,
   fetchLeadQuestionnaire,
@@ -33,6 +34,7 @@ import {
   type LeadFilter,
   type LeadFormData,
   type LeadSchedule,
+  type LeadNotifications,
   type UpdateLeadScheduleInput,
   type LeadUpdateData,
 } from "./types";
@@ -48,14 +50,20 @@ export const leadsKeys = {
   schedules: () => [...leadsKeys.all, "schedules"] as const,
   schedule: (leadId: string) => [...leadsKeys.schedules(), leadId] as const,
   assignees: () => [...leadsKeys.all, "assignees"] as const,
+  notifications: () => [...leadsKeys.all, "notifications"] as const,
 };
 
-export function useLeads(filter: LeadFilter) {
+export function useLeads(
+  filter: LeadFilter,
+  options?: { refetchInterval?: number; enabled?: boolean }
+) {
   return useQuery({
     queryKey: leadsKeys.list(filter),
     queryFn: () => fetchLeads(filter),
     placeholderData: keepPreviousData,
     staleTime: 30_000,
+    refetchInterval: options?.refetchInterval,
+    enabled: options?.enabled ?? true,
   });
 }
 
@@ -83,6 +91,19 @@ export function useLeadSchedules(leadId: string | null) {
     queryFn: () => fetchLeadSchedules(leadId ?? ""),
     enabled: Boolean(leadId),
     staleTime: 30_000,
+  });
+}
+
+export function useLeadNotifications(options?: {
+  enabled?: boolean;
+  refetchInterval?: number;
+}) {
+  return useQuery<LeadNotifications>({
+    queryKey: leadsKeys.notifications(),
+    queryFn: fetchLeadNotifications,
+    enabled: options?.enabled ?? true,
+    refetchInterval: options?.refetchInterval ?? 15_000,
+    staleTime: 10_000,
   });
 }
 

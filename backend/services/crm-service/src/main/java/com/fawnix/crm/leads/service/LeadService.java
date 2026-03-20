@@ -127,6 +127,21 @@ public class LeadService {
     return leadMapper.toResponse(requireLead(id));
   }
 
+  @Transactional(readOnly = true)
+  public LeadDtos.LeadNotificationsResponse getNotifications(AppUserDetails actor) {
+    String assignedFilter = null;
+    if (isSalesRepOnly(actor)) {
+      assignedFilter = actor.getUserId();
+    }
+    String normalized = assignedFilter != null && !assignedFilter.isBlank()
+        ? assignedFilter.trim().toLowerCase(Locale.ROOT)
+        : null;
+
+    long newLeadCount = leadRepository.countByStatusAndAssignee(LeadStatus.NEW, normalized);
+    long followUpDueCount = leadRepository.countFollowUpsDue(Instant.now(), normalized);
+    return new LeadDtos.LeadNotificationsResponse(newLeadCount, followUpDueCount, Instant.now());
+  }
+
   @Transactional
   public LeadDtos.LeadResponse createLead(LeadDtos.CreateLeadRequest request, AppUserDetails currentUser) {
     Instant now = Instant.now();

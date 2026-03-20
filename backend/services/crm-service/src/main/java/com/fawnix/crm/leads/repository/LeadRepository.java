@@ -20,6 +20,33 @@ public interface LeadRepository extends JpaRepository<LeadEntity, String>, JpaSp
       """)
   List<LeadEntity> findLeadsNeedingFollowUp(@Param("cutoff") Instant cutoff);
 
+  @Query("""
+      select count(l) from LeadEntity l
+      where l.status = :status
+        and (:assignedTo is null or :assignedTo = ''
+          or lower(l.assignedToUserId) = :assignedTo
+          or lower(l.assignedToName) = :assignedTo)
+      """)
+  long countByStatusAndAssignee(
+      @Param("status") com.fawnix.crm.leads.entity.LeadStatus status,
+      @Param("assignedTo") String assignedTo
+  );
+
+  @Query("""
+      select count(l) from LeadEntity l
+      where l.followUpAt is not null
+        and l.followUpAt <= :cutoff
+        and l.status <> com.fawnix.crm.leads.entity.LeadStatus.CONVERTED
+        and l.status <> com.fawnix.crm.leads.entity.LeadStatus.LOST
+        and (:assignedTo is null or :assignedTo = ''
+          or lower(l.assignedToUserId) = :assignedTo
+          or lower(l.assignedToName) = :assignedTo)
+      """)
+  long countFollowUpsDue(
+      @Param("cutoff") Instant cutoff,
+      @Param("assignedTo") String assignedTo
+  );
+
   java.util.Optional<LeadEntity> findFirstByEmailIgnoreCase(String email);
 
   java.util.Optional<LeadEntity> findFirstByPhone(String phone);

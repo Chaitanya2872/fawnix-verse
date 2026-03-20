@@ -14,6 +14,7 @@ import {
   type UpdateLeadScheduleInput,
   type LeadUpdateData,
   type LeadWhatsappQuestionnaire,
+  type LeadNotifications,
   type LeadsSummary,
   type PaginatedLeads,
   getLeadStatusTransitions,
@@ -252,6 +253,22 @@ export async function fetchLeadSchedules(leadId: string): Promise<LeadSchedule[]
     return response.data ?? [];
   } catch (error) {
     rethrowApiError(error, "Failed to load schedules.");
+  }
+}
+
+export async function fetchLeadNotifications(): Promise<LeadNotifications> {
+  try {
+    await ensureApiSession();
+    const response = await api.get<LeadNotifications>("/leads/notifications");
+    return (
+      response.data ?? {
+        newLeadCount: 0,
+        followUpDueCount: 0,
+        updatedAt: new Date().toISOString(),
+      }
+    );
+  } catch (error) {
+    rethrowApiError(error, "Failed to load lead notifications.");
   }
 }
 

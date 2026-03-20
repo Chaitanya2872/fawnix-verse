@@ -15,13 +15,16 @@ public class MetaIntegrationSettingsController {
 
   private final MetaIntegrationSettingsService settingsService;
   private final MetaIntegrationTestService testService;
+  private final MetaLeadProperties properties;
 
   public MetaIntegrationSettingsController(
       MetaIntegrationSettingsService settingsService,
-      MetaIntegrationTestService testService
+      MetaIntegrationTestService testService,
+      MetaLeadProperties properties
   ) {
     this.settingsService = settingsService;
     this.testService = testService;
+    this.properties = properties;
   }
 
   @GetMapping
@@ -29,7 +32,13 @@ public class MetaIntegrationSettingsController {
   public ResponseEntity<MetaIntegrationSettingsResponse> getSettings() {
     return settingsService.getSettings()
         .map(settings -> ResponseEntity.ok(toResponse(settings)))
-        .orElseGet(() -> ResponseEntity.ok(new MetaIntegrationSettingsResponse("", "", "", "")));
+        .orElseGet(() -> ResponseEntity.ok(new MetaIntegrationSettingsResponse(
+            "",
+            "",
+            "",
+            "",
+            properties.enabled()
+        )));
   }
 
   @PutMapping
@@ -57,7 +66,8 @@ public class MetaIntegrationSettingsController {
         entity.getAccessToken() != null ? entity.getAccessToken() : "",
         entity.getFormId() != null ? entity.getFormId() : "",
         entity.getVerifyToken() != null ? entity.getVerifyToken() : "",
-        entity.getAppSecret() != null ? entity.getAppSecret() : ""
+        entity.getAppSecret() != null ? entity.getAppSecret() : "",
+        properties.enabled()
     );
   }
 
@@ -73,7 +83,8 @@ public class MetaIntegrationSettingsController {
       String accessToken,
       String formId,
       String verifyToken,
-      String appSecret
+      String appSecret,
+      boolean enabled
   ) {
   }
 

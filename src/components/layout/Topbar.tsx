@@ -7,6 +7,7 @@ import {
   Settings,
   UserCircle2,
 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
@@ -21,6 +22,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { useCurrentUser, useLogout } from "@/modules/auth/hooks";
+import { useLeadNotifications } from "@/modules/crm/leads/hooks";
 import { hasStoredSession } from "@/services/api-client";
 
 type TopbarProps = {
@@ -52,10 +54,37 @@ export function Topbar({
   const navigate = useNavigate();
   const { data: currentUser } = useCurrentUser({ enabled: hasStoredSession() });
   const logoutMutation = useLogout();
+  const notificationsQuery = useLeadNotifications({
+    enabled: hasStoredSession(),
+    refetchInterval: 15_000,
+  });
 
   const resolvedUserName = userName ?? currentUser?.name ?? "Admin User";
   const resolvedUserEmail = userEmail ?? currentUser?.email ?? "admin@fawnix.com";
   const userInitials = getUserInitials(resolvedUserName) || "AU";
+
+  const [lastSeenNewLeads, setLastSeenNewLeads] = useState<number | null>(null);
+  const notifications = notificationsQuery.data;
+
+  useEffect(() => {
+    if (!notifications) {
+      return;
+    }
+    if (lastSeenNewLeads === null) {
+      setLastSeenNewLeads(notifications.newLeadCount);
+    }
+  }, [notifications, lastSeenNewLeads]);
+
+  const unreadNewLeads = useMemo(() => {
+    if (!notifications || lastSeenNewLeads === null) {
+      return 0;
+    }
+    return Math.max(0, notifications.newLeadCount - lastSeenNewLeads);
+  }, [notifications, lastSeenNewLeads]);
+
+  const followUpDueCount = notifications?.followUpDueCount ?? 0;
+  const badgeCount = unreadNewLeads + followUpDueCount;
+  const badgeLabel = badgeCount > 99 ? "99+" : badgeCount.toString();
 
   const handleLogout = async () => {
     try {
@@ -97,15 +126,86 @@ export function Topbar({
         ) : null}
 
         <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="h-9 w-9 text-slate-500 hover:bg-blue-50 hover:text-blue-700"
-            aria-label="Notifications"
+          <DropdownMenu
+            onOpenChange={(open) => {
+              if (open && notifications) {
+                setLastSeenNewLeads(notifications.newLeadCount);
+              }
+            }}
           >
-            <Bell className="h-4 w-4" aria-hidden="true" />
-          </Button>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="relative h-9 w-9 text-slate-500 hover:bg-blue-50 hover:text-blue-700"
+                aria-label="Notifications"
+              >
+                <Bell className="h-4 w-4" aria-hidden="true" />
+                {badgeCount > 0 ? (
+                  <span className="absolute -right-1 -top-1 inline-flex min-w-[18px] items-center justify-center rounded-full bg-rose-500 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                    {badgeLabel}
+                  </span>
+                ) : null}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-72 border-blue-100 bg-white p-0">
+              <div className="border-b border-blue-100 px-4 py-3">
+                <p className="text-sm font-semibold text-slate-900">Notifications</p>
+                <p className="text-xs text-slate-500">
+                  {notifications?.updatedAt
+                    ? `Updated ${new Date(notifications.updatedAt).toLocaleTimeString()}`
+                    : "Checking for updates..."}
+                </p>
+              </div>
+              <div className="space-y-3 px-4 py-3 text-sm text-slate-700">
+                <div className="flex items-center justify-between rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
+                      New leads
+                    </p>
+                    <p className="text-sm font-semibold text-emerald-900">
+                      {notifications?.newLeadCount ?? 0} total
+                    </p>
+                    {unreadNewLeads > 0 ? (
+                      <p className="text-xs text-emerald-700">
+                        {unreadNewLeads} new since last check
+                      </p>
+                    ) : null}
+                  </div>
+                  <button
+                    onClick={() => navigate("/crm/leads")}
+                    className="rounded-lg bg-emerald-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-emerald-700"
+                  >
+                    View
+                  </button>
+                </div>
+
+                <div className="flex items-center justify-between rounded-lg border border-amber-100 bg-amber-50 px-3 py-2">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">
+                      Follow-ups due
+                    </p>
+                    <p className="text-sm font-semibold text-amber-900">
+                      {followUpDueCount} pending
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => navigate("/crm/leads")}
+                    className="rounded-lg border border-amber-200 px-2.5 py-1 text-xs font-semibold text-amber-700 hover:bg-amber-100"
+                  >
+                    Open
+                  </button>
+                </div>
+
+                {notificationsQuery.isError ? (
+                  <div className="rounded-lg border border-rose-100 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+                    Unable to load notifications.
+                  </div>
+                ) : null}
+              </div>
+            </DropdownMenuContent>
+          </DropdownMenu>
 
           <Button
             type="button"

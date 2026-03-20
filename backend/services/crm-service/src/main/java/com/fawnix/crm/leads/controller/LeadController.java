@@ -56,6 +56,14 @@ public class LeadController {
     return leadService.getLeads(search, status, source, priority, assignedTo, page, pageSize, userDetails);
   }
 
+  @GetMapping("/notifications")
+  @PreAuthorize("isAuthenticated()")
+  public LeadDtos.LeadNotificationsResponse getNotifications(
+      @AuthenticationPrincipal AppUserDetails userDetails
+  ) {
+    return leadService.getNotifications(userDetails);
+  }
+
   @GetMapping("/{id}")
   @PreAuthorize("hasAnyRole('ADMIN','SALES_MANAGER') or @leadSecurityService.canManageLead(authentication, #id)")
   public LeadDtos.LeadResponse getLead(@PathVariable String id) {
