@@ -474,24 +474,6 @@ export default function ReportsPage() {
     doc.save(`fawnix-reports-${Date.now()}.pdf`);
   };
 
-  const stageChartItems = LEAD_STATUS_ORDER.map((status, index) => ({
-    label: LEAD_STATUS_LABELS[status],
-    value: statusCounts[status] ?? 0,
-    color: chartPalette[index % chartPalette.length],
-  }));
-
-  const sourceChartItems = data.sourcePerformance.map((row, index) => ({
-    label: row.source,
-    value: row.total,
-    color: chartPalette[index % chartPalette.length],
-  }));
-
-  const repChartItems = data.repPerformance.slice(0, 6).map((row, index) => ({
-    label: row.name,
-    value: row.pipelineValue,
-    color: chartPalette[index % chartPalette.length],
-  }));
-
   return (
     <div className="flex h-full w-full flex-col gap-6">
       <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
