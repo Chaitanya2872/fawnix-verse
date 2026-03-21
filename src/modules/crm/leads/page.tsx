@@ -1034,6 +1034,26 @@ function LeadDetailPanel({
     assignedTo: lead.assignedTo ?? "",
     assignedToUserId: lead.assignedToUserId ?? null,
   });
+  const tabs = [
+    { id: "contact", label: "Contact Details" },
+    { id: "location", label: "Location Map" },
+    { id: "communication", label: "Communication" },
+    { id: "remarks", label: "Remarks" },
+    { id: "other", label: "Other Details" },
+  ] as const;
+  type LeadTab = (typeof tabs)[number]["id"];
+  const [activeTab, setActiveTab] = useState<LeadTab>("contact");
+  const mapQuery = [
+    lead.projectLocation,
+    lead.projectState,
+    lead.community,
+    lead.company,
+  ]
+    .filter((value) => value && value.trim())
+    .join(", ");
+  const mapUrl = mapQuery
+    ? `https://www.google.com/maps?q=${encodeURIComponent(mapQuery)}&output=embed`
+    : "";
 
   function handleAddRemark() {
     const nextRemark = remarkInput.trim();
@@ -1109,7 +1129,7 @@ function LeadDetailPanel({
 
   return (
     <div className="w-full px-4 pb-10 pt-6 lg:px-6">
-      <div className="mx-auto flex w-full max-w-6xl flex-col rounded-2xl border border-border bg-card shadow-2xl">
+      <div className="w-full bg-background">
         <div className="flex flex-wrap items-start justify-between gap-4 border-b border-border px-6 py-5">
           <div className="flex items-start gap-3">
             <div className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl text-sm font-bold ${REP_COLORS[lead.assignedTo] ?? "bg-slate-100 text-slate-700"}`}>
@@ -1133,547 +1153,624 @@ function LeadDetailPanel({
           </button>
         </div>
 
+        <div className="border-b border-border px-6">
+          <div className="flex flex-wrap gap-2 py-3">
+            {tabs.map((tab) => {
+              const isActive = tab.id === activeTab;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`rounded-full px-4 py-2 text-xs font-semibold transition ${
+                    isActive
+                      ? "bg-sky-600 text-white shadow"
+                      : "border border-border text-muted-foreground hover:bg-accent hover:text-foreground"
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
         <div className="p-6">
-          <div className="grid gap-6 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,0.75fr)]">
-            <div className="space-y-6">
-          <div>
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Pipeline Stage</p>
-            <PipelineProgress status={lead.status} />
-            <div className="mt-2 flex justify-between">
-              {LEAD_STATUS_ORDER.filter((s) => s !== LeadStatus.LOST).map((s) => (
-                <span key={s} className={`text-[9px] font-medium ${lead.status === s ? "text-sky-600 dark:text-sky-400" : "text-muted-foreground"}`}>
-                  {LEAD_STATUS_LABELS[s]}
-                </span>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Contact</p>
-            <div className="space-y-2.5">
-              {lead.email && (
-                <a href={`mailto:${lead.email}`} className="flex items-center gap-2.5 text-sm hover:text-sky-600">
-                  <Mail className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                  {lead.email}
-                </a>
-              )}
-              {lead.phone && (
-                <a href={`tel:${lead.phone}`} className="flex items-center gap-2.5 text-sm hover:text-sky-600">
-                  <Phone className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                  {lead.phone}
-                </a>
-              )}
-              {lead.alternativePhone && (
-                <div className="flex items-center gap-2.5 text-sm text-muted-foreground">
-                  <Phone className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                  {lead.alternativePhone}
+          {activeTab === "contact" && (
+            <div className="grid gap-6 lg:grid-cols-2">
+              <div className="rounded-xl border border-border bg-muted/10 p-4">
+                <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Contact</p>
+                <div className="space-y-2.5">
+                  {lead.email && (
+                    <a href={`mailto:${lead.email}`} className="flex items-center gap-2.5 text-sm hover:text-sky-600">
+                      <Mail className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+                      {lead.email}
+                    </a>
+                  )}
+                  {lead.phone && (
+                    <a href={`tel:${lead.phone}`} className="flex items-center gap-2.5 text-sm hover:text-sky-600">
+                      <Phone className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+                      {lead.phone}
+                    </a>
+                  )}
+                  {lead.alternativePhone && (
+                    <div className="flex items-center gap-2.5 text-sm text-muted-foreground">
+                      <Phone className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+                      {lead.alternativePhone}
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2.5 text-sm">
+                    <Building2 className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+                    {lead.company}
+                  </div>
                 </div>
-              )}
-              <div className="flex items-center gap-2.5 text-sm">
-                <Building2 className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                {lead.company}
               </div>
-            </div>
-          </div>
 
-          <div>
-            <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Project Details</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="rounded-lg border border-border bg-muted/20 px-3 py-2">
-                <p className="text-[11px] text-muted-foreground">Project Stage</p>
-                <p className="text-sm font-medium">{lead.projectStage ?? "-"}</p>
-              </div>
-              <div className="rounded-lg border border-border bg-muted/20 px-3 py-2">
-                <p className="text-[11px] text-muted-foreground">Expected Timeline</p>
-                <p className="text-sm font-medium">{lead.expectedTimeline ?? "-"}</p>
-              </div>
-              <div className="rounded-lg border border-border bg-muted/20 px-3 py-2">
-                <p className="text-[11px] text-muted-foreground">Property Type</p>
-                <p className="text-sm font-medium">{lead.propertyType ?? "-"}</p>
-              </div>
-              <div className="rounded-lg border border-border bg-muted/20 px-3 py-2">
-                <p className="text-[11px] text-muted-foreground">SQFT</p>
-                <p className="text-sm font-medium">{lead.sqft ?? "-"}</p>
-              </div>
-              <div className="rounded-lg border border-border bg-muted/20 px-3 py-2">
-                <p className="text-[11px] text-muted-foreground">Community</p>
-                <p className="text-sm font-medium">{lead.community ?? "-"}</p>
-              </div>
-              <div className="rounded-lg border border-border bg-muted/20 px-3 py-2">
-                <p className="text-[11px] text-muted-foreground">Project Location</p>
-                <p className="text-sm font-medium">{lead.projectLocation ?? "-"}</p>
-              </div>
-              <div className="rounded-lg border border-border bg-muted/20 px-3 py-2">
-                <p className="text-[11px] text-muted-foreground">Project State</p>
-                <p className="text-sm font-medium">{lead.projectState ?? "-"}</p>
+              <div className="rounded-xl border border-border bg-muted/10 p-4">
+                <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Project Details</p>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div className="rounded-lg border border-border bg-background px-3 py-2">
+                    <p className="text-[11px] text-muted-foreground">Project Stage</p>
+                    <p className="text-sm font-medium">{lead.projectStage ?? "-"}</p>
+                  </div>
+                  <div className="rounded-lg border border-border bg-background px-3 py-2">
+                    <p className="text-[11px] text-muted-foreground">Expected Timeline</p>
+                    <p className="text-sm font-medium">{lead.expectedTimeline ?? "-"}</p>
+                  </div>
+                  <div className="rounded-lg border border-border bg-background px-3 py-2">
+                    <p className="text-[11px] text-muted-foreground">Property Type</p>
+                    <p className="text-sm font-medium">{lead.propertyType ?? "-"}</p>
+                  </div>
+                  <div className="rounded-lg border border-border bg-background px-3 py-2">
+                    <p className="text-[11px] text-muted-foreground">SQFT</p>
+                    <p className="text-sm font-medium">{lead.sqft ?? "-"}</p>
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
-          <div>
-            <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Pre-Sales</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="rounded-lg border border-border bg-muted/20 px-3 py-2">
-                <p className="text-[11px] text-muted-foreground">Response</p>
-                <p className="text-sm font-medium">{lead.presalesResponse ?? "-"}</p>
+          {activeTab === "location" && (
+            <div className="grid gap-6 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,0.7fr)]">
+              <div className="overflow-hidden rounded-xl border border-border bg-muted/10">
+                {mapUrl ? (
+                  <div className="aspect-[16/9] w-full">
+                    <iframe
+                      title="Lead location map"
+                      src={mapUrl}
+                      className="h-full w-full border-0"
+                      loading="lazy"
+                      referrerPolicy="no-referrer-when-downgrade"
+                    />
+                  </div>
+                ) : (
+                  <div className="flex h-64 items-center justify-center text-sm text-muted-foreground">
+                    No location data available for this lead.
+                  </div>
+                )}
               </div>
-              <div className="rounded-lg border border-border bg-muted/20 px-3 py-2">
-                <p className="text-[11px] text-muted-foreground">Demo Visit</p>
-                <p className="text-sm font-medium">{lead.demoVisit ?? "-"}</p>
-              </div>
-              <div className="sm:col-span-2 rounded-lg border border-border bg-muted/20 px-3 py-2">
-                <p className="text-[11px] text-muted-foreground">Pre-Sales Remarks</p>
-                <p className="text-sm font-medium">{lead.presalesRemarks ?? "-"}</p>
+              <div className="space-y-4">
+                <div className="rounded-xl border border-border bg-muted/10 p-4">
+                  <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Location Details</p>
+                  <div className="grid grid-cols-1 gap-3">
+                    <div className="rounded-lg border border-border bg-background px-3 py-2">
+                      <p className="text-[11px] text-muted-foreground">Project Location</p>
+                      <p className="text-sm font-medium">{lead.projectLocation ?? "-"}</p>
+                    </div>
+                    <div className="rounded-lg border border-border bg-background px-3 py-2">
+                      <p className="text-[11px] text-muted-foreground">Project State</p>
+                      <p className="text-sm font-medium">{lead.projectState ?? "-"}</p>
+                    </div>
+                    <div className="rounded-lg border border-border bg-background px-3 py-2">
+                      <p className="text-[11px] text-muted-foreground">Community</p>
+                      <p className="text-sm font-medium">{lead.community ?? "-"}</p>
+                    </div>
+                  </div>
+                  {mapQuery && (
+                    <a
+                      href={`https://www.google.com/maps?q=${encodeURIComponent(mapQuery)}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mt-3 inline-flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-xs font-semibold text-muted-foreground hover:bg-accent hover:text-foreground"
+                    >
+                      Open in Maps
+                    </a>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
-          <div>
-            <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Marketing</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="rounded-lg border border-border bg-muted/20 px-3 py-2">
-                <p className="text-[11px] text-muted-foreground">Ad Set</p>
-                <p className="text-sm font-medium">{lead.adSetName ?? "-"}</p>
+          {activeTab === "communication" && (
+            <div className="grid gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
+              <div className="space-y-6">
+                <div>
+                  <div className="mb-2 flex items-center justify-between gap-3">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">WhatsApp Questionnaire</p>
+                    {questionnaire?.completedAt ? (
+                      <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                        Completed
+                      </span>
+                    ) : questionnaire ? (
+                      <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300">
+                        In progress
+                      </span>
+                    ) : null}
+                  </div>
+                  {questionnaireQuery.isLoading ? (
+                    <div className="rounded-xl border border-border bg-muted/20 px-4 py-4 text-sm text-muted-foreground">
+                      Loading questionnaire details...
+                    </div>
+                  ) : questionnaireQuery.isError ? (
+                    <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-4 text-sm text-red-700">
+                      Unable to load questionnaire details.
+                    </div>
+                  ) : !questionnaire ? (
+                    <div className="rounded-xl border border-dashed border-border bg-muted/20 px-4 py-4 text-sm text-muted-foreground">
+                      No WhatsApp questionnaire data yet.
+                    </div>
+                  ) : (
+                    <div className="space-y-3 rounded-xl border border-border bg-muted/10 p-4">
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        <div className="rounded-lg border border-border bg-background px-3 py-2">
+                          <p className="text-[11px] text-muted-foreground">Language</p>
+                          <p className="text-sm font-medium">{questionnaire.language ?? "-"}</p>
+                        </div>
+                        <div className="rounded-lg border border-border bg-background px-3 py-2">
+                          <p className="text-[11px] text-muted-foreground">Ownership</p>
+                          <p className="text-sm font-medium">{questionnaire.ownershipRole ?? "-"}</p>
+                        </div>
+                        <div className="rounded-lg border border-border bg-background px-3 py-2">
+                          <p className="text-[11px] text-muted-foreground">Demo Preference</p>
+                          <p className="text-sm font-medium">{questionnaire.demoPreference ?? "-"}</p>
+                        </div>
+                        <div className="rounded-lg border border-border bg-background px-3 py-2">
+                          <p className="text-[11px] text-muted-foreground">Callback</p>
+                          <p className="text-sm font-medium">
+                            {questionnaire.callbackPreference ?? "-"}
+                            {questionnaire.callbackTimeText ? ` - ${questionnaire.callbackTimeText}` : ""}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="rounded-lg border border-border bg-background px-3 py-2">
+                        <p className="text-[11px] text-muted-foreground">Interest Areas</p>
+                        {questionnaire.interestAreas.length === 0 ? (
+                          <p className="text-sm font-medium">-</p>
+                        ) : (
+                          <div className="mt-1 flex flex-wrap gap-1.5">
+                            {questionnaire.interestAreas.map((item) => (
+                              <span
+                                key={item}
+                                className="rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[11px] font-medium text-sky-700 dark:border-sky-800 dark:bg-sky-950 dark:text-sky-300"
+                              >
+                                {item}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-muted-foreground">
+                        <span>Step: {questionnaire.step}</span>
+                        <span>Updated: {fmtDateTime(questionnaire.updatedAt)}</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Recent Activity</p>
+                  <div className="space-y-2">
+                    {lead.activities.length === 0 ? (
+                      <div className="rounded-xl border border-dashed border-border bg-muted/20 px-4 py-6 text-center text-sm text-muted-foreground">
+                        No activity captured yet.
+                      </div>
+                    ) : (
+                      lead.activities.slice(0, 6).map((activity) => (
+                        <div
+                          key={activity.id}
+                          className={`rounded-xl border px-3 py-2.5 ${getActivityTone(activity)}`}
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <p className="text-sm font-medium">{activity.content}</p>
+                            <span className="text-[11px] opacity-80">{fmtDateTime(activity.createdAt)}</span>
+                          </div>
+                          <p className="mt-1 text-[11px] opacity-80">by {activity.createdBy}</p>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
               </div>
-              <div className="rounded-lg border border-border bg-muted/20 px-3 py-2">
-                <p className="text-[11px] text-muted-foreground">Campaign</p>
-                <p className="text-sm font-medium">{lead.campaignName ?? "-"}</p>
-              </div>
-              <div className="rounded-lg border border-border bg-muted/20 px-3 py-2">
-                <p className="text-[11px] text-muted-foreground">Lead ID</p>
-                <p className="text-sm font-medium">{lead.externalLeadId ?? lead.metaLeadId ?? "-"}</p>
-              </div>
-              <div className="rounded-lg border border-border bg-muted/20 px-3 py-2">
-                <p className="text-[11px] text-muted-foreground">Source Created</p>
-                <p className="text-sm font-medium">{lead.sourceCreatedAt ? fmtDateTime(lead.sourceCreatedAt) : "-"}</p>
-              </div>
-            </div>
-          </div>
 
               <div>
                 <div className="mb-2 flex items-center justify-between gap-3">
-              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">WhatsApp Questionnaire</p>
-              {questionnaire?.completedAt ? (
-                <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
-                  Completed
-                </span>
-              ) : questionnaire ? (
-                <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300">
-                  In progress
-                </span>
-              ) : null}
-            </div>
-            {questionnaireQuery.isLoading ? (
-              <div className="rounded-xl border border-border bg-muted/20 px-4 py-4 text-sm text-muted-foreground">
-                Loading questionnaire details...
-              </div>
-            ) : questionnaireQuery.isError ? (
-              <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-4 text-sm text-red-700">
-                Unable to load questionnaire details.
-              </div>
-            ) : !questionnaire ? (
-              <div className="rounded-xl border border-dashed border-border bg-muted/20 px-4 py-4 text-sm text-muted-foreground">
-                No WhatsApp questionnaire data yet.
-              </div>
-            ) : (
-              <div className="space-y-3 rounded-xl border border-border bg-muted/10 p-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="rounded-lg border border-border bg-background px-3 py-2">
-                    <p className="text-[11px] text-muted-foreground">Language</p>
-                    <p className="text-sm font-medium">{questionnaire.language ?? "-"}</p>
-                  </div>
-                  <div className="rounded-lg border border-border bg-background px-3 py-2">
-                    <p className="text-[11px] text-muted-foreground">Ownership</p>
-                    <p className="text-sm font-medium">{questionnaire.ownershipRole ?? "-"}</p>
-                  </div>
-                  <div className="rounded-lg border border-border bg-background px-3 py-2">
-                    <p className="text-[11px] text-muted-foreground">Demo Preference</p>
-                    <p className="text-sm font-medium">{questionnaire.demoPreference ?? "-"}</p>
-                  </div>
-                  <div className="rounded-lg border border-border bg-background px-3 py-2">
-                    <p className="text-[11px] text-muted-foreground">Callback</p>
-                    <p className="text-sm font-medium">
-                      {questionnaire.callbackPreference ?? "-"}
-                      {questionnaire.callbackTimeText ? ` - ${questionnaire.callbackTimeText}` : ""}
-                    </p>
-                  </div>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Visits & Demos</p>
+                  {schedulesQuery.isLoading && (
+                    <span className="text-[11px] text-muted-foreground">Loading...</span>
+                  )}
                 </div>
-                <div className="rounded-lg border border-border bg-background px-3 py-2">
-                  <p className="text-[11px] text-muted-foreground">Interest Areas</p>
-                  {questionnaire.interestAreas.length === 0 ? (
-                    <p className="text-sm font-medium">-</p>
+
+                <div className="space-y-4 rounded-xl border border-border bg-muted/10 p-4">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-muted-foreground">Type</label>
+                      <select
+                        value={scheduleDraft.type}
+                        onChange={(e) =>
+                          setScheduleDraft((previous) => ({
+                            ...previous,
+                            type: e.target.value as LeadScheduleType,
+                          }))
+                        }
+                        className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-sky-500"
+                      >
+                        <option value={LeadScheduleType.DEMO}>Demo</option>
+                        <option value={LeadScheduleType.VISIT}>Visit</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-muted-foreground">Scheduled At</label>
+                      <input
+                        type="datetime-local"
+                        value={scheduleDraft.scheduledAt}
+                        onChange={(e) =>
+                          setScheduleDraft((previous) => ({
+                            ...previous,
+                            scheduledAt: e.target.value,
+                          }))
+                        }
+                        className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-sky-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-muted-foreground">Mode</label>
+                      <select
+                        value={scheduleDraft.mode}
+                        onChange={(e) =>
+                          setScheduleDraft((previous) => ({
+                            ...previous,
+                            mode: e.target.value as LeadScheduleMode,
+                          }))
+                        }
+                        className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-sky-500"
+                      >
+                        <option value="">Select</option>
+                        <option value={LeadScheduleMode.ON_SITE}>On-site</option>
+                        <option value={LeadScheduleMode.REMOTE}>Remote</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-muted-foreground">Location</label>
+                      <input
+                        value={scheduleDraft.location}
+                        onChange={(e) =>
+                          setScheduleDraft((previous) => ({
+                            ...previous,
+                            location: e.target.value,
+                          }))
+                        }
+                        placeholder="Office / Site / Zoom"
+                        className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-sky-500"
+                      />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="mb-1 block text-xs font-medium text-muted-foreground">Assigned To</label>
+                      <select
+                        value={scheduleDraft.assignedToUserId ?? ""}
+                        onChange={(e) => {
+                          const selected = assignees.find((a) => a.id === e.target.value);
+                          setScheduleDraft((previous) => ({
+                            ...previous,
+                            assignedToUserId: selected?.id ?? null,
+                            assignedTo: selected?.name ?? "",
+                          }));
+                        }}
+                        className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-sky-500"
+                      >
+                        <option value="">Use lead assignee</option>
+                        {assignees.map((assignee) => (
+                          <option key={assignee.id} value={assignee.id}>
+                            {assignee.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="mb-1 block text-xs font-medium text-muted-foreground">Notes</label>
+                      <textarea
+                        rows={2}
+                        value={scheduleDraft.notes}
+                        onChange={(e) =>
+                          setScheduleDraft((previous) => ({
+                            ...previous,
+                            notes: e.target.value,
+                          }))
+                        }
+                        placeholder="Add any special instructions..."
+                        className="w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-sky-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-end">
+                    <button
+                      onClick={handleCreateSchedule}
+                      disabled={createSchedule.isPending || !scheduleDraft.scheduledAt}
+                      className="inline-flex items-center gap-2 rounded-lg bg-sky-600 px-3 py-2 text-xs font-semibold text-white hover:bg-sky-700 disabled:opacity-50"
+                    >
+                      {createSchedule.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                      Add Schedule
+                    </button>
+                  </div>
+
+                  {schedulesQuery.isError && (
+                    <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700">
+                      Failed to load schedules.
+                    </div>
+                  )}
+
+                  {schedules.length === 0 ? (
+                    <div className="rounded-lg border border-dashed border-border bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
+                      No visits or demos scheduled yet.
+                    </div>
                   ) : (
-                    <div className="mt-1 flex flex-wrap gap-1.5">
-                      {questionnaire.interestAreas.map((item) => (
-                        <span
-                          key={item}
-                          className="rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[11px] font-medium text-sky-700 dark:border-sky-800 dark:bg-sky-950 dark:text-sky-300"
-                        >
-                          {item}
-                        </span>
+                    <div className="space-y-2">
+                      {schedules.map((schedule) => (
+                        <div key={schedule.id} className="rounded-lg border border-border bg-background px-3 py-2">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div>
+                              <p className="text-sm font-medium">
+                                {schedule.type === LeadScheduleType.DEMO ? "Demo" : "Visit"} - {fmtDateTime(schedule.scheduledAt)}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {schedule.mode ? schedule.mode.replace("_", " ").toLowerCase() : "mode not set"}
+                                {schedule.location ? ` - ${schedule.location}` : ""}
+                              </p>
+                              {schedule.notes && (
+                                <p className="mt-1 text-xs text-muted-foreground">{schedule.notes}</p>
+                              )}
+                              {schedule.assignedTo && (
+                                <p className="mt-1 text-xs text-muted-foreground">Assigned to {schedule.assignedTo}</p>
+                              )}
+                            </div>
+                            <div className="flex flex-wrap items-center gap-2 text-xs">
+                              <span className="rounded-full border border-border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                                {schedule.status.replace("_", " ")}
+                              </span>
+                              <button
+                                onClick={() => handleUpdateScheduleStatus(schedule.id, LeadScheduleStatus.COMPLETED)}
+                                disabled={updateSchedule.isPending || schedule.status === LeadScheduleStatus.COMPLETED}
+                                className="rounded-md border border-emerald-200 px-2 py-1 text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
+                              >
+                                Complete
+                              </button>
+                              <button
+                                onClick={() => handleUpdateScheduleStatus(schedule.id, LeadScheduleStatus.CANCELLED)}
+                                disabled={updateSchedule.isPending || schedule.status === LeadScheduleStatus.CANCELLED}
+                                className="rounded-md border border-red-200 px-2 py-1 text-red-700 hover:bg-red-50 disabled:opacity-50"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        </div>
                       ))}
                     </div>
                   )}
                 </div>
-                <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-muted-foreground">
-                  <span>Step: {questionnaire.step}</span>
-                  <span>Updated: {fmtDateTime(questionnaire.updatedAt)}</span>
-                </div>
               </div>
-            )}
-          </div>
-
-          <div>
-            <div className="mb-2 flex items-center justify-between gap-3">
-              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Visits & Demos</p>
-              {schedulesQuery.isLoading && (
-                <span className="text-[11px] text-muted-foreground">Loading...</span>
-              )}
             </div>
+          )}
 
-            <div className="space-y-4 rounded-xl border border-border bg-muted/10 p-4">
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-muted-foreground">Type</label>
-                  <select
-                    value={scheduleDraft.type}
-                    onChange={(e) =>
-                      setScheduleDraft((previous) => ({
-                        ...previous,
-                        type: e.target.value as LeadScheduleType,
-                      }))
-                    }
-                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-sky-500"
-                  >
-                    <option value={LeadScheduleType.DEMO}>Demo</option>
-                    <option value={LeadScheduleType.VISIT}>Visit</option>
-                  </select>
+          {activeTab === "remarks" && (
+            <div className="space-y-4">
+              <div>
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Remarks</p>
+                  <span className="text-[11px] text-muted-foreground">{lead.remarks.length} total</span>
                 </div>
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-muted-foreground">Scheduled At</label>
-                  <input
-                    type="datetime-local"
-                    value={scheduleDraft.scheduledAt}
-                    onChange={(e) =>
-                      setScheduleDraft((previous) => ({
-                        ...previous,
-                        scheduledAt: e.target.value,
-                      }))
-                    }
-                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-sky-500"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-muted-foreground">Mode</label>
-                  <select
-                    value={scheduleDraft.mode}
-                    onChange={(e) =>
-                      setScheduleDraft((previous) => ({
-                        ...previous,
-                        mode: e.target.value as LeadScheduleMode,
-                      }))
-                    }
-                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-sky-500"
-                  >
-                    <option value="">Select</option>
-                    <option value={LeadScheduleMode.ON_SITE}>On-site</option>
-                    <option value={LeadScheduleMode.REMOTE}>Remote</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-muted-foreground">Location</label>
-                  <input
-                    value={scheduleDraft.location}
-                    onChange={(e) =>
-                      setScheduleDraft((previous) => ({
-                        ...previous,
-                        location: e.target.value,
-                      }))
-                    }
-                    placeholder="Office / Site / Zoom"
-                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-sky-500"
-                  />
-                </div>
-                <div className="sm:col-span-2">
-                  <label className="mb-1 block text-xs font-medium text-muted-foreground">Assigned To</label>
-                  <select
-                    value={scheduleDraft.assignedToUserId ?? ""}
-                    onChange={(e) => {
-                      const selected = assignees.find((a) => a.id === e.target.value);
-                      setScheduleDraft((previous) => ({
-                        ...previous,
-                        assignedToUserId: selected?.id ?? null,
-                        assignedTo: selected?.name ?? "",
-                      }));
-                    }}
-                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-sky-500"
-                  >
-                    <option value="">Use lead assignee</option>
-                    {assignees.map((assignee) => (
-                      <option key={assignee.id} value={assignee.id}>
-                        {assignee.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="sm:col-span-2">
-                  <label className="mb-1 block text-xs font-medium text-muted-foreground">Notes</label>
+
+                <div className="rounded-xl border border-border bg-muted/20 p-3">
                   <textarea
-                    rows={2}
-                    value={scheduleDraft.notes}
-                    onChange={(e) =>
-                      setScheduleDraft((previous) => ({
-                        ...previous,
-                        notes: e.target.value,
-                      }))
-                    }
-                    placeholder="Add any special instructions..."
-                    className="w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-sky-500"
+                    rows={3}
+                    value={remarkInput}
+                    onChange={(e) => setRemarkInput(e.target.value)}
+                    placeholder="Add a new remark for this lead..."
+                    className="w-full resize-none rounded-lg border border-border bg-background px-3 py-2.5 text-sm text-foreground outline-none transition-colors focus:border-sky-500 focus:ring-1 focus:ring-sky-500/30"
                   />
+                  <div className="mt-3 flex justify-end">
+                    <button
+                      onClick={handleAddRemark}
+                      disabled={isCreatingRemark || !remarkInput.trim()}
+                      className="inline-flex items-center gap-2 rounded-lg bg-sky-600 px-3 py-2 text-xs font-semibold text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {isCreatingRemark && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                      Add Remark
+                    </button>
+                  </div>
+                  {remarkError && <p className="mt-3 text-xs font-medium text-red-600">{remarkError}</p>}
+                </div>
+
+                <div className="mt-3 space-y-3">
+                  {lead.remarks.length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-border bg-muted/20 px-4 py-6 text-center text-sm text-muted-foreground">
+                      No remarks yet. Add the first remark to start the audit trail.
+                    </div>
+                  ) : (
+                    lead.remarks.map((remark) => (
+                      <RemarkCard
+                        key={remark.id}
+                        remark={remark}
+                        onEdit={onEditRemark}
+                        isSaving={editingRemarkId === remark.id}
+                      />
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === "other" && (
+            <div className="grid gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
+              <div className="space-y-6">
+                <div className="rounded-xl border border-border bg-muted/10 p-4">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Pipeline Stage</p>
+                  <PipelineProgress status={lead.status} />
+                  <div className="mt-2 flex justify-between">
+                    {LEAD_STATUS_ORDER.filter((s) => s !== LeadStatus.LOST).map((s) => (
+                      <span key={s} className={`text-[9px] font-medium ${lead.status === s ? "text-sky-600 dark:text-sky-400" : "text-muted-foreground"}`}>
+                        {LEAD_STATUS_LABELS[s]}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-border bg-muted/10 p-4">
+                  <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Pre-Sales</p>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div className="rounded-lg border border-border bg-background px-3 py-2">
+                      <p className="text-[11px] text-muted-foreground">Response</p>
+                      <p className="text-sm font-medium">{lead.presalesResponse ?? "-"}</p>
+                    </div>
+                    <div className="rounded-lg border border-border bg-background px-3 py-2">
+                      <p className="text-[11px] text-muted-foreground">Demo Visit</p>
+                      <p className="text-sm font-medium">{lead.demoVisit ?? "-"}</p>
+                    </div>
+                    <div className="sm:col-span-2 rounded-lg border border-border bg-background px-3 py-2">
+                      <p className="text-[11px] text-muted-foreground">Pre-Sales Remarks</p>
+                      <p className="text-sm font-medium">{lead.presalesRemarks ?? "-"}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-border bg-muted/10 p-4">
+                  <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Marketing</p>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div className="rounded-lg border border-border bg-background px-3 py-2">
+                      <p className="text-[11px] text-muted-foreground">Ad Set</p>
+                      <p className="text-sm font-medium">{lead.adSetName ?? "-"}</p>
+                    </div>
+                    <div className="rounded-lg border border-border bg-background px-3 py-2">
+                      <p className="text-[11px] text-muted-foreground">Campaign</p>
+                      <p className="text-sm font-medium">{lead.campaignName ?? "-"}</p>
+                    </div>
+                    <div className="rounded-lg border border-border bg-background px-3 py-2">
+                      <p className="text-[11px] text-muted-foreground">Lead ID</p>
+                      <p className="text-sm font-medium">{lead.externalLeadId ?? lead.metaLeadId ?? "-"}</p>
+                    </div>
+                    <div className="rounded-lg border border-border bg-background px-3 py-2">
+                      <p className="text-[11px] text-muted-foreground">Source Created</p>
+                      <p className="text-sm font-medium">{lead.sourceCreatedAt ? fmtDateTime(lead.sourceCreatedAt) : "-"}</p>
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              <div className="flex items-center justify-end">
-                <button
-                  onClick={handleCreateSchedule}
-                  disabled={createSchedule.isPending || !scheduleDraft.scheduledAt}
-                  className="inline-flex items-center gap-2 rounded-lg bg-sky-600 px-3 py-2 text-xs font-semibold text-white hover:bg-sky-700 disabled:opacity-50"
-                >
-                  {createSchedule.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                  Add Schedule
-                </button>
-              </div>
-
-              {schedulesQuery.isError && (
-                <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700">
-                  Failed to load schedules.
+              <div className="space-y-6">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="rounded-xl border border-border bg-muted/30 p-3">
+                    <p className="mb-1 text-xs text-muted-foreground">Est. Value</p>
+                    <p className="text-lg font-bold text-emerald-600">{fmt(lead.estimatedValue)}</p>
+                  </div>
+                  <div className="rounded-xl border border-border bg-muted/30 p-3">
+                    <p className="mb-1 text-xs text-muted-foreground">Priority</p>
+                    <PriorityDot priority={lead.priority} />
+                  </div>
+                  <div className="rounded-xl border border-border bg-muted/30 p-3">
+                    <p className="mb-1 text-xs text-muted-foreground">Source</p>
+                    <p className="text-sm font-medium">{LEAD_SOURCE_LABELS[lead.source]}</p>
+                  </div>
+                  <div className="rounded-xl border border-border bg-muted/30 p-3">
+                    <p className="mb-1 text-xs text-muted-foreground">Stage</p>
+                    <StatusBadge status={lead.status} />
+                  </div>
                 </div>
-              )}
 
-              {schedules.length === 0 ? (
-                <div className="rounded-lg border border-dashed border-border bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
-                  No visits or demos scheduled yet.
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {schedules.map((schedule) => (
-                    <div key={schedule.id} className="rounded-lg border border-border bg-background px-3 py-2">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div>
-                          <p className="text-sm font-medium">
-                            {schedule.type === LeadScheduleType.DEMO ? "Demo" : "Visit"} - {fmtDateTime(schedule.scheduledAt)}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {schedule.mode ? schedule.mode.replace("_", " ").toLowerCase() : "mode not set"}
-                            {schedule.location ? ` - ${schedule.location}` : ""}
-                          </p>
-                          {schedule.notes && (
-                            <p className="mt-1 text-xs text-muted-foreground">{schedule.notes}</p>
-                          )}
-                          {schedule.assignedTo && (
-                            <p className="mt-1 text-xs text-muted-foreground">Assigned to {schedule.assignedTo}</p>
-                          )}
-                        </div>
-                        <div className="flex flex-wrap items-center gap-2 text-xs">
-                          <span className="rounded-full border border-border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                            {schedule.status.replace("_", " ")}
-                          </span>
-                          <button
-                            onClick={() => handleUpdateScheduleStatus(schedule.id, LeadScheduleStatus.COMPLETED)}
-                            disabled={updateSchedule.isPending || schedule.status === LeadScheduleStatus.COMPLETED}
-                            className="rounded-md border border-emerald-200 px-2 py-1 text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
-                          >
-                            Complete
-                          </button>
-                          <button
-                            onClick={() => handleUpdateScheduleStatus(schedule.id, LeadScheduleStatus.CANCELLED)}
-                            disabled={updateSchedule.isPending || schedule.status === LeadScheduleStatus.CANCELLED}
-                            className="rounded-md border border-red-200 px-2 py-1 text-red-700 hover:bg-red-50 disabled:opacity-50"
-                          >
-                            Cancel
-                          </button>
-                        </div>
+                <div className="rounded-xl border border-border bg-muted/10 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="mb-1 text-xs text-muted-foreground">Assigned To</p>
+                      <div className="flex items-center gap-2">
+                        <RepAvatar name={assignedLabel} />
+                        <p className="text-sm font-medium">{assignedLabel}</p>
                       </div>
                     </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div>
-            <div className="mb-2 flex items-center justify-between gap-3">
-              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Remarks</p>
-              <span className="text-[11px] text-muted-foreground">{lead.remarks.length} total</span>
-            </div>
-
-            <div className="rounded-xl border border-border bg-muted/20 p-3">
-              <textarea
-                rows={3}
-                value={remarkInput}
-                onChange={(e) => setRemarkInput(e.target.value)}
-                placeholder="Add a new remark for this lead..."
-                className="w-full resize-none rounded-lg border border-border bg-background px-3 py-2.5 text-sm text-foreground outline-none transition-colors focus:border-sky-500 focus:ring-1 focus:ring-sky-500/30"
-              />
-              <div className="mt-3 flex justify-end">
-                <button
-                  onClick={handleAddRemark}
-                  disabled={isCreatingRemark || !remarkInput.trim()}
-                  className="inline-flex items-center gap-2 rounded-lg bg-sky-600 px-3 py-2 text-xs font-semibold text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {isCreatingRemark && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                  Add Remark
-                </button>
-              </div>
-              {remarkError && <p className="mt-3 text-xs font-medium text-red-600">{remarkError}</p>}
-            </div>
-
-            <div className="mt-3 space-y-3">
-              {lead.remarks.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-border bg-muted/20 px-4 py-6 text-center text-sm text-muted-foreground">
-                  No remarks yet. Add the first remark to start the audit trail.
-                </div>
-              ) : (
-                lead.remarks.map((remark) => (
-                  <RemarkCard
-                    key={remark.id}
-                    remark={remark}
-                    onEdit={onEditRemark}
-                    isSaving={editingRemarkId === remark.id}
-                  />
-                ))
-              )}
-            </div>
-          </div>
-
-          <div>
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Recent Activity</p>
-            <div className="space-y-2">
-              {lead.activities.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-border bg-muted/20 px-4 py-6 text-center text-sm text-muted-foreground">
-                  No activity captured yet.
-                </div>
-              ) : (
-                lead.activities.slice(0, 6).map((activity) => (
-                  <div
-                    key={activity.id}
-                    className={`rounded-xl border px-3 py-2.5 ${getActivityTone(activity)}`}
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="text-sm font-medium">{activity.content}</p>
-                      <span className="text-[11px] opacity-80">{fmtDateTime(activity.createdAt)}</span>
+                    <div className="flex flex-1 flex-wrap items-center justify-end gap-2">
+                      <select
+                        value={draftAssigneeValue}
+                        onChange={(e) =>
+                          setDraftAssignee({ leadId: lead.id, value: e.target.value })
+                        }
+                        className="min-w-[180px] rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-sky-500"
+                      >
+                        <option value="">Unassigned</option>
+                        {assignees.map((assignee) => (
+                          <option key={assignee.id} value={assignee.name}>
+                            {assignee.name}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        onClick={() => {
+                          if (!draftAssigneeValue) return;
+                          const assignee = findAssigneeByName(assignees, draftAssigneeValue);
+                          if (assignee) {
+                            onAssignLead(assignee);
+                          }
+                        }}
+                        disabled={isAssigning || !draftAssigneeValue || draftAssigneeValue === lead.assignedTo}
+                        className="inline-flex items-center gap-2 rounded-lg bg-sky-600 px-3 py-2 text-xs font-semibold text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {isAssigning && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                        Save Assignment
+                      </button>
                     </div>
-                    <p className="mt-1 text-[11px] opacity-80">by {activity.createdBy}</p>
                   </div>
-                ))
-              )}
-            </div>
-          </div>
+                  {assignError && <p className="mt-3 text-xs font-medium text-red-600">{assignError}</p>}
+                </div>
 
-            </div>
-            <div className="space-y-6">
-              <div className="grid grid-cols-2 gap-3">
-            <div className="rounded-xl border border-border bg-muted/30 p-3">
-              <p className="mb-1 text-xs text-muted-foreground">Est. Value</p>
-              <p className="text-lg font-bold text-emerald-600">{fmt(lead.estimatedValue)}</p>
-            </div>
-            <div className="rounded-xl border border-border bg-muted/30 p-3">
-              <p className="mb-1 text-xs text-muted-foreground">Priority</p>
-              <PriorityDot priority={lead.priority} />
-            </div>
-            <div className="rounded-xl border border-border bg-muted/30 p-3">
-              <p className="mb-1 text-xs text-muted-foreground">Source</p>
-              <p className="text-sm font-medium">{LEAD_SOURCE_LABELS[lead.source]}</p>
-            </div>
-            <div className="rounded-xl border border-border bg-muted/30 p-3">
-              <p className="mb-1 text-xs text-muted-foreground">Stage</p>
-              <StatusBadge status={lead.status} />
-            </div>
-            <div className="col-span-2 rounded-xl border border-border bg-muted/30 p-3">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="mb-1 text-xs text-muted-foreground">Assigned To</p>
-                  <div className="flex items-center gap-2">
-                    <RepAvatar name={assignedLabel} />
-                    <p className="text-sm font-medium">{assignedLabel}</p>
+                {lead.tags.length > 0 && (
+                  <div>
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Tags</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {lead.tags.map((t) => (
+                        <span key={t} className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-0.5 text-xs font-medium text-sky-700 dark:bg-sky-950 dark:border-sky-800 dark:text-sky-300">
+                          {t}
+                        </span>
+                      ))}
+                    </div>
                   </div>
-                </div>
-                <div className="flex flex-1 flex-wrap items-center justify-end gap-2">
-                  <select
-                    value={draftAssigneeValue}
-                    onChange={(e) =>
-                      setDraftAssignee({ leadId: lead.id, value: e.target.value })
-                    }
-                    className="min-w-[180px] rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-sky-500"
-                  >
-                    <option value="">Unassigned</option>
-                    {assignees.map((assignee) => (
-                      <option key={assignee.id} value={assignee.name}>
-                        {assignee.name}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    onClick={() => {
-                      if (!draftAssigneeValue) return;
-                      const assignee = findAssigneeByName(assignees, draftAssigneeValue);
-                      if (assignee) {
-                        onAssignLead(assignee);
-                      }
-                    }}
-                    disabled={isAssigning || !draftAssigneeValue || draftAssigneeValue === lead.assignedTo}
-                    className="inline-flex items-center gap-2 rounded-lg bg-sky-600 px-3 py-2 text-xs font-semibold text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {isAssigning && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                    Save Assignment
-                  </button>
-                </div>
-              </div>
-              {assignError && <p className="mt-3 text-xs font-medium text-red-600">{assignError}</p>}
-            </div>
-          </div>
+                )}
 
-          {lead.tags.length > 0 && (
-            <div>
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Tags</p>
-              <div className="flex flex-wrap gap-1.5">
-                {lead.tags.map((t) => (
-                  <span key={t} className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-0.5 text-xs font-medium text-sky-700 dark:bg-sky-950 dark:border-sky-800 dark:text-sky-300">
-                    {t}
-                  </span>
-                ))}
+                {!isConverted && !isLost && (
+                  <div>
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Move to Stage</p>
+                    <p className="mb-3 text-[11px] text-muted-foreground">A remark is required for every stage change.</p>
+                    <div className="flex flex-wrap gap-2">
+                      {stageTargets.map((s) => (
+                        <button
+                          key={s}
+                          onClick={() => onStatusChange(s)}
+                          disabled={isUpdating}
+                          className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-all hover:scale-105 disabled:opacity-50 ${STATUS_CFG[s].cls}`}
+                        >
+                          {LEAD_STATUS_LABELS[s]}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="rounded-xl border border-border bg-muted/10 p-4 text-xs text-muted-foreground space-y-1">
+                  <p>Created: {fmtDate(lead.createdAt)}</p>
+                  {lead.lastContactedAt && <p>Last contacted: {fmtDate(lead.lastContactedAt)}</p>}
+                  {lead.followUpAt && <p>Follow-up at: {fmtDateTime(lead.followUpAt)}</p>}
+                  {lead.convertedAt && <p className="text-emerald-600 font-medium">Converted: {fmtDate(lead.convertedAt)}</p>}
+                </div>
               </div>
             </div>
           )}
-
-          {!isConverted && !isLost && (
-            <div>
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Move to Stage</p>
-              <p className="mb-3 text-[11px] text-muted-foreground">A remark is required for every stage change.</p>
-              <div className="flex flex-wrap gap-2">
-                {stageTargets.map((s) => (
-                  <button
-                    key={s}
-                    onClick={() => onStatusChange(s)}
-                    disabled={isUpdating}
-                    className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-all hover:scale-105 disabled:opacity-50 ${STATUS_CFG[s].cls}`}
-                  >
-                    {LEAD_STATUS_LABELS[s]}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-          <div className="text-xs text-muted-foreground space-y-1 border-t border-border pt-4">
-            <p>Created: {fmtDate(lead.createdAt)}</p>
-            {lead.lastContactedAt && <p>Last contacted: {fmtDate(lead.lastContactedAt)}</p>}
-            {lead.followUpAt && <p>Follow-up at: {fmtDateTime(lead.followUpAt)}</p>}
-            {lead.convertedAt && <p className="text-emerald-600 font-medium">Converted: {fmtDate(lead.convertedAt)}</p>}
-          </div>
         </div>
-      </div>
-    </div>
-
         <div className="border-t border-border px-6 py-4 flex gap-3">
           {!isConverted && !isLost && (
             <button
@@ -1699,6 +1796,127 @@ function LeadDetailPanel({
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function LeadPreviewCard({
+  lead,
+  onOpen,
+}: {
+  lead: Lead | null;
+  onOpen: () => void;
+}) {
+  if (!lead) {
+    return (
+      <div className="sticky top-6 rounded-2xl border border-border bg-card p-5 text-sm text-muted-foreground shadow-sm">
+        Select a lead to preview details here.
+      </div>
+    );
+  }
+
+  return (
+    <div className="sticky top-6 space-y-4 rounded-2xl border border-border bg-card p-5 shadow-sm">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl text-sm font-bold ${REP_COLORS[lead.assignedTo] ?? "bg-slate-100 text-slate-700"}`}>
+            {getInitials(lead.name)}
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-foreground">{lead.name}</p>
+            <p className="text-xs text-muted-foreground">{lead.company}</p>
+          </div>
+        </div>
+        <StatusBadge status={lead.status} />
+      </div>
+
+      <div className="flex flex-wrap gap-2 text-[11px] text-muted-foreground">
+        <span className="rounded-full border border-border bg-muted/30 px-2 py-0.5">
+          Source: {LEAD_SOURCE_LABELS[lead.source]}
+        </span>
+        <span className="rounded-full border border-border bg-muted/30 px-2 py-0.5">
+          Priority: {lead.priority.toLowerCase()}
+        </span>
+        <span className="rounded-full border border-border bg-muted/30 px-2 py-0.5">
+          Owner: {lead.assignedTo || "Unassigned"}
+        </span>
+      </div>
+
+      <div className="rounded-xl border border-border bg-muted/20 p-3">
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          Contact
+        </p>
+        <div className="mt-2 space-y-1.5 text-sm">
+          {lead.email ? (
+            <a className="flex items-center gap-2 text-sm hover:text-sky-600" href={`mailto:${lead.email}`}>
+              <Mail className="h-3.5 w-3.5 text-muted-foreground" />
+              {lead.email}
+            </a>
+          ) : (
+            <p className="text-xs text-muted-foreground">No email captured.</p>
+          )}
+          {lead.phone && (
+            <a className="flex items-center gap-2 text-sm hover:text-sky-600" href={`tel:${lead.phone}`}>
+              <Phone className="h-3.5 w-3.5 text-muted-foreground" />
+              {lead.phone}
+            </a>
+          )}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div className="rounded-xl border border-border bg-muted/20 p-3">
+          <p className="text-[11px] text-muted-foreground">Est. Value</p>
+          <p className="text-sm font-semibold text-emerald-600">{fmt(lead.estimatedValue)}</p>
+        </div>
+        <div className="rounded-xl border border-border bg-muted/20 p-3">
+          <p className="text-[11px] text-muted-foreground">Last Contact</p>
+          <p className="text-sm font-semibold">{lead.lastContactedAt ? fmtDate(lead.lastContactedAt) : "-"}</p>
+        </div>
+        <div className="rounded-xl border border-border bg-muted/20 p-3">
+          <p className="text-[11px] text-muted-foreground">Follow-up</p>
+          <p className="text-sm font-semibold">{lead.followUpAt ? fmtDateTime(lead.followUpAt) : "-"}</p>
+        </div>
+        <div className="rounded-xl border border-border bg-muted/20 p-3">
+          <p className="text-[11px] text-muted-foreground">Created</p>
+          <p className="text-sm font-semibold">{fmtDate(lead.createdAt)}</p>
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-border bg-muted/10 p-3">
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          Notes
+        </p>
+        <p className="mt-2 text-sm text-foreground">
+          {lead.notes?.trim() ? lead.notes : "No notes added yet."}
+        </p>
+      </div>
+
+      {lead.tags.length > 0 && (
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Tags
+          </p>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {lead.tags.map((tag) => (
+              <span
+                key={tag}
+                className="rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[11px] font-medium text-sky-700 dark:border-sky-800 dark:bg-sky-950 dark:text-sky-300"
+              >
+                {tag}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <button
+        onClick={onOpen}
+        className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-700"
+      >
+        Open Full Profile
+        <ArrowUpRight className="h-4 w-4" />
+      </button>
     </div>
   );
 }
@@ -1845,6 +2063,7 @@ export default function LeadsPage() {
     priority: "ALL", page: 1, pageSize: PAGE_SIZE,
   });
   const [quickView, setQuickView] = useState<QuickView>("ALL");
+  const [previewLeadId, setPreviewLeadId] = useState<string | null>(null);
   const [formState, setFormState] = useState<{ mode: LeadDialogMode; lead: Lead | null } | null>(null);
   const [stageUpdateTarget, setStageUpdateTarget] = useState<{ lead: Lead; status: LeadStatus } | null>(null);
   const [stageRemark, setStageRemark] = useState("");
@@ -1921,6 +2140,18 @@ export default function LeadsPage() {
     convertedCount: 0,
     statusCounts: {},
   };
+
+  useEffect(() => {
+    if (leads.length === 0) {
+      setPreviewLeadId(null);
+      return;
+    }
+    if (!previewLeadId || !leads.some((lead) => lead.id === previewLeadId)) {
+      setPreviewLeadId(leads[0].id);
+    }
+  }, [leads, previewLeadId]);
+
+  const previewLead = leads.find((lead) => lead.id === previewLeadId) ?? null;
 
   const filterKey = useMemo(
     () =>
@@ -2092,6 +2323,17 @@ export default function LeadsPage() {
     });
   }
 
+  function handleLeadRowClick(lead: Lead) {
+    if (typeof window !== "undefined") {
+      const isWide = window.matchMedia("(min-width: 1024px)").matches;
+      if (isWide) {
+        setPreviewLeadId(lead.id);
+        return;
+      }
+    }
+    navigate(`/crm/leads/${lead.id}`);
+  }
+
   function openImportDialog() {
     setImportError(null);
     setImportResult(null);
@@ -2207,6 +2449,17 @@ export default function LeadsPage() {
           remarkError={remarkError}
         />
 
+        <StageUpdateDialog
+          open={Boolean(stageUpdateTarget)}
+          lead={stageUpdateTarget?.lead ?? null}
+          targetStatus={stageUpdateTarget?.status ?? null}
+          remark={stageRemark}
+          onRemarkChange={setStageRemark}
+          onClose={closeStageUpdateDialog}
+          onConfirm={handleConfirmStageUpdate}
+          isLoading={isStageUpdating}
+          errorMessage={stageUpdateError}
+        />
       </>
     );
   }
@@ -2244,273 +2497,302 @@ export default function LeadsPage() {
         </div>
       ) : null}
       <LeadsLayout actionButton={ActionButtons}>
-        {/* Stats */}
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-          <StatCard label="Total Leads" value={data?.total ?? "-"} sub="All statuses" icon={<Users className="h-5 w-5 text-sky-600" />} accent="bg-sky-50 dark:bg-sky-950" />
-          <StatCard label="Pipeline Value" value={fmt(summary.totalPipelineValue)} sub={`${summary.qualifiedCount} qualified`} icon={<TrendingUp className="h-5 w-5 text-violet-600" />} accent="bg-violet-50 dark:bg-violet-950" />
-          <StatCard label="New Leads" value={summary.newCount} sub="Uncontacted" icon={<Sparkles className="h-5 w-5 text-amber-600" />} accent="bg-amber-50 dark:bg-amber-950" />
-          <StatCard label="Converted" value={summary.convertedCount} sub="This period" icon={<Zap className="h-5 w-5 text-emerald-600" />} accent="bg-emerald-50 dark:bg-emerald-950" />
-        </div>
-
-        {/* Pipeline status bar */}
-        <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-9">
-          {LEAD_STATUS_ORDER.map((status) => {
-            const count = summary.statusCounts[status] ?? 0;
-            const cfg = STATUS_CFG[status];
-            return (
-              <button
-                key={status}
-                onClick={() => updateFilter({ status: filter.status === status ? "ALL" : status })}
-                className={`rounded-xl border px-3 py-2.5 text-left transition-all hover:scale-[1.02] ${
-                  filter.status === status
-                    ? cfg.cls + " shadow ring-2 ring-sky-500/30"
-                    : "border-border bg-card hover:bg-muted/40"
-                }`}
-              >
-                <div className="flex items-center justify-between mb-1">
-                  <span className={`text-[10px] font-bold uppercase tracking-wider ${filter.status === status ? "" : "text-muted-foreground"}`}>
-                    {LEAD_STATUS_LABELS[status]}
-                  </span>
-                  <span className={`h-2 w-2 rounded-full ${cfg.dot}`} />
-                </div>
-                <p className="text-lg font-bold tabular-nums">{count}</p>
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Quick views */}
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Quick Views
-          </span>
-          {([
-            { key: "ALL", label: "All" },
-            { key: "MY_QUEUE", label: "My Queue" },
-            { key: "UNASSIGNED", label: "Unassigned" },
-            { key: "NEEDS_CONTACT", label: "Needs Contact" },
-            { key: "FOLLOW_UP", label: "Follow Up" },
-          ] as const).map((view) => {
-            const isActive = quickView === view.key;
-            const isDisabled = view.key === "MY_QUEUE" && !myQueueValue;
-            return (
-              <button
-                key={view.key}
-                onClick={() => applyQuickView(view.key)}
-                disabled={isDisabled}
-                className={`rounded-xl border px-3 py-2 text-xs font-semibold uppercase tracking-wider transition-colors ${
-                  isActive
-                    ? "border-sky-500 bg-sky-50 text-sky-700 dark:bg-sky-950 dark:text-sky-300"
-                    : "border-border text-muted-foreground hover:bg-accent hover:text-foreground"
-                } ${isDisabled ? "cursor-not-allowed opacity-50" : ""}`}
-              >
-                {view.label}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Toolbar */}
-        <div className="flex flex-col gap-3">
-          <div className="flex flex-wrap items-center gap-3">
-            {/* Search */}
-            <div className="relative min-w-[220px] flex-1">
-              <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-              <input
-                placeholder="Search name, company or email..."
-                value={filter.search}
-                onChange={(e) => updateFilter({ search: e.target.value })}
-                className="w-full rounded-xl border border-border bg-background py-2.5 pl-9 pr-4 text-sm outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500/30"
-              />
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,360px)]">
+          <div className="space-y-6">
+            {/* Stats */}
+            <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+              <StatCard label="Total Leads" value={data?.total ?? "-"} sub="All statuses" icon={<Users className="h-5 w-5 text-sky-600" />} accent="bg-sky-50 dark:bg-sky-950" />
+              <StatCard label="Pipeline Value" value={fmt(summary.totalPipelineValue)} sub={`${summary.qualifiedCount} qualified`} icon={<TrendingUp className="h-5 w-5 text-violet-600" />} accent="bg-violet-50 dark:bg-violet-950" />
+              <StatCard label="New Leads" value={summary.newCount} sub="Uncontacted" icon={<Sparkles className="h-5 w-5 text-amber-600" />} accent="bg-amber-50 dark:bg-amber-950" />
+              <StatCard label="Converted" value={summary.convertedCount} sub="This period" icon={<Zap className="h-5 w-5 text-emerald-600" />} accent="bg-emerald-50 dark:bg-emerald-950" />
             </div>
 
-            {/* Assignee filter */}
-            <select
-              value={filter.assignedTo}
-              onChange={(e) => updateFilter({ assignedTo: e.target.value })}
-              className="rounded-xl border border-border bg-background px-3 py-2.5 text-sm text-foreground outline-none focus:border-sky-500"
-            >
-              <option value="">All Reps</option>
-              {assignees.map((assignee) => (
-                <option key={assignee.id} value={assignee.name}>
-                  {assignee.name}
-                </option>
-              ))}
-            </select>
+            {/* Pipeline status bar */}
+            <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-9">
+              {LEAD_STATUS_ORDER.map((status) => {
+                const count = summary.statusCounts[status] ?? 0;
+                const cfg = STATUS_CFG[status];
+                return (
+                  <button
+                    key={status}
+                    onClick={() => updateFilter({ status: filter.status === status ? "ALL" : status })}
+                    className={`rounded-xl border px-3 py-2.5 text-left transition-all hover:scale-[1.02] ${
+                      filter.status === status
+                        ? cfg.cls + " shadow ring-2 ring-sky-500/30"
+                        : "border-border bg-card hover:bg-muted/40"
+                    }`}
+                  >
+                    <div className="mb-1 flex items-center justify-between">
+                      <span className={`text-[10px] font-bold uppercase tracking-wider ${filter.status === status ? "" : "text-muted-foreground"}`}>
+                        {LEAD_STATUS_LABELS[status]}
+                      </span>
+                      <span className={`h-2 w-2 rounded-full ${cfg.dot}`} />
+                    </div>
+                    <p className="text-lg font-bold tabular-nums">{count}</p>
+                  </button>
+                );
+              })}
+            </div>
 
-            {/* More filters toggle */}
-            <button
-              onClick={() => setShowFilters((v) => !v)}
-              className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-medium transition-colors ${showFilters ? "border-sky-500 bg-sky-50 text-sky-700 dark:bg-sky-950 dark:text-sky-300" : "border-border text-muted-foreground hover:bg-accent hover:text-foreground"}`}
-            >
-              <Search className="h-3.5 w-3.5" /> Filters
-              <ChevronDown className={`h-3.5 w-3.5 transition-transform ${showFilters ? "rotate-180" : ""}`} />
-            </button>
+            {/* Quick views */}
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Quick Views
+              </span>
+              {([
+                { key: "ALL", label: "All" },
+                { key: "MY_QUEUE", label: "My Queue" },
+                { key: "UNASSIGNED", label: "Unassigned" },
+                { key: "NEEDS_CONTACT", label: "Needs Contact" },
+                { key: "FOLLOW_UP", label: "Follow Up" },
+              ] as const).map((view) => {
+                const isActive = quickView === view.key;
+                const isDisabled = view.key === "MY_QUEUE" && !myQueueValue;
+                return (
+                  <button
+                    key={view.key}
+                    onClick={() => applyQuickView(view.key)}
+                    disabled={isDisabled}
+                    className={`rounded-xl border px-3 py-2 text-xs font-semibold uppercase tracking-wider transition-colors ${
+                      isActive
+                        ? "border-sky-500 bg-sky-50 text-sky-700 dark:bg-sky-950 dark:text-sky-300"
+                        : "border-border text-muted-foreground hover:bg-accent hover:text-foreground"
+                    } ${isDisabled ? "cursor-not-allowed opacity-50" : ""}`}
+                  >
+                    {view.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Toolbar */}
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-wrap items-center gap-3">
+                {/* Search */}
+                <div className="relative min-w-[220px] flex-1">
+                  <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                  <input
+                    placeholder="Search name, company or email..."
+                    value={filter.search}
+                    onChange={(e) => updateFilter({ search: e.target.value })}
+                    className="w-full rounded-xl border border-border bg-background py-2.5 pl-9 pr-4 text-sm outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500/30"
+                  />
+                </div>
+
+                {/* Assignee filter */}
+                <select
+                  value={filter.assignedTo}
+                  onChange={(e) => updateFilter({ assignedTo: e.target.value })}
+                  className="rounded-xl border border-border bg-background px-3 py-2.5 text-sm text-foreground outline-none focus:border-sky-500"
+                >
+                  <option value="">All Reps</option>
+                  {assignees.map((assignee) => (
+                    <option key={assignee.id} value={assignee.name}>
+                      {assignee.name}
+                    </option>
+                  ))}
+                </select>
+
+                {/* More filters toggle */}
+                <button
+                  onClick={() => setShowFilters((v) => !v)}
+                  className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-medium transition-colors ${showFilters ? "border-sky-500 bg-sky-50 text-sky-700 dark:bg-sky-950 dark:text-sky-300" : "border-border text-muted-foreground hover:bg-accent hover:text-foreground"}`}
+                >
+                  <Search className="h-3.5 w-3.5" /> Filters
+                  <ChevronDown className={`h-3.5 w-3.5 transition-transform ${showFilters ? "rotate-180" : ""}`} />
+                </button>
+              </div>
+
+              {/* Expanded filters */}
+              {showFilters && (
+                <div className="flex flex-wrap gap-3 rounded-xl border border-border bg-muted/30 p-4">
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-muted-foreground">Source</label>
+                    <select value={filter.source} onChange={(e) => updateFilter({ source: e.target.value as LeadFilter["source"] })} className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-sky-500">
+                      <option value="ALL">All Sources</option>
+                      {Object.entries(LEAD_SOURCE_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-muted-foreground">Priority</label>
+                    <select value={filter.priority} onChange={(e) => updateFilter({ priority: e.target.value as LeadFilter["priority"] })} className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-sky-500">
+                      <option value="ALL">All Priorities</option>
+                      <option value="HIGH">High</option>
+                      <option value="MEDIUM">Medium</option>
+                      <option value="LOW">Low</option>
+                    </select>
+                  </div>
+                  <div className="flex items-end">
+                    <button onClick={() => setFilter({ search: "", status: "ALL", source: "ALL", assignedTo: "", priority: "ALL", page: 1, pageSize: PAGE_SIZE })} className="rounded-lg border border-border px-3 py-2 text-sm text-muted-foreground hover:bg-accent hover:text-foreground">
+                      Clear All
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Lead list */}
+            <div className="rounded-2xl border border-border bg-card">
+              {deleteError ? (
+                <div className="border-b border-red-100 bg-red-50 px-4 py-2 text-xs font-medium text-red-700">
+                  {deleteError}
+                </div>
+              ) : null}
+
+              <div className="hidden lg:grid grid-cols-[minmax(220px,1.6fr)_minmax(160px,1fr)_minmax(160px,1fr)_110px_90px_minmax(140px,1fr)_120px_40px] gap-4 border-b border-border bg-muted/50 px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                <span>Lead</span>
+                <span>Company</span>
+                <span>Contact</span>
+                <span>Status</span>
+                <span>Priority</span>
+                <span>Assigned To</span>
+                <span>Est. Value</span>
+                <span />
+              </div>
+
+              <div className="divide-y divide-border">
+                {isLoading ? (
+                  <div className="py-16 text-center">
+                    <Loader2 className="mx-auto h-6 w-6 animate-spin text-sky-500" />
+                    <p className="mt-3 text-sm text-muted-foreground">Loading leads...</p>
+                  </div>
+                ) : isError ? (
+                  <div className="py-16 text-center">
+                    <AlertCircle className="mx-auto h-8 w-8 text-red-500/50" />
+                    <p className="mt-3 text-sm font-medium text-red-600">
+                      {error instanceof Error ? error.message : "Failed to load leads."}
+                    </p>
+                  </div>
+                ) : leads.length === 0 ? (
+                  <div className="py-16 text-center">
+                    <AlertCircle className="mx-auto h-8 w-8 text-muted-foreground/30" />
+                    <p className="mt-3 text-sm text-muted-foreground">No leads match your filters</p>
+                    <button onClick={() => updateFilter({ status: "ALL", search: "" })} className="mt-2 text-xs text-sky-600 hover:underline">Clear filters</button>
+                  </div>
+                ) : (
+                  leads.map((lead) => {
+                    const isActive = previewLeadId === lead.id;
+                    return (
+                      <div
+                        key={lead.id}
+                        onClick={() => handleLeadRowClick(lead)}
+                        className={`cursor-pointer px-5 py-4 transition ${isActive ? "bg-sky-50/60" : "hover:bg-muted/40"}`}
+                      >
+                        <div className="flex flex-col gap-3 lg:grid lg:grid-cols-[minmax(220px,1.6fr)_minmax(160px,1fr)_minmax(160px,1fr)_110px_90px_minmax(140px,1fr)_120px_40px] lg:items-center lg:gap-4">
+                          <div className="flex items-start justify-between gap-3 lg:block">
+                            <div className="flex items-center gap-3">
+                              <div className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-[11px] font-bold ${REP_COLORS[lead.assignedTo] ?? "bg-slate-100 text-slate-700"}`}>
+                                {getInitials(lead.name)}
+                              </div>
+                              <div>
+                                <p className="font-semibold">{lead.name}</p>
+                                <p className="text-[11px] text-muted-foreground">{LEAD_SOURCE_LABELS[lead.source]}</p>
+                              </div>
+                            </div>
+                            <div className="lg:hidden" onClick={(e) => e.stopPropagation()}>
+                              <RowActions
+                                lead={lead}
+                                onView={() => navigate(`/crm/leads/${lead.id}`)}
+                                onEdit={() => openEditDialog(lead)}
+                                onStatusChange={(s) => handleStatusChange(lead, s)}
+                                onAssign={(assignee) => handleAssignLead(lead.id, assignee)}
+                                onDelete={() => openDeleteLeadDialog(lead)}
+                                assignees={assignees}
+                                isAssigning={assignLead.isPending}
+                                isDeleting={deleteLead.isPending && deletingLeadId === lead.id}
+                              />
+                            </div>
+                          </div>
+
+                          <div className="hidden lg:flex items-center gap-1.5 text-muted-foreground">
+                            <Building2 className="h-3.5 w-3.5 flex-shrink-0" />
+                            {lead.company}
+                          </div>
+
+                          <div className="hidden lg:block">
+                            <div className="space-y-0.5">
+                              {lead.email && <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><Mail className="h-3 w-3" />{lead.email}</p>}
+                              {lead.phone && <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><Phone className="h-3 w-3" />{lead.phone}</p>}
+                            </div>
+                          </div>
+
+                          <div className="hidden lg:block"><StatusBadge status={lead.status} /></div>
+                          <div className="hidden lg:block"><PriorityDot priority={lead.priority} /></div>
+
+                          <div className="hidden lg:flex items-center gap-2">
+                            <RepAvatar name={lead.assignedTo} />
+                            <span className="text-sm">{lead.assignedTo}</span>
+                          </div>
+
+                          <div className="hidden lg:block font-semibold tabular-nums text-emerald-600">
+                            {fmt(lead.estimatedValue)}
+                          </div>
+
+                          <div className="hidden lg:flex justify-end" onClick={(e) => e.stopPropagation()}>
+                            <RowActions
+                              lead={lead}
+                              onView={() => navigate(`/crm/leads/${lead.id}`)}
+                              onEdit={() => openEditDialog(lead)}
+                              onStatusChange={(s) => handleStatusChange(lead, s)}
+                              onAssign={(assignee) => handleAssignLead(lead.id, assignee)}
+                              onDelete={() => openDeleteLeadDialog(lead)}
+                              assignees={assignees}
+                              isAssigning={assignLead.isPending}
+                              isDeleting={deleteLead.isPending && deletingLeadId === lead.id}
+                            />
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground lg:hidden">
+                            <StatusBadge status={lead.status} />
+                            <PriorityDot priority={lead.priority} />
+                            <span>{lead.assignedTo || "Unassigned"}</span>
+                            <span className="font-semibold text-emerald-600">{fmt(lead.estimatedValue)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+
+              {data && data.totalPages > 1 && (
+                <div className="flex items-center justify-between border-t border-border px-5 py-3.5">
+                  <p className="text-xs text-muted-foreground">
+                    <span className="font-medium text-foreground">
+                      {(data.page - 1) * data.pageSize + 1}-{Math.min(data.page * data.pageSize, data.total)}
+                    </span>{" "}
+                    of {data.total} leads
+                  </p>
+                  <div className="flex items-center gap-1">
+                    <button disabled={filter.page === 1} onClick={() => setFilter((p) => ({ ...p, page: p.page - 1 }))} className="flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground hover:bg-accent disabled:opacity-30">
+                      <ChevronLeft className="h-4 w-4" />
+                    </button>
+                    {Array.from({ length: data.totalPages }, (_, i) => i + 1).map((pg) => (
+                      <button key={pg} onClick={() => setFilter((p) => ({ ...p, page: pg }))} className={`flex h-7 w-7 items-center justify-center rounded-lg text-xs font-medium transition-colors ${pg === filter.page ? "bg-sky-600 text-white" : "text-muted-foreground hover:bg-accent"}`}>
+                        {pg}
+                      </button>
+                    ))}
+                    <button disabled={filter.page === data.totalPages} onClick={() => setFilter((p) => ({ ...p, page: p.page + 1 }))} className="flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground hover:bg-accent disabled:opacity-30">
+                      <ChevronRight className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
-          {/* Expanded filters */}
-          {showFilters && (
-            <div className="flex flex-wrap gap-3 rounded-xl border border-border bg-muted/30 p-4">
-              <div>
-                <label className="mb-1 block text-xs font-medium text-muted-foreground">Source</label>
-                <select value={filter.source} onChange={(e) => updateFilter({ source: e.target.value as LeadFilter["source"] })} className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-sky-500">
-                  <option value="ALL">All Sources</option>
-                  {Object.entries(LEAD_SOURCE_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-medium text-muted-foreground">Priority</label>
-                <select value={filter.priority} onChange={(e) => updateFilter({ priority: e.target.value as LeadFilter["priority"] })} className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-sky-500">
-                  <option value="ALL">All Priorities</option>
-                  <option value="HIGH">High</option>
-                  <option value="MEDIUM">Medium</option>
-                  <option value="LOW">Low</option>
-                </select>
-              </div>
-              <div className="flex items-end">
-                <button onClick={() => setFilter({ search: "", status: "ALL", source: "ALL", assignedTo: "", priority: "ALL", page: 1, pageSize: PAGE_SIZE })} className="rounded-lg border border-border px-3 py-2 text-sm text-muted-foreground hover:bg-accent hover:text-foreground">
-                  Clear All
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Table */}
-        <div className="overflow-x-auto rounded-2xl border border-border bg-card">
-          {deleteError ? (
-            <div className="border-b border-red-100 bg-red-50 px-4 py-2 text-xs font-medium text-red-700">
-              {deleteError}
-            </div>
-          ) : null}
-          <table className="min-w-[900px] w-full text-sm">
-            <thead>
-              <tr className="border-b border-border bg-muted/50">
-                {["Lead", "Company", "Contact", "Status", "Priority", "Assigned To", "Est. Value", ""].map((h) => (
-                  <th key={h} className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {isLoading ? (
-                <tr><td colSpan={8} className="py-16 text-center">
-                  <Loader2 className="mx-auto h-6 w-6 animate-spin text-sky-500" />
-                  <p className="mt-3 text-sm text-muted-foreground">Loading leads...</p>
-                </td></tr>
-              ) : isError ? (
-                <tr><td colSpan={8} className="py-16 text-center">
-                  <AlertCircle className="mx-auto h-8 w-8 text-red-500/50" />
-                  <p className="mt-3 text-sm font-medium text-red-600">
-                    {error instanceof Error ? error.message : "Failed to load leads."}
-                  </p>
-                </td></tr>
-              ) : leads.length === 0 ? (
-                <tr><td colSpan={8} className="py-16 text-center">
-                  <AlertCircle className="mx-auto h-8 w-8 text-muted-foreground/30" />
-                  <p className="mt-3 text-sm text-muted-foreground">No leads match your filters</p>
-                  <button onClick={() => updateFilter({ status: "ALL", search: "" })} className="mt-2 text-xs text-sky-600 hover:underline">Clear filters</button>
-                </td></tr>
-              ) : (
-                leads.map((lead, idx) => (
-                  <tr
-                    key={lead.id}
-                    onClick={() => navigate(`/crm/leads/${lead.id}`)}
-                    className={`cursor-pointer transition-colors hover:bg-muted/40 ${idx !== 0 ? "border-t border-border" : ""}`}
-                  >
-                    {/* Lead name */}
-                    <td className="px-5 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-[11px] font-bold ${REP_COLORS[lead.assignedTo] ?? "bg-slate-100 text-slate-700"}`}>
-                          {getInitials(lead.name)}
-                        </div>
-                        <div>
-                          <p className="font-medium">{lead.name}</p>
-                          <p className="text-[11px] text-muted-foreground">{LEAD_SOURCE_LABELS[lead.source]}</p>
-                        </div>
-                      </div>
-                    </td>
-
-                    {/* Company */}
-                    <td className="px-5 py-4">
-                      <div className="flex items-center gap-1.5 text-muted-foreground">
-                        <Building2 className="h-3.5 w-3.5 flex-shrink-0" />
-                        {lead.company}
-                      </div>
-                    </td>
-
-                    {/* Contact */}
-                    <td className="px-5 py-4">
-                      <div className="space-y-0.5">
-                        {lead.email && <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><Mail className="h-3 w-3" />{lead.email}</p>}
-                        {lead.phone && <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><Phone className="h-3 w-3" />{lead.phone}</p>}
-                      </div>
-                    </td>
-
-                    {/* Status */}
-                    <td className="px-5 py-4"><StatusBadge status={lead.status} /></td>
-
-                    {/* Priority */}
-                    <td className="px-5 py-4"><PriorityDot priority={lead.priority} /></td>
-
-                    {/* Assigned To */}
-                    <td className="px-5 py-4">
-                      <div className="flex items-center gap-2">
-                        <RepAvatar name={lead.assignedTo} />
-                        <span className="text-sm">{lead.assignedTo}</span>
-                      </div>
-                    </td>
-
-                    {/* Est. Value */}
-                    <td className="px-5 py-4 font-semibold tabular-nums text-emerald-600">
-                      {fmt(lead.estimatedValue)}
-                    </td>
-
-                    {/* Actions */}
-                    <td className="px-5 py-4" onClick={(e) => e.stopPropagation()}>
-                      <RowActions
-                        lead={lead}
-                        onView={() => navigate(`/crm/leads/${lead.id}`)}
-                        onEdit={() => openEditDialog(lead)}
-                        onStatusChange={(s) => handleStatusChange(lead, s)}
-                        onAssign={(assignee) => handleAssignLead(lead.id, assignee)}
-                        onDelete={() => openDeleteLeadDialog(lead)}
-                        assignees={assignees}
-                        isAssigning={assignLead.isPending}
-                        isDeleting={deleteLead.isPending && deletingLeadId === lead.id}
-                      />
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-
-          {/* Pagination */}
-          {data && data.totalPages > 1 && (
-            <div className="flex items-center justify-between border-t border-border px-5 py-3.5">
-              <p className="text-xs text-muted-foreground">
-                <span className="font-medium text-foreground">
-                  {(data.page - 1) * data.pageSize + 1}-{Math.min(data.page * data.pageSize, data.total)}
-                </span>{" "}
-                of {data.total} leads
-              </p>
-              <div className="flex items-center gap-1">
-                <button disabled={filter.page === 1} onClick={() => setFilter((p) => ({ ...p, page: p.page - 1 }))} className="flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground hover:bg-accent disabled:opacity-30">
-                  <ChevronLeft className="h-4 w-4" />
-                </button>
-                {Array.from({ length: data.totalPages }, (_, i) => i + 1).map((pg) => (
-                  <button key={pg} onClick={() => setFilter((p) => ({ ...p, page: pg }))} className={`flex h-7 w-7 items-center justify-center rounded-lg text-xs font-medium transition-colors ${pg === filter.page ? "bg-sky-600 text-white" : "text-muted-foreground hover:bg-accent"}`}>
-                    {pg}
-                  </button>
-                ))}
-                <button disabled={filter.page === data.totalPages} onClick={() => setFilter((p) => ({ ...p, page: p.page + 1 }))} className="flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground hover:bg-accent disabled:opacity-30">
-                  <ChevronRight className="h-4 w-4" />
-                </button>
-              </div>
-            </div>
-          )}
+          <div className="hidden lg:block">
+            <LeadPreviewCard
+              lead={previewLead}
+              onOpen={() => {
+                if (!previewLead) return;
+                navigate(`/crm/leads/${previewLead.id}`);
+              }}
+            />
+          </div>
         </div>
       </LeadsLayout>
+
 
       {/* Portaled dialogs */}
       {formState && (

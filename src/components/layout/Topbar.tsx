@@ -8,6 +8,7 @@ import {
   UserCircle2,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
@@ -22,7 +23,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { useCurrentUser, useLogout } from "@/modules/auth/hooks";
-import { useLeadNotifications } from "@/modules/crm/leads/hooks";
+import { connectLeadNotificationsStream } from "@/modules/crm/leads/api";
+import { leadsKeys, useLeadNotifications } from "@/modules/crm/leads/hooks";
 import { hasStoredSession } from "@/services/api-client";
 
 type TopbarProps = {
@@ -52,6 +54,7 @@ export function Topbar({
   className,
 }: TopbarProps) {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { data: currentUser } = useCurrentUser({ enabled: hasStoredSession() });
   const logoutMutation = useLogout();
   const notificationsQuery = useLeadNotifications({
@@ -74,6 +77,24 @@ export function Topbar({
       setLastSeenNewLeads(notifications.newLeadCount);
     }
   }, [notifications, lastSeenNewLeads]);
+
+  useEffect(() => {
+    if (!hasStoredSession()) {
+      return;
+    }
+    const cleanup = connectLeadNotificationsStream(
+      () => {
+        queryClient.invalidateQueries({ queryKey: leadsKeys.notifications() });
+        queryClient.invalidateQueries({ queryKey: leadsKeys.lists() });
+      },
+      () => {
+        // fall back to polling only
+      }
+    );
+    return () => {
+      cleanup?.();
+    };
+  }, [queryClient]);
 
   const unreadNewLeads = useMemo(() => {
     if (!notifications || lastSeenNewLeads === null) {

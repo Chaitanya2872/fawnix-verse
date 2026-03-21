@@ -165,6 +165,33 @@ export default function PreSalesOverviewPage() {
     },
   ];
 
+  const stageSeries = [
+    { status: LeadStatus.NEW, label: "New", tone: "bg-sky-500" },
+    { status: LeadStatus.CONTACTED, label: "Contacted", tone: "bg-indigo-500" },
+    { status: LeadStatus.FOLLOW_UP, label: "Follow Up", tone: "bg-amber-500" },
+    { status: LeadStatus.QUALIFIED, label: "Qualified", tone: "bg-emerald-500" },
+    {
+      status: LeadStatus.ASSIGNED_TO_SALESPERSON,
+      label: "Assigned",
+      tone: "bg-violet-500",
+    },
+  ];
+  const stageMax = Math.max(
+    1,
+    ...stageSeries.map((item) => data.statusCounts?.[item.status] ?? 0)
+  );
+  const laneSeries = [
+    { label: "Needs Contact", value: data.needsContact.length, tone: "bg-sky-500" },
+    { label: "Follow Ups", value: data.followUps.length, tone: "bg-amber-500" },
+    { label: "My Queue", value: data.myQueue.length, tone: "bg-emerald-500" },
+    { label: "Awaiting Assign", value: data.awaitingAssignment.length, tone: "bg-violet-500" },
+  ];
+  const laneMax = Math.max(1, ...laneSeries.map((item) => item.value));
+  const totalTracked = stageSeries.reduce(
+    (sum, item) => sum + (data.statusCounts?.[item.status] ?? 0),
+    0
+  );
+
   return (
     <div className="flex h-full w-full flex-col gap-6">
       <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -198,6 +225,79 @@ export default function PreSalesOverviewPage() {
               <Sparkles className="h-4 w-4" />
               Quick Review
             </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="mb-4 flex items-center justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+                Stage Distribution
+              </p>
+              <p className="text-sm text-slate-500">Where leads are right now</p>
+            </div>
+            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
+              {totalTracked} total
+            </span>
+          </div>
+          <div className="space-y-3">
+            {stageSeries.map((item) => {
+              const value = data.statusCounts?.[item.status] ?? 0;
+              const width = Math.round((value / stageMax) * 100);
+              return (
+                <div key={item.status} className="flex items-center gap-3">
+                  <span className="w-24 text-xs font-medium text-slate-600">
+                    {item.label}
+                  </span>
+                  <div className="h-2 flex-1 rounded-full bg-slate-100">
+                    <div
+                      className={`h-2 rounded-full ${item.tone}`}
+                      style={{ width: `${width}%` }}
+                    />
+                  </div>
+                  <span className="w-8 text-right text-xs font-semibold text-slate-700">
+                    {value}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="mb-4 flex items-center justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+                Queue Load
+              </p>
+              <p className="text-sm text-slate-500">What needs attention first</p>
+            </div>
+            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
+              {laneSeries.reduce((sum, item) => sum + item.value, 0)} items
+            </span>
+          </div>
+          <div className="space-y-3">
+            {laneSeries.map((item) => {
+              const width = Math.round((item.value / laneMax) * 100);
+              return (
+                <div key={item.label} className="flex items-center gap-3">
+                  <span className="w-28 text-xs font-medium text-slate-600">
+                    {item.label}
+                  </span>
+                  <div className="h-2 flex-1 rounded-full bg-slate-100">
+                    <div
+                      className={`h-2 rounded-full ${item.tone}`}
+                      style={{ width: `${width}%` }}
+                    />
+                  </div>
+                  <span className="w-8 text-right text-xs font-semibold text-slate-700">
+                    {item.value}
+                  </span>
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>

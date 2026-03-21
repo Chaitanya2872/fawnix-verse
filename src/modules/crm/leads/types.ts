@@ -302,6 +302,11 @@ export interface LeadNotifications {
   updatedAt: string;
 }
 
+export interface LeadNotificationEvent {
+  type: "LEAD_CREATED" | "FOLLOW_UP_DUE" | string;
+  eventAt: string;
+}
+
 export interface PaginatedLeads {
   data: Lead[];
   total: number;

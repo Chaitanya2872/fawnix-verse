@@ -1,4 +1,9 @@
-import { api, ensureApiSession, getApiErrorMessage } from "@/services/api-client";
+import {
+  api,
+  ensureApiSession,
+  getAccessToken,
+  getApiErrorMessage,
+} from "@/services/api-client";
 import {
   type AssignLeadInput,
   type AssigneeOption,
@@ -15,11 +20,14 @@ import {
   type LeadUpdateData,
   type LeadWhatsappQuestionnaire,
   type LeadNotifications,
+  type LeadNotificationEvent,
   type LeadsSummary,
   type PaginatedLeads,
   getLeadStatusTransitions,
   LeadStatus,
 } from "./types";
+
+const API_BASE_URL = import.meta.env.VITE_API_URL ?? "/api";
 
 function normalizeSummary(summary?: Partial<LeadsSummary>): LeadsSummary {
   return {
@@ -270,6 +278,87 @@ export async function fetchLeadNotifications(): Promise<LeadNotifications> {
   } catch (error) {
     rethrowApiError(error, "Failed to load lead notifications.");
   }
+}
+
+export function connectLeadNotificationsStream(
+  onEvent: (event: LeadNotificationEvent) => void,
+  onError?: (error: unknown) => void
+) {
+  const controller = new AbortController();
+
+  const run = async () => {
+    try {
+      await ensureApiSession();
+      const token = getAccessToken();
+      if (!token) {
+        return;
+      }
+
+      const response = await fetch(`${API_BASE_URL}/leads/notifications/stream`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "text/event-stream",
+        },
+        signal: controller.signal,
+      });
+
+      if (!response.ok || !response.body) {
+        onError?.(new Error("Unable to open notifications stream."));
+        return;
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) {
+          break;
+        }
+        buffer += decoder.decode(value, { stream: true });
+        let index = buffer.indexOf("\n\n");
+        while (index !== -1) {
+          const rawEvent = buffer.slice(0, index).trim();
+          buffer = buffer.slice(index + 2);
+          if (rawEvent) {
+            let eventType = "message";
+            let dataString = "";
+            rawEvent.split("\n").forEach((line) => {
+              if (line.startsWith("event:")) {
+                eventType = line.slice(6).trim();
+              } else if (line.startsWith("data:")) {
+                dataString += line.slice(5).trim();
+              }
+            });
+
+            if (dataString) {
+              try {
+                const parsed = JSON.parse(dataString) as LeadNotificationEvent;
+                onEvent({
+                  ...parsed,
+                  type: parsed.type ?? eventType,
+                });
+              } catch (parseError) {
+                onError?.(parseError);
+              }
+            }
+          }
+          index = buffer.indexOf("\n\n");
+        }
+      }
+    } catch (error) {
+      if (!controller.signal.aborted) {
+        onError?.(error);
+      }
+    }
+  };
+
+  run();
+
+  return () => {
+    controller.abort();
+  };
 }
 
 export async function createLeadSchedule(

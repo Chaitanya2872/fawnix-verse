@@ -72,11 +72,14 @@ function StageCard({
   status,
   count,
   avgDays,
+  maxCount,
 }: {
   status: LeadStatus;
   count: number;
   avgDays?: number;
+  maxCount: number;
 }) {
+  const percent = Math.round((count / Math.max(1, maxCount)) * 100);
   return (
     <div className="rounded-xl border border-slate-200 bg-white px-3.5 py-3 shadow-sm">
       <div className="flex items-center justify-between">
@@ -88,6 +91,12 @@ function StageCard({
       <p className="mt-1 text-xs text-slate-500">
         {avgDays === undefined ? "Timing pending" : `${avgDays.toFixed(1)} days avg`}
       </p>
+      <div className="mt-3 h-1.5 w-full rounded-full bg-slate-100">
+        <div
+          className="h-1.5 rounded-full bg-sky-500"
+          style={{ width: `${percent}%` }}
+        />
+      </div>
     </div>
   );
 }
@@ -97,12 +106,16 @@ function SourceCard({
   total,
   converted,
   conversionRate,
+  maxTotal,
 }: {
   source: string;
   total: number;
   converted: number;
   conversionRate: number;
+  maxTotal: number;
 }) {
+  const volumePercent = Math.round((total / Math.max(1, maxTotal)) * 100);
+  const conversionPercent = Math.round(conversionRate * 100);
   return (
     <div className="rounded-xl border border-slate-200 bg-white px-3.5 py-3 shadow-sm">
       <p className="text-sm font-semibold text-slate-900">{source}</p>
@@ -113,6 +126,32 @@ function SourceCard({
       <p className="mt-1 text-xs font-semibold text-slate-700">
         Rate: {fmtPercent(conversionRate)}
       </p>
+      <div className="mt-3 space-y-2 text-[10px] text-slate-400">
+        <div>
+          <div className="mb-1 flex items-center justify-between">
+            <span>Volume</span>
+            <span>{volumePercent}%</span>
+          </div>
+          <div className="h-1.5 rounded-full bg-slate-100">
+            <div
+              className="h-1.5 rounded-full bg-emerald-500"
+              style={{ width: `${volumePercent}%` }}
+            />
+          </div>
+        </div>
+        <div>
+          <div className="mb-1 flex items-center justify-between">
+            <span>Conversion</span>
+            <span>{conversionPercent}%</span>
+          </div>
+          <div className="h-1.5 rounded-full bg-slate-100">
+            <div
+              className="h-1.5 rounded-full bg-sky-500"
+              style={{ width: `${conversionPercent}%` }}
+            />
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -123,13 +162,18 @@ function RepCard({
   active,
   converted,
   pipelineValue,
+  maxPipelineValue,
 }: {
   name: string;
   assigned: number;
   active: number;
   converted: number;
   pipelineValue: number;
+  maxPipelineValue: number;
 }) {
+  const pipelinePercent = Math.round(
+    (pipelineValue / Math.max(1, maxPipelineValue)) * 100
+  );
   return (
     <div className="rounded-xl border border-slate-200 bg-white px-3.5 py-3 shadow-sm">
       <p className="text-sm font-semibold text-slate-900">{name}</p>
@@ -138,6 +182,12 @@ function RepCard({
         <span>Active: {active}</span>
         <span>Converted: {converted}</span>
         <span>Pipeline: {fmtCurrency(pipelineValue)}</span>
+      </div>
+      <div className="mt-3 h-1.5 w-full rounded-full bg-slate-100">
+        <div
+          className="h-1.5 rounded-full bg-violet-500"
+          style={{ width: `${pipelinePercent}%` }}
+        />
       </div>
     </div>
   );
@@ -166,6 +216,18 @@ export default function ReportsPage() {
   }
 
   const statusCounts = data.statusCounts ?? {};
+  const maxStatusCount = Math.max(
+    1,
+    ...LEAD_STATUS_ORDER.map((status) => statusCounts[status] ?? 0)
+  );
+  const maxSourceTotal = Math.max(
+    1,
+    ...data.sourcePerformance.map((row) => row.total)
+  );
+  const maxPipelineValue = Math.max(
+    1,
+    ...data.repPerformance.map((row) => row.pipelineValue)
+  );
 
   return (
     <div className="flex h-full w-full flex-col gap-6">
@@ -234,6 +296,7 @@ export default function ReportsPage() {
               status={status}
               count={statusCounts[status] ?? 0}
               avgDays={data.avgDaysInStage?.[status as LeadStatus]}
+              maxCount={maxStatusCount}
             />
           ))}
         </KanbanLane>
@@ -251,6 +314,7 @@ export default function ReportsPage() {
                 total={row.total}
                 converted={row.converted}
                 conversionRate={row.conversionRate}
+                maxTotal={maxSourceTotal}
               />
             ))
           )}
@@ -270,6 +334,7 @@ export default function ReportsPage() {
                 active={row.active}
                 converted={row.converted}
                 pipelineValue={row.pipelineValue}
+                maxPipelineValue={maxPipelineValue}
               />
             ))
           )}

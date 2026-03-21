@@ -291,6 +291,12 @@ public final class LeadDtos {
   ) {
   }
 
+  public record LeadNotificationEvent(
+      String type,
+      Instant eventAt
+  ) {
+  }
+
   public record PaginatedLeadResponse(
       List<LeadResponse> data,
       long total,

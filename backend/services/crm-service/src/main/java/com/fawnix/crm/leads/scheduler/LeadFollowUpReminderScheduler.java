@@ -29,6 +29,7 @@ public class LeadFollowUpReminderScheduler {
 
   private final LeadRepository leadRepository;
   private final LeadActivityService leadActivityService;
+  private final com.fawnix.crm.leads.service.LeadNotificationStreamService notificationStreamService;
 
   @Value("${app.leads.follow-up-reminders.enabled:true}")
   private boolean enabled;
@@ -38,10 +39,12 @@ public class LeadFollowUpReminderScheduler {
 
   public LeadFollowUpReminderScheduler(
       LeadRepository leadRepository,
-      LeadActivityService leadActivityService
+      LeadActivityService leadActivityService,
+      com.fawnix.crm.leads.service.LeadNotificationStreamService notificationStreamService
   ) {
     this.leadRepository = leadRepository;
     this.leadActivityService = leadActivityService;
+    this.notificationStreamService = notificationStreamService;
   }
 
   @Scheduled(fixedDelayString = "${app.leads.follow-up-reminders.delay-ms:60000}")
@@ -66,6 +69,7 @@ public class LeadFollowUpReminderScheduler {
       leadActivityService.addActivity(lead, LeadActivityType.FOLLOW_UP_REMINDER, message, SYSTEM_ACTOR, now);
     }
 
+    notificationStreamService.sendFollowUpReminder();
     LOGGER.info("Sent {} follow-up reminders.", dueLeads.size());
   }
 }

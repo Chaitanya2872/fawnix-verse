@@ -22,6 +22,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 @RestController
 @RequestMapping("/api/leads")
@@ -30,15 +31,18 @@ public class LeadController {
   private final LeadService leadService;
   private final WhatsappQuestionnaireService whatsappQuestionnaireService;
   private final LeadImportService leadImportService;
+  private final com.fawnix.crm.leads.service.LeadNotificationStreamService notificationStreamService;
 
   public LeadController(
       LeadService leadService,
       WhatsappQuestionnaireService whatsappQuestionnaireService,
-      LeadImportService leadImportService
+      LeadImportService leadImportService,
+      com.fawnix.crm.leads.service.LeadNotificationStreamService notificationStreamService
   ) {
     this.leadService = leadService;
     this.whatsappQuestionnaireService = whatsappQuestionnaireService;
     this.leadImportService = leadImportService;
+    this.notificationStreamService = notificationStreamService;
   }
 
   @GetMapping
@@ -62,6 +66,12 @@ public class LeadController {
       @AuthenticationPrincipal AppUserDetails userDetails
   ) {
     return leadService.getNotifications(userDetails);
+  }
+
+  @GetMapping(path = "/notifications/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+  @PreAuthorize("isAuthenticated()")
+  public SseEmitter streamNotifications() {
+    return notificationStreamService.subscribe();
   }
 
   @GetMapping("/{id}")

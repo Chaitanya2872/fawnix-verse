@@ -52,6 +52,7 @@ public class LeadService {
   private final LeadContactRecordingService leadContactRecordingService;
   private final LeadStatusHistoryService leadStatusHistoryService;
   private final WhatsappQuestionnaireService whatsappQuestionnaireService;
+  private final LeadNotificationStreamService notificationStreamService;
 
   public LeadService(
       LeadRepository leadRepository,
@@ -62,7 +63,8 @@ public class LeadService {
       IdentityUserClient identityUserClient,
       LeadContactRecordingService leadContactRecordingService,
       LeadStatusHistoryService leadStatusHistoryService,
-      WhatsappQuestionnaireService whatsappQuestionnaireService
+      WhatsappQuestionnaireService whatsappQuestionnaireService,
+      LeadNotificationStreamService notificationStreamService
   ) {
     this.leadRepository = leadRepository;
     this.leadRequestValidator = leadRequestValidator;
@@ -73,6 +75,7 @@ public class LeadService {
     this.leadContactRecordingService = leadContactRecordingService;
     this.leadStatusHistoryService = leadStatusHistoryService;
     this.whatsappQuestionnaireService = whatsappQuestionnaireService;
+    this.notificationStreamService = notificationStreamService;
   }
 
   @Transactional(readOnly = true)
@@ -223,6 +226,7 @@ public class LeadService {
     LeadEntity saved = leadRepository.save(lead);
     leadStatusHistoryService.recordInitial(saved, saved.getStatus(), currentUser, now);
     whatsappQuestionnaireService.sendIntro(saved);
+    notificationStreamService.sendLeadCreated();
     return leadMapper.toResponse(saved);
   }
 
