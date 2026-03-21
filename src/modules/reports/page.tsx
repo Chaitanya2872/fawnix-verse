@@ -25,7 +25,7 @@ const chartPalette = [
   "#a855f7",
   "#ef4444",
   "#0ea5e9",
-  "#14b8a6",
+  "#129081",
 ];
 
 function ChartCard({
