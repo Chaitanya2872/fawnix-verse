@@ -149,7 +149,7 @@ services:
     environment:
       SERVER_PORT: "8761"
     ports:
-      - "8761:8761"
+      - "8765:8761"
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8761/actuator/health > /dev/null || exit 1"]
       interval: 10s
