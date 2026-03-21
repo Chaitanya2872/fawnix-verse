@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { BarChart3, Sparkles, TrendingUp, Users, Zap } from "lucide-react";
+import { jsPDF } from "jspdf";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { LEAD_STATUS_LABELS, LEAD_STATUS_ORDER, type LeadStatus } from "@/modules/crm/leads/types";
@@ -17,24 +18,132 @@ const fmtCurrency = (value: number) =>
 
 const fmtPercent = (value: number) => `${Math.round(value * 100)}%`;
 
-function KanbanLane({
+const chartPalette = [
+  "#38bdf8",
+  "#22c55e",
+  "#f59e0b",
+  "#a855f7",
+  "#ef4444",
+  "#0ea5e9",
+  "#14b8a6",
+];
+
+function ChartCard({
   title,
-  description,
+  subtitle,
   children,
 }: {
   title: string;
-  description: string;
+  subtitle: string;
   children: ReactNode;
 }) {
   return (
-    <div className="flex min-w-[280px] flex-1 flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
-      <div>
-        <p className="text-sm font-semibold text-slate-900">{title}</p>
-        <p className="text-xs text-slate-500">{description}</p>
+    <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="mb-4">
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+          {title}
+        </p>
+        <p className="text-sm text-slate-500">{subtitle}</p>
       </div>
-      <div className="flex flex-1 flex-col gap-3 overflow-y-auto pr-1">
-        {children}
+      {children}
+    </div>
+  );
+}
+
+function DonutChart({
+  segments,
+  totalLabel,
+}: {
+  segments: { label: string; value: number; color: string }[];
+  totalLabel: string;
+}) {
+  const total = segments.reduce((sum, item) => sum + item.value, 0);
+  let running = 0;
+  const gradient =
+    total === 0
+      ? "#e2e8f0 0 360deg"
+      : segments
+          .map((segment) => {
+            const start = (running / total) * 360;
+            running += segment.value;
+            const end = (running / total) * 360;
+            return `${segment.color} ${start}deg ${end}deg`;
+          })
+          .join(", ");
+
+  return (
+    <div className="flex flex-wrap items-center gap-6">
+      <div className="relative flex h-32 w-32 items-center justify-center">
+        <div className="h-full w-full rounded-full" style={{ background: `conic-gradient(${gradient})` }} />
+        <div className="absolute h-20 w-20 rounded-full bg-white" />
+        <div className="absolute text-center">
+          <p className="text-[10px] font-semibold uppercase text-slate-400">{totalLabel}</p>
+          <p className="text-sm font-semibold text-slate-900">{total}</p>
+        </div>
       </div>
+      <div className="space-y-2 text-xs text-slate-500">
+        {segments.map((segment) => (
+          <div key={segment.label} className="flex items-center gap-2">
+            <span className="h-2 w-2 rounded-full" style={{ backgroundColor: segment.color }} />
+            <span className="w-24 truncate">{segment.label}</span>
+            <span className="text-slate-700">{segment.value}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function VerticalBarChart({
+  items,
+}: {
+  items: { label: string; value: number; color: string }[];
+}) {
+  const maxValue = Math.max(1, ...items.map((item) => item.value));
+  return (
+    <div className="flex h-36 items-end gap-3">
+      {items.map((item) => {
+        const height = Math.round((item.value / maxValue) * 100);
+        return (
+          <div key={item.label} className="flex flex-1 flex-col items-center gap-2">
+            <div className="flex h-24 w-full items-end rounded-xl bg-slate-100">
+              <div
+                className="w-full rounded-xl"
+                style={{ height: `${height}%`, backgroundColor: item.color }}
+              />
+            </div>
+            <span className="text-[10px] text-slate-500">{item.label}</span>
+            <span className="text-xs font-semibold text-slate-700">{item.value}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function HorizontalBarChart({
+  items,
+}: {
+  items: { label: string; value: number; color: string }[];
+}) {
+  const maxValue = Math.max(1, ...items.map((item) => item.value));
+  return (
+    <div className="space-y-3">
+      {items.map((item) => {
+        const width = Math.round((item.value / maxValue) * 100);
+        return (
+          <div key={item.label} className="flex items-center gap-3 text-xs text-slate-500">
+            <span className="w-24 truncate font-medium text-slate-600">{item.label}</span>
+            <div className="h-2 flex-1 rounded-full bg-slate-100">
+              <div
+                className="h-2 rounded-full"
+                style={{ width: `${width}%`, backgroundColor: item.color }}
+              />
+            </div>
+            <span className="w-16 text-right text-slate-700">{fmtCurrency(item.value)}</span>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -66,6 +175,35 @@ function InsightCard({
       </span>
     </div>
   );
+}
+
+function DetailCard({
+  title,
+  subtitle,
+  children,
+}: {
+  title: string;
+  subtitle: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="mb-4">
+        <p className="text-sm font-semibold text-slate-900">{title}</p>
+        <p className="text-xs text-slate-500">{subtitle}</p>
+      </div>
+      <div className="space-y-3">{children}</div>
+    </div>
+  );
+}
+
+function triggerBlobDownload(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
 }
 
 function StageCard({
@@ -229,6 +367,131 @@ export default function ReportsPage() {
     ...data.repPerformance.map((row) => row.pipelineValue)
   );
 
+  const stageChartItems = LEAD_STATUS_ORDER.map((status, index) => ({
+    label: LEAD_STATUS_LABELS[status],
+    value: statusCounts[status] ?? 0,
+    color: chartPalette[index % chartPalette.length],
+  }));
+
+  const sourceChartItems = data.sourcePerformance.map((row, index) => ({
+    label: row.source,
+    value: row.total,
+    color: chartPalette[index % chartPalette.length],
+  }));
+
+  const repChartItems = data.repPerformance.slice(0, 6).map((row, index) => ({
+    label: row.name,
+    value: row.pipelineValue,
+    color: chartPalette[index % chartPalette.length],
+  }));
+
+  const handleExportCSV = () => {
+    const quote = (value: unknown) => `"${String(value ?? "").replace(/"/g, '""')}"`;
+    const rows: string[] = [];
+    rows.push(["Section", "Label", "Details"].join(","));
+    stageChartItems.forEach((item) => {
+      rows.push(
+        ["Stages", item.label, `${item.value} leads`]
+          .map(quote)
+          .join(",")
+      );
+    });
+    if (data.sourcePerformance.length) {
+      rows.push("");
+      data.sourcePerformance.forEach((row) => {
+        rows.push(
+          ["Sources", row.source, `${row.total} leads, ${row.converted} converted, ${Math.round(row.conversionRate * 100)}% rate`]
+            .map(quote)
+            .join(",")
+        );
+      });
+    }
+    if (data.repPerformance.length) {
+      rows.push("");
+      data.repPerformance.forEach((row) => {
+        rows.push(
+          ["Reps", row.name, `${row.assigned} assigned, pipeline ${fmtCurrency(row.pipelineValue)}`]
+            .map(quote)
+            .join(",")
+        );
+      });
+    }
+
+    const blob = new Blob([rows.join("\n")], { type: "text/csv;charset=utf-8" });
+    triggerBlobDownload(blob, `fawnix-reports-${Date.now()}.csv`);
+  };
+
+  const handleExportPDF = () => {
+    const doc = new jsPDF({ unit: "pt", format: "a4" });
+    let y = 40;
+    doc.setFontSize(16);
+    doc.text("Fawnix Verse CRM Report", 40, y);
+    y += 24;
+    doc.setFontSize(10);
+    doc.text(`Generated: ${new Date().toLocaleString()}`, 40, y);
+    y += 18;
+    doc.text(`Total Leads: ${data.totalLeads}`, 40, y);
+    y += 16;
+    doc.text(`Pipeline Value: ${fmtCurrency(data.pipelineValue)}`, 40, y);
+    y += 16;
+    doc.text(`Converted: ${data.convertedCount} (Loss ${fmtPercent(data.lossRate)})`, 40, y);
+    y += 20;
+
+    const addLines = (title: string, lines: string[]) => {
+      doc.setFontSize(12);
+      doc.text(title, 40, y);
+      y += 18;
+      doc.setFontSize(10);
+      lines.forEach((line) => {
+        doc.text(line, 40, y);
+        y += 14;
+        if (y > 750) {
+          doc.addPage();
+          y = 40;
+        }
+      });
+      y += 10;
+    };
+
+    addLines(
+      "Stage Distribution",
+      stageChartItems.map((item) => `${item.label}: ${item.value} leads`)
+    );
+    addLines(
+      "Source Performance",
+      data.sourcePerformance.map(
+        (row) =>
+          `${row.source}: ${row.total} leads, ${row.converted} converted (${Math.round(row.conversionRate * 100)}% rate)`
+      )
+    );
+    addLines(
+      "Rep Performance",
+      data.repPerformance.map(
+        (row) => `${row.name}: ${row.assigned} assigned, ${fmtCurrency(row.pipelineValue)} pipeline`
+      )
+    );
+
+    doc.save(`fawnix-reports-${Date.now()}.pdf`);
+  };
+
+  const stageChartItems = LEAD_STATUS_ORDER.map((status, index) => ({
+    label: LEAD_STATUS_LABELS[status],
+    value: statusCounts[status] ?? 0,
+    color: chartPalette[index % chartPalette.length],
+  }));
+
+  const sourceChartItems = data.sourcePerformance.map((row, index) => ({
+    label: row.source,
+    value: row.total,
+    color: chartPalette[index % chartPalette.length],
+  }));
+
+  const repChartItems = data.repPerformance.slice(0, 6).map((row, index) => ({
+    label: row.name,
+    value: row.pipelineValue,
+    color: chartPalette[index % chartPalette.length],
+  }));
+
   return (
     <div className="flex h-full w-full flex-col gap-6">
       <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -254,42 +517,79 @@ export default function ReportsPage() {
               <Users className="h-4 w-4" />
               View Leads
             </button>
+            <button
+              onClick={handleExportCSV}
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 shadow-sm hover:border-slate-300 hover:bg-slate-50"
+            >
+              Export CSV
+            </button>
+            <button
+              onClick={handleExportPDF}
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 shadow-sm hover:border-slate-300 hover:bg-slate-50"
+            >
+              Export PDF
+            </button>
           </div>
         </div>
       </div>
 
-      <div className="flex gap-4 overflow-x-auto pb-2">
-        <KanbanLane title="Executive Summary" description="Key business health metrics">
-          <InsightCard
-            label="Total Leads"
-            value={data.totalLeads}
-            sub={`Conversion ${fmtPercent(data.conversionRate)}`}
-            tone="bg-sky-100 text-sky-600"
-            icon={<Users className="h-4 w-4" />}
-          />
-          <InsightCard
-            label="Pipeline Value"
-            value={fmtCurrency(data.pipelineValue)}
-            sub="Qualified and beyond"
-            tone="bg-emerald-100 text-emerald-600"
-            icon={<TrendingUp className="h-4 w-4" />}
-          />
-          <InsightCard
-            label="Converted"
-            value={data.convertedCount}
-            sub={`Loss ${fmtPercent(data.lossRate)}`}
-            tone="bg-amber-100 text-amber-600"
-            icon={<Zap className="h-4 w-4" />}
-          />
-          <InsightCard
-            label="Days to First Contact"
-            value={data.avgDaysToFirstContact.toFixed(1)}
-            sub="Across contacted leads"
-            tone="bg-violet-100 text-violet-600"
-            icon={<BarChart3 className="h-4 w-4" />}
-          />
-        </KanbanLane>
-        <KanbanLane title="Pipeline Stages" description="Stage distribution with timing context">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <InsightCard
+          label="Total Leads"
+          value={data.totalLeads}
+          sub={`Conversion ${fmtPercent(data.conversionRate)}`}
+          tone="bg-sky-100 text-sky-600"
+          icon={<Users className="h-4 w-4" />}
+        />
+        <InsightCard
+          label="Pipeline Value"
+          value={fmtCurrency(data.pipelineValue)}
+          sub="Qualified and beyond"
+          tone="bg-emerald-100 text-emerald-600"
+          icon={<TrendingUp className="h-4 w-4" />}
+        />
+        <InsightCard
+          label="Converted"
+          value={data.convertedCount}
+          sub={`Loss ${fmtPercent(data.lossRate)}`}
+          tone="bg-amber-100 text-amber-600"
+          icon={<Zap className="h-4 w-4" />}
+        />
+        <InsightCard
+          label="Days to First Contact"
+          value={data.avgDaysToFirstContact.toFixed(1)}
+          sub="Across contacted leads"
+          tone="bg-violet-100 text-violet-600"
+          icon={<BarChart3 className="h-4 w-4" />}
+        />
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-3">
+        <ChartCard title="Pipeline Stages" subtitle="Lead distribution across the funnel">
+          <VerticalBarChart items={stageChartItems} />
+        </ChartCard>
+        <ChartCard title="Lead Sources" subtitle="Where demand is coming from">
+          {sourceChartItems.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-xs text-slate-500">
+              No source data yet.
+            </div>
+          ) : (
+            <DonutChart segments={sourceChartItems} totalLabel="Total leads" />
+          )}
+        </ChartCard>
+        <ChartCard title="Pipeline by Rep" subtitle="Top pipeline contributors">
+          {repChartItems.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-xs text-slate-500">
+              No rep data yet.
+            </div>
+          ) : (
+            <HorizontalBarChart items={repChartItems} />
+          )}
+        </ChartCard>
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-3">
+        <DetailCard title="Stage Timing" subtitle="Average time spent in each stage">
           {LEAD_STATUS_ORDER.map((status) => (
             <StageCard
               key={status}
@@ -299,11 +599,11 @@ export default function ReportsPage() {
               maxCount={maxStatusCount}
             />
           ))}
-        </KanbanLane>
+        </DetailCard>
 
-        <KanbanLane title="Source Performance" description="Lead volume and conversion rates">
+        <DetailCard title="Source Performance" subtitle="Lead volume and conversion rates">
           {data.sourcePerformance.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-slate-200 bg-white/70 p-4 text-xs text-slate-500">
+            <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-xs text-slate-500">
               No source data yet.
             </div>
           ) : (
@@ -318,11 +618,11 @@ export default function ReportsPage() {
               />
             ))
           )}
-        </KanbanLane>
+        </DetailCard>
 
-        <KanbanLane title="Rep Performance" description="Active pipeline by assignee">
+        <DetailCard title="Rep Performance" subtitle="Activity and conversion by owner">
           {data.repPerformance.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-slate-200 bg-white/70 p-4 text-xs text-slate-500">
+            <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-xs text-slate-500">
               No rep data yet.
             </div>
           ) : (
@@ -338,7 +638,7 @@ export default function ReportsPage() {
               />
             ))
           )}
-        </KanbanLane>
+        </DetailCard>
       </div>
     </div>
   );

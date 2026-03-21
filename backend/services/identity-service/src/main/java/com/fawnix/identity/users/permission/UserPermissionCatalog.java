@@ -19,6 +19,8 @@ public final class UserPermissionCatalog {
 
   public static final String PAGE_DASHBOARD = "page.dashboard";
   public static final String PAGE_CRM_LEADS = "page.crm.leads";
+  public static final String PAGE_CRM_CONTACTS = "page.crm.contacts";
+  public static final String PAGE_CRM_ACCOUNTS = "page.crm.accounts";
   public static final String PAGE_CRM_PRESALES = "page.crm.presales";
   public static final String PAGE_CRM_OPPORTUNITIES = "page.crm.opportunities";
   public static final String PAGE_INVENTORY = "page.inventory";
@@ -39,6 +41,8 @@ public final class UserPermissionCatalog {
       MODULE_ADMIN,
       PAGE_DASHBOARD,
       PAGE_CRM_LEADS,
+      PAGE_CRM_CONTACTS,
+      PAGE_CRM_ACCOUNTS,
       PAGE_CRM_PRESALES,
       PAGE_CRM_OPPORTUNITIES,
       PAGE_INVENTORY,
@@ -60,6 +64,8 @@ public final class UserPermissionCatalog {
           MODULE_REPORTS,
           PAGE_DASHBOARD,
           PAGE_CRM_LEADS,
+          PAGE_CRM_CONTACTS,
+          PAGE_CRM_ACCOUNTS,
           PAGE_CRM_PRESALES,
           PAGE_SALES,
           PAGE_REPORTS
@@ -69,6 +75,8 @@ public final class UserPermissionCatalog {
           MODULE_SALES,
           PAGE_DASHBOARD,
           PAGE_CRM_LEADS,
+          PAGE_CRM_CONTACTS,
+          PAGE_CRM_ACCOUNTS,
           PAGE_CRM_PRESALES,
           PAGE_SALES
       ));

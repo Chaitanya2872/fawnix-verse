@@ -76,7 +76,7 @@ function KanbanColumn({
   onOpen: (id: string) => void;
 }) {
   return (
-    <div className="flex min-w-[260px] flex-1 flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
+    <div className="flex min-w-[260px] min-h-[360px] flex-1 flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
       <div className="flex items-start justify-between">
         <div>
           <div className="flex items-center gap-2">

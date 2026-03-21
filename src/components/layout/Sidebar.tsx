@@ -52,6 +52,8 @@ const ERP_NAV_SECTIONS: readonly SidebarNavSection[] = [
     heading: "CRM",
     items: [
       { label: "Leads", to: "/crm/leads", icon: UserPlus, permission: PERMISSIONS.PAGE_CRM_LEADS },
+      { label: "Contacts", to: "/crm/contacts", icon: Users, permission: PERMISSIONS.PAGE_CRM_CONTACTS },
+      { label: "Accounts", to: "/crm/accounts", icon: Building2, permission: PERMISSIONS.PAGE_CRM_ACCOUNTS },
       { label: "Pre-Sales", to: "/crm/presales", icon: Target, permission: PERMISSIONS.PAGE_CRM_PRESALES },
       { label: "Opportunities", to: "/crm/opportunities", icon: Target, permission: PERMISSIONS.PAGE_CRM_OPPORTUNITIES },
     ],

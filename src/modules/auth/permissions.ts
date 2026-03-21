@@ -9,6 +9,8 @@ export const PERMISSIONS = {
   MODULE_ADMIN: "module.admin",
   PAGE_DASHBOARD: "page.dashboard",
   PAGE_CRM_LEADS: "page.crm.leads",
+  PAGE_CRM_CONTACTS: "page.crm.contacts",
+  PAGE_CRM_ACCOUNTS: "page.crm.accounts",
   PAGE_CRM_PRESALES: "page.crm.presales",
   PAGE_CRM_OPPORTUNITIES: "page.crm.opportunities",
   PAGE_INVENTORY: "page.inventory",

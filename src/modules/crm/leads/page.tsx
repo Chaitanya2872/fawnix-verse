@@ -1804,17 +1804,9 @@ function LeadPreviewCard({
   lead,
   onOpen,
 }: {
-  lead: Lead | null;
+  lead: Lead;
   onOpen: () => void;
 }) {
-  if (!lead) {
-    return (
-      <div className="sticky top-6 rounded-2xl border border-border bg-card p-5 text-sm text-muted-foreground shadow-sm">
-        Select a lead to preview details here.
-      </div>
-    );
-  }
-
   return (
     <div className="sticky top-6 space-y-4 rounded-2xl border border-border bg-card p-5 shadow-sm">
       <div className="flex items-start justify-between gap-4">
@@ -2063,7 +2055,7 @@ export default function LeadsPage() {
     priority: "ALL", page: 1, pageSize: PAGE_SIZE,
   });
   const [quickView, setQuickView] = useState<QuickView>("ALL");
-  const [previewLeadId, setPreviewLeadId] = useState<string | null>(null);
+  const [hoverPreviewLeadId, setHoverPreviewLeadId] = useState<string | null>(null);
   const [formState, setFormState] = useState<{ mode: LeadDialogMode; lead: Lead | null } | null>(null);
   const [stageUpdateTarget, setStageUpdateTarget] = useState<{ lead: Lead; status: LeadStatus } | null>(null);
   const [stageRemark, setStageRemark] = useState("");
@@ -2142,16 +2134,15 @@ export default function LeadsPage() {
   };
 
   useEffect(() => {
-    if (leads.length === 0) {
-      setPreviewLeadId(null);
+    if (!hoverPreviewLeadId) {
       return;
     }
-    if (!previewLeadId || !leads.some((lead) => lead.id === previewLeadId)) {
-      setPreviewLeadId(leads[0].id);
+    if (!leads.some((lead) => lead.id === hoverPreviewLeadId)) {
+      setHoverPreviewLeadId(null);
     }
-  }, [leads, previewLeadId]);
+  }, [leads, hoverPreviewLeadId]);
 
-  const previewLead = leads.find((lead) => lead.id === previewLeadId) ?? null;
+  const hoveredLead = leads.find((lead) => lead.id === hoverPreviewLeadId) ?? null;
 
   const filterKey = useMemo(
     () =>
@@ -2327,7 +2318,6 @@ export default function LeadsPage() {
     if (typeof window !== "undefined") {
       const isWide = window.matchMedia("(min-width: 1024px)").matches;
       if (isWide) {
-        setPreviewLeadId(lead.id);
         return;
       }
     }
@@ -2650,7 +2640,10 @@ export default function LeadsPage() {
                 <span />
               </div>
 
-              <div className="divide-y divide-border">
+              <div
+                className="divide-y divide-border"
+                onMouseLeave={() => setHoverPreviewLeadId(null)}
+              >
                 {isLoading ? (
                   <div className="py-16 text-center">
                     <Loader2 className="mx-auto h-6 w-6 animate-spin text-sky-500" />
@@ -2671,11 +2664,13 @@ export default function LeadsPage() {
                   </div>
                 ) : (
                   leads.map((lead) => {
-                    const isActive = previewLeadId === lead.id;
+                    const isActive = hoverPreviewLeadId === lead.id;
                     return (
                       <div
                         key={lead.id}
                         onClick={() => handleLeadRowClick(lead)}
+                        onMouseEnter={() => setHoverPreviewLeadId(lead.id)}
+                        onMouseLeave={() => setHoverPreviewLeadId((current) => (current === lead.id ? null : current))}
                         className={`cursor-pointer px-5 py-4 transition ${isActive ? "bg-sky-50/60" : "hover:bg-muted/40"}`}
                       >
                         <div className="flex flex-col gap-3 lg:grid lg:grid-cols-[minmax(220px,1.6fr)_minmax(160px,1fr)_minmax(160px,1fr)_110px_90px_minmax(140px,1fr)_120px_40px] lg:items-center lg:gap-4">
@@ -2781,14 +2776,18 @@ export default function LeadsPage() {
             </div>
           </div>
 
-          <div className="hidden lg:block">
-            <LeadPreviewCard
-              lead={previewLead}
-              onOpen={() => {
-                if (!previewLead) return;
-                navigate(`/crm/leads/${previewLead.id}`);
-              }}
-            />
+          <div
+            className={`hidden lg:block transition-opacity duration-200 ${
+              hoveredLead ? "opacity-100" : "pointer-events-none opacity-0"
+            }`}
+            aria-hidden={!hoveredLead}
+          >
+            {hoveredLead && (
+              <LeadPreviewCard
+                lead={hoveredLead}
+                onOpen={() => navigate(`/crm/leads/${hoveredLead.id}`)}
+              />
+            )}
           </div>
         </div>
       </LeadsLayout>
