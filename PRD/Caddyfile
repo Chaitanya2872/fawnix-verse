@@ -1,4 +1,4 @@
 fawnixverse.acstechnologies.co.in {
   reverse_proxy /api/* api-gateway:8080
-  reverse_proxy /* frontend:5173
+  reverse_proxy /* frontend:5174
 }
