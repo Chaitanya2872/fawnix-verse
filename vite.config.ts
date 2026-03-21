@@ -45,6 +45,7 @@ export default defineConfig(({ mode }) => {
     resolve: {
       alias: {
         "@": path.resolve(__dirname, "./src"),
+        jspdf: path.resolve(__dirname, "./node_modules/jspdf/dist/jspdf.es.min.js"),
       },
     },
   }
