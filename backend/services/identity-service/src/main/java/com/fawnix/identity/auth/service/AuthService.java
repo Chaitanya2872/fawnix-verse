@@ -2,19 +2,26 @@ package com.fawnix.identity.auth.service;
 
 import com.fawnix.identity.auth.dto.AuthDtos;
 import com.fawnix.identity.auth.entity.RefreshTokenEntity;
+import com.fawnix.identity.auth.entity.RoleEntity;
+import com.fawnix.identity.auth.entity.RoleName;
 import com.fawnix.identity.auth.mapper.AuthMapper;
 import com.fawnix.identity.auth.repository.RefreshTokenRepository;
+import com.fawnix.identity.auth.repository.RoleRepository;
 import com.fawnix.identity.common.exception.BadRequestException;
 import com.fawnix.identity.common.exception.ResourceNotFoundException;
 import com.fawnix.identity.security.jwt.JwtService;
 import com.fawnix.identity.security.service.AppUserDetails;
 import com.fawnix.identity.users.entity.UserEntity;
+import com.fawnix.identity.users.permission.UserPermissionCatalog;
 import com.fawnix.identity.users.repository.UserRepository;
 import java.time.Instant;
+import java.util.Locale;
+import java.util.Set;
 import java.util.UUID;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,19 +33,25 @@ public class AuthService {
   private final RefreshTokenRepository refreshTokenRepository;
   private final JwtService jwtService;
   private final AuthMapper authMapper;
+  private final RoleRepository roleRepository;
+  private final PasswordEncoder passwordEncoder;
 
   public AuthService(
       AuthenticationManager authenticationManager,
       UserRepository userRepository,
       RefreshTokenRepository refreshTokenRepository,
       JwtService jwtService,
-      AuthMapper authMapper
+      AuthMapper authMapper,
+      RoleRepository roleRepository,
+      PasswordEncoder passwordEncoder
   ) {
     this.authenticationManager = authenticationManager;
     this.userRepository = userRepository;
     this.refreshTokenRepository = refreshTokenRepository;
     this.jwtService = jwtService;
     this.authMapper = authMapper;
+    this.roleRepository = roleRepository;
+    this.passwordEncoder = passwordEncoder;
   }
 
   @Transactional
@@ -52,6 +65,32 @@ public class AuthService {
 
     revokeActiveTokens(user);
     return issueTokens(userDetails, user);
+  }
+
+  @Transactional
+  public AuthDtos.TokenResponse register(AuthDtos.RegisterRequest request) {
+    String email = normalizeEmail(request.email());
+    ensureEmailAvailable(email);
+    RoleEntity viewerRole = roleRepository.findByName(RoleName.ROLE_VIEWER.name())
+        .orElseThrow(() -> new IllegalStateException("Viewer role is not configured."));
+
+    Instant now = Instant.now();
+    UserEntity user = new UserEntity(
+        UUID.randomUUID().toString(),
+        request.fullName().trim(),
+        email,
+        normalizePhone(request.phoneNumber()),
+        normalizeLanguage(request.language()),
+        passwordEncoder.encode(request.password()),
+        true,
+        now,
+        now
+    );
+    user.setRoles(Set.of(viewerRole));
+    user.setPermissions(UserPermissionCatalog.defaultsForRole(RoleName.ROLE_VIEWER));
+    UserEntity saved = userRepository.save(user);
+    AppUserDetails userDetails = new AppUserDetails(saved);
+    return issueTokens(userDetails, saved);
   }
 
   @Transactional
@@ -105,5 +144,34 @@ public class AuthService {
         refreshExpiry,
         authMapper.toCurrentUserResponse(userDetails)
     );
+  }
+
+  private void ensureEmailAvailable(String email) {
+    userRepository.findByEmailIgnoreCase(email).ifPresent(existing -> {
+      throw new BadRequestException("Email is already in use.");
+    });
+  }
+
+  private String normalizeEmail(String email) {
+    if (email == null) {
+      return "";
+    }
+    return email.trim().toLowerCase(Locale.ROOT);
+  }
+
+  private String normalizePhone(String phoneNumber) {
+    if (phoneNumber == null) {
+      return null;
+    }
+    String trimmed = phoneNumber.trim();
+    return trimmed.isEmpty() ? null : trimmed;
+  }
+
+  private String normalizeLanguage(String language) {
+    if (language == null) {
+      return null;
+    }
+    String trimmed = language.trim();
+    return trimmed.isEmpty() ? null : trimmed;
   }
 }

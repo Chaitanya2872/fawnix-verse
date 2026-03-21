@@ -57,7 +57,7 @@ public class SecurityConfig {
             .authenticationEntryPoint(authenticationEntryPoint)
             .accessDeniedHandler(accessDeniedHandler))
         .authorizeHttpRequests(auth -> auth
-            .requestMatchers("/api/auth/login", "/api/auth/refresh", "/actuator/health", "/actuator/info", "/internal/**").permitAll()
+            .requestMatchers("/api/auth/login", "/api/auth/register", "/api/auth/refresh", "/actuator/health", "/actuator/info", "/internal/**").permitAll()
             .anyRequest().authenticated())
         .authenticationProvider(authenticationProvider())
         .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

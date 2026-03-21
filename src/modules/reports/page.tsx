@@ -177,26 +177,6 @@ function InsightCard({
   );
 }
 
-function DetailCard({
-  title,
-  subtitle,
-  children,
-}: {
-  title: string;
-  subtitle: string;
-  children: ReactNode;
-}) {
-  return (
-    <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="mb-4">
-        <p className="text-sm font-semibold text-slate-900">{title}</p>
-        <p className="text-xs text-slate-500">{subtitle}</p>
-      </div>
-      <div className="space-y-3">{children}</div>
-    </div>
-  );
-}
-
 function triggerBlobDownload(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
@@ -211,120 +191,40 @@ function StageCard({
   count,
   avgDays,
   maxCount,
+  compact,
 }: {
   status: LeadStatus;
   count: number;
   avgDays?: number;
   maxCount: number;
+  compact?: boolean;
 }) {
   const percent = Math.round((count / Math.max(1, maxCount)) * 100);
+  const baseClasses = compact
+    ? "rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2"
+    : "rounded-xl border border-slate-200 bg-white px-3.5 py-3 shadow-sm";
+
   return (
-    <div className="rounded-xl border border-slate-200 bg-white px-3.5 py-3 shadow-sm">
+    <div className={baseClasses}>
       <div className="flex items-center justify-between">
-        <p className="text-sm font-semibold text-slate-900">{LEAD_STATUS_LABELS[status]}</p>
-        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
+        <p className={`text-sm font-semibold ${compact ? "text-slate-900" : "text-slate-900"}`}>
+          {LEAD_STATUS_LABELS[status]}
+        </p>
+        <span
+          className={`rounded-full px-2 text-[10px] font-semibold ${
+            compact ? "bg-slate-100 text-slate-600" : "bg-slate-100 text-slate-600"
+          }`}
+        >
           {count}
         </span>
       </div>
-      <p className="mt-1 text-xs text-slate-500">
+      <p className={compact ? "mt-1 text-[11px] text-slate-500" : "mt-1 text-xs text-slate-500"}>
         {avgDays === undefined ? "Timing pending" : `${avgDays.toFixed(1)} days avg`}
       </p>
       <div className="mt-3 h-1.5 w-full rounded-full bg-slate-100">
         <div
           className="h-1.5 rounded-full bg-sky-500"
           style={{ width: `${percent}%` }}
-        />
-      </div>
-    </div>
-  );
-}
-
-function SourceCard({
-  source,
-  total,
-  converted,
-  conversionRate,
-  maxTotal,
-}: {
-  source: string;
-  total: number;
-  converted: number;
-  conversionRate: number;
-  maxTotal: number;
-}) {
-  const volumePercent = Math.round((total / Math.max(1, maxTotal)) * 100);
-  const conversionPercent = Math.round(conversionRate * 100);
-  return (
-    <div className="rounded-xl border border-slate-200 bg-white px-3.5 py-3 shadow-sm">
-      <p className="text-sm font-semibold text-slate-900">{source}</p>
-      <div className="mt-2 flex items-center justify-between text-xs text-slate-500">
-        <span>Leads: {total}</span>
-        <span>Converted: {converted}</span>
-      </div>
-      <p className="mt-1 text-xs font-semibold text-slate-700">
-        Rate: {fmtPercent(conversionRate)}
-      </p>
-      <div className="mt-3 space-y-2 text-[10px] text-slate-400">
-        <div>
-          <div className="mb-1 flex items-center justify-between">
-            <span>Volume</span>
-            <span>{volumePercent}%</span>
-          </div>
-          <div className="h-1.5 rounded-full bg-slate-100">
-            <div
-              className="h-1.5 rounded-full bg-emerald-500"
-              style={{ width: `${volumePercent}%` }}
-            />
-          </div>
-        </div>
-        <div>
-          <div className="mb-1 flex items-center justify-between">
-            <span>Conversion</span>
-            <span>{conversionPercent}%</span>
-          </div>
-          <div className="h-1.5 rounded-full bg-slate-100">
-            <div
-              className="h-1.5 rounded-full bg-sky-500"
-              style={{ width: `${conversionPercent}%` }}
-            />
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function RepCard({
-  name,
-  assigned,
-  active,
-  converted,
-  pipelineValue,
-  maxPipelineValue,
-}: {
-  name: string;
-  assigned: number;
-  active: number;
-  converted: number;
-  pipelineValue: number;
-  maxPipelineValue: number;
-}) {
-  const pipelinePercent = Math.round(
-    (pipelineValue / Math.max(1, maxPipelineValue)) * 100
-  );
-  return (
-    <div className="rounded-xl border border-slate-200 bg-white px-3.5 py-3 shadow-sm">
-      <p className="text-sm font-semibold text-slate-900">{name}</p>
-      <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-slate-500">
-        <span>Assigned: {assigned}</span>
-        <span>Active: {active}</span>
-        <span>Converted: {converted}</span>
-        <span>Pipeline: {fmtCurrency(pipelineValue)}</span>
-      </div>
-      <div className="mt-3 h-1.5 w-full rounded-full bg-slate-100">
-        <div
-          className="h-1.5 rounded-full bg-violet-500"
-          style={{ width: `${pipelinePercent}%` }}
         />
       </div>
     </div>
@@ -358,15 +258,6 @@ export default function ReportsPage() {
     1,
     ...LEAD_STATUS_ORDER.map((status) => statusCounts[status] ?? 0)
   );
-  const maxSourceTotal = Math.max(
-    1,
-    ...data.sourcePerformance.map((row) => row.total)
-  );
-  const maxPipelineValue = Math.max(
-    1,
-    ...data.repPerformance.map((row) => row.pipelineValue)
-  );
-
   const stageChartItems = LEAD_STATUS_ORDER.map((status, index) => ({
     label: LEAD_STATUS_LABELS[status],
     value: statusCounts[status] ?? 0,
@@ -546,82 +437,74 @@ export default function ReportsPage() {
         />
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-3">
-        <ChartCard title="Pipeline Stages" subtitle="Lead distribution across the funnel">
-          <VerticalBarChart items={stageChartItems} />
-        </ChartCard>
-        <ChartCard title="Lead Sources" subtitle="Where demand is coming from">
-          {sourceChartItems.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-xs text-slate-500">
-              No source data yet.
+      <div className="flex flex-col gap-6 lg:flex-row">
+        <div className="flex-1 space-y-6">
+          <div className="grid gap-4 lg:grid-cols-2">
+            <ChartCard title="Pipeline Stages" subtitle="Lead distribution across the funnel">
+              <VerticalBarChart items={stageChartItems} />
+            </ChartCard>
+            <ChartCard title="Lead Sources" subtitle="Where demand is coming from">
+              {sourceChartItems.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-xs text-slate-500">
+                  No source data yet.
+                </div>
+              ) : (
+                <DonutChart segments={sourceChartItems} totalLabel="Total leads" />
+              )}
+            </ChartCard>
+          </div>
+
+          <ChartCard title="Pipeline by Rep" subtitle="Top pipeline contributors">
+            {repChartItems.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-xs text-slate-500">
+                No rep data yet.
+              </div>
+            ) : (
+              <HorizontalBarChart items={repChartItems} />
+            )}
+          </ChartCard>
+        </div>
+
+        <aside className="w-full max-w-sm space-y-4">
+          <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="mb-4">
+              <p className="text-sm font-semibold text-slate-900">Stage pipeline snapshot</p>
+              <p className="text-xs text-slate-500">See how leads flow through the funnel.</p>
             </div>
-          ) : (
-            <DonutChart segments={sourceChartItems} totalLabel="Total leads" />
-          )}
-        </ChartCard>
-        <ChartCard title="Pipeline by Rep" subtitle="Top pipeline contributors">
-          {repChartItems.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-xs text-slate-500">
-              No rep data yet.
+            <div className="space-y-3">
+              {LEAD_STATUS_ORDER.map((status) => (
+                <StageCard
+                  key={status}
+                  status={status}
+                  count={statusCounts[status] ?? 0}
+                  avgDays={data.avgDaysInStage?.[status as LeadStatus]}
+                  maxCount={maxStatusCount}
+                  compact
+                />
+              ))}
             </div>
-          ) : (
-            <HorizontalBarChart items={repChartItems} />
-          )}
-        </ChartCard>
+          </div>
+          <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5">
+            <p className="text-sm font-semibold text-slate-900">Top source highlights</p>
+            <p className="text-xs text-slate-500">Showing volume and conversion.</p>
+            <div className="mt-4 space-y-3">
+              {data.sourcePerformance.slice(0, 3).map((row) => (
+                <div key={row.source} className="rounded-2xl border border-slate-100 bg-white p-3 text-xs">
+                  <div className="flex items-center justify-between text-slate-700">
+                    <span className="font-semibold text-slate-900">{row.source}</span>
+                    <span>{fmtPercent(row.conversionRate)}</span>
+                  </div>
+                  <p className="text-[11px] text-slate-500">{row.total} leads · {row.converted} converted</p>
+                </div>
+              ))}
+              {data.sourcePerformance.length === 0 && (
+                <p className="text-[11px] text-slate-400">No source highlights yet.</p>
+              )}
+            </div>
+          </div>
+        </aside>
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-3">
-        <DetailCard title="Stage Timing" subtitle="Average time spent in each stage">
-          {LEAD_STATUS_ORDER.map((status) => (
-            <StageCard
-              key={status}
-              status={status}
-              count={statusCounts[status] ?? 0}
-              avgDays={data.avgDaysInStage?.[status as LeadStatus]}
-              maxCount={maxStatusCount}
-            />
-          ))}
-        </DetailCard>
-
-        <DetailCard title="Source Performance" subtitle="Lead volume and conversion rates">
-          {data.sourcePerformance.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-xs text-slate-500">
-              No source data yet.
-            </div>
-          ) : (
-            data.sourcePerformance.map((row) => (
-              <SourceCard
-                key={row.source}
-                source={row.source}
-                total={row.total}
-                converted={row.converted}
-                conversionRate={row.conversionRate}
-                maxTotal={maxSourceTotal}
-              />
-            ))
-          )}
-        </DetailCard>
-
-        <DetailCard title="Rep Performance" subtitle="Activity and conversion by owner">
-          {data.repPerformance.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-xs text-slate-500">
-              No rep data yet.
-            </div>
-          ) : (
-            data.repPerformance.map((row) => (
-              <RepCard
-                key={row.userId ?? row.name}
-                name={row.name}
-                assigned={row.assigned}
-                active={row.active}
-                converted={row.converted}
-                pipelineValue={row.pipelineValue}
-                maxPipelineValue={maxPipelineValue}
-              />
-            ))
-          )}
-        </DetailCard>
-      </div>
     </div>
   );
 }

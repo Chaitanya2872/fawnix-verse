@@ -27,6 +27,11 @@ public class AuthController {
     return authService.login(request);
   }
 
+  @PostMapping("/register")
+  public AuthDtos.TokenResponse register(@Valid @RequestBody AuthDtos.RegisterRequest request) {
+    return authService.register(request);
+  }
+
   @PostMapping("/refresh")
   public AuthDtos.TokenResponse refresh(@Valid @RequestBody AuthDtos.RefreshTokenRequest request) {
     return authService.refresh(request);
