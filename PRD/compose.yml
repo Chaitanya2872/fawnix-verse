@@ -108,7 +108,7 @@ services:
       REQUEST_TIMEOUT_SECONDS: ${CRM_SPEECH_TO_TEXT_TIMEOUT_SECONDS:-120}
       ALLOW_ORIGINS: http://localhost:5173,http://127.0.0.1:5173,http://localhost:8080,https://fawnixverse.acstechnologies.co.in,http://54.76.187.129,http://54.76.187.129:5173,https://54.76.187.129,http://108.131.209.156,http://108.131.209.156:5173,https://108.131.209.156
     ports:
-      - "8000:8000"
+      - "8001:8000"
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\""]
       interval: 10s
