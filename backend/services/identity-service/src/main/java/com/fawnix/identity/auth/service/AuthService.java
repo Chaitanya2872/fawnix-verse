@@ -69,10 +69,15 @@ public class AuthService {
 
   @Transactional
   public AuthDtos.TokenResponse register(AuthDtos.RegisterRequest request) {
+    return registerWithRole(request, RoleName.ROLE_VIEWER);
+  }
+
+  @Transactional
+  public AuthDtos.TokenResponse registerWithRole(AuthDtos.RegisterRequest request, RoleName roleName) {
     String email = normalizeEmail(request.email());
     ensureEmailAvailable(email);
-    RoleEntity viewerRole = roleRepository.findByName(RoleName.ROLE_VIEWER.name())
-        .orElseThrow(() -> new IllegalStateException("Viewer role is not configured."));
+    RoleEntity role = roleRepository.findByName(roleName.name())
+        .orElseThrow(() -> new IllegalStateException(roleName + " role is not configured."));
 
     Instant now = Instant.now();
     UserEntity user = new UserEntity(
@@ -86,8 +91,8 @@ public class AuthService {
         now,
         now
     );
-    user.setRoles(Set.of(viewerRole));
-    user.setPermissions(UserPermissionCatalog.defaultsForRole(RoleName.ROLE_VIEWER));
+    user.setRoles(Set.of(role));
+    user.setPermissions(UserPermissionCatalog.defaultsForRole(roleName));
     UserEntity saved = userRepository.save(user);
     AppUserDetails userDetails = new AppUserDetails(saved);
     return issueTokens(userDetails, saved);
