@@ -2487,7 +2487,7 @@ export default function LeadsPage() {
         </div>
       ) : null}
       <LeadsLayout actionButton={ActionButtons}>
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,360px)]">
+        <div className="grid gap-6">
           <div className="space-y-6">
             {/* Stats */}
             <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
@@ -2495,33 +2495,6 @@ export default function LeadsPage() {
               <StatCard label="Pipeline Value" value={fmt(summary.totalPipelineValue)} sub={`${summary.qualifiedCount} qualified`} icon={<TrendingUp className="h-5 w-5 text-violet-600" />} accent="bg-violet-50 dark:bg-violet-950" />
               <StatCard label="New Leads" value={summary.newCount} sub="Uncontacted" icon={<Sparkles className="h-5 w-5 text-amber-600" />} accent="bg-amber-50 dark:bg-amber-950" />
               <StatCard label="Converted" value={summary.convertedCount} sub="This period" icon={<Zap className="h-5 w-5 text-emerald-600" />} accent="bg-emerald-50 dark:bg-emerald-950" />
-            </div>
-
-            {/* Pipeline status bar */}
-            <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-9">
-              {LEAD_STATUS_ORDER.map((status) => {
-                const count = summary.statusCounts[status] ?? 0;
-                const cfg = STATUS_CFG[status];
-                return (
-                  <button
-                    key={status}
-                    onClick={() => updateFilter({ status: filter.status === status ? "ALL" : status })}
-                    className={`rounded-xl border px-3 py-2.5 text-left transition-all hover:scale-[1.02] ${
-                      filter.status === status
-                        ? cfg.cls + " shadow ring-2 ring-sky-500/30"
-                        : "border-border bg-card hover:bg-muted/40"
-                    }`}
-                  >
-                    <div className="mb-1 flex items-center justify-between">
-                      <span className={`text-[10px] font-bold uppercase tracking-wider ${filter.status === status ? "" : "text-muted-foreground"}`}>
-                        {LEAD_STATUS_LABELS[status]}
-                      </span>
-                      <span className={`h-2 w-2 rounded-full ${cfg.dot}`} />
-                    </div>
-                    <p className="text-lg font-bold tabular-nums">{count}</p>
-                  </button>
-                );
-              })}
             </div>
 
             {/* Quick views */}
@@ -2622,7 +2595,8 @@ export default function LeadsPage() {
             </div>
 
             {/* Lead list */}
-            <div className="rounded-2xl border border-border bg-card">
+            <div className="relative">
+              <div className="rounded-2xl border border-border bg-card">
               {deleteError ? (
                 <div className="border-b border-red-100 bg-red-50 px-4 py-2 text-xs font-medium text-red-700">
                   {deleteError}
@@ -2762,7 +2736,14 @@ export default function LeadsPage() {
                     <button disabled={filter.page === 1} onClick={() => setFilter((p) => ({ ...p, page: p.page - 1 }))} className="flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground hover:bg-accent disabled:opacity-30">
                       <ChevronLeft className="h-4 w-4" />
                     </button>
-                    {Array.from({ length: data.totalPages }, (_, i) => i + 1).map((pg) => (
+                    {Array.from({
+                      length: Math.min(5, data.totalPages),
+                    }, (_, i) => {
+                      const start = Math.floor((filter.page - 1) / 5) * 5 + 1;
+                      return start + i;
+                    })
+                      .filter((pg) => pg <= data.totalPages)
+                      .map((pg) => (
                       <button key={pg} onClick={() => setFilter((p) => ({ ...p, page: pg }))} className={`flex h-7 w-7 items-center justify-center rounded-lg text-xs font-medium transition-colors ${pg === filter.page ? "bg-sky-600 text-white" : "text-muted-foreground hover:bg-accent"}`}>
                         {pg}
                       </button>
@@ -2773,21 +2754,22 @@ export default function LeadsPage() {
                   </div>
                 </div>
               )}
-            </div>
-          </div>
+              </div>
 
-          <div
-            className={`hidden lg:block transition-opacity duration-200 ${
-              hoveredLead ? "opacity-100" : "pointer-events-none opacity-0"
-            }`}
-            aria-hidden={!hoveredLead}
-          >
-            {hoveredLead && (
-              <LeadPreviewCard
-                lead={hoveredLead}
-                onOpen={() => navigate(`/crm/leads/${hoveredLead.id}`)}
-              />
-            )}
+              <div
+                className={`fixed right-6 top-32 z-30 hidden w-[340px] transition-opacity duration-200 lg:block ${
+                  hoveredLead ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"
+                }`}
+                aria-hidden={!hoveredLead}
+              >
+                {hoveredLead && (
+                  <LeadPreviewCard
+                    lead={hoveredLead}
+                    onOpen={() => navigate(`/crm/leads/${hoveredLead.id}`)}
+                  />
+                )}
+              </div>
+            </div>
           </div>
         </div>
       </LeadsLayout>
