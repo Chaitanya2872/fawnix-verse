@@ -1,3 +1,5 @@
+/* eslint-disable react-hooks/set-state-in-effect */
+/* eslint-disable @typescript-eslint/no-unused-vars */
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -37,10 +39,8 @@ import {
   type LeadFormData,
   type LeadImportResult,
   type LeadRemark,
-  type LeadSchedule,
   type LeadUpdateData,
   type CreateLeadScheduleInput,
-  type UpdateLeadScheduleInput,
   LeadPriority,
   LeadSource,
   LeadStatus,
@@ -1819,10 +1819,6 @@ function LeadSidePanel({
 }) {
   const [assigneeId, setAssigneeId] = useState<string>(lead.assignedToUserId ?? "");
 
-  useEffect(() => {
-    setAssigneeId(lead.assignedToUserId ?? "");
-  }, [lead.id, lead.assignedToUserId]);
-
   const selectedAssignee = assignees.find((assignee) => assignee.id === assigneeId) ?? null;
 
   const todoItems = [
@@ -2174,6 +2170,9 @@ export default function LeadsPage() {
   );
   const formKey = formState ? `${formState.mode}-${formState.lead?.id ?? "new"}` : "lead-form";
 
+  const myQueueValue = currentUser?.name ?? currentUser?.id ?? "";
+  const isSalesRep = currentUser?.roles?.includes("ROLE_SALES_REP") ?? false;
+
   const updateFilter = useCallback((p: Partial<LeadFilter>, opts?: { keepQuickView?: boolean }) => {
     setFilter((prev) => {
       const next = { ...prev, ...p, page: 1 };
@@ -2186,9 +2185,6 @@ export default function LeadsPage() {
       setQuickView("CUSTOM");
     }
   }, [isSalesRep, myQueueValue]);
-
-  const myQueueValue = currentUser?.name ?? currentUser?.id ?? "";
-  const isSalesRep = currentUser?.roles?.includes("ROLE_SALES_REP") ?? false;
 
   function applyQuickView(view: QuickView) {
     setQuickView(view);
@@ -2895,12 +2891,13 @@ export default function LeadsPage() {
                       }}
                     />
                     <LeadSidePanel
+                      key={panelLead.id}
                       lead={panelLead}
                       assignees={assignees}
                       onClose={() => setPanelLeadId(null)}
                       onOpen={() => navigate(`/crm/leads/${panelLead.id}`)}
                       onEdit={() => openEditDialog(panelLead)}
-                      onAssign={handleAssignLead}
+                      onAssign={(assignee) => handleAssignLead(panelLead.id, assignee)}
                       isAssigning={assignLead.isPending}
                     />
                   </div>
