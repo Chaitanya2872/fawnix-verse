@@ -6,6 +6,10 @@ spring:
       default-filters:
         - DedupeResponseHeader=Access-Control-Allow-Credentials Access-Control-Allow-Origin Vary, RETAIN_FIRST
       routes:
+        - id: identity-admin-auth
+          uri: lb://IDENTITY-SERVICE
+          predicates:
+            - Path=/api/auth/register-admin
         - id: identity-auth
           uri: lb://IDENTITY-SERVICE
           predicates:
