@@ -1800,16 +1800,45 @@ function LeadDetailPanel({
   );
 }
 
-function LeadPreviewCard({
+function LeadSidePanel({
   lead,
+  assignees,
+  onClose,
   onOpen,
+  onEdit,
+  onAssign,
+  isAssigning,
 }: {
   lead: Lead;
+  assignees: AssigneeOption[];
+  onClose: () => void;
   onOpen: () => void;
+  onEdit: () => void;
+  onAssign: (assignee: AssigneeOption) => void;
+  isAssigning: boolean;
 }) {
+  const [assigneeId, setAssigneeId] = useState<string>(lead.assignedToUserId ?? "");
+
+  useEffect(() => {
+    setAssigneeId(lead.assignedToUserId ?? "");
+  }, [lead.id, lead.assignedToUserId]);
+
+  const selectedAssignee = assignees.find((assignee) => assignee.id === assigneeId) ?? null;
+
+  const todoItems = [
+    lead.status === LeadStatus.NEW ? "Make first contact" : null,
+    lead.status === LeadStatus.FOLLOW_UP || lead.followUpAt ? "Follow up with the lead" : null,
+    lead.status === LeadStatus.PROPOSAL_SENT ? "Review proposal and confirm next steps" : null,
+  ].filter(Boolean) as string[];
+
+  const reminders = [
+    lead.followUpAt ? `Follow-up at ${fmtDateTime(lead.followUpAt)}` : null,
+    lead.lastContactedAt ? `Last contacted ${fmtDate(lead.lastContactedAt)}` : null,
+  ].filter(Boolean) as string[];
+
   return (
-    <div className="sticky top-6 space-y-4 rounded-2xl border border-border bg-card p-5 shadow-sm">
-      <div className="flex items-start justify-between gap-4">
+    <div className="flex h-full flex-col">
+      <div className="flex items-start justify-between border-b border-border px-5 py-4">
         <div className="flex items-center gap-3">
           <div className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl text-sm font-bold ${REP_COLORS[lead.assignedTo] ?? "bg-slate-100 text-slate-700"}`}>
             {getInitials(lead.name)}
@@ -1819,96 +1848,143 @@ function LeadPreviewCard({
             <p className="text-xs text-muted-foreground">{lead.company}</p>
           </div>
         </div>
-        <StatusBadge status={lead.status} />
+        <button
+          onClick={onClose}
+          className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground"
+          aria-label="Close panel"
+        >
+          <X className="h-4 w-4" />
+        </button>
       </div>
 
-      <div className="flex flex-wrap gap-2 text-[11px] text-muted-foreground">
-        <span className="rounded-full border border-border bg-muted/30 px-2 py-0.5">
-          Source: {LEAD_SOURCE_LABELS[lead.source]}
-        </span>
-        <span className="rounded-full border border-border bg-muted/30 px-2 py-0.5">
-          Priority: {lead.priority.toLowerCase()}
-        </span>
-        <span className="rounded-full border border-border bg-muted/30 px-2 py-0.5">
-          Owner: {lead.assignedTo || "Unassigned"}
-        </span>
-      </div>
-
-      <div className="rounded-xl border border-border bg-muted/20 p-3">
-        <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-          Contact
-        </p>
-        <div className="mt-2 space-y-1.5 text-sm">
-          {lead.email ? (
-            <a className="flex items-center gap-2 text-sm hover:text-sky-600" href={`mailto:${lead.email}`}>
-              <Mail className="h-3.5 w-3.5 text-muted-foreground" />
-              {lead.email}
-            </a>
-          ) : (
-            <p className="text-xs text-muted-foreground">No email captured.</p>
-          )}
-          {lead.phone && (
-            <a className="flex items-center gap-2 text-sm hover:text-sky-600" href={`tel:${lead.phone}`}>
-              <Phone className="h-3.5 w-3.5 text-muted-foreground" />
-              {lead.phone}
-            </a>
-          )}
+      <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
+        <div className="flex flex-wrap gap-2 text-[11px] text-muted-foreground">
+          <span className="rounded-full border border-border bg-muted/30 px-2 py-0.5">
+            Source: {LEAD_SOURCE_LABELS[lead.source]}
+          </span>
+          <span className="rounded-full border border-border bg-muted/30 px-2 py-0.5">
+            Priority: {lead.priority.toLowerCase()}
+          </span>
+          <span className="rounded-full border border-border bg-muted/30 px-2 py-0.5">
+            Owner: {lead.assignedTo || "Unassigned"}
+          </span>
+          <StatusBadge status={lead.status} />
         </div>
-      </div>
 
-      <div className="grid grid-cols-2 gap-3">
         <div className="rounded-xl border border-border bg-muted/20 p-3">
-          <p className="text-[11px] text-muted-foreground">Est. Value</p>
-          <p className="text-sm font-semibold text-emerald-600">{fmt(lead.estimatedValue)}</p>
-        </div>
-        <div className="rounded-xl border border-border bg-muted/20 p-3">
-          <p className="text-[11px] text-muted-foreground">Last Contact</p>
-          <p className="text-sm font-semibold">{lead.lastContactedAt ? fmtDate(lead.lastContactedAt) : "-"}</p>
-        </div>
-        <div className="rounded-xl border border-border bg-muted/20 p-3">
-          <p className="text-[11px] text-muted-foreground">Follow-up</p>
-          <p className="text-sm font-semibold">{lead.followUpAt ? fmtDateTime(lead.followUpAt) : "-"}</p>
-        </div>
-        <div className="rounded-xl border border-border bg-muted/20 p-3">
-          <p className="text-[11px] text-muted-foreground">Created</p>
-          <p className="text-sm font-semibold">{fmtDate(lead.createdAt)}</p>
-        </div>
-      </div>
-
-      <div className="rounded-xl border border-border bg-muted/10 p-3">
-        <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-          Notes
-        </p>
-        <p className="mt-2 text-sm text-foreground">
-          {lead.notes?.trim() ? lead.notes : "No notes added yet."}
-        </p>
-      </div>
-
-      {lead.tags.length > 0 && (
-        <div>
           <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Tags
+            Quick Actions
           </p>
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {lead.tags.map((tag) => (
-              <span
-                key={tag}
-                className="rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[11px] font-medium text-sky-700 dark:border-sky-800 dark:bg-sky-950 dark:text-sky-300"
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <button
+              onClick={onOpen}
+              className="rounded-lg bg-sky-600 px-3 py-2 text-xs font-semibold text-white hover:bg-sky-700"
+            >
+              Open Profile
+            </button>
+            <button
+              onClick={onEdit}
+              className="rounded-lg border border-border px-3 py-2 text-xs font-semibold text-foreground hover:bg-accent"
+            >
+              Edit Lead
+            </button>
+            {lead.email && (
+              <a
+                href={`mailto:${lead.email}`}
+                className="inline-flex items-center justify-center rounded-lg border border-border px-3 py-2 text-xs font-semibold text-foreground hover:bg-accent"
               >
-                {tag}
-              </span>
-            ))}
+                Email
+              </a>
+            )}
+            {lead.phone && (
+              <a
+                href={`tel:${lead.phone}`}
+                className="inline-flex items-center justify-center rounded-lg border border-border px-3 py-2 text-xs font-semibold text-foreground hover:bg-accent"
+              >
+                Call
+              </a>
+            )}
           </div>
         </div>
-      )}
 
-      <button
-        onClick={onOpen}
-        className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-700"
-      >
-        Open Full Profile
-        <ArrowUpRight className="h-4 w-4" />
-      </button>
+        <div className="rounded-xl border border-border bg-muted/10 p-3">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Assign Lead
+          </p>
+          <div className="mt-2 flex gap-2">
+            <select
+              value={assigneeId}
+              onChange={(event) => setAssigneeId(event.target.value)}
+              className="flex-1 rounded-lg border border-border bg-background px-2.5 py-2 text-xs text-foreground outline-none focus:border-sky-500"
+            >
+              <option value="">Unassigned</option>
+              {assignees.map((assignee) => (
+                <option key={assignee.id} value={assignee.id}>
+                  {assignee.name}
+                </option>
+              ))}
+            </select>
+            <button
+              disabled={!selectedAssignee || isAssigning}
+              onClick={() => selectedAssignee && onAssign(selectedAssignee)}
+              className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+            >
+              {isAssigning ? "Assigning..." : "Assign"}
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div className="rounded-xl border border-border bg-muted/20 p-3">
+            <p className="text-[11px] text-muted-foreground">Est. Value</p>
+            <p className="text-sm font-semibold text-emerald-600">{fmt(lead.estimatedValue)}</p>
+          </div>
+          <div className="rounded-xl border border-border bg-muted/20 p-3">
+            <p className="text-[11px] text-muted-foreground">Created</p>
+            <p className="text-sm font-semibold">{fmtDate(lead.createdAt)}</p>
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-border bg-muted/10 p-3">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            To-Do List
+          </p>
+          <div className="mt-2 space-y-2 text-sm">
+            {todoItems.length === 0 ? (
+              <p className="text-xs text-muted-foreground">No to-do items available.</p>
+            ) : (
+              todoItems.map((item) => (
+                <div key={item} className="flex items-start gap-2 text-xs text-muted-foreground">
+                  <span className="mt-1 h-2 w-2 rounded-full bg-sky-500" />
+                  <span>{item}</span>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-border bg-muted/10 p-3">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Reminders
+          </p>
+          <div className="mt-2 space-y-1 text-xs text-muted-foreground">
+            {reminders.length === 0 ? (
+              <p>No reminders scheduled.</p>
+            ) : (
+              reminders.map((item) => <p key={item}>{item}</p>)
+            )}
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-border bg-muted/10 p-3">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Notes
+          </p>
+          <p className="mt-2 text-sm text-foreground">
+            {lead.notes?.trim() ? lead.notes : "No notes added yet."}
+          </p>
+        </div>
+      </div>
     </div>
   );
 }
@@ -2055,7 +2131,8 @@ export default function LeadsPage() {
     priority: "ALL", page: 1, pageSize: PAGE_SIZE,
   });
   const [quickView, setQuickView] = useState<QuickView>("ALL");
-  const [hoverPreviewLeadId, setHoverPreviewLeadId] = useState<string | null>(null);
+  const [panelLeadId, setPanelLeadId] = useState<string | null>(null);
+  const [panelWidth, setPanelWidth] = useState(380);
   const [formState, setFormState] = useState<{ mode: LeadDialogMode; lead: Lead | null } | null>(null);
   const [stageUpdateTarget, setStageUpdateTarget] = useState<{ lead: Lead; status: LeadStatus } | null>(null);
   const [stageRemark, setStageRemark] = useState("");
@@ -2072,6 +2149,10 @@ export default function LeadsPage() {
   const [newLeadToast, setNewLeadToast] = useState<{ count: number } | null>(null);
   const lastTotalRef = useRef<number | null>(null);
   const lastFilterKeyRef = useRef<string>("");
+  const salesRepFilterAppliedRef = useRef(false);
+  const isResizingRef = useRef(false);
+  const resizeStartXRef = useRef(0);
+  const resizeStartWidthRef = useRef(0);
 
   const assigneesQuery = useLeadAssignees();
   const assignees = assigneesQuery.data ?? [];
@@ -2094,13 +2175,20 @@ export default function LeadsPage() {
   const formKey = formState ? `${formState.mode}-${formState.lead?.id ?? "new"}` : "lead-form";
 
   const updateFilter = useCallback((p: Partial<LeadFilter>, opts?: { keepQuickView?: boolean }) => {
-    setFilter((prev) => ({ ...prev, ...p, page: 1 }));
+    setFilter((prev) => {
+      const next = { ...prev, ...p, page: 1 };
+      if (isSalesRep && myQueueValue) {
+        next.assignedTo = myQueueValue;
+      }
+      return next;
+    });
     if (!opts?.keepQuickView) {
       setQuickView("CUSTOM");
     }
-  }, []);
+  }, [isSalesRep, myQueueValue]);
 
-  const myQueueValue = currentUser?.id ?? currentUser?.name ?? "";
+  const myQueueValue = currentUser?.name ?? currentUser?.id ?? "";
+  const isSalesRep = currentUser?.roles?.includes("ROLE_SALES_REP") ?? false;
 
   function applyQuickView(view: QuickView) {
     setQuickView(view);
@@ -2125,6 +2213,7 @@ export default function LeadsPage() {
 
   const leads = data?.data ?? [];
   const selectedLead = leadDetail.data ?? null;
+  const panelLead = leads.find((lead) => lead.id === panelLeadId) ?? null;
   const summary = data?.summary ?? {
     totalPipelineValue: 0,
     newCount: 0,
@@ -2134,15 +2223,48 @@ export default function LeadsPage() {
   };
 
   useEffect(() => {
-    if (!hoverPreviewLeadId) {
+    if (!panelLeadId) {
       return;
     }
-    if (!leads.some((lead) => lead.id === hoverPreviewLeadId)) {
-      setHoverPreviewLeadId(null);
+    if (!leads.some((lead) => lead.id === panelLeadId)) {
+      setPanelLeadId(null);
     }
-  }, [leads, hoverPreviewLeadId]);
+  }, [leads, panelLeadId]);
 
-  const hoveredLead = leads.find((lead) => lead.id === hoverPreviewLeadId) ?? null;
+  useEffect(() => {
+    if (!isSalesRep || !myQueueValue || salesRepFilterAppliedRef.current) {
+      return;
+    }
+    salesRepFilterAppliedRef.current = true;
+    setQuickView("MY_QUEUE");
+    setFilter((prev) => ({
+      ...prev,
+      assignedTo: myQueueValue,
+      page: 1,
+    }));
+  }, [isSalesRep, myQueueValue]);
+
+  useEffect(() => {
+    function handleMouseMove(event: MouseEvent) {
+      if (!isResizingRef.current) {
+        return;
+      }
+      const delta = resizeStartXRef.current - event.clientX;
+      const nextWidth = Math.max(300, Math.min(520, resizeStartWidthRef.current + delta));
+      setPanelWidth(nextWidth);
+    }
+
+    function handleMouseUp() {
+      isResizingRef.current = false;
+    }
+
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, []);
 
   const filterKey = useMemo(
     () =>
@@ -2318,6 +2440,7 @@ export default function LeadsPage() {
     if (typeof window !== "undefined") {
       const isWide = window.matchMedia("(min-width: 1024px)").matches;
       if (isWide) {
+        setPanelLeadId(lead.id);
         return;
       }
     }
@@ -2546,14 +2669,21 @@ export default function LeadsPage() {
                 <select
                   value={filter.assignedTo}
                   onChange={(e) => updateFilter({ assignedTo: e.target.value })}
-                  className="rounded-xl border border-border bg-background px-3 py-2.5 text-sm text-foreground outline-none focus:border-sky-500"
+                  disabled={isSalesRep}
+                  className="rounded-xl border border-border bg-background px-3 py-2.5 text-sm text-foreground outline-none focus:border-sky-500 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  <option value="">All Reps</option>
-                  {assignees.map((assignee) => (
-                    <option key={assignee.id} value={assignee.name}>
-                      {assignee.name}
-                    </option>
-                  ))}
+                  {isSalesRep ? (
+                    <option value={myQueueValue}>Assigned to me</option>
+                  ) : (
+                    <>
+                      <option value="">All Reps</option>
+                      {assignees.map((assignee) => (
+                        <option key={assignee.id} value={assignee.name}>
+                          {assignee.name}
+                        </option>
+                      ))}
+                    </>
+                  )}
                 </select>
 
                 {/* More filters toggle */}
@@ -2616,7 +2746,6 @@ export default function LeadsPage() {
 
               <div
                 className="divide-y divide-border"
-                onMouseLeave={() => setHoverPreviewLeadId(null)}
               >
                 {isLoading ? (
                   <div className="py-16 text-center">
@@ -2637,15 +2766,11 @@ export default function LeadsPage() {
                     <button onClick={() => updateFilter({ status: "ALL", search: "" })} className="mt-2 text-xs text-sky-600 hover:underline">Clear filters</button>
                   </div>
                 ) : (
-                  leads.map((lead) => {
-                    const isActive = hoverPreviewLeadId === lead.id;
-                    return (
+                  leads.map((lead) => (
                       <div
                         key={lead.id}
                         onClick={() => handleLeadRowClick(lead)}
-                        onMouseEnter={() => setHoverPreviewLeadId(lead.id)}
-                        onMouseLeave={() => setHoverPreviewLeadId((current) => (current === lead.id ? null : current))}
-                        className={`cursor-pointer px-5 py-4 transition ${isActive ? "bg-sky-50/60" : "hover:bg-muted/40"}`}
+                        className="cursor-pointer px-5 py-4 transition hover:bg-muted/40"
                       >
                         <div className="flex flex-col gap-3 lg:grid lg:grid-cols-[minmax(220px,1.6fr)_minmax(160px,1fr)_minmax(160px,1fr)_110px_90px_minmax(140px,1fr)_120px_40px] lg:items-center lg:gap-4">
                           <div className="flex items-start justify-between gap-3 lg:block">
@@ -2719,8 +2844,7 @@ export default function LeadsPage() {
                           </div>
                         </div>
                       </div>
-                    );
-                  })
+                  ))
                 )}
               </div>
 
@@ -2756,19 +2880,32 @@ export default function LeadsPage() {
               )}
               </div>
 
-              <div
-                className={`fixed right-6 top-32 z-30 hidden w-[340px] transition-opacity duration-200 lg:block ${
-                  hoveredLead ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"
-                }`}
-                aria-hidden={!hoveredLead}
-              >
-                {hoveredLead && (
-                  <LeadPreviewCard
-                    lead={hoveredLead}
-                    onOpen={() => navigate(`/crm/leads/${hoveredLead.id}`)}
-                  />
-                )}
-              </div>
+              {panelLead && (
+                <div className="fixed inset-y-0 right-0 z-40 hidden lg:block">
+                  <div
+                    className="relative h-full border-l border-border bg-card shadow-2xl"
+                    style={{ width: panelWidth }}
+                  >
+                    <div
+                      className="absolute left-0 top-0 h-full w-2 cursor-ew-resize"
+                      onMouseDown={(event) => {
+                        isResizingRef.current = true;
+                        resizeStartXRef.current = event.clientX;
+                        resizeStartWidthRef.current = panelWidth;
+                      }}
+                    />
+                    <LeadSidePanel
+                      lead={panelLead}
+                      assignees={assignees}
+                      onClose={() => setPanelLeadId(null)}
+                      onOpen={() => navigate(`/crm/leads/${panelLead.id}`)}
+                      onEdit={() => openEditDialog(panelLead)}
+                      onAssign={handleAssignLead}
+                      isAssigning={assignLead.isPending}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>

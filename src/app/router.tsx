@@ -9,7 +9,6 @@ import UnauthorizedPage from "@/modules/auth/unauthorized";
 import InventoryPage from "@/modules/inventory/page";
 import LeadsPage from "@/modules/crm/leads/page";
 import PreSalesOverviewPage from "@/modules/crm/presales/page";
-import ContactsPage from "@/modules/crm/contacts/page";
 import AccountsPage from "@/modules/crm/accounts/page";
 import OpportunitiesPage from "@/modules/crm/opportunities/page";
 import IntegrationsPage from "@/modules/integrations/page";
@@ -69,14 +68,6 @@ export const router = createBrowserRouter([
             element: (
               <RequirePermission permission={PERMISSIONS.PAGE_CRM_LEADS}>
                 <LeadsPage />
-              </RequirePermission>
-            ),
-          },
-          {
-            path: "crm/contacts",
-            element: (
-              <RequirePermission permission={PERMISSIONS.PAGE_CRM_CONTACTS}>
-                <ContactsPage />
               </RequirePermission>
             ),
           },

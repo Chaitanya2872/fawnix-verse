@@ -114,7 +114,7 @@ export default function PreSalesOverviewPage() {
     return (
       <Card>
         <CardContent className="p-6 text-sm text-slate-500">
-          Loading pre-sales dashboard...
+          Loading tasks dashboard...
         </CardContent>
       </Card>
     );
@@ -124,7 +124,7 @@ export default function PreSalesOverviewPage() {
     return (
       <Card>
         <CardContent className="p-6 text-sm text-slate-500">
-          {error instanceof Error ? error.message : "Failed to load pre-sales data."}
+          {error instanceof Error ? error.message : "Failed to load tasks data."}
         </CardContent>
       </Card>
     );
@@ -199,7 +199,7 @@ export default function PreSalesOverviewPage() {
           <div className="space-y-2">
             <div className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-sky-700">
               <Sparkles className="h-3 w-3" />
-              Pre-Sales Command Center
+              Tasks Command Center
             </div>
             <h1 className="text-2xl font-semibold text-slate-900">
               Move every lead to the next action in minutes.

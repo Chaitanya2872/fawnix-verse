@@ -29,7 +29,7 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
     options: [
       { value: PERMISSIONS.PAGE_DASHBOARD, label: "Dashboard" },
       { value: PERMISSIONS.PAGE_CRM_LEADS, label: "CRM · Leads" },
-      { value: PERMISSIONS.PAGE_CRM_PRESALES, label: "CRM · Pre-Sales" },
+      { value: PERMISSIONS.PAGE_CRM_PRESALES, label: "CRM · Tasks" },
       { value: PERMISSIONS.PAGE_CRM_OPPORTUNITIES, label: "CRM · Opportunities" },
       { value: PERMISSIONS.PAGE_INVENTORY, label: "Inventory" },
       { value: PERMISSIONS.PAGE_SALES, label: "Sales" },
