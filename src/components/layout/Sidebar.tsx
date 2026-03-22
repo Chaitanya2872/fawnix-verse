@@ -12,6 +12,7 @@ import {
   ShoppingCart,
   Target,
   UserPlus,
+  Users,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
