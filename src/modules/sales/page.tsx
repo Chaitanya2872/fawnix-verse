@@ -285,8 +285,8 @@ export default function SalesPage() {
               </button>
             </div>
 
-            <div className="grid gap-6 px-6 py-6 lg:grid-cols-[1.4fr_1fr]">
-              <div className="space-y-5">
+            <div className="grid gap-6 px-6 py-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
+              <div className="space-y-5 min-w-0">
                 <div className="grid gap-4 md:grid-cols-2">
                   <div>
                     <label className="text-xs font-semibold text-slate-500">Customer Name</label>
@@ -395,7 +395,7 @@ export default function SalesPage() {
                 </div>
               </div>
 
-              <div className="space-y-4">
+              <div className="space-y-4 min-w-0">
                 <div className="rounded-2xl border border-slate-200 p-4">
                   <h3 className="text-sm font-semibold text-slate-800">Pricing</h3>
                   <div className="mt-3 grid gap-3">
@@ -403,7 +403,7 @@ export default function SalesPage() {
                       <select
                         value={form.discountType}
                         onChange={(e) => setForm((prev) => ({ ...prev, discountType: e.target.value as DiscountType }))}
-                        className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-emerald-300"
+                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-emerald-300"
                       >
                         <option value={DiscountType.PERCENT}>Discount %</option>
                         <option value={DiscountType.AMOUNT}>Discount Amount</option>
@@ -414,7 +414,7 @@ export default function SalesPage() {
                         max={form.discountType === DiscountType.PERCENT ? 12 : undefined}
                         value={form.discountValue}
                         onChange={(e) => setForm((prev) => ({ ...prev, discountValue: Number(e.target.value) || 0 }))}
-                        className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-emerald-300"
+                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-emerald-300"
                         placeholder="Discount"
                       />
                     </div>
@@ -427,14 +427,14 @@ export default function SalesPage() {
                         min={0}
                         value={form.taxRate}
                         onChange={(e) => setForm((prev) => ({ ...prev, taxRate: Number(e.target.value) || 0 }))}
-                        className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-emerald-300"
+                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-emerald-300"
                         placeholder="Tax %"
                       />
                       <input
                         type="date"
                         value={form.validUntil}
                         onChange={(e) => setForm((prev) => ({ ...prev, validUntil: e.target.value }))}
-                        className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-emerald-300"
+                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-emerald-300"
                       />
                     </div>
                   </div>
