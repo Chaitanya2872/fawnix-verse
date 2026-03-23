@@ -29,6 +29,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -39,6 +41,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 @Service
 public class LeadService {
+  private static final Logger LOGGER = LoggerFactory.getLogger(LeadService.class);
 
   private static final Map<LeadStatus, Set<LeadStatus>> ALLOWED_STATUS_TRANSITIONS =
       buildAllowedStatusTransitions();
@@ -234,6 +237,7 @@ public class LeadService {
   public LeadDtos.LeadResponse updateLead(String id, LeadDtos.UpdateLeadRequest request, AppUserDetails currentUser) {
     LeadEntity lead = requireLead(id);
     Instant now = Instant.now();
+    LeadDtos.WhatsappDispatchLog whatsappDispatchLog = null;
 
     if (request.name() != null) {
       lead.setName(request.name().trim());
@@ -331,10 +335,19 @@ public class LeadService {
             currentUser,
             now
         );
-        whatsappQuestionnaireService.sendAssignmentNotification(
-            lead,
+        WhatsappQuestionnaireService.DispatchResult dispatchResult =
+            whatsappQuestionnaireService.sendAssignmentNotification(
+                lead,
+                nextAssignee.name(),
+                nextAssignee.phoneNumber()
+            );
+        whatsappDispatchLog = new LeadDtos.WhatsappDispatchLog(dispatchResult.sent(), dispatchResult.reason());
+        LOGGER.info(
+            "WhatsApp assignment notification (updateLead) lead={}, assignee={}, status={}, reason={}",
+            lead.getId(),
             nextAssignee.name(),
-            nextAssignee.phoneNumber()
+            dispatchResult.sent() ? "sent" : "skipped",
+            dispatchResult.reason()
         );
       }
     }
@@ -365,7 +378,7 @@ public class LeadService {
     }
 
     touchLead(lead, currentUser, now);
-    return leadMapper.toResponse(leadRepository.save(lead));
+    return leadMapper.toResponse(leadRepository.save(lead), whatsappDispatchLog);
   }
 
   @Transactional
@@ -428,6 +441,7 @@ public class LeadService {
     }
 
     Instant now = Instant.now();
+    LeadDtos.WhatsappDispatchLog whatsappDispatchLog = null;
     if (!sameUser(lead.getAssignedToUserId(), assignee.id())) {
       String previousAssignee = lead.getAssignedToName() != null ? lead.getAssignedToName() : "Unassigned";
       applyAssignee(lead, assignee);
@@ -438,10 +452,19 @@ public class LeadService {
           currentUser,
           now
       );
-      whatsappQuestionnaireService.sendAssignmentNotification(
-          lead,
+      WhatsappQuestionnaireService.DispatchResult dispatchResult =
+          whatsappQuestionnaireService.sendAssignmentNotification(
+              lead,
+              assignee.name(),
+              assignee.phoneNumber()
+          );
+      whatsappDispatchLog = new LeadDtos.WhatsappDispatchLog(dispatchResult.sent(), dispatchResult.reason());
+      LOGGER.info(
+          "WhatsApp assignment notification (assignLead) lead={}, assignee={}, status={}, reason={}",
+          lead.getId(),
           assignee.name(),
-          assignee.phoneNumber()
+          dispatchResult.sent() ? "sent" : "skipped",
+          dispatchResult.reason()
       );
       if (lead.getStatus() == LeadStatus.QUALIFIED || lead.getStatus() == LeadStatus.UNQUALIFIED) {
         updateStatusInternal(lead, LeadStatus.ASSIGNED_TO_SALESPERSON, currentUser, now, null);
@@ -449,7 +472,7 @@ public class LeadService {
       touchLead(lead, currentUser, now);
     }
 
-    return leadMapper.toResponse(leadRepository.save(lead));
+    return leadMapper.toResponse(leadRepository.save(lead), whatsappDispatchLog);
   }
 
   @Transactional

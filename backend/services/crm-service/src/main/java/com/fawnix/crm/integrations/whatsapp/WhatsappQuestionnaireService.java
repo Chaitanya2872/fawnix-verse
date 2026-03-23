@@ -142,13 +142,16 @@ public class WhatsappQuestionnaireService {
     }
   }
 
-  public void sendAssignmentNotification(LeadEntity lead, String assigneeName, String assigneePhone) {
+  public record DispatchResult(boolean sent, String reason) {
+  }
+
+  public DispatchResult sendAssignmentNotification(LeadEntity lead, String assigneeName, String assigneePhone) {
     if (!properties.enabled()) {
-      return;
+      return new DispatchResult(false, "whatsapp_disabled");
     }
     String phone = normalizePhone(assigneePhone);
     if (!StringUtils.hasText(phone)) {
-      return;
+      return new DispatchResult(false, "assignee_phone_missing");
     }
 
     String resolvedTemplateName = settingsService.resolveAssignTemplateName();
@@ -170,8 +173,10 @@ public class WhatsappQuestionnaireService {
 
     try {
       whatsappClient.sendTemplate(phone, templateName, languageCode, bodyParams);
+      return new DispatchResult(true, "sent");
     } catch (Exception ex) {
       LOGGER.error("Failed to send WhatsApp assignment template for lead {}.", lead.getId(), ex);
+      return new DispatchResult(false, "send_failed");
     }
   }
 

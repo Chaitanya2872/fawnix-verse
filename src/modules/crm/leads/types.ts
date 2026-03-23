@@ -132,6 +132,12 @@ export interface Lead {
   convertedAt: string | null;
   createdAt: string;
   updatedAt: string;
+  whatsappAssignment?: WhatsappDispatchLog | null;
+}
+
+export interface WhatsappDispatchLog {
+  sent: boolean;
+  reason: string | null;
 }
 
 export const LeadScheduleType = {

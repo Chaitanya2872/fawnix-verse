@@ -21,6 +21,10 @@ import org.springframework.stereotype.Component;
 public class LeadMapper {
 
   public LeadDtos.LeadResponse toResponse(LeadEntity lead) {
+    return toResponse(lead, null);
+  }
+
+  public LeadDtos.LeadResponse toResponse(LeadEntity lead, LeadDtos.WhatsappDispatchLog whatsappAssignment) {
     return new LeadDtos.LeadResponse(
         lead.getId(),
         lead.getName(),
@@ -62,7 +66,8 @@ public class LeadMapper {
         lead.getFollowUpAt(),
         lead.getConvertedAt(),
         lead.getCreatedAt(),
-        lead.getUpdatedAt()
+        lead.getUpdatedAt(),
+        whatsappAssignment
     );
   }
 

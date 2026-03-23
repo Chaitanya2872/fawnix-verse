@@ -158,6 +158,12 @@ public final class LeadDtos {
   ) {
   }
 
+  public record WhatsappDispatchLog(
+      boolean sent,
+      String reason
+  ) {
+  }
+
   public record LeadResponse(
       String id,
       String name,
@@ -199,7 +205,8 @@ public final class LeadDtos {
       Instant followUpAt,
       Instant convertedAt,
       Instant createdAt,
-      Instant updatedAt
+      Instant updatedAt,
+      WhatsappDispatchLog whatsappAssignment
   ) {
   }
 

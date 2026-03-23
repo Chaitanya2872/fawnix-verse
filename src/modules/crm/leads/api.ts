@@ -72,6 +72,7 @@ function normalizeLead(lead: Lead): Lead {
     metaFormId: lead.metaFormId ?? null,
     metaAdId: lead.metaAdId ?? null,
     sourceCreatedAt: lead.sourceCreatedAt ?? null,
+    whatsappAssignment: lead.whatsappAssignment ?? null,
   };
 }
 
