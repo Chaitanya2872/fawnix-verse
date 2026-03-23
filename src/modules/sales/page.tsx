@@ -1,10 +1,17 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ArrowUpRight, RefreshCw, Search, Sparkles } from "lucide-react";
+import { ArrowUpRight, Plus, RefreshCw, Search, Sparkles, X } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
-import { useQuotes } from "./hooks";
-import { QuoteStatus, type QuoteFilter, type QuoteSummary } from "./types";
+import { useCreateQuote, useQuotes } from "./hooks";
+import {
+  DiscountType,
+  QuoteStatus,
+  type QuoteFilter,
+  type QuoteFormData,
+  type QuoteFormItem,
+  type QuoteSummary,
+} from "./types";
 
 const PAGE_SIZE = 200;
 
@@ -102,8 +109,36 @@ export default function SalesPage() {
     page: 1,
     pageSize: PAGE_SIZE,
   });
+  const [showBuilder, setShowBuilder] = useState(false);
+  const [builderError, setBuilderError] = useState<string | null>(null);
+  const [form, setForm] = useState<QuoteFormData>({
+    customerName: "",
+    company: "",
+    email: "",
+    phone: "",
+    billingAddress: "",
+    shippingAddress: "",
+    currency: "USD",
+    status: QuoteStatus.DRAFT,
+    discountType: DiscountType.PERCENT,
+    discountValue: 0,
+    taxRate: 0,
+    validUntil: "",
+    notes: "",
+    terms: "",
+    items: [
+      {
+        name: "",
+        description: "",
+        quantity: 1,
+        unit: "",
+        unitPrice: 0,
+      },
+    ],
+  });
 
   const { data, isLoading, isError, error, refetch } = useQuotes(filter);
+  const createQuote = useCreateQuote();
   const quotes = data?.data ?? [];
 
   const grouped = useMemo(() => {
@@ -127,6 +162,87 @@ export default function SalesPage() {
     }));
   }, [grouped]);
 
+  const subtotal = useMemo(() => {
+    return form.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
+  }, [form.items]);
+
+  const discountTotal = useMemo(() => {
+    if (form.discountType === DiscountType.PERCENT) {
+      return Math.min(subtotal * (form.discountValue / 100), subtotal);
+    }
+    return Math.min(form.discountValue, subtotal);
+  }, [form.discountType, form.discountValue, subtotal]);
+
+  const taxTotal = useMemo(() => {
+    const base = Math.max(0, subtotal - discountTotal);
+    return base * (form.taxRate / 100);
+  }, [subtotal, discountTotal, form.taxRate]);
+
+  const grandTotal = useMemo(() => {
+    return Math.max(0, subtotal - discountTotal + taxTotal);
+  }, [subtotal, discountTotal, taxTotal]);
+
+  function updateItem(index: number, patch: Partial<QuoteFormItem>) {
+    setForm((prev) => ({
+      ...prev,
+      items: prev.items.map((item, i) => (i === index ? { ...item, ...patch } : item)),
+    }));
+  }
+
+  function addItem() {
+    setForm((prev) => ({
+      ...prev,
+      items: [
+        ...prev.items,
+        { name: "", description: "", quantity: 1, unit: "", unitPrice: 0 },
+      ],
+    }));
+  }
+
+  function removeItem(index: number) {
+    setForm((prev) => ({
+      ...prev,
+      items: prev.items.filter((_, i) => i !== index),
+    }));
+  }
+
+  function openBuilder() {
+    setBuilderError(null);
+    setShowBuilder(true);
+  }
+
+  function closeBuilder() {
+    setShowBuilder(false);
+  }
+
+  function validateForm(): string | null {
+    if (!form.customerName.trim()) {
+      return "Customer name is required.";
+    }
+    if (form.items.length === 0) {
+      return "Add at least one product.";
+    }
+    const invalidItem = form.items.find((item) => !item.name.trim() || item.quantity <= 0);
+    if (invalidItem) {
+      return "Each product needs a name and quantity.";
+    }
+    if (form.discountType === DiscountType.PERCENT && form.discountValue > 12) {
+      return "Discount cannot exceed 12%.";
+    }
+    return null;
+  }
+
+  async function handleCreateQuote() {
+    const validationError = validateForm();
+    if (validationError) {
+      setBuilderError(validationError);
+      return;
+    }
+    setBuilderError(null);
+    await createQuote.mutateAsync(form);
+    closeBuilder();
+  }
+
   if (isLoading) {
     return (
       <Card>
@@ -149,6 +265,243 @@ export default function SalesPage() {
 
   return (
     <div className="flex h-full w-full flex-col gap-6">
+      {showBuilder ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={closeBuilder} />
+          <div className="relative z-10 flex w-full max-w-5xl flex-col rounded-3xl border border-slate-200 bg-white shadow-2xl">
+            <div className="flex items-start justify-between border-b border-slate-200 px-6 py-5">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-600">Quotation Builder</p>
+                <h2 className="mt-1 text-xl font-semibold text-slate-900">Build a new quote</h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Add products, apply discount (max 12%), and confirm totals before saving.
+                </p>
+              </div>
+              <button
+                onClick={closeBuilder}
+                className="flex h-9 w-9 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="grid gap-6 px-6 py-6 lg:grid-cols-[1.4fr_1fr]">
+              <div className="space-y-5">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div>
+                    <label className="text-xs font-semibold text-slate-500">Customer Name</label>
+                    <input
+                      value={form.customerName}
+                      onChange={(e) => setForm((prev) => ({ ...prev, customerName: e.target.value }))}
+                      className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-emerald-300"
+                      placeholder="Customer name"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-slate-500">Company</label>
+                    <input
+                      value={form.company}
+                      onChange={(e) => setForm((prev) => ({ ...prev, company: e.target.value }))}
+                      className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-emerald-300"
+                      placeholder="Company"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-slate-500">Email</label>
+                    <input
+                      value={form.email}
+                      onChange={(e) => setForm((prev) => ({ ...prev, email: e.target.value }))}
+                      className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-emerald-300"
+                      placeholder="Email"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-slate-500">Phone</label>
+                    <input
+                      value={form.phone}
+                      onChange={(e) => setForm((prev) => ({ ...prev, phone: e.target.value }))}
+                      className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-emerald-300"
+                      placeholder="Phone"
+                    />
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-slate-200 p-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-semibold text-slate-800">Products</h3>
+                    <button
+                      onClick={addItem}
+                      className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      Add Product
+                    </button>
+                  </div>
+                  <div className="mt-4 space-y-3">
+                    {form.items.map((item, index) => (
+                      <div key={`${index}-${item.name}`} className="rounded-xl border border-slate-200 p-3">
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs font-semibold text-slate-500">Item {index + 1}</p>
+                          {form.items.length > 1 && (
+                            <button
+                              onClick={() => removeItem(index)}
+                              className="text-xs font-semibold text-rose-500 hover:text-rose-600"
+                            >
+                              Remove
+                            </button>
+                          )}
+                        </div>
+                        <div className="mt-2 grid gap-3 md:grid-cols-[2fr_1fr_1fr]">
+                          <input
+                            value={item.name}
+                            onChange={(e) => updateItem(index, { name: e.target.value })}
+                            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-emerald-300"
+                            placeholder="Product name"
+                          />
+                          <input
+                            type="number"
+                            min={1}
+                            value={item.quantity}
+                            onChange={(e) => updateItem(index, { quantity: Number(e.target.value) || 0 })}
+                            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-emerald-300"
+                            placeholder="Qty"
+                          />
+                          <input
+                            type="number"
+                            min={0}
+                            value={item.unitPrice}
+                            onChange={(e) => updateItem(index, { unitPrice: Number(e.target.value) || 0 })}
+                            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-emerald-300"
+                            placeholder="Unit price"
+                          />
+                        </div>
+                        <div className="mt-2 grid gap-3 md:grid-cols-[2fr_1fr]">
+                          <input
+                            value={item.description}
+                            onChange={(e) => updateItem(index, { description: e.target.value })}
+                            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-emerald-300"
+                            placeholder="Description (optional)"
+                          />
+                          <input
+                            value={item.unit}
+                            onChange={(e) => updateItem(index, { unit: e.target.value })}
+                            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-emerald-300"
+                            placeholder="Unit (pcs, sqft)"
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="rounded-2xl border border-slate-200 p-4">
+                  <h3 className="text-sm font-semibold text-slate-800">Pricing</h3>
+                  <div className="mt-3 grid gap-3">
+                    <div className="grid grid-cols-[1fr_1fr] gap-3">
+                      <select
+                        value={form.discountType}
+                        onChange={(e) => setForm((prev) => ({ ...prev, discountType: e.target.value as DiscountType }))}
+                        className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-emerald-300"
+                      >
+                        <option value={DiscountType.PERCENT}>Discount %</option>
+                        <option value={DiscountType.AMOUNT}>Discount Amount</option>
+                      </select>
+                      <input
+                        type="number"
+                        min={0}
+                        max={form.discountType === DiscountType.PERCENT ? 12 : undefined}
+                        value={form.discountValue}
+                        onChange={(e) => setForm((prev) => ({ ...prev, discountValue: Number(e.target.value) || 0 }))}
+                        className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-emerald-300"
+                        placeholder="Discount"
+                      />
+                    </div>
+                    {form.discountType === DiscountType.PERCENT ? (
+                      <p className="text-xs text-slate-500">Maximum discount allowed: 12%</p>
+                    ) : null}
+                    <div className="grid grid-cols-[1fr_1fr] gap-3">
+                      <input
+                        type="number"
+                        min={0}
+                        value={form.taxRate}
+                        onChange={(e) => setForm((prev) => ({ ...prev, taxRate: Number(e.target.value) || 0 }))}
+                        className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-emerald-300"
+                        placeholder="Tax %"
+                      />
+                      <input
+                        type="date"
+                        value={form.validUntil}
+                        onChange={(e) => setForm((prev) => ({ ...prev, validUntil: e.target.value }))}
+                        className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-emerald-300"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+                  <h3 className="text-sm font-semibold text-slate-800">Totals</h3>
+                  <div className="mt-3 space-y-2 text-sm">
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-500">Subtotal</span>
+                      <span className="font-semibold">{fmtCurrency(subtotal)}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-500">Discount</span>
+                      <span className="font-semibold text-rose-500">- {fmtCurrency(discountTotal)}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-500">Tax</span>
+                      <span className="font-semibold">{fmtCurrency(taxTotal)}</span>
+                    </div>
+                    <div className="flex items-center justify-between border-t border-slate-200 pt-3 text-base">
+                      <span className="font-semibold text-slate-700">Total</span>
+                      <span className="font-semibold text-emerald-600">{fmtCurrency(grandTotal)}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-slate-200 p-4">
+                  <label className="text-xs font-semibold text-slate-500">Notes</label>
+                  <textarea
+                    value={form.notes}
+                    onChange={(e) => setForm((prev) => ({ ...prev, notes: e.target.value }))}
+                    className="mt-2 h-20 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-emerald-300"
+                    placeholder="Notes for customer"
+                  />
+                  <label className="mt-3 block text-xs font-semibold text-slate-500">Terms</label>
+                  <textarea
+                    value={form.terms}
+                    onChange={(e) => setForm((prev) => ({ ...prev, terms: e.target.value }))}
+                    className="mt-2 h-20 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-emerald-300"
+                    placeholder="Terms & conditions"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between border-t border-slate-200 px-6 py-4">
+              <div className="text-xs text-rose-500">{builderError}</div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={closeBuilder}
+                  className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleCreateQuote}
+                  disabled={createQuote.isPending}
+                  className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
+                >
+                  {createQuote.isPending ? "Saving..." : "Create Quote"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
       <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-6">
           <div className="space-y-2">
@@ -165,6 +518,13 @@ export default function SalesPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={openBuilder}
+              className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-emerald-700"
+            >
+              <Plus className="h-4 w-4" />
+              Build Quotation
+            </button>
             <button
               onClick={() => refetch()}
               className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 shadow-sm hover:border-slate-300 hover:bg-slate-50"
