@@ -2143,6 +2143,12 @@ export default function LeadsPage() {
   const [importResult, setImportResult] = useState<LeadImportResult | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
   const [newLeadToast, setNewLeadToast] = useState<{ count: number } | null>(null);
+  const [whatsappToast, setWhatsappToast] = useState<{
+    sent: boolean;
+    reason: string | null;
+    leadName: string;
+    assigneeName: string;
+  } | null>(null);
   const lastTotalRef = useRef<number | null>(null);
   const lastFilterKeyRef = useRef<string>("");
   const salesRepFilterAppliedRef = useRef(false);
@@ -2408,13 +2414,27 @@ export default function LeadsPage() {
   }
 
   function handleAssignLead(id: string, assignee: AssigneeOption) {
-    assignLead.mutate({
-      id,
-      input: {
-        assignedTo: assignee.name,
-        assignedToUserId: assignee.id,
+    assignLead.mutate(
+      {
+        id,
+        input: {
+          assignedTo: assignee.name,
+          assignedToUserId: assignee.id,
+        },
       },
-    });
+      {
+        onSuccess: (updatedLead) => {
+          const log = updatedLead.whatsappAssignment ?? null;
+          setWhatsappToast({
+            sent: Boolean(log?.sent),
+            reason: log?.reason ?? null,
+            leadName: updatedLead.name,
+            assigneeName: assignee.name,
+          });
+          window.setTimeout(() => setWhatsappToast(null), 6000);
+        },
+      }
+    );
   }
 
   function handleAddRemark(id: string, content: string) {
@@ -2430,6 +2450,22 @@ export default function LeadsPage() {
       remarkId,
       input: { content },
     });
+  }
+
+  function getWhatsappToastMessage(toast: NonNullable<typeof whatsappToast>) {
+    if (toast.sent) {
+      return `WhatsApp sent to ${toast.assigneeName} for ${toast.leadName}.`;
+    }
+    switch (toast.reason) {
+      case "whatsapp_disabled":
+        return "WhatsApp is disabled on the server.";
+      case "assignee_phone_missing":
+        return `No phone number found for ${toast.assigneeName}.`;
+      case "send_failed":
+        return "WhatsApp send failed. Check CRM service logs.";
+      default:
+        return "WhatsApp status unavailable. Check CRM service logs.";
+    }
   }
 
   function handleLeadRowClick(lead: Lead) {
@@ -2597,6 +2633,41 @@ export default function LeadsPage() {
                 <button
                   onClick={() => setNewLeadToast(null)}
                   className="rounded-lg border border-emerald-200 px-2.5 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-100"
+                >
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {whatsappToast ? (
+        <div
+          className={`fixed bottom-6 right-6 z-50 w-[320px] rounded-2xl border px-4 py-3 shadow-xl ${
+            whatsappToast.sent
+              ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+              : "border-amber-200 bg-amber-50 text-amber-900"
+          }`}
+        >
+          <div className="flex items-start gap-3">
+            <span
+              className={`mt-1 h-2.5 w-2.5 rounded-full ${
+                whatsappToast.sent ? "bg-emerald-500" : "bg-amber-500"
+              }`}
+            />
+            <div className="flex-1">
+              <p className="text-sm font-semibold">WhatsApp Assignment</p>
+              <p className="mt-1 text-xs">
+                {getWhatsappToastMessage(whatsappToast)}
+              </p>
+              <div className="mt-3 flex items-center gap-2">
+                <button
+                  onClick={() => setWhatsappToast(null)}
+                  className={`rounded-lg px-2.5 py-1 text-xs font-semibold ${
+                    whatsappToast.sent
+                      ? "bg-emerald-600 text-white hover:bg-emerald-700"
+                      : "bg-amber-600 text-white hover:bg-amber-700"
+                  }`}
                 >
                   Dismiss
                 </button>
