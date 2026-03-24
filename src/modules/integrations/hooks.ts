@@ -10,10 +10,8 @@ import {
 } from "./api";
 import type {
   MetaIntegrationSettings,
-  MetaIntegrationTestResult,
   MetaLeadFetchResult,
   WhatsappIntegrationSettings,
-  WhatsappIntegrationTestResult,
 } from "./types";
 
 export const integrationKeys = {

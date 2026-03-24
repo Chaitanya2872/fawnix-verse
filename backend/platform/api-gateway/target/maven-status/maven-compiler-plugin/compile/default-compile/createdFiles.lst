@@ -1,5 +1,0 @@
-com\fawnix\gateway\ApiGatewayApplication.class
-com\fawnix\gateway\security\GatewayAuthenticationFilter.class
-com\fawnix\gateway\security\GatewayJwtService$JwtProperties.class
-com\fawnix\gateway\config\GatewayCorsConfig.class
-com\fawnix\gateway\security\GatewayJwtService.class

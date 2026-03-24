@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, type ReactNode } from "react";
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 
 import { clearAuthTokens, hasStoredSession } from "@/services/api-client";
@@ -104,7 +104,7 @@ export function RequirePermission({
   children,
 }: {
   permission: Permission;
-  children: JSX.Element;
+  children: ReactNode;
 }) {
   const sessionPresent = hasStoredSession();
   const currentUserQuery = useCurrentUser({ enabled: sessionPresent });

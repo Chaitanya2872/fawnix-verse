@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Check, ChevronLeft, MoreHorizontal, Trash2, Users } from "lucide-react";
 import { type AssigneeOption, type Lead, LeadStatus } from "../types";
 import { getMenuStageTargets, getStageActionLabel, STATUS_CFG } from "../lead-ui";

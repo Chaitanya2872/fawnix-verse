@@ -268,7 +268,7 @@ export default function SalesPage() {
       {showBuilder ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={closeBuilder} />
-          <div className="relative z-10 flex w-full max-w-5xl flex-col rounded-3xl border border-slate-200 bg-white shadow-2xl">
+          <div className="relative z-10 flex w-full max-w-6xl flex-col rounded-3xl border border-slate-200 bg-white shadow-2xl max-h-[90vh] overflow-hidden">
             <div className="flex items-start justify-between border-b border-slate-200 px-6 py-5">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-600">Quotation Builder</p>
@@ -285,8 +285,9 @@ export default function SalesPage() {
               </button>
             </div>
 
-            <div className="grid gap-6 px-6 py-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
-              <div className="space-y-5 min-w-0">
+            <div className="flex-1 overflow-y-auto">
+              <div className="grid gap-6 px-6 py-6 lg:grid-cols-[minmax(0,1fr)_360px]">
+                <div className="space-y-6 min-w-0">
                 <div className="grid gap-4 md:grid-cols-2">
                   <div>
                     <label className="text-xs font-semibold text-slate-500">Customer Name</label>
@@ -326,7 +327,7 @@ export default function SalesPage() {
                   </div>
                 </div>
 
-                <div className="rounded-2xl border border-slate-200 p-4">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50/50 p-4">
                   <div className="flex items-center justify-between">
                     <h3 className="text-sm font-semibold text-slate-800">Products</h3>
                     <button
@@ -337,9 +338,9 @@ export default function SalesPage() {
                       Add Product
                     </button>
                   </div>
-                  <div className="mt-4 space-y-3">
+                  <div className="mt-4 space-y-4">
                     {form.items.map((item, index) => (
-                      <div key={`${index}-${item.name}`} className="rounded-xl border border-slate-200 p-3">
+                      <div key={`${index}-${item.name}`} className="rounded-xl border border-slate-200 bg-white p-3">
                         <div className="flex items-center justify-between">
                           <p className="text-xs font-semibold text-slate-500">Item {index + 1}</p>
                           {form.items.length > 1 && (
@@ -393,90 +394,91 @@ export default function SalesPage() {
                     ))}
                   </div>
                 </div>
-              </div>
-
-              <div className="space-y-4 min-w-0">
-                <div className="rounded-2xl border border-slate-200 p-4">
-                  <h3 className="text-sm font-semibold text-slate-800">Pricing</h3>
-                  <div className="mt-3 grid gap-3">
-                    <div className="grid grid-cols-[1fr_1fr] gap-3">
-                      <select
-                        value={form.discountType}
-                        onChange={(e) => setForm((prev) => ({ ...prev, discountType: e.target.value as DiscountType }))}
-                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-emerald-300"
-                      >
-                        <option value={DiscountType.PERCENT}>Discount %</option>
-                        <option value={DiscountType.AMOUNT}>Discount Amount</option>
-                      </select>
-                      <input
-                        type="number"
-                        min={0}
-                        max={form.discountType === DiscountType.PERCENT ? 12 : undefined}
-                        value={form.discountValue}
-                        onChange={(e) => setForm((prev) => ({ ...prev, discountValue: Number(e.target.value) || 0 }))}
-                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-emerald-300"
-                        placeholder="Discount"
-                      />
-                    </div>
-                    {form.discountType === DiscountType.PERCENT ? (
-                      <p className="text-xs text-slate-500">Maximum discount allowed: 12%</p>
-                    ) : null}
-                    <div className="grid grid-cols-[1fr_1fr] gap-3">
-                      <input
-                        type="number"
-                        min={0}
-                        value={form.taxRate}
-                        onChange={(e) => setForm((prev) => ({ ...prev, taxRate: Number(e.target.value) || 0 }))}
-                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-emerald-300"
-                        placeholder="Tax %"
-                      />
-                      <input
-                        type="date"
-                        value={form.validUntil}
-                        onChange={(e) => setForm((prev) => ({ ...prev, validUntil: e.target.value }))}
-                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-emerald-300"
-                      />
-                    </div>
-                  </div>
                 </div>
 
-                <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
-                  <h3 className="text-sm font-semibold text-slate-800">Totals</h3>
-                  <div className="mt-3 space-y-2 text-sm">
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-500">Subtotal</span>
-                      <span className="font-semibold">{fmtCurrency(subtotal)}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-500">Discount</span>
-                      <span className="font-semibold text-rose-500">- {fmtCurrency(discountTotal)}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-500">Tax</span>
-                      <span className="font-semibold">{fmtCurrency(taxTotal)}</span>
-                    </div>
-                    <div className="flex items-center justify-between border-t border-slate-200 pt-3 text-base">
-                      <span className="font-semibold text-slate-700">Total</span>
-                      <span className="font-semibold text-emerald-600">{fmtCurrency(grandTotal)}</span>
+                <div className="space-y-4 min-w-0 lg:sticky lg:top-6 self-start">
+                  <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                    <h3 className="text-sm font-semibold text-slate-800">Pricing</h3>
+                    <div className="mt-3 grid gap-3">
+                      <div className="grid grid-cols-2 gap-3">
+                        <select
+                          value={form.discountType}
+                          onChange={(e) => setForm((prev) => ({ ...prev, discountType: e.target.value as DiscountType }))}
+                          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-emerald-300"
+                        >
+                          <option value={DiscountType.PERCENT}>Discount %</option>
+                          <option value={DiscountType.AMOUNT}>Discount Amount</option>
+                        </select>
+                        <input
+                          type="number"
+                          min={0}
+                          max={form.discountType === DiscountType.PERCENT ? 12 : undefined}
+                          value={form.discountValue}
+                          onChange={(e) => setForm((prev) => ({ ...prev, discountValue: Number(e.target.value) || 0 }))}
+                          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-emerald-300"
+                          placeholder="Discount"
+                        />
+                      </div>
+                      {form.discountType === DiscountType.PERCENT ? (
+                        <p className="text-xs text-slate-500">Maximum discount allowed: 12%</p>
+                      ) : null}
+                      <div className="grid grid-cols-2 gap-3">
+                        <input
+                          type="number"
+                          min={0}
+                          value={form.taxRate}
+                          onChange={(e) => setForm((prev) => ({ ...prev, taxRate: Number(e.target.value) || 0 }))}
+                          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-emerald-300"
+                          placeholder="Tax %"
+                        />
+                        <input
+                          type="date"
+                          value={form.validUntil}
+                          onChange={(e) => setForm((prev) => ({ ...prev, validUntil: e.target.value }))}
+                          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-emerald-300"
+                        />
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                <div className="rounded-2xl border border-slate-200 p-4">
-                  <label className="text-xs font-semibold text-slate-500">Notes</label>
-                  <textarea
-                    value={form.notes}
-                    onChange={(e) => setForm((prev) => ({ ...prev, notes: e.target.value }))}
-                    className="mt-2 h-20 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-emerald-300"
-                    placeholder="Notes for customer"
-                  />
-                  <label className="mt-3 block text-xs font-semibold text-slate-500">Terms</label>
-                  <textarea
-                    value={form.terms}
-                    onChange={(e) => setForm((prev) => ({ ...prev, terms: e.target.value }))}
-                    className="mt-2 h-20 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-emerald-300"
-                    placeholder="Terms & conditions"
-                  />
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+                    <h3 className="text-sm font-semibold text-slate-800">Totals</h3>
+                    <div className="mt-3 space-y-2 text-sm">
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-500">Subtotal</span>
+                        <span className="font-semibold">{fmtCurrency(subtotal)}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-500">Discount</span>
+                        <span className="font-semibold text-rose-500">- {fmtCurrency(discountTotal)}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-500">Tax</span>
+                        <span className="font-semibold">{fmtCurrency(taxTotal)}</span>
+                      </div>
+                      <div className="flex items-center justify-between border-t border-slate-200 pt-3 text-base">
+                        <span className="font-semibold text-slate-700">Total</span>
+                        <span className="font-semibold text-emerald-600">{fmtCurrency(grandTotal)}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                    <label className="text-xs font-semibold text-slate-500">Notes</label>
+                    <textarea
+                      value={form.notes}
+                      onChange={(e) => setForm((prev) => ({ ...prev, notes: e.target.value }))}
+                      className="mt-2 h-20 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-emerald-300"
+                      placeholder="Notes for customer"
+                    />
+                    <label className="mt-3 block text-xs font-semibold text-slate-500">Terms</label>
+                    <textarea
+                      value={form.terms}
+                      onChange={(e) => setForm((prev) => ({ ...prev, terms: e.target.value }))}
+                      className="mt-2 h-20 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-emerald-300"
+                      placeholder="Terms & conditions"
+                    />
+                  </div>
                 </div>
               </div>
             </div>

@@ -46,10 +46,6 @@ export function useUpdateDeal() {
 
 type ListQueryData = [QueryKey, PaginatedDeals | undefined];
 
-interface UpdateStageContext {
-  previousQueries?: ListQueryData[];
-}
-
 export function useUpdateDealStage() {
   const queryClient = useQueryClient();
   return useMutation({
