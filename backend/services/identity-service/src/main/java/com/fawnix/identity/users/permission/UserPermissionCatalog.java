@@ -87,4 +87,8 @@ public final class UserPermissionCatalog {
       ));
     };
   }
+
+  public static Set<String> defaultsForRoleName(String roleName) {
+    return defaultsForRole(RoleName.valueOf(roleName));
+  }
 }

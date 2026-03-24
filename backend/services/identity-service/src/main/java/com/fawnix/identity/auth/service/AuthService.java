@@ -126,6 +126,13 @@ public class AuthService {
     return authMapper.toCurrentUserResponse(userDetails);
   }
 
+  @Transactional
+  public AuthDtos.TokenResponse issueTokensForUser(UserEntity user) {
+    revokeActiveTokens(user);
+    AppUserDetails userDetails = new AppUserDetails(user);
+    return issueTokens(userDetails, user);
+  }
+
   private void revokeActiveTokens(UserEntity user) {
     refreshTokenRepository.findAllByUserAndRevokedFalse(user).forEach(token -> token.setRevoked(true));
   }

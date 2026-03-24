@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useLogin } from "./hooks";
+import { useLogin, useRequestOtp, useVerifyOtp } from "./hooks";
 import { getApiErrorMessage } from "@/services/api-client";
 import authHero from "@/assets/images/authpage.jpg";
 
@@ -39,10 +39,21 @@ export default function AuthPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const loginMutation = useLogin();
+  const requestOtpMutation = useRequestOtp();
+  const verifyOtpMutation = useVerifyOtp();
   const [credentials, setCredentials] = useState({
     email: "",
     password: "",
   });
+  const [authMode, setAuthMode] = useState<"password" | "otp">("password");
+  const [otpForm, setOtpForm] = useState({
+    empCode: "",
+    otp: "",
+  });
+  const [otpStatus, setOtpStatus] = useState<{
+    message?: string;
+    expiresInMinutes?: number;
+  } | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const redirectTo = getRedirectPath(location.state);
@@ -56,6 +67,35 @@ export default function AuthPage() {
       navigate(redirectTo, { replace: true });
     } catch (error) {
       setErrorMessage(getApiErrorMessage(error, "Unable to sign in right now."));
+    }
+  };
+
+  const handleRequestOtp = async () => {
+    setErrorMessage(null);
+    try {
+      const response = await requestOtpMutation.mutateAsync({
+        emp_code: otpForm.empCode.trim(),
+      });
+      setOtpStatus({
+        message: response.message,
+        expiresInMinutes: response.expires_in_minutes,
+      });
+    } catch (error) {
+      setErrorMessage(getApiErrorMessage(error, "Unable to request OTP."));
+    }
+  };
+
+  const handleVerifyOtp = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setErrorMessage(null);
+    try {
+      await verifyOtpMutation.mutateAsync({
+        emp_code: otpForm.empCode.trim(),
+        otp: otpForm.otp.trim(),
+      });
+      navigate(redirectTo, { replace: true });
+    } catch (error) {
+      setErrorMessage(getApiErrorMessage(error, "Unable to verify OTP."));
     }
   };
 
@@ -112,61 +152,161 @@ export default function AuthPage() {
               </div>
             </CardHeader>
 
-            <CardContent>
-              <form className="space-y-5" onSubmit={handleSubmit}>
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    autoComplete="email"
-                    value={credentials.email}
-                    onChange={(event) =>
-                      setCredentials((current) => ({
-                        ...current,
-                        email: event.target.value,
-                      }))
-                    }
-                    placeholder="name@company.com"
-                    className="h-11 border-slate-200 bg-white focus-visible:ring-blue-500"
-                    required
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="password">Password</Label>
-                  <Input
-                    id="password"
-                    type="password"
-                    autoComplete="current-password"
-                    value={credentials.password}
-                    onChange={(event) =>
-                      setCredentials((current) => ({
-                        ...current,
-                        password: event.target.value,
-                      }))
-                    }
-                    placeholder="Enter your password"
-                    className="h-11 border-slate-200 bg-white focus-visible:ring-blue-500"
-                    required
-                  />
-                </div>
-
-                {errorMessage ? (
-                  <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-                    {errorMessage}
-                  </div>
-                ) : null}
-
-                <Button
-                  type="submit"
-                  className="h-11 w-full bg-blue-600 text-white hover:bg-blue-700"
-                  disabled={loginMutation.isPending}
+            <CardContent className="space-y-5">
+              <div className="grid grid-cols-2 gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAuthMode("password");
+                    setErrorMessage(null);
+                  }}
+                  className={`rounded-xl px-3 py-2 text-xs font-semibold transition ${
+                    authMode === "password"
+                      ? "bg-white text-slate-900 shadow-sm"
+                      : "text-slate-500 hover:text-slate-700"
+                  }`}
                 >
-                  {loginMutation.isPending ? "Signing in..." : "Sign in"}
-                </Button>
+                  Password
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAuthMode("otp");
+                    setErrorMessage(null);
+                  }}
+                  className={`rounded-xl px-3 py-2 text-xs font-semibold transition ${
+                    authMode === "otp"
+                      ? "bg-white text-slate-900 shadow-sm"
+                      : "text-slate-500 hover:text-slate-700"
+                  }`}
+                >
+                  Sign in with Fawnix
+                </button>
+              </div>
 
-              </form>
+              {authMode === "password" ? (
+                <form className="space-y-5" onSubmit={handleSubmit}>
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Email</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      autoComplete="email"
+                      value={credentials.email}
+                      onChange={(event) =>
+                        setCredentials((current) => ({
+                          ...current,
+                          email: event.target.value,
+                        }))
+                      }
+                      placeholder="name@company.com"
+                      className="h-11 border-slate-200 bg-white focus-visible:ring-blue-500"
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="password">Password</Label>
+                    <Input
+                      id="password"
+                      type="password"
+                      autoComplete="current-password"
+                      value={credentials.password}
+                      onChange={(event) =>
+                        setCredentials((current) => ({
+                          ...current,
+                          password: event.target.value,
+                        }))
+                      }
+                      placeholder="Enter your password"
+                      className="h-11 border-slate-200 bg-white focus-visible:ring-blue-500"
+                      required
+                    />
+                  </div>
+
+                  {errorMessage ? (
+                    <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                      {errorMessage}
+                    </div>
+                  ) : null}
+
+                  <Button
+                    type="submit"
+                    className="h-11 w-full bg-blue-600 text-white hover:bg-blue-700"
+                    disabled={loginMutation.isPending}
+                  >
+                    {loginMutation.isPending ? "Signing in..." : "Sign in"}
+                  </Button>
+                </form>
+              ) : (
+                <form className="space-y-5" onSubmit={handleVerifyOtp}>
+                  <div className="space-y-2">
+                    <Label htmlFor="empCode">Employee Code</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        id="empCode"
+                        value={otpForm.empCode}
+                        onChange={(event) =>
+                          setOtpForm((current) => ({
+                            ...current,
+                            empCode: event.target.value,
+                          }))
+                        }
+                        placeholder="Enter your employee code"
+                        className="h-11 border-slate-200 bg-white focus-visible:ring-emerald-500"
+                        required
+                      />
+                      <Button
+                        type="button"
+                        onClick={handleRequestOtp}
+                        className="h-11 bg-emerald-600 text-white hover:bg-emerald-700"
+                        disabled={requestOtpMutation.isPending || !otpForm.empCode.trim()}
+                      >
+                        {requestOtpMutation.isPending ? "Sending..." : "Request OTP"}
+                      </Button>
+                    </div>
+                    {otpStatus?.message ? (
+                      <p className="text-xs text-emerald-700">
+                        {otpStatus.message}
+                        {otpStatus.expiresInMinutes
+                          ? ` (expires in ${otpStatus.expiresInMinutes} min)`
+                          : ""}
+                      </p>
+                    ) : null}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="otp">OTP</Label>
+                    <Input
+                      id="otp"
+                      value={otpForm.otp}
+                      onChange={(event) =>
+                        setOtpForm((current) => ({
+                          ...current,
+                          otp: event.target.value,
+                        }))
+                      }
+                      placeholder="Enter OTP"
+                      className="h-11 border-slate-200 bg-white focus-visible:ring-emerald-500"
+                      required
+                    />
+                  </div>
+
+                  {errorMessage ? (
+                    <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                      {errorMessage}
+                    </div>
+                  ) : null}
+
+                  <Button
+                    type="submit"
+                    className="h-11 w-full bg-emerald-600 text-white hover:bg-emerald-700"
+                    disabled={verifyOtpMutation.isPending}
+                  >
+                    {verifyOtpMutation.isPending ? "Verifying..." : "Sign in with Fawnix"}
+                  </Button>
+                </form>
+              )}
             </CardContent>
           </Card>
         </div>

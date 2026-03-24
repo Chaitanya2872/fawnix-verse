@@ -56,3 +56,7 @@ app:
     dev-admin-email: ${DEV_ADMIN_EMAIL:admin@fawnix.com}
     dev-admin-password: ${DEV_ADMIN_PASSWORD:Admin@123}
     internal-service-secret: ${INTERNAL_SERVICE_SECRET:fawnix-internal-secret}
+  fawnix-otp:
+    base-url: ${FAWNIX_OTP_BASE_URL:https://fawnix.acstechnologies.co.in/api}
+    default-role: ${FAWNIX_OTP_DEFAULT_ROLE:ROLE_VIEWER}
+    timeout-seconds: ${FAWNIX_OTP_TIMEOUT_SECONDS:10}

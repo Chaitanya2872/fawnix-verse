@@ -18,3 +18,18 @@ export interface AuthTokens {
   refreshTokenExpiresAt: string;
   user: CurrentUser;
 }
+
+export interface RequestOtpRequest {
+  emp_code: string;
+}
+
+export interface RequestOtpResponse {
+  expires_in_minutes?: number;
+  message?: string;
+  success?: boolean;
+}
+
+export interface VerifyOtpRequest {
+  emp_code: string;
+  otp: string;
+}
