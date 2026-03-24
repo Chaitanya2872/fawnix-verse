@@ -32,83 +32,84 @@ jobs:
       REPO_URL: https://github.com/Chaitanya2872/fawnix-verse.git
 
     steps:
+      - name: Validate configuration
+        shell: bash
+        run: |
+          set -e
+          test -n "${EC2_HOST}" || { echo "Missing EC2_HOST"; exit 1; }
+          test -n "${EC2_USER}" || { echo "Missing EC2_USER"; exit 1; }
+          test -n "${EC2_DEPLOY_DIR}" || { echo "Missing EC2_DEPLOY_DIR"; exit 1; }
+          test -n "${{ secrets.EC2_PEM_KEY }}" || { echo "Missing EC2_PEM_KEY"; exit 1; }
 
-    # ✅ Validate config
-    - name: Validate configuration
-      run: |
-        test -n "${EC2_HOST}" || { echo "Missing EC2_HOST"; exit 1; }
-        test -n "${EC2_USER}" || { echo "Missing EC2_USER"; exit 1; }
-        test -n "${EC2_DEPLOY_DIR}" || { echo "Missing EC2_DEPLOY_DIR"; exit 1; }
-        test -n "${{ secrets.EC2_PEM_KEY }}" || { echo "Missing EC2_PEM_KEY"; exit 1; }
+      - name: Setup SSH
+        shell: bash
+        run: |
+          set -euxo pipefail
+          install -m 700 -d "$HOME/.ssh"
+          printf '%s\n' "${{ secrets.EC2_PEM_KEY }}" | tr -d '\r' > "$HOME/.ssh/ec2.pem"
+          chmod 600 "$HOME/.ssh/ec2.pem"
+          ssh-keyscan -p "${EC2_PORT:-22}" -H "${EC2_HOST}" >> "$HOME/.ssh/known_hosts"
+          chmod 644 "$HOME/.ssh/known_hosts"
 
-    # ✅ Setup SSH
-    - name: Setup SSH
-      run: |
-        mkdir -p ~/.ssh
-        printf '%s' "${{ secrets.EC2_PEM_KEY }}" > ~/.ssh/ec2.pem
-        chmod 600 ~/.ssh/ec2.pem
-        ssh-keyscan -p "${EC2_PORT:-22}" -H "${EC2_HOST}" >> ~/.ssh/known_hosts
+      - name: Deploy Application
+        shell: bash
+        run: |
+          set -euxo pipefail
 
-    # 🚀 Deploy (FULL SUDO)
-    - name: Deploy Application
-      run: |
-        ssh -i ~/.ssh/ec2.pem -p "${EC2_PORT:-22}" "${EC2_USER}@${EC2_HOST}" \
-        "sudo bash -s" <<EOF
-        set -e
+          ssh -o StrictHostKeyChecking=yes -i "$HOME/.ssh/ec2.pem" -p "${EC2_PORT:-22}" "${EC2_USER}@${EC2_HOST}" "sudo bash -s" <<EOF
+          set -e
 
-        echo "Starting Deployment as root..."
+          echo "Starting Deployment as root..."
 
-        mkdir -p "${EC2_DEPLOY_DIR}"
-        cd "${EC2_DEPLOY_DIR}"
+          mkdir -p "${EC2_DEPLOY_DIR}"
+          cd "${EC2_DEPLOY_DIR}"
 
-        echo "Current Directory: \$(pwd)"
+          echo "Current Directory: \$(pwd)"
 
-        # Clone or Pull
-        if [ ! -d ".git" ]; then
-          echo "Cloning repository..."
-          git clone "${REPO_URL}" .
-        else
-          echo "Pulling latest code..."
-          git fetch origin
-          git reset --hard origin/${DEPLOY_BRANCH}
-        fi
+          if [ ! -d ".git" ]; then
+            echo "Cloning repository..."
+            git clone "${REPO_URL}" .
+            git checkout "${DEPLOY_BRANCH}"
+          else
+            echo "Pulling latest code..."
+            git fetch origin
+            git reset --hard "origin/${DEPLOY_BRANCH}"
+          fi
 
-        # Setup ENV
-        if [ ! -f PRD/.env ]; then
-          echo "Creating .env file..."
-          cp PRD/.env.example PRD/.env
-        fi
+          if [ ! -f PRD/.env ]; then
+            echo "Creating .env file..."
+            cp PRD/.env.example PRD/.env
+          fi
 
-        # Ensure Docker exists
-        if ! command -v docker &> /dev/null; then
-          echo "Docker not installed"
-          exit 1
-        fi
+          if ! command -v docker >/dev/null 2>&1; then
+            echo "Docker not installed"
+            exit 1
+          fi
 
-        echo "Running Containers Before Deploy:"
-        docker ps || true
+          echo "Running Containers Before Deploy:"
+          docker ps || true
 
-        echo "Building & Starting Services..."
-        docker compose -f PRD/compose.yml --env-file PRD/.env up -d --build || {
-          echo "Docker Compose failed. Showing logs..."
-          docker compose -f PRD/compose.yml --env-file PRD/.env logs --tail 200
-          exit 1
-        }
+          echo "Building & Starting Services..."
+          docker compose -f PRD/compose.yml --env-file PRD/.env up -d --build || {
+            echo "Docker Compose failed. Showing logs..."
+            docker compose -f PRD/compose.yml --env-file PRD/.env logs --tail 200
+            exit 1
+          }
 
-        echo "Cleaning old images..."
-        docker image prune -f || true
+          echo "Cleaning old images..."
+          docker image prune -f || true
 
-        echo "Running Containers After Deploy:"
-        docker ps
+          echo "Running Containers After Deploy:"
+          docker ps
 
-        echo "Checking services health..."
-        sleep 10
+          echo "Checking services health..."
+          sleep 10
 
-        if ! docker ps | grep -q "prd-"; then
-          echo "Deployment failed: No containers running!"
-          docker compose -f PRD/compose.yml --env-file PRD/.env logs --tail=200
-          exit 1
-        fi
+          if ! docker ps | grep -q "prd-"; then
+            echo "Deployment failed: No containers running!"
+            docker compose -f PRD/compose.yml --env-file PRD/.env logs --tail=200
+            exit 1
+          fi
 
-        echo "Deployment Successful!"
-        EOF
+          echo "Deployment Successful!"
+          EOF
