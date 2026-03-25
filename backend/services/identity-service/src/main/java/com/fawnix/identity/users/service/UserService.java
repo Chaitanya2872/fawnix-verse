@@ -9,6 +9,7 @@ import com.fawnix.identity.common.exception.BadRequestException;
 import com.fawnix.identity.common.exception.ResourceNotFoundException;
 import com.fawnix.identity.users.dto.AssigneeResponse;
 import com.fawnix.identity.users.dto.InternalUserResponse;
+import com.fawnix.identity.users.dto.UserSummaryResponse;
 import com.fawnix.identity.users.dto.UserDtos;
 import com.fawnix.identity.users.entity.UserEntity;
 import com.fawnix.identity.users.mapper.UserMapper;
@@ -16,9 +17,11 @@ import com.fawnix.identity.users.permission.UserPermissionCatalog;
 import com.fawnix.identity.users.repository.UserRepository;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -125,6 +128,16 @@ public class UserService {
     return userMapper.toUserResponse(userRepository.save(user));
   }
 
+  public UserDtos.UserResponse updateUserRole(String userId, String roleInput) {
+    UserEntity user = requireUser(userId);
+    RoleEntity role = resolveRole(roleInput);
+    RoleName roleName = RoleName.valueOf(role.getName());
+    user.setRoles(Set.of(role));
+    user.setPermissions(normalizePermissions(null, roleName));
+    user.setUpdatedAt(Instant.now());
+    return userMapper.toUserResponse(userRepository.save(user));
+  }
+
   @Transactional
   public void deleteUser(String userId) {
     UserEntity user = requireUser(userId);
@@ -147,6 +160,19 @@ public class UserService {
         .orElseThrow(() -> new IllegalArgumentException("Assignee not found"));
     validateAssignable(user);
     return userMapper.toInternalUser(user);
+  }
+
+  @Transactional(readOnly = true)
+  public UserSummaryResponse getUserSummary() {
+    List<UserEntity> users = userRepository.findAllByOrderByFullNameAsc();
+    Map<String, Integer> byRole = new HashMap<>();
+    for (UserEntity user : users) {
+      user.getRoles().forEach(role -> {
+        String key = normalizeRoleName(role.getName());
+        byRole.merge(key, 1, Integer::sum);
+      });
+    }
+    return new UserSummaryResponse(users.size(), byRole);
   }
 
   private void validateAssignable(UserEntity user) {
@@ -194,6 +220,13 @@ public class UserService {
     return trimmed.isEmpty() ? null : trimmed;
   }
 
+  private String normalizeRoleName(String roleName) {
+    if (roleName == null) {
+      return "unknown";
+    }
+    return roleName.replace("ROLE_", "").toLowerCase(Locale.ROOT);
+  }
+
   private RoleEntity resolveRole(String roleInput) {
     if (roleInput == null || roleInput.isBlank()) {
       throw new BadRequestException("Role is required.");
@@ -202,7 +235,12 @@ public class UserService {
     RoleName roleName = switch (normalized) {
       case "ADMIN", "ROLE_ADMIN" -> RoleName.ROLE_ADMIN;
       case "MANAGER", "ROLE_MANAGER", "ROLE_SALES_MANAGER" -> RoleName.ROLE_SALES_MANAGER;
-      case "EMPLOYEE", "ROLE_EMPLOYEE", "ROLE_SALES_REP" -> RoleName.ROLE_SALES_REP;
+      case "SALES_REP", "ROLE_SALES_REP" -> RoleName.ROLE_SALES_REP;
+      case "EMPLOYEE", "ROLE_EMPLOYEE" -> RoleName.ROLE_EMPLOYEE;
+      case "HR_MANAGER", "ROLE_HR_MANAGER" -> RoleName.ROLE_HR_MANAGER;
+      case "RECRUITER", "ROLE_RECRUITER" -> RoleName.ROLE_RECRUITER;
+      case "HIRING_MANAGER", "ROLE_HIRING_MANAGER" -> RoleName.ROLE_HIRING_MANAGER;
+      case "INTERVIEWER", "ROLE_INTERVIEWER" -> RoleName.ROLE_INTERVIEWER;
       case "VIEWER", "ROLE_VIEWER" -> RoleName.ROLE_VIEWER;
       default -> throw new BadRequestException("Role is invalid.");
     };

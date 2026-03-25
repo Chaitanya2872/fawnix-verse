@@ -7,6 +7,13 @@ export const PERMISSIONS = {
   MODULE_HRMS: "module.hrms",
   MODULE_REPORTS: "module.reports",
   MODULE_ADMIN: "module.admin",
+  MODULE_RECRUITMENT: "module.recruitment",
+  MODULE_FORMS: "module.forms",
+  MODULE_APPROVALS: "module.approvals",
+  MODULE_ORG: "module.org",
+  MODULE_INTEGRATIONS: "module.integrations",
+  MODULE_ANALYTICS: "module.analytics",
+  MODULE_NOTIFICATIONS: "module.notifications",
   PAGE_DASHBOARD: "page.dashboard",
   PAGE_CRM_LEADS: "page.crm.leads",
   PAGE_CRM_CONTACTS: "page.crm.contacts",
@@ -32,6 +39,13 @@ export const MODULE_PERMISSION_MAP: Record<string, Permission> = {
   hrms: PERMISSIONS.MODULE_HRMS,
   reports: PERMISSIONS.MODULE_REPORTS,
   admin: PERMISSIONS.MODULE_ADMIN,
+  recruitment: PERMISSIONS.MODULE_RECRUITMENT,
+  forms: PERMISSIONS.MODULE_FORMS,
+  approvals: PERMISSIONS.MODULE_APPROVALS,
+  org: PERMISSIONS.MODULE_ORG,
+  integrations: PERMISSIONS.MODULE_INTEGRATIONS,
+  analytics: PERMISSIONS.MODULE_ANALYTICS,
+  notifications: PERMISSIONS.MODULE_NOTIFICATIONS,
 };
 
 export function hasPermission(
@@ -68,6 +82,19 @@ function resolveModulePermission(permission: Permission): Permission | null {
   if (permission.startsWith("page.reports") || permission.startsWith("page.accounting")) {
     return PERMISSIONS.MODULE_REPORTS;
   }
+  if (permission.startsWith("page.recruitment")) {
+    return PERMISSIONS.MODULE_RECRUITMENT;
+  }
+  if (permission.startsWith("page.forms")) return PERMISSIONS.MODULE_FORMS;
+  if (permission.startsWith("page.approvals")) return PERMISSIONS.MODULE_APPROVALS;
+  if (permission.startsWith("page.org") || permission.startsWith("page.setup")) {
+    return PERMISSIONS.MODULE_ORG;
+  }
+  if (permission.startsWith("page.integrations") || permission.startsWith("page.settings")) {
+    return PERMISSIONS.MODULE_INTEGRATIONS;
+  }
+  if (permission.startsWith("page.analytics")) return PERMISSIONS.MODULE_ANALYTICS;
+  if (permission.startsWith("page.notifications")) return PERMISSIONS.MODULE_NOTIFICATIONS;
   if (permission.startsWith("page.admin.")) return PERMISSIONS.MODULE_ADMIN;
   if (permission.startsWith("page.dashboard")) return null;
   return null;

@@ -30,6 +30,34 @@ spring:
           uri: lb://CRM-SERVICE
           predicates:
             - Path=/api/integrations/**
+        - id: org-service
+          uri: lb://ORG-SERVICE
+          predicates:
+            - Path=/api/setup/**,/api/departments/**,/api/org/**
+        - id: forms-service
+          uri: lb://FORMS-SERVICE
+          predicates:
+            - Path=/api/recruitment/forms/**
+        - id: approval-service
+          uri: lb://APPROVAL-SERVICE
+          predicates:
+            - Path=/api/approval-flows/**
+        - id: recruitment-service
+          uri: lb://RECRUITMENT-SERVICE
+          predicates:
+            - Path=/api/recruitment/hiring-requests/**,/api/recruitment/positions/**,/api/recruitment/postings/**,/api/candidates/**,/api/interviews/**,/api/offers/**,/api/public/forms/**
+        - id: integration-service
+          uri: lb://INTEGRATION-SERVICE
+          predicates:
+            - Path=/api/settings/portal-credentials/**,/api/calendar/**
+        - id: analytics-service
+          uri: lb://ANALYTICS-SERVICE
+          predicates:
+            - Path=/api/analytics/**
+        - id: notifications-service
+          uri: lb://NOTIFICATIONS-SERVICE
+          predicates:
+            - Path=/api/notifications/**
         - id: inventory
           uri: lb://INVENTORY-SERVICE
           predicates:

@@ -4,13 +4,22 @@ import type { LucideIcon } from "lucide-react";
 import {
   BarChart3,
   Boxes,
+  Briefcase,
+  CalendarClock,
+  CheckSquare,
+  ClipboardList,
   Building2,
   Calculator,
+  FileCheck2,
+  FileText,
   LayoutDashboard,
+  Network,
   Settings,
+  Settings2,
   ShoppingBag,
   ShoppingCart,
   Target,
+  UserRoundSearch,
   UserPlus,
   Users,
 } from "lucide-react";
@@ -55,6 +64,33 @@ const ERP_NAV_SECTIONS: readonly SidebarNavSection[] = [
       { label: "Accounts", to: "/crm/accounts", icon: Building2, permission: PERMISSIONS.PAGE_CRM_ACCOUNTS },
       { label: "Tasks", to: "/crm/presales", icon: Target, permission: PERMISSIONS.PAGE_CRM_PRESALES },
       { label: "Opportunities", to: "/crm/opportunities", icon: Target, permission: PERMISSIONS.PAGE_CRM_OPPORTUNITIES },
+    ],
+  },
+  {
+    heading: "Talent",
+    items: [
+      { label: "Hiring Requests", to: "/recruitment/hiring-requests", icon: ClipboardList, permission: PERMISSIONS.MODULE_RECRUITMENT },
+      { label: "Positions", to: "/recruitment/positions", icon: Briefcase, permission: PERMISSIONS.MODULE_RECRUITMENT },
+      { label: "Candidates", to: "/recruitment/candidates", icon: UserRoundSearch, permission: PERMISSIONS.MODULE_RECRUITMENT },
+      { label: "Interviews", to: "/recruitment/interviews", icon: CalendarClock, permission: PERMISSIONS.MODULE_RECRUITMENT },
+      { label: "Offers", to: "/recruitment/offers", icon: FileCheck2, permission: PERMISSIONS.MODULE_RECRUITMENT },
+      { label: "Recruitment Analytics", to: "/recruitment/analytics", icon: BarChart3, permission: PERMISSIONS.MODULE_RECRUITMENT },
+    ],
+  },
+  {
+    heading: "Organization",
+    items: [
+      { label: "Setup", to: "/setup", icon: Settings2, permission: PERMISSIONS.MODULE_ORG },
+      { label: "Structure", to: "/organization/structure", icon: Network, permission: PERMISSIONS.MODULE_ORG },
+      { label: "Approvals", to: "/approvals", icon: CheckSquare, permission: PERMISSIONS.MODULE_APPROVALS },
+      { label: "Forms", to: "/forms", icon: FileText, permission: PERMISSIONS.MODULE_FORMS },
+    ],
+  },
+  {
+    heading: "Integrations",
+    items: [
+      { label: "Portal Credentials", to: "/settings/portal-credentials", icon: Settings, permission: PERMISSIONS.MODULE_INTEGRATIONS },
+      { label: "Calendar Integrations", to: "/settings/calendar-integrations", icon: CalendarClock, permission: PERMISSIONS.MODULE_INTEGRATIONS },
     ],
   },
   {

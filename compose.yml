@@ -23,6 +23,7 @@ services:
   postgres:
     image: postgres:16-alpine
     restart: unless-stopped
+    command: ["postgres", "-c", "max_connections=200"]
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
@@ -37,6 +38,19 @@ services:
       timeout: 5s
       retries: 12
       start_period: 5s
+    networks:
+      - fawnix-network
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep PONG"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
     networks:
       - fawnix-network
 
@@ -111,7 +125,7 @@ services:
       PGUSER: ${POSTGRES_USER:-postgres}
       PGPASSWORD: ${POSTGRES_PASSWORD:-postgres}
       PGDATABASE: ${POSTGRES_DB:-postgres}
-      SERVICE_DATABASES: fawnix_identity fawnix_crm fawnix_inventory fawnix_hrms fawnix_sales
+      SERVICE_DATABASES: fawnix_identity fawnix_crm fawnix_inventory fawnix_hrms fawnix_sales fawnix_org fawnix_forms fawnix_approval fawnix_recruitment fawnix_integration fawnix_analytics fawnix_notifications
     volumes:
       - ./docker/postgres/bootstrap:/bootstrap:ro
     entrypoint: ["sh", "/bootstrap/bootstrap-databases.sh"]
@@ -348,6 +362,286 @@ services:
     networks:
       - fawnix-network
 
+  org-service:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      provenance: false
+      sbom: false
+      args:
+        MODULE_PATH: services/org-service
+    restart: unless-stopped
+    depends_on:
+      db-bootstrap:
+        condition: service_completed_successfully
+      eureka-server:
+        condition: service_healthy
+      identity-service:
+        condition: service_healthy
+    environment:
+      SERVER_PORT: "8086"
+      EUREKA_SERVER_URL: http://eureka-server:8761/eureka/
+      JWT_SECRET: ${JWT_SECRET:-change-this-local-dev-secret-change-this-local-dev-secret}
+      INTERNAL_SERVICE_SECRET: ${INTERNAL_SERVICE_SECRET:-fawnix-internal-secret}
+      ORG_DB_URL: jdbc:postgresql://postgres:5432/fawnix_org
+      ORG_DB_USERNAME: ${POSTGRES_USER:-postgres}
+      ORG_DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    ports:
+      - "8086:8086"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8086/actuator/health > /dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 120s
+    networks:
+      - fawnix-network
+
+  forms-service:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      provenance: false
+      sbom: false
+      args:
+        MODULE_PATH: services/forms-service
+    restart: unless-stopped
+    depends_on:
+      db-bootstrap:
+        condition: service_completed_successfully
+      eureka-server:
+        condition: service_healthy
+      identity-service:
+        condition: service_healthy
+    environment:
+      SERVER_PORT: "8087"
+      EUREKA_SERVER_URL: http://eureka-server:8761/eureka/
+      JWT_SECRET: ${JWT_SECRET:-change-this-local-dev-secret-change-this-local-dev-secret}
+      INTERNAL_SERVICE_SECRET: ${INTERNAL_SERVICE_SECRET:-fawnix-internal-secret}
+      FORMS_DB_URL: jdbc:postgresql://postgres:5432/fawnix_forms
+      FORMS_DB_USERNAME: ${POSTGRES_USER:-postgres}
+      FORMS_DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    ports:
+      - "8087:8087"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8087/actuator/health > /dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 120s
+    networks:
+      - fawnix-network
+
+  approval-service:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      provenance: false
+      sbom: false
+      args:
+        MODULE_PATH: services/approval-service
+    restart: unless-stopped
+    depends_on:
+      db-bootstrap:
+        condition: service_completed_successfully
+      eureka-server:
+        condition: service_healthy
+      identity-service:
+        condition: service_healthy
+    environment:
+      SERVER_PORT: "8088"
+      EUREKA_SERVER_URL: http://eureka-server:8761/eureka/
+      JWT_SECRET: ${JWT_SECRET:-change-this-local-dev-secret-change-this-local-dev-secret}
+      INTERNAL_SERVICE_SECRET: ${INTERNAL_SERVICE_SECRET:-fawnix-internal-secret}
+      APPROVAL_DB_URL: jdbc:postgresql://postgres:5432/fawnix_approval
+      APPROVAL_DB_USERNAME: ${POSTGRES_USER:-postgres}
+      APPROVAL_DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    ports:
+      - "8088:8088"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8088/actuator/health > /dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 120s
+    networks:
+      - fawnix-network
+
+  recruitment-service:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      provenance: false
+      sbom: false
+      args:
+        MODULE_PATH: services/recruitment-service
+    restart: unless-stopped
+    depends_on:
+      db-bootstrap:
+        condition: service_completed_successfully
+      eureka-server:
+        condition: service_healthy
+      identity-service:
+        condition: service_healthy
+      minio-bootstrap:
+        condition: service_completed_successfully
+    environment:
+      SERVER_PORT: "8089"
+      EUREKA_SERVER_URL: http://eureka-server:8761/eureka/
+      JWT_SECRET: ${JWT_SECRET:-change-this-local-dev-secret-change-this-local-dev-secret}
+      INTERNAL_SERVICE_SECRET: ${INTERNAL_SERVICE_SECRET:-fawnix-internal-secret}
+      RECRUITMENT_DB_URL: jdbc:postgresql://postgres:5432/fawnix_recruitment
+      RECRUITMENT_DB_USERNAME: ${POSTGRES_USER:-postgres}
+      RECRUITMENT_DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      RECRUITMENT_S3_ENDPOINT: http://minio:9000
+      RECRUITMENT_S3_REGION: ${RECRUITMENT_S3_REGION:-us-east-1}
+      RECRUITMENT_S3_BUCKET: ${RECRUITMENT_S3_BUCKET:-fawnix-objects}
+      RECRUITMENT_S3_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
+      RECRUITMENT_S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    ports:
+      - "8089:8089"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8089/actuator/health > /dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 150s
+    networks:
+      - fawnix-network
+
+  integration-service:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      provenance: false
+      sbom: false
+      args:
+        MODULE_PATH: services/integration-service
+    restart: unless-stopped
+    depends_on:
+      db-bootstrap:
+        condition: service_completed_successfully
+      eureka-server:
+        condition: service_healthy
+      identity-service:
+        condition: service_healthy
+    environment:
+      SERVER_PORT: "8090"
+      EUREKA_SERVER_URL: http://eureka-server:8761/eureka/
+      JWT_SECRET: ${JWT_SECRET:-change-this-local-dev-secret-change-this-local-dev-secret}
+      INTERNAL_SERVICE_SECRET: ${INTERNAL_SERVICE_SECRET:-fawnix-internal-secret}
+      INTEGRATION_DB_URL: jdbc:postgresql://postgres:5432/fawnix_integration
+      INTEGRATION_DB_USERNAME: ${POSTGRES_USER:-postgres}
+      INTEGRATION_DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      INTEGRATION_OAUTH_SUCCESS_REDIRECT: ${INTEGRATION_OAUTH_SUCCESS_REDIRECT:-http://localhost:5173/settings/calendar-integrations}
+      INTEGRATION_GOOGLE_CLIENT_ID: ${INTEGRATION_GOOGLE_CLIENT_ID:-}
+      INTEGRATION_GOOGLE_CLIENT_SECRET: ${INTEGRATION_GOOGLE_CLIENT_SECRET:-}
+      INTEGRATION_GOOGLE_REDIRECT_URI: ${INTEGRATION_GOOGLE_REDIRECT_URI:-http://localhost:8080/api/calendar/oauth/google/callback}
+      INTEGRATION_GOOGLE_SCOPES: ${INTEGRATION_GOOGLE_SCOPES:-}
+      INTEGRATION_MICROSOFT_CLIENT_ID: ${INTEGRATION_MICROSOFT_CLIENT_ID:-}
+      INTEGRATION_MICROSOFT_CLIENT_SECRET: ${INTEGRATION_MICROSOFT_CLIENT_SECRET:-}
+      INTEGRATION_MICROSOFT_REDIRECT_URI: ${INTEGRATION_MICROSOFT_REDIRECT_URI:-http://localhost:8080/api/calendar/oauth/microsoft/callback}
+      INTEGRATION_MICROSOFT_SCOPES: ${INTEGRATION_MICROSOFT_SCOPES:-}
+    ports:
+      - "8090:8090"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8090/actuator/health > /dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 120s
+    networks:
+      - fawnix-network
+
+  analytics-service:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      provenance: false
+      sbom: false
+      args:
+        MODULE_PATH: services/analytics-service
+    restart: unless-stopped
+    depends_on:
+      db-bootstrap:
+        condition: service_completed_successfully
+      eureka-server:
+        condition: service_healthy
+      identity-service:
+        condition: service_healthy
+    environment:
+      SERVER_PORT: "8091"
+      EUREKA_SERVER_URL: http://eureka-server:8761/eureka/
+      JWT_SECRET: ${JWT_SECRET:-change-this-local-dev-secret-change-this-local-dev-secret}
+      INTERNAL_SERVICE_SECRET: ${INTERNAL_SERVICE_SECRET:-fawnix-internal-secret}
+      ANALYTICS_DB_URL: jdbc:postgresql://postgres:5432/fawnix_analytics
+      ANALYTICS_DB_USERNAME: ${POSTGRES_USER:-postgres}
+      ANALYTICS_DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    ports:
+      - "8091:8091"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8091/actuator/health > /dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 120s
+    networks:
+      - fawnix-network
+
+  notifications-service:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      provenance: false
+      sbom: false
+      args:
+        MODULE_PATH: services/notifications-service
+    restart: unless-stopped
+    depends_on:
+      db-bootstrap:
+        condition: service_completed_successfully
+      eureka-server:
+        condition: service_healthy
+      identity-service:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      SERVER_PORT: "8092"
+      EUREKA_SERVER_URL: http://eureka-server:8761/eureka/
+      JWT_SECRET: ${JWT_SECRET:-change-this-local-dev-secret-change-this-local-dev-secret}
+      INTERNAL_SERVICE_SECRET: ${INTERNAL_SERVICE_SECRET:-fawnix-internal-secret}
+      NOTIFICATIONS_DB_URL: jdbc:postgresql://postgres:5432/fawnix_notifications
+      NOTIFICATIONS_DB_USERNAME: ${POSTGRES_USER:-postgres}
+      NOTIFICATIONS_DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_AUTH: ${SMTP_AUTH:-true}
+      SMTP_STARTTLS: ${SMTP_STARTTLS:-true}
+      NOTIFICATIONS_STREAM_NAME: ${NOTIFICATIONS_STREAM_NAME:-notifications:outbox}
+      NOTIFICATIONS_STREAM_GROUP: ${NOTIFICATIONS_STREAM_GROUP:-notifications-service}
+      NOTIFICATIONS_STREAM_CONSUMER: ${NOTIFICATIONS_STREAM_CONSUMER:-notifications-1}
+      NOTIFICATIONS_MAX_RETRIES: ${NOTIFICATIONS_MAX_RETRIES:-5}
+      NOTIFICATIONS_RETRY_BASE_SECONDS: ${NOTIFICATIONS_RETRY_BASE_SECONDS:-30}
+      NOTIFICATIONS_ALLOWED_ORIGINS: ${NOTIFICATIONS_ALLOWED_ORIGINS:-http://localhost:5173}
+      NOTIFICATIONS_EMAIL_FROM: ${NOTIFICATIONS_EMAIL_FROM:-}
+      NOTIFICATIONS_OUTBOX_SCAN_MS: ${NOTIFICATIONS_OUTBOX_SCAN_MS:-10000}
+      MANAGEMENT_HEALTH_MAIL_ENABLED: "false"
+    ports:
+      - "8092:8092"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8092/actuator/health > /dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 150s
+    networks:
+      - fawnix-network
+
   api-gateway:
     build:
       context: .
@@ -369,6 +663,20 @@ services:
       hrms-service:
         condition: service_healthy
       sales-service:
+        condition: service_healthy
+      org-service:
+        condition: service_healthy
+      forms-service:
+        condition: service_healthy
+      approval-service:
+        condition: service_healthy
+      recruitment-service:
+        condition: service_healthy
+      integration-service:
+        condition: service_healthy
+      analytics-service:
+        condition: service_healthy
+      notifications-service:
         condition: service_healthy
     environment:
       SERVER_PORT: "8080"

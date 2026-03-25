@@ -51,4 +51,9 @@ public final class UserDtos {
       boolean active
   ) {
   }
+
+  public record UpdateUserRoleRequest(
+      @NotBlank String role
+  ) {
+  }
 }
