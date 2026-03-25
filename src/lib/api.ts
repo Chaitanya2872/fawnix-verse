@@ -87,9 +87,21 @@ export const analyticsApi = {
 };
 
 export const approvalFlowsApi = {
-  list: () => api.get("/approval-flows"),
+  list: (params?: object) => api.get("/approval-flows", { params }),
   get: (id: string) => api.get(`/approval-flows/${id}`),
   create: (data: object) => api.post("/approval-flows", data),
+  update: (id: string, data: object) => api.patch(`/approval-flows/${id}`, data),
+  deactivate: (id: string) => api.post(`/approval-flows/${id}/deactivate`),
+};
+
+export const approvalsApi = {
+  inbox: (params?: object) => api.get("/approvals/inbox", { params }),
+  outbox: (params?: object) => api.get("/approvals/outbox", { params }),
+  history: (params?: object) => api.get("/approvals/history", { params }),
+  getRequest: (id: string) => api.get(`/approvals/requests/${id}`),
+  act: (id: string, data: object) => api.post(`/approvals/requests/${id}/actions`, data),
+  kpis: (scope: string, params?: object) =>
+    api.get("/approvals/kpis", { params: { scope, ...(params || {}) } }),
 };
 
 export const departmentsApi = {

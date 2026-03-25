@@ -76,7 +76,7 @@ export default function HiringRequestsPage() {
               <th className="table-header text-left">Headcount</th>
               <th className="table-header text-left">Priority</th>
               <th className="table-header text-left">Status</th>
-              <th className="table-header text-left">Stage</th>
+              <th className="table-header text-left">Approval</th>
               <th className="table-header text-left">Date</th>
               <th className="table-header text-left">Action</th>
             </tr>
@@ -110,7 +110,7 @@ export default function HiringRequestsPage() {
                   </span>
                 </td>
                 <td className="table-cell text-xs text-gray-500">
-                  {req.current_stage || 'Complete'}
+                  {req.approval_status || 'Not sent'}
                 </td>
                 <td className="table-cell text-gray-400 text-xs">
                   <span className="flex items-center gap-1">

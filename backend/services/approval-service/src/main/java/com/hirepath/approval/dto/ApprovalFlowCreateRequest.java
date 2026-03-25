@@ -7,6 +7,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 public class ApprovalFlowCreateRequest {
     private String name;
     private String description;
+    private String version;
     @JsonProperty("is_active")
     private boolean active = true;
     private List<StageRequest> stages;
@@ -25,6 +26,14 @@ public class ApprovalFlowCreateRequest {
 
     public void setDescription(String description) {
         this.description = description;
+    }
+
+    public String getVersion() {
+        return version;
+    }
+
+    public void setVersion(String version) {
+        this.version = version;
     }
 
     public boolean isActive() {
@@ -50,6 +59,10 @@ public class ApprovalFlowCreateRequest {
         private String approverUserId;
         @JsonProperty("action_label")
         private String actionLabel;
+        @JsonProperty("requires_all")
+        private Boolean requiresAll;
+        @JsonProperty("sla_days")
+        private Integer slaDays;
 
         public int getOrder() {
             return order;
@@ -81,6 +94,22 @@ public class ApprovalFlowCreateRequest {
 
         public void setActionLabel(String actionLabel) {
             this.actionLabel = actionLabel;
+        }
+
+        public Boolean getRequiresAll() {
+            return requiresAll;
+        }
+
+        public void setRequiresAll(Boolean requiresAll) {
+            this.requiresAll = requiresAll;
+        }
+
+        public Integer getSlaDays() {
+            return slaDays;
+        }
+
+        public void setSlaDays(Integer slaDays) {
+            this.slaDays = slaDays;
         }
     }
 }

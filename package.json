@@ -17,6 +17,7 @@
     "docker:down": "docker compose down",
     "docker:logs": "docker compose logs -f",
     "build": "tsc -b && vite build && mvn -q -DskipTests package -f backend/pom.xml",
+    "build:frontend": "vite build",
     "build:backend": "mvn -q -DskipTests package -f backend/pom.xml",
     "lint": "eslint src --ext ts,tsx",
     "preview": "vite preview",

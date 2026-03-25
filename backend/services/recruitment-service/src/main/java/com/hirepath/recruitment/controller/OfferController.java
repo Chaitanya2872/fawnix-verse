@@ -3,7 +3,6 @@ package com.hirepath.recruitment.controller;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
-import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -11,17 +10,18 @@ import java.util.UUID;
 
 import com.hirepath.recruitment.client.ApprovalClient;
 import com.hirepath.recruitment.client.dto.ApprovalFlowResponse;
+import com.hirepath.recruitment.client.dto.ApprovalRequestCreateRequest;
+import com.hirepath.recruitment.client.dto.ApprovalRequestCreateResponse;
+import com.hirepath.recruitment.client.dto.ApprovalStatusResponse;
+import com.hirepath.recruitment.client.dto.InternalApprovalActionRequest;
 import com.hirepath.recruitment.domain.Candidate;
 import com.hirepath.recruitment.domain.CandidateApplication;
 import com.hirepath.recruitment.domain.Offer;
-import com.hirepath.recruitment.domain.OfferApproval;
 import com.hirepath.recruitment.domain.OfferStatus;
-import com.hirepath.recruitment.domain.RequestStatus;
 import com.hirepath.recruitment.domain.UserRole;
 import com.hirepath.recruitment.dto.OfferActionRequest;
 import com.hirepath.recruitment.dto.OfferCreateRequest;
 import com.hirepath.recruitment.repository.CandidateApplicationRepository;
-import com.hirepath.recruitment.repository.OfferApprovalRepository;
 import com.hirepath.recruitment.repository.OfferRepository;
 import com.hirepath.recruitment.util.UserContext;
 
@@ -38,23 +38,22 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import feign.FeignException;
+
 @RestController
 @RequestMapping("/api/offers")
 public class OfferController {
 
     private final OfferRepository offerRepository;
-    private final OfferApprovalRepository offerApprovalRepository;
     private final CandidateApplicationRepository candidateApplicationRepository;
     private final ApprovalClient approvalClient;
 
     public OfferController(
         OfferRepository offerRepository,
-        OfferApprovalRepository offerApprovalRepository,
         CandidateApplicationRepository candidateApplicationRepository,
         ApprovalClient approvalClient
     ) {
         this.offerRepository = offerRepository;
-        this.offerApprovalRepository = offerApprovalRepository;
         this.candidateApplicationRepository = candidateApplicationRepository;
         this.approvalClient = approvalClient;
     }
@@ -85,12 +84,9 @@ public class OfferController {
             row.put("responded_at", offer.getRespondedAt());
             row.put("created_at", offer.getCreatedAt());
             row.put("approval_flow_id", offer.getApprovalFlowId());
-            row.put("approvals", offer.getApprovals() != null
-                ? offer.getApprovals().stream()
-                    .sorted(Comparator.comparing(a -> a.getLevel() == null ? 0 : a.getLevel()))
-                    .map(this::approvalSummary)
-                    .toList()
-                : List.of());
+            row.put("approval_request_id", offer.getApprovalRequestId());
+            row.put("approval_status", fetchApprovalStatus("offer", offer.getId().toString()));
+            row.put("approvals", List.of());
             return row;
         }).toList();
         return ResponseEntity.ok(Map.of("data", data));
@@ -124,12 +120,9 @@ public class OfferController {
         row.put("responded_at", offer.getRespondedAt());
         row.put("created_at", offer.getCreatedAt());
         row.put("approval_flow_id", offer.getApprovalFlowId());
-        row.put("approvals", offer.getApprovals() != null
-            ? offer.getApprovals().stream()
-                .sorted(Comparator.comparing(a -> a.getLevel() == null ? 0 : a.getLevel()))
-                .map(this::approvalDetail)
-                .toList()
-            : List.of());
+        row.put("approval_request_id", offer.getApprovalRequestId());
+        row.put("approval_status", fetchApprovalStatus("offer", offer.getId().toString()));
+        row.put("approvals", List.of());
         return ResponseEntity.ok(row);
     }
 
@@ -191,22 +184,37 @@ public class OfferController {
         if (flow.getStages() == null || flow.getStages().isEmpty()) {
             return ResponseEntity.badRequest().body("Approval flow has no stages");
         }
-
-        List<ApprovalFlowResponse.ApprovalStageResponse> stages = flow.getStages().stream()
-            .sorted(Comparator.comparing(stage -> stage.getOrder() == null ? 0 : stage.getOrder()))
-            .toList();
-        for (ApprovalFlowResponse.ApprovalStageResponse stage : stages) {
-            OfferApproval approval = new OfferApproval();
-            approval.setOffer(offer);
-            approval.setApproverId(stage.getApproverUserId());
-            approval.setLevel(stage.getOrder());
-            approval.setStatus(RequestStatus.PENDING);
-            approval.setComments(null);
-            offerApprovalRepository.save(approval);
+        try {
+            ApprovalRequestCreateRequest approvalRequest = new ApprovalRequestCreateRequest();
+            approvalRequest.setFlowId(offer.getApprovalFlowId());
+            approvalRequest.setModule("recruitment");
+            approvalRequest.setEntityType("offer");
+            approvalRequest.setEntityId(offer.getId().toString());
+            approvalRequest.setTitle("Offer Approval");
+            approvalRequest.setSummary("Offer for " + (offer.getApplication() != null && offer.getApplication().getCandidate() != null
+                ? offer.getApplication().getCandidate().getFullName() : "candidate"));
+            approvalRequest.setRequesterId(UserContext.getUserId(user));
+            approvalRequest.setRequesterName(user != null ? user.getFullName() : null);
+            approvalRequest.setPriority("medium");
+            Map<String, Object> payload = new LinkedHashMap<>();
+            payload.put("candidate_id", offer.getApplication() != null && offer.getApplication().getCandidate() != null
+                ? offer.getApplication().getCandidate().getId() : null);
+            payload.put("position_title", offer.getApplication() != null && offer.getApplication().getPosition() != null
+                ? offer.getApplication().getPosition().getTitle() : null);
+            payload.put("base_salary", offer.getBaseSalary());
+            payload.put("bonus", offer.getBonus());
+            approvalRequest.setPayloadSnapshot(payload);
+            approvalRequest.setSubmit(true);
+            ApprovalRequestCreateResponse created = approvalClient.createApprovalRequest(approvalRequest);
+            if (created != null && created.getId() != null) {
+                offer.setApprovalRequestId(created.getId());
+            }
+            offer.setStatus(OfferStatus.PENDING_APPROVAL);
+            offerRepository.save(offer);
+            return ResponseEntity.ok(Map.of("message", "Offer sent for approval"));
+        } catch (FeignException ex) {
+            return ResponseEntity.status(ex.status()).body("Approval service error");
         }
-        offer.setStatus(OfferStatus.PENDING_APPROVAL);
-        offerRepository.save(offer);
-        return ResponseEntity.ok(Map.of("message", "Offer sent for approval"));
     }
 
     @PostMapping("/{id}/approve")
@@ -221,25 +229,24 @@ public class OfferController {
         if (offer == null) {
             return ResponseEntity.notFound().build();
         }
-        OfferApproval current = currentPendingApproval(offer);
-        if (current == null) {
-            return ResponseEntity.badRequest().body("No pending approvals");
+        if (offer.getApprovalRequestId() == null || offer.getApprovalRequestId().isBlank()) {
+            return ResponseEntity.badRequest().body("approval_request_id is missing");
         }
-        if (!"approved".equalsIgnoreCase(action.getStatus()) && !"rejected".equalsIgnoreCase(action.getStatus())) {
-            return ResponseEntity.badRequest().body("Invalid status");
+        if (action == null || action.getStatus() == null) {
+            return ResponseEntity.badRequest().body("status is required");
         }
-        current.setStatus("approved".equalsIgnoreCase(action.getStatus()) ? RequestStatus.APPROVED : RequestStatus.REJECTED);
-        current.setComments(action.getComments());
-        current.setDecidedAt(OffsetDateTime.now());
-        offerApprovalRepository.save(current);
-
-        OfferApproval next = currentPendingApproval(offer);
-        if (next == null) {
-            offer.setStatus(RequestStatus.REJECTED.equals(current.getStatus()) ? OfferStatus.DECLINED : OfferStatus.APPROVED);
-        } else {
-            offer.setStatus(OfferStatus.PENDING_APPROVAL);
+        InternalApprovalActionRequest internalAction = new InternalApprovalActionRequest();
+        internalAction.setAction(action.getStatus());
+        internalAction.setComment(action.getComments());
+        internalAction.setActorId(UserContext.getUserId(user));
+        internalAction.setActorName(user != null ? user.getFullName() : null);
+        internalAction.setActorEmail(user != null ? user.getUsername() : null);
+        internalAction.setActorRoles(user != null ? user.getRoleNames() : List.of());
+        try {
+            approvalClient.actOnApproval(offer.getApprovalRequestId(), internalAction);
+        } catch (FeignException ex) {
+            return ResponseEntity.status(ex.status()).body("Approval service error");
         }
-        offerRepository.save(offer);
         return ResponseEntity.ok(Map.of("message", "Offer " + action.getStatus()));
     }
 
@@ -272,30 +279,15 @@ public class OfferController {
         return ResponseEntity.ok(Map.of("message", "Offer status updated"));
     }
 
-    private OfferApproval currentPendingApproval(Offer offer) {
-        if (offer.getApprovals() == null) {
+    private String fetchApprovalStatus(String entityType, String entityId) {
+        try {
+            ApprovalStatusResponse status = approvalClient.getApprovalStatus("recruitment", entityType, entityId);
+            return status != null ? status.getStatus() : null;
+        } catch (FeignException.NotFound ex) {
+            return null;
+        } catch (FeignException ex) {
             return null;
         }
-        return offer.getApprovals().stream()
-            .filter(a -> a.getStatus() == RequestStatus.PENDING)
-            .sorted(Comparator.comparing(a -> a.getLevel() == null ? 0 : a.getLevel()))
-            .findFirst()
-            .orElse(null);
     }
 
-    private Map<String, Object> approvalSummary(OfferApproval approval) {
-        Map<String, Object> row = new LinkedHashMap<>();
-        row.put("id", approval.getId());
-        row.put("level", approval.getLevel());
-        row.put("status", approval.getStatus() != null ? approval.getStatus().getValue() : null);
-        row.put("approver_id", approval.getApproverId());
-        return row;
-    }
-
-    private Map<String, Object> approvalDetail(OfferApproval approval) {
-        Map<String, Object> row = approvalSummary(approval);
-        row.put("comments", approval.getComments());
-        row.put("decided_at", approval.getDecidedAt());
-        return row;
-    }
 }

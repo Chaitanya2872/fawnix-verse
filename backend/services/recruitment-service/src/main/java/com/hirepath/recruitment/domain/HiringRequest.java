@@ -41,6 +41,9 @@ public class HiringRequest {
     @Column(name = "approval_flow_id")
     private String approvalFlowId;
 
+    @Column(name = "approval_request_id")
+    private String approvalRequestId;
+
     @Column(name = "hiring_manager_id")
     private String hiringManagerId;
 
@@ -116,6 +119,14 @@ public class HiringRequest {
 
     public void setApprovalFlowId(String approvalFlowId) {
         this.approvalFlowId = approvalFlowId;
+    }
+
+    public String getApprovalRequestId() {
+        return approvalRequestId;
+    }
+
+    public void setApprovalRequestId(String approvalRequestId) {
+        this.approvalRequestId = approvalRequestId;
     }
 
     public String getHiringManagerId() {

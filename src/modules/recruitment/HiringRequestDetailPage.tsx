@@ -1,26 +1,16 @@
 import { Link, useParams } from 'react-router-dom'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, CheckCircle, XCircle } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
+import { ArrowLeft } from 'lucide-react'
 import { recruitmentApi } from '@/lib/api'
 import { cn, STATUS_COLORS, formatDate } from '@/lib/utils'
 
 export default function HiringRequestDetailPage() {
   const { id } = useParams<{ id: string }>()
-  const qc = useQueryClient()
 
   const { data, isLoading } = useQuery({
     queryKey: ['hiring-request', id],
     enabled: Boolean(id),
     queryFn: () => recruitmentApi.getHiringRequest(id!).then(r => r.data),
-  })
-
-  const approveMutation = useMutation({
-    mutationFn: ({ status }: { status: 'approved' | 'rejected' }) =>
-      recruitmentApi.approveHiringRequest(id!, { status }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['hiring-request', id] })
-      qc.invalidateQueries({ queryKey: ['hiring-requests'] })
-    },
   })
 
   if (!id) {
@@ -45,8 +35,8 @@ export default function HiringRequestDetailPage() {
     )
   }
 
-  const approvals = [...(data.approvals || [])].sort((a: any, b: any) => a.level - b.level)
   const departmentLabel = data.department_name || data.department_id || 'N/A'
+  const approvalLink = data.approval_request_id ? `/approvals/requests/${data.approval_request_id}` : null
 
   return (
     <div className="max-w-4xl animate-in space-y-6">
@@ -68,6 +58,12 @@ export default function HiringRequestDetailPage() {
           </span>
         </div>
         <div>
+          <p className="text-xs text-gray-500">Approval Status</p>
+          <span className={cn('badge mt-1', STATUS_COLORS[data.approval_status] || 'badge-gray')}>
+            {data.approval_status || 'not sent'}
+          </span>
+        </div>
+        <div>
           <p className="text-xs text-gray-500">Priority</p>
           <p className="text-sm font-medium text-gray-900 mt-1">
             {data.priority?.charAt(0).toUpperCase() + data.priority?.slice(1)}
@@ -80,10 +76,6 @@ export default function HiringRequestDetailPage() {
         <div>
           <p className="text-xs text-gray-500">Headcount</p>
           <p className="text-sm font-medium text-gray-900 mt-1">{data.headcount}</p>
-        </div>
-        <div>
-          <p className="text-xs text-gray-500">Current Stage</p>
-          <p className="text-sm font-medium text-gray-900 mt-1">{data.current_stage || 'Complete'}</p>
         </div>
         <div>
           <p className="text-xs text-gray-500">Created</p>
@@ -102,55 +94,17 @@ export default function HiringRequestDetailPage() {
       </div>
 
       <div className="card p-5">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-semibold text-gray-900">Approvals</h2>
-          <Link to={`/approvals/hiring_request/${id}`} className="text-xs text-brand-600 hover:underline">Open in Approvals</Link>
-        </div>
-        <div className="space-y-3">
-          {approvals.length === 0 && (
-            <p className="text-sm text-gray-500">No approvals for this request.</p>
+          {approvalLink ? (
+            <Link to={approvalLink} className="text-xs text-brand-600 hover:underline">Open in Approvals</Link>
+          ) : (
+            <span className="text-xs text-gray-400">No approval request yet</span>
           )}
-          {approvals.map((a: any) => (
-            <div key={a.id} className="flex items-center justify-between p-3 border border-gray-100 rounded-lg">
-              <div>
-                <p className="text-sm font-medium text-gray-900">Stage {a.level}</p>
-                <p className="text-xs text-gray-500">{a.role || 'User'}</p>
-                {a.comments && (
-                  <p className="text-xs text-gray-600 mt-1">{a.comments}</p>
-                )}
-              </div>
-              <div className="text-right">
-                <span className={cn('badge', STATUS_COLORS[a.status] || 'badge-gray')}>
-                  {a.status?.charAt(0).toUpperCase() + a.status?.slice(1)}
-                </span>
-                {a.decided_at && (
-                  <p className="text-xs text-gray-400 mt-1">{formatDate(a.decided_at)}</p>
-                )}
-              </div>
-            </div>
-          ))}
         </div>
-
-        {data.can_approve && data.status === 'pending' && (
-          <div className="mt-4 flex items-center gap-3">
-            <button
-              className="btn-primary"
-              onClick={() => approveMutation.mutate({ status: 'approved' })}
-              disabled={approveMutation.isPending}
-            >
-              <CheckCircle className="w-4 h-4" />
-              Approve
-            </button>
-            <button
-              className="btn-secondary"
-              onClick={() => approveMutation.mutate({ status: 'rejected' })}
-              disabled={approveMutation.isPending}
-            >
-              <XCircle className="w-4 h-4" />
-              Reject
-            </button>
-          </div>
-        )}
+        <p className="text-sm text-gray-500">
+          Use the approvals module to review stages, take actions, or view history.
+        </p>
       </div>
     </div>
   )

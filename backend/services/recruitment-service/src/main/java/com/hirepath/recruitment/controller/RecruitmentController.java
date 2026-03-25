@@ -4,7 +4,6 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -13,9 +12,12 @@ import java.util.UUID;
 import com.hirepath.recruitment.client.ApprovalClient;
 import com.hirepath.recruitment.client.IntegrationClient;
 import com.hirepath.recruitment.client.dto.ApprovalFlowResponse;
+import com.hirepath.recruitment.client.dto.ApprovalRequestCreateRequest;
+import com.hirepath.recruitment.client.dto.ApprovalRequestCreateResponse;
+import com.hirepath.recruitment.client.dto.ApprovalStatusResponse;
+import com.hirepath.recruitment.client.dto.InternalApprovalActionRequest;
 import com.hirepath.recruitment.client.dto.PublishPostingRequest;
 import com.hirepath.recruitment.client.dto.PublishPostingResponse;
-import com.hirepath.recruitment.domain.Approval;
 import com.hirepath.recruitment.domain.HiringRequest;
 import com.hirepath.recruitment.domain.JobPosition;
 import com.hirepath.recruitment.domain.JobPosting;
@@ -34,7 +36,6 @@ import com.hirepath.recruitment.dto.PositionUpdateRequest;
 import com.hirepath.recruitment.dto.PostingCreateRequest;
 import com.hirepath.recruitment.dto.PostingPublishRequest;
 import com.hirepath.recruitment.dto.PostingUpdateRequest;
-import com.hirepath.recruitment.repository.ApprovalRepository;
 import com.hirepath.recruitment.repository.CandidateApplicationRepository;
 import com.hirepath.recruitment.repository.HiringRequestRepository;
 import com.hirepath.recruitment.repository.JobPositionRepository;
@@ -67,7 +68,6 @@ import feign.FeignException;
 public class RecruitmentController {
 
     private final HiringRequestRepository hiringRequestRepository;
-    private final ApprovalRepository approvalRepository;
     private final JobPositionRepository jobPositionRepository;
     private final JobPostingRepository jobPostingRepository;
     private final PostingPlatformRepository postingPlatformRepository;
@@ -78,7 +78,6 @@ public class RecruitmentController {
 
     public RecruitmentController(
         HiringRequestRepository hiringRequestRepository,
-        ApprovalRepository approvalRepository,
         JobPositionRepository jobPositionRepository,
         JobPostingRepository jobPostingRepository,
         PostingPlatformRepository postingPlatformRepository,
@@ -88,7 +87,6 @@ public class RecruitmentController {
         ObjectMapper objectMapper
     ) {
         this.hiringRequestRepository = hiringRequestRepository;
-        this.approvalRepository = approvalRepository;
         this.jobPositionRepository = jobPositionRepository;
         this.jobPostingRepository = jobPostingRepository;
         this.postingPlatformRepository = postingPlatformRepository;
@@ -147,14 +145,11 @@ public class RecruitmentController {
             row.put("department_id", req.getDepartmentId());
             row.put("department_name", null);
             row.put("approval_flow_id", req.getApprovalFlowId());
-            Approval pending = currentPendingApproval(req);
-            row.put("current_stage", currentStageLabel(pending));
-            row.put("can_approve", canUserApprove(user, pending));
-            List<Map<String, Object>> approvals = req.getApprovals().stream()
-                .sorted(Comparator.comparing(a -> a.getLevel() == null ? 0 : a.getLevel()))
-                .map(this::approvalSummary)
-                .toList();
-            row.put("approvals", approvals);
+            row.put("approval_request_id", req.getApprovalRequestId());
+            row.put("approval_status", fetchApprovalStatus("hiring_request", req.getId().toString()));
+            row.put("current_stage", null);
+            row.put("can_approve", false);
+            row.put("approvals", List.of());
             return row;
         }).toList();
 
@@ -207,20 +202,35 @@ public class RecruitmentController {
         HiringRequest saved = hiringRequestRepository.save(hiringRequest);
 
         if (!isDraft) {
-            List<ApprovalFlowResponse.ApprovalStageResponse> stages = flow.getStages().stream()
-                .sorted(Comparator.comparing(stage -> stage.getOrder() == null ? 0 : stage.getOrder()))
-                .toList();
-            List<Approval> approvals = new ArrayList<>();
-            for (ApprovalFlowResponse.ApprovalStageResponse stage : stages) {
-                Approval approval = new Approval();
-                approval.setHiringRequest(saved);
-                approval.setApproverId(stage.getApproverUserId());
-                approval.setLevel(stage.getOrder());
-                approval.setRole(stage.getRole());
-                approval.setStatus(RequestStatus.PENDING);
-                approvals.add(approval);
+            try {
+                ApprovalRequestCreateRequest approvalRequest = new ApprovalRequestCreateRequest();
+                approvalRequest.setFlowId(request.getApprovalFlowId());
+                approvalRequest.setModule("recruitment");
+                approvalRequest.setEntityType("hiring_request");
+                approvalRequest.setEntityId(saved.getId().toString());
+                approvalRequest.setTitle("Hiring Request: " + saved.getJobTitle());
+                approvalRequest.setSummary(saved.getDescription());
+                approvalRequest.setRequesterId(UserContext.getUserId(user));
+                approvalRequest.setRequesterName(user != null ? user.getFullName() : null);
+                approvalRequest.setPriority(saved.getPriority());
+                Map<String, Object> payload = new LinkedHashMap<>();
+                payload.put("job_title", saved.getJobTitle());
+                payload.put("department_id", saved.getDepartmentId());
+                payload.put("headcount", saved.getHeadcount());
+                payload.put("priority", saved.getPriority());
+                approvalRequest.setPayloadSnapshot(payload);
+                approvalRequest.setSubmit(true);
+                ApprovalRequestCreateResponse created = approvalClient.createApprovalRequest(approvalRequest);
+                if (created != null && created.getId() != null) {
+                    saved.setApprovalRequestId(created.getId());
+                    saved.setStatus(RequestStatus.PENDING);
+                    hiringRequestRepository.save(saved);
+                }
+            } catch (FeignException ex) {
+                saved.setStatus(RequestStatus.DRAFT);
+                hiringRequestRepository.save(saved);
+                return ResponseEntity.status(ex.status()).body("Approval service error");
             }
-            approvalRepository.saveAll(approvals);
         }
 
         return ResponseEntity.status(HttpStatus.CREATED)
@@ -254,19 +264,16 @@ public class RecruitmentController {
         payload.put("department_id", request.getDepartmentId());
         payload.put("department_name", null);
         payload.put("approval_flow_id", request.getApprovalFlowId());
+        payload.put("approval_request_id", request.getApprovalRequestId());
         payload.put("created_at", request.getCreatedAt());
         payload.put("position_id", request.getJobPosition() != null ? request.getJobPosition().getId() : null);
         payload.put("position_status", request.getJobPosition() != null && request.getJobPosition().getStatus() != null
             ? request.getJobPosition().getStatus().getValue()
             : null);
-        Approval pending = currentPendingApproval(request);
-        payload.put("current_stage", currentStageLabel(pending));
-        payload.put("can_approve", canUserApprove(user, pending));
-        List<Map<String, Object>> approvals = request.getApprovals().stream()
-            .sorted(Comparator.comparing(a -> a.getLevel() == null ? 0 : a.getLevel()))
-            .map(this::approvalDetail)
-            .toList();
-        payload.put("approvals", approvals);
+        payload.put("approval_status", fetchApprovalStatus("hiring_request", request.getId().toString()));
+        payload.put("current_stage", null);
+        payload.put("can_approve", false);
+        payload.put("approvals", List.of());
         return ResponseEntity.ok(payload);
     }
 
@@ -278,54 +285,28 @@ public class RecruitmentController {
         @AuthenticationPrincipal AppUserDetails user
     ) {
         UserContext.requireRole(user, UserRole.ADMIN, UserRole.HR_MANAGER, UserRole.HIRING_MANAGER);
-        HiringRequest request = hiringRequestRepository.findWithApprovalsById(UUID.fromString(id)).orElse(null);
+        HiringRequest request = hiringRequestRepository.findById(UUID.fromString(id)).orElse(null);
         if (request == null) {
             return ResponseEntity.notFound().build();
         }
-        if (!"approved".equalsIgnoreCase(action.getStatus()) && !"rejected".equalsIgnoreCase(action.getStatus())) {
-            return ResponseEntity.badRequest().body("Invalid status");
+        if (request.getApprovalRequestId() == null || request.getApprovalRequestId().isBlank()) {
+            return ResponseEntity.badRequest().body("approval_request_id is missing");
         }
-        Approval current = currentPendingApproval(request);
-        if (current == null) {
-            return ResponseEntity.badRequest().body("No pending approvals");
+        if (action == null || action.getStatus() == null) {
+            return ResponseEntity.badRequest().body("status is required");
         }
-
-        String role = UserContext.getRole(user);
-        String userId = UserContext.getUserId(user);
-        boolean isAdmin = UserRole.ADMIN.getValue().equalsIgnoreCase(role);
-        if (!isAdmin && current.getApproverId() != null && !current.getApproverId().equals(userId)) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Not allowed to approve this stage");
+        InternalApprovalActionRequest internalAction = new InternalApprovalActionRequest();
+        internalAction.setAction(action.getStatus());
+        internalAction.setComment(action.getComments());
+        internalAction.setActorId(UserContext.getUserId(user));
+        internalAction.setActorName(user != null ? user.getFullName() : null);
+        internalAction.setActorEmail(user != null ? user.getUsername() : null);
+        internalAction.setActorRoles(user != null ? user.getRoleNames() : List.of());
+        try {
+            approvalClient.actOnApproval(request.getApprovalRequestId(), internalAction);
+        } catch (FeignException ex) {
+            return ResponseEntity.status(ex.status()).body("Approval service error");
         }
-        if (!isAdmin && current.getRole() != null && !current.getRole().equalsIgnoreCase(role)) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Not allowed to approve this stage");
-        }
-
-        boolean approved = "approved".equalsIgnoreCase(action.getStatus());
-        current.setStatus(approved ? RequestStatus.APPROVED : RequestStatus.REJECTED);
-        current.setComments(action.getComments());
-        current.setDecidedAt(OffsetDateTime.now());
-
-        if (!approved) {
-            request.setStatus(RequestStatus.REJECTED);
-        } else {
-            Approval next = currentPendingApproval(request);
-            if (next == null) {
-                request.setStatus(RequestStatus.APPROVED);
-                if (request.getJobPosition() == null) {
-                    JobPosition position = new JobPosition();
-                    position.setHiringRequest(request);
-                    position.setTitle(request.getJobTitle());
-                    position.setDepartmentId(request.getDepartmentId());
-                    position.setStatus(JobStatus.OPEN);
-                    JobPosition saved = jobPositionRepository.save(position);
-                    request.setJobPosition(saved);
-                }
-            } else {
-                request.setStatus(RequestStatus.PENDING);
-            }
-        }
-
-        hiringRequestRepository.save(request);
         return ResponseEntity.ok(Map.of("message", "Request " + action.getStatus()));
     }
 
@@ -709,55 +690,6 @@ public class RecruitmentController {
         return ResponseEntity.ok(Map.of("message", "Posting closed"));
     }
 
-    private Approval currentPendingApproval(HiringRequest request) {
-        return request.getApprovals().stream()
-            .filter(approval -> approval.getStatus() == RequestStatus.PENDING)
-            .sorted(Comparator.comparing(a -> a.getLevel() == null ? 0 : a.getLevel()))
-            .findFirst()
-            .orElse(null);
-    }
-
-    private String currentStageLabel(Approval approval) {
-        if (approval == null) {
-            return null;
-        }
-        return approval.getRole() != null ? approval.getRole() : "user";
-    }
-
-    private boolean canUserApprove(AppUserDetails user, Approval approval) {
-        if (approval == null || user == null) {
-            return false;
-        }
-        String role = UserContext.getRole(user);
-        if (UserRole.ADMIN.getValue().equalsIgnoreCase(role)) {
-            return true;
-        }
-        String userId = UserContext.getUserId(user);
-        if (approval.getApproverId() != null) {
-            return approval.getApproverId().equals(userId);
-        }
-        if (approval.getRole() != null) {
-            return approval.getRole().equalsIgnoreCase(role);
-        }
-        return false;
-    }
-
-    private Map<String, Object> approvalSummary(Approval approval) {
-        Map<String, Object> row = new LinkedHashMap<>();
-        row.put("id", approval.getId());
-        row.put("level", approval.getLevel());
-        row.put("role", approval.getRole());
-        row.put("status", approval.getStatus() != null ? approval.getStatus().getValue() : null);
-        return row;
-    }
-
-    private Map<String, Object> approvalDetail(Approval approval) {
-        Map<String, Object> row = approvalSummary(approval);
-        row.put("comments", approval.getComments());
-        row.put("decided_at", approval.getDecidedAt());
-        return row;
-    }
-
     private String serializeRounds(List<InterviewRoundConfig> rounds) {
         if (rounds == null) {
             return null;
@@ -784,6 +716,17 @@ public class RecruitmentController {
         return jobPostingRepository.findTopByPosition_IdOrderByCreatedAtDesc(positionId)
             .map(posting -> posting.getStatus() != null ? posting.getStatus().getValue() : null)
             .orElse(null);
+    }
+
+    private String fetchApprovalStatus(String entityType, String entityId) {
+        try {
+            ApprovalStatusResponse status = approvalClient.getApprovalStatus("recruitment", entityType, entityId);
+            return status != null ? status.getStatus() : null;
+        } catch (FeignException.NotFound ex) {
+            return null;
+        } catch (FeignException ex) {
+            return null;
+        }
     }
 
     private Map<String, Object> postingSummary(JobPosting posting) {

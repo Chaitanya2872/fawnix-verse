@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.UUID;
 
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
 
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
@@ -33,9 +34,19 @@ public class ApprovalFlow {
     @Column(name = "is_active", nullable = false)
     private boolean active = true;
 
+    @Column(name = "version")
+    private String version = "v1.0";
+
+    @Column(name = "status")
+    private String status = "active";
+
     @CreationTimestamp
     @Column(name = "created_at")
     private OffsetDateTime createdAt;
+
+    @UpdateTimestamp
+    @Column(name = "updated_at")
+    private OffsetDateTime updatedAt;
 
     @OneToMany(mappedBy = "flow", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("orderIndex ASC")
@@ -67,10 +78,31 @@ public class ApprovalFlow {
 
     public void setActive(boolean active) {
         this.active = active;
+        this.status = active ? "active" : "inactive";
+    }
+
+    public String getVersion() {
+        return version;
+    }
+
+    public void setVersion(String version) {
+        this.version = version;
+    }
+
+    public String getStatus() {
+        return status;
+    }
+
+    public void setStatus(String status) {
+        this.status = status;
     }
 
     public OffsetDateTime getCreatedAt() {
         return createdAt;
+    }
+
+    public OffsetDateTime getUpdatedAt() {
+        return updatedAt;
     }
 
     public List<ApprovalFlowStage> getStages() {

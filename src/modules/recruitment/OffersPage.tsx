@@ -1,11 +1,12 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Gift, Plus, Search, Clock, CheckCircle2, XCircle, Send,
   DollarSign, Calendar, AlertCircle
 } from 'lucide-react'
 import { approvalFlowsApi, candidatesApi, offersApi } from '@/lib/api'
-import { cn, formatDate } from '@/lib/utils'
+import { cn, formatDate, STATUS_COLORS } from '@/lib/utils'
 
 const STATUS_CONFIG: Record<string, { label: string; cls: string }> = {
   draft:            { label: 'Draft',            cls: 'badge-gray'   },
@@ -190,12 +191,15 @@ export default function OffersPage() {
                         <p className="font-medium flex items-center gap-1"><Clock className="w-3 h-3" />{offer.offer_expiry ? formatDate(offer.offer_expiry) : '-'}</p>
                       </div>
                     </div>
-                    {offer.approvals && offer.approvals.length > 0 && (
+                    {offer.approval_request_id && (
                       <div className="flex items-center gap-2 mt-3">
-                        <span className="text-xs text-gray-400">Approvals:</span>
-                        {offer.approvals.map((ap: any) => (
-                          <span key={ap.id} className="badge-blue">Stage {ap.level}: {ap.status}</span>
-                        ))}
+                        <span className="text-xs text-gray-400">Approval:</span>
+                        <span className={cn('badge', STATUS_COLORS[offer.approval_status] || 'badge-gray')}>
+                          {offer.approval_status || 'pending'}
+                        </span>
+                        <Link className="text-xs text-brand-600 hover:underline" to={`/approvals/requests/${offer.approval_request_id}`}>
+                          Open
+                        </Link>
                       </div>
                     )}
                   </div>
@@ -242,7 +246,7 @@ export default function OffersPage() {
                   <option value="">Select application</option>
                   {applications.map((app: any) => (
                     <option key={app.application_id} value={app.application_id}>
-                      {app.candidate_name} · {app.position_title}
+                      {app.candidate_name}  {app.position_title}
                     </option>
                   ))}
                 </select>

@@ -4,6 +4,7 @@ import java.time.OffsetDateTime;
 import java.util.UUID;
 
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -38,9 +39,19 @@ public class ApprovalFlowStage {
     @Column(name = "action_label")
     private String actionLabel;
 
+    @Column(name = "requires_all")
+    private boolean requiresAll = true;
+
+    @Column(name = "sla_days")
+    private Integer slaDays;
+
     @CreationTimestamp
     @Column(name = "created_at")
     private OffsetDateTime createdAt;
+
+    @UpdateTimestamp
+    @Column(name = "updated_at")
+    private OffsetDateTime updatedAt;
 
     public UUID getId() {
         return id;
@@ -86,7 +97,27 @@ public class ApprovalFlowStage {
         this.actionLabel = actionLabel;
     }
 
+    public boolean isRequiresAll() {
+        return requiresAll;
+    }
+
+    public void setRequiresAll(boolean requiresAll) {
+        this.requiresAll = requiresAll;
+    }
+
+    public Integer getSlaDays() {
+        return slaDays;
+    }
+
+    public void setSlaDays(Integer slaDays) {
+        this.slaDays = slaDays;
+    }
+
     public OffsetDateTime getCreatedAt() {
         return createdAt;
+    }
+
+    public OffsetDateTime getUpdatedAt() {
+        return updatedAt;
     }
 }

@@ -34,6 +34,8 @@ import FormCollectionsPage from "@/modules/forms/FormCollectionsPage";
 import FormAnalyticsPage from "@/modules/forms/FormAnalyticsPage";
 import FormLinksPage from "@/modules/forms/FormLinksPage";
 import ApprovalsInboxPage from "@/modules/approvals/ApprovalsInboxPage";
+import ApprovalsOutboxPage from "@/modules/approvals/ApprovalsOutboxPage";
+import ApprovalsHistoryPage from "@/modules/approvals/ApprovalsHistoryPage";
 import ApprovalsWorkflowsPage from "@/modules/approvals/ApprovalsWorkflowsPage";
 import ApprovalDetailPage from "@/modules/approvals/ApprovalDetailPage";
 import SetupOverviewPage from "@/modules/org/setup/SetupOverviewPage";
@@ -332,6 +334,22 @@ export const router = createBrowserRouter([
             ),
           },
           {
+            path: "approvals/outbox",
+            element: (
+              <RequirePermission permission={PERMISSIONS.MODULE_APPROVALS}>
+                <ApprovalsOutboxPage />
+              </RequirePermission>
+            ),
+          },
+          {
+            path: "approvals/history",
+            element: (
+              <RequirePermission permission={PERMISSIONS.MODULE_APPROVALS}>
+                <ApprovalsHistoryPage />
+              </RequirePermission>
+            ),
+          },
+          {
             path: "approvals/workflows",
             element: (
               <RequirePermission permission={PERMISSIONS.MODULE_APPROVALS}>
@@ -340,7 +358,7 @@ export const router = createBrowserRouter([
             ),
           },
           {
-            path: "approvals/:entityType/:entityId",
+            path: "approvals/requests/:id",
             element: (
               <RequirePermission permission={PERMISSIONS.MODULE_APPROVALS}>
                 <ApprovalDetailPage />

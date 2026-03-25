@@ -39,6 +39,9 @@ public class Offer {
     @Column(name = "approval_flow_id")
     private String approvalFlowId;
 
+    @Column(name = "approval_request_id")
+    private String approvalRequestId;
+
     @Column(name = "base_salary")
     private BigDecimal baseSalary;
 
@@ -105,6 +108,14 @@ public class Offer {
 
     public void setApprovalFlowId(String approvalFlowId) {
         this.approvalFlowId = approvalFlowId;
+    }
+
+    public String getApprovalRequestId() {
+        return approvalRequestId;
+    }
+
+    public void setApprovalRequestId(String approvalRequestId) {
+        this.approvalRequestId = approvalRequestId;
     }
 
     public BigDecimal getBaseSalary() {

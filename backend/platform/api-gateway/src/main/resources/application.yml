@@ -41,7 +41,7 @@ spring:
         - id: approval-service
           uri: lb://APPROVAL-SERVICE
           predicates:
-            - Path=/api/approval-flows/**
+            - Path=/api/approval-flows/**,/api/approvals/**
         - id: recruitment-service
           uri: lb://RECRUITMENT-SERVICE
           predicates:

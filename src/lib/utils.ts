@@ -36,13 +36,16 @@ export const STATUS_COLORS: Record<string, string> = {
   failed: "badge-red",
   pending: "badge-yellow",
   pending_approval: "badge-yellow",
+  in_review: "badge-blue",
   approved: "badge-green",
+  changes_requested: "badge-purple",
   sent: "badge-blue",
   accepted: "badge-green",
   declined: "badge-red",
   feedback_submitted: "badge-blue",
   completed: "badge-green",
   cancelled: "badge-red",
+  overdue: "badge-red",
   talent_pool: "badge-purple",
 }
 

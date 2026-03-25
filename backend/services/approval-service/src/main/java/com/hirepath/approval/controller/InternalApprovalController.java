@@ -4,9 +4,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-import com.hirepath.approval.domain.ApprovalFlow;
 import com.hirepath.approval.dto.ApprovalFlowResponse;
-import com.hirepath.approval.repository.ApprovalFlowRepository;
+import com.hirepath.approval.service.ApprovalFlowService;
+import com.hirepath.approval.service.ApprovalMapper;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -18,16 +18,20 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/internal/approval-flows")
 public class InternalApprovalController {
 
-    private final ApprovalFlowRepository repository;
+    private final ApprovalFlowService flowService;
+    private final ApprovalMapper mapper;
 
-    public InternalApprovalController(ApprovalFlowRepository repository) {
-        this.repository = repository;
+    public InternalApprovalController(ApprovalFlowService flowService, ApprovalMapper mapper) {
+        this.flowService = flowService;
+        this.mapper = mapper;
     }
 
     @GetMapping("/summary")
     public Map<String, Object> summary() {
-        List<ApprovalFlow> flows = repository.findAll();
-        long active = flows.stream().filter(ApprovalFlow::isActive).count();
+        List<ApprovalFlowResponse> flows = flowService.list(null, null, null).stream()
+            .map(mapper::toFlowResponse)
+            .toList();
+        long active = flows.stream().filter(ApprovalFlowResponse::isActive).count();
         return Map.of(
             "total", flows.size(),
             "active", (int) active
@@ -36,27 +40,10 @@ public class InternalApprovalController {
 
     @GetMapping("/{id}")
     public ResponseEntity<ApprovalFlowResponse> get(@PathVariable UUID id) {
-        return repository.findById(id)
-            .map(flow -> ResponseEntity.ok(toResponse(flow)))
-            .orElse(ResponseEntity.notFound().build());
-    }
-
-    private ApprovalFlowResponse toResponse(ApprovalFlow flow) {
-        List<ApprovalFlowResponse.ApprovalStageResponse> stages = flow.getStages().stream()
-            .map(stage -> new ApprovalFlowResponse.ApprovalStageResponse(
-                stage.getId() != null ? stage.getId().toString() : null,
-                stage.getOrderIndex(),
-                stage.getRole(),
-                stage.getApproverUserId() != null ? stage.getApproverUserId().toString() : null,
-                stage.getActionLabel()
-            ))
-            .toList();
-        return new ApprovalFlowResponse(
-            flow.getId() != null ? flow.getId().toString() : null,
-            flow.getName(),
-            flow.getDescription(),
-            flow.isActive(),
-            stages
-        );
+        var flow = flowService.get(id);
+        if (flow == null) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(mapper.toFlowResponse(flow));
     }
 }
