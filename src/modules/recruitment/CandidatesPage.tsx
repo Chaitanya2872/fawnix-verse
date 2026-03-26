@@ -321,7 +321,7 @@ export default function CandidatesPage() {
                         </button>
                       </div>
                       <p className="text-xs text-gray-500 mt-0.5">
-                        {app.position_title} - {app.form_name}
+                        {app.position_title} - {app.form_name || app.form_id || 'Form'}
                       </p>
                     </div>
                     <div className="flex items-center gap-1">
@@ -376,18 +376,6 @@ export default function CandidatesPage() {
                       >
                         Add Note
                       </button>
-                      <span className="text-gray-200">|</span>
-                      <div className="relative">
-                        <select
-                          className="text-xs border border-gray-200 rounded-md px-2 py-1 bg-white text-gray-600 pr-6"
-                          value={app.status}
-                          onChange={e => updateMutation.mutate({ id: app.application_id, status: e.target.value })}
-                        >
-                          {STATUS_OPTIONS.map(s => (
-                            <option key={s} value={s}>{STATUS_LABELS[s] || s}</option>
-                          ))}
-                        </select>
-                      </div>
                     </div>
                   </div>
                 </div>

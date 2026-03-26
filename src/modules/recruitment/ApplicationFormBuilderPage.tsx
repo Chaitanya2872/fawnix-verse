@@ -6,7 +6,8 @@ import { DndContext, closestCenter } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy, arrayMove, useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import QRCode from 'react-qr-code'
-import { formsApi, type FieldType, type FormField, type FormVisibility, type FormModule } from '@/lib/formsApi'
+import { formsApi } from '@/lib/formsApi'
+import type { FieldType, FormField, FormVisibility, FormModule } from '@/lib/formsApi'
 import { recruitmentApi } from '@/lib/api'
 import { cn } from '@/lib/utils'
 
@@ -528,6 +529,9 @@ export default function ApplicationFormBuilderPage() {
                   </tbody>
                 </table>
                 {submissionsLoading && <div className="p-4 text-xs text-gray-400">Loading submissions...</div>}
+                {!submissionsLoading && submissionRows.length === 0 && (
+                  <div className="p-4 text-xs text-gray-400">No submissions yet.</div>
+                )}
               </div>
             </div>
           )}

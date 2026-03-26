@@ -18,6 +18,7 @@ import com.hirepath.recruitment.client.dto.UserLookupRequest;
 import com.hirepath.recruitment.client.dto.UserLookupResponse;
 import com.hirepath.recruitment.domain.Candidate;
 import com.hirepath.recruitment.domain.CandidateApplication;
+import com.hirepath.recruitment.domain.EvaluationScore;
 import com.hirepath.recruitment.domain.Interview;
 import com.hirepath.recruitment.domain.InterviewFeedback;
 import com.hirepath.recruitment.domain.InterviewMode;
@@ -28,9 +29,11 @@ import com.hirepath.recruitment.dto.InterviewCreateRequest;
 import com.hirepath.recruitment.dto.InterviewFeedbackRequest;
 import com.hirepath.recruitment.dto.InterviewUpdateRequest;
 import com.hirepath.recruitment.repository.CandidateApplicationRepository;
+import com.hirepath.recruitment.repository.EvaluationScoreRepository;
 import com.hirepath.recruitment.repository.InterviewFeedbackRepository;
 import com.hirepath.recruitment.repository.InterviewPanelRepository;
 import com.hirepath.recruitment.repository.InterviewRepository;
+import com.hirepath.recruitment.service.RecruitmentEventService;
 import com.hirepath.recruitment.util.UserContext;
 
 import feign.FeignException;
@@ -55,24 +58,30 @@ public class InterviewController {
     private final InterviewRepository interviewRepository;
     private final InterviewPanelRepository interviewPanelRepository;
     private final InterviewFeedbackRepository interviewFeedbackRepository;
+    private final EvaluationScoreRepository evaluationScoreRepository;
     private final CandidateApplicationRepository candidateApplicationRepository;
     private final IntegrationClient integrationClient;
     private final IdentityClient identityClient;
+    private final RecruitmentEventService eventService;
 
     public InterviewController(
         InterviewRepository interviewRepository,
         InterviewPanelRepository interviewPanelRepository,
         InterviewFeedbackRepository interviewFeedbackRepository,
+        EvaluationScoreRepository evaluationScoreRepository,
         CandidateApplicationRepository candidateApplicationRepository,
         IntegrationClient integrationClient,
-        IdentityClient identityClient
+        IdentityClient identityClient,
+        RecruitmentEventService eventService
     ) {
         this.interviewRepository = interviewRepository;
         this.interviewPanelRepository = interviewPanelRepository;
         this.interviewFeedbackRepository = interviewFeedbackRepository;
+        this.evaluationScoreRepository = evaluationScoreRepository;
         this.candidateApplicationRepository = candidateApplicationRepository;
         this.integrationClient = integrationClient;
         this.identityClient = identityClient;
+        this.eventService = eventService;
     }
 
     @GetMapping
@@ -331,8 +340,33 @@ public class InterviewController {
         interview.setStatus("feedback_submitted");
         interviewRepository.save(interview);
 
+        EvaluationScore score = new EvaluationScore();
+        score.setApplicationId(interview.getApplication() != null ? interview.getApplication().getId() : null);
+        score.setInterviewId(interview.getId());
+        score.setTotalScore(calculateTotalScore(request));
+        score.setRecommendation(request.getRecommendation());
+        score.setSummary(request.getNotes());
+        score.setSubmittedBy(UserContext.getUserId(user));
+        score.setSubmittedAt(OffsetDateTime.now());
+        if (score.getApplicationId() != null) {
+            evaluationScoreRepository.save(score);
+        }
+
+        eventService.audit("interview", interview.getId().toString(), "feedback_submitted", UserContext.getUserId(user),
+            Map.of("application_id", interview.getApplication() != null ? interview.getApplication().getId() : null));
+
         return ResponseEntity.status(HttpStatus.CREATED)
             .body(Map.of("id", feedback.getId(), "message", "Feedback submitted"));
+    }
+
+    private Integer calculateTotalScore(InterviewFeedbackRequest request) {
+        int total = 0;
+        int count = 0;
+        if (request.getTechnicalScore() != null) { total += request.getTechnicalScore(); count++; }
+        if (request.getCommunicationScore() != null) { total += request.getCommunicationScore(); count++; }
+        if (request.getCulturalScore() != null) { total += request.getCulturalScore(); count++; }
+        if (request.getOverallScore() != null) { total += request.getOverallScore(); count++; }
+        return count == 0 ? null : Math.round(total / (float) count);
     }
 
     private boolean shouldSyncCalendar(Interview interview, String scheduledAtRaw) {

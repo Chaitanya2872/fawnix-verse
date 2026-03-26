@@ -77,10 +77,15 @@ export type FormLink = {
   id: string;
   form_id: string;
   form_name: string;
+  slug?: string;
   candidate_name: string;
   candidate_email: string;
   module: FormModule;
   status: FormLinkStatus;
+  is_active?: boolean;
+  max_submissions?: number;
+  current_submissions?: number;
+  access_type?: string;
   url: string;
   expires_at: string;
   created_at: string;
@@ -97,8 +102,8 @@ export type FormAnalytics = {
   total_forms: number;
   published_forms: number;
   submissions_last_7: number;
-  completion_rate: number;
-  avg_completion_time_days: number;
+  completion_rate: number | null;
+  avg_completion_time_days: number | null;
   trend: FormAnalyticsPoint[];
 };
 
@@ -165,10 +170,15 @@ const normalizeLink = (value: any): FormLink => ({
   id: value.id,
   form_id: value.form_id,
   form_name: value.form_name || "Form",
+  slug: value.slug || undefined,
   candidate_name: value.candidate_name,
   candidate_email: value.candidate_email,
   module: (value.module || "recruitment") as FormModule,
   status: value.status as FormLinkStatus,
+  is_active: value.is_active ?? undefined,
+  max_submissions: value.max_submissions ?? undefined,
+  current_submissions: value.current_submissions ?? undefined,
+  access_type: value.access_type ?? undefined,
   url: value.url,
   expires_at: value.expires_at,
   created_at: value.created_at,
@@ -228,6 +238,16 @@ const createCollection = (payload: {
   form_ids: string[];
 }) => api.post("/recruitment/forms/collections", payload);
 
+const createLink = (payload: {
+  form_id: string;
+  candidate_name: string;
+  candidate_email: string;
+  module: FormModule;
+  expires_at?: string;
+  max_submissions?: number;
+  access_type?: string;
+}) => api.post("/recruitment/forms/links", payload);
+
 const listLinks = async () => {
   const res = await api.get("/recruitment/forms/links");
   const data = normalizeArray<any>(res.data?.data).map(normalizeLink);
@@ -261,6 +281,7 @@ export const formsApi = {
   listCollections,
   createCollection,
   listLinks,
+  createLink,
   expireLink,
   resendLink,
   listAnalytics,

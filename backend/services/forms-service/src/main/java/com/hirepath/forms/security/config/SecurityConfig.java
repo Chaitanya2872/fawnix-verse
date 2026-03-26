@@ -43,7 +43,7 @@ public class SecurityConfig {
             .accessDeniedHandler(accessDeniedHandler))
         .authorizeHttpRequests(auth -> auth
             .requestMatchers("/actuator/health", "/actuator/info").permitAll()
-            .requestMatchers("/internal/**").permitAll()
+            .requestMatchers("/internal/**").authenticated()
             .anyRequest().authenticated())
         .addFilterBefore(internalServiceAuthFilter, UsernamePasswordAuthenticationFilter.class)
         .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

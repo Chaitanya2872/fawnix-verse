@@ -21,6 +21,7 @@ import NewHiringRequestPage from "@/modules/recruitment/NewHiringRequestPage";
 import OpenPositionsPage from "@/modules/recruitment/OpenPositionsPage";
 import JobPostingsPage from "@/modules/recruitment/JobPostingsPage";
 import CandidatePipelinePage from "@/modules/recruitment/CandidatePipelinePage";
+import IntakePage from "@/modules/recruitment/IntakePage";
 import CandidatesPage from "@/modules/recruitment/CandidatesPage";
 import CandidateProfilePage from "@/modules/recruitment/CandidateProfilePage";
 import InterviewsPage from "@/modules/recruitment/InterviewsPage";
@@ -194,6 +195,14 @@ export const router = createBrowserRouter([
             element: (
               <RequirePermission permission={PERMISSIONS.MODULE_RECRUITMENT}>
                 <CandidatePipelinePage />
+              </RequirePermission>
+            ),
+          },
+          {
+            path: "recruitment/intake",
+            element: (
+              <RequirePermission permission={PERMISSIONS.MODULE_RECRUITMENT}>
+                <IntakePage />
               </RequirePermission>
             ),
           },

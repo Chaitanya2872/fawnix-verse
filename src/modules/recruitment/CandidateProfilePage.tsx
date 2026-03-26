@@ -16,6 +16,8 @@ export default function CandidateProfilePage() {
   const [feedbackOpen, setFeedbackOpen] = useState(false)
   const [feedbackTarget, setFeedbackTarget] = useState<any | null>(null)
   const [scheduleError, setScheduleError] = useState('')
+  const [decisionOpen, setDecisionOpen] = useState(false)
+  const [decisionError, setDecisionError] = useState('')
 
   const [scheduleForm, setScheduleForm] = useState({
     round_number: 1,
@@ -40,6 +42,13 @@ export default function CandidateProfilePage() {
     weaknesses: '',
     notes: '',
     recommendation: 'hire',
+  })
+
+  const [decisionForm, setDecisionForm] = useState({
+    decision_status: 'SELECTED',
+    decision_reason: '',
+    decision_notes: '',
+    decision_score: 0,
   })
 
   const { data: candidateData } = useQuery({
@@ -67,16 +76,26 @@ export default function CandidateProfilePage() {
     queryFn: () => interviewsApi.list().then(r => r.data),
   })
 
+  const { data: decisionData } = useQuery({
+    queryKey: ['decision', application?.application_id],
+    enabled: Boolean(application?.application_id),
+    retry: false,
+    queryFn: async () => {
+      try {
+        const res = await recruitmentApi.getDecision(application!.application_id)
+        return res.data
+      } catch (err: any) {
+        if (err?.response?.status === 404) return null
+        throw err
+      }
+    },
+  })
+
   const interviews = useMemo(() => {
     const list = interviewsData?.data ?? []
     if (!application?.application_id) return list
     return list.filter((i: any) => i.application_id === application.application_id)
   }, [interviewsData, application])
-
-  const updateStatusMutation = useMutation({
-    mutationFn: (status: string) => candidatesApi.updateStatus(application.application_id, { status }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['candidate-apps', id] }),
-  })
 
   const scheduleMutation = useMutation({
     mutationFn: (payload: any) => interviewsApi.create(payload),
@@ -96,6 +115,19 @@ export default function CandidateProfilePage() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['interviews'] })
       setFeedbackOpen(false)
+    },
+  })
+
+  const decisionMutation = useMutation({
+    mutationFn: (payload: any) => recruitmentApi.createDecision(payload),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['decision', application?.application_id] })
+      setDecisionOpen(false)
+      setDecisionError('')
+    },
+    onError: (err: any) => {
+      const message = err?.response?.data || 'Failed to submit decision'
+      setDecisionError(typeof message === 'string' ? message : 'Failed to submit decision')
     },
   })
 
@@ -151,8 +183,6 @@ export default function CandidateProfilePage() {
     })
   }
 
-  const canUpdateStatus = Boolean(application?.application_id)
-
   return (
     <div className="max-w-5xl animate-in">
       <div className="flex items-center gap-3 mb-6">
@@ -193,10 +223,20 @@ export default function CandidateProfilePage() {
 
           <div className="card p-5">
             <h3 className="text-xs font-semibold text-gray-700 mb-3">Decision</h3>
+            {decisionData && (
+              <div className="mb-3 text-xs text-gray-600 space-y-1">
+                <div>Status: <span className="font-medium text-gray-900">{decisionData.decision_status || 'Pending'}</span></div>
+                {decisionData.decision_reason && <div>Reason: {decisionData.decision_reason}</div>}
+              </div>
+            )}
             <div className="space-y-2">
-              <button className="btn-primary w-full justify-center text-sm" onClick={() => updateStatusMutation.mutate('selected')} disabled={!canUpdateStatus}>Mark Selected</button>
-              <button className="btn-secondary w-full justify-center text-sm" onClick={() => updateStatusMutation.mutate('talent_pool')} disabled={!canUpdateStatus}>Move to Talent Pool</button>
-              <button className="btn-secondary w-full justify-center text-sm" onClick={() => updateStatusMutation.mutate('rejected')} disabled={!canUpdateStatus}>Reject</button>
+              <button
+                className="btn-primary w-full justify-center text-sm"
+                onClick={() => { setDecisionError(''); setDecisionOpen(true) }}
+                disabled={!application?.application_id}
+              >
+                Request Decision Approval
+              </button>
             </div>
           </div>
 
@@ -389,6 +429,75 @@ export default function CandidateProfilePage() {
             <div className="mt-5 flex items-center justify-end gap-2">
               <button className="btn-secondary" onClick={() => setFeedbackOpen(false)}>Cancel</button>
               <button className="btn-primary" onClick={handleFeedback} disabled={feedbackMutation.isPending}>Submit</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {decisionOpen && application?.application_id && (
+        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-semibold text-gray-900">Decision Request</h2>
+              <button onClick={() => setDecisionOpen(false)} className="text-gray-400 hover:text-gray-600">x</button>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1.5">Decision Status</label>
+                <select
+                  className="input"
+                  value={decisionForm.decision_status}
+                  onChange={e => setDecisionForm(prev => ({ ...prev, decision_status: e.target.value }))}
+                >
+                  <option value="SELECTED">Selected</option>
+                  <option value="REJECTED">Rejected</option>
+                  <option value="HOLD">Hold</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1.5">Decision Score</label>
+                <input
+                  type="number"
+                  className="input"
+                  value={decisionForm.decision_score}
+                  onChange={e => setDecisionForm(prev => ({ ...prev, decision_score: Number(e.target.value) }))}
+                />
+              </div>
+              <div className="col-span-2">
+                <label className="block text-xs font-medium text-gray-700 mb-1.5">Reason</label>
+                <input
+                  className="input"
+                  value={decisionForm.decision_reason}
+                  onChange={e => setDecisionForm(prev => ({ ...prev, decision_reason: e.target.value }))}
+                />
+              </div>
+              <div className="col-span-2">
+                <label className="block text-xs font-medium text-gray-700 mb-1.5">Notes</label>
+                <textarea
+                  className="input min-h-[90px]"
+                  value={decisionForm.decision_notes}
+                  onChange={e => setDecisionForm(prev => ({ ...prev, decision_notes: e.target.value }))}
+                />
+              </div>
+            </div>
+            {decisionError && (
+              <div className="mt-3 text-xs text-red-600">{decisionError}</div>
+            )}
+            <div className="mt-5 flex items-center justify-end gap-2">
+              <button className="btn-secondary" onClick={() => setDecisionOpen(false)}>Cancel</button>
+              <button
+                className="btn-primary"
+                onClick={() => decisionMutation.mutate({
+                  applicationId: application.application_id,
+                  decisionStatus: decisionForm.decision_status,
+                  decisionReason: decisionForm.decision_reason || undefined,
+                  decisionNotes: decisionForm.decision_notes || undefined,
+                  decisionScore: decisionForm.decision_score || undefined,
+                })}
+                disabled={decisionMutation.isPending}
+              >
+                Submit for Approval
+              </button>
             </div>
           </div>
         </div>

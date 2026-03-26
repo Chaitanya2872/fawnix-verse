@@ -15,6 +15,8 @@ public class FormDetailResponse {
     private String publicSlug;
     private String positionId;
     private String module;
+    private String formVersionId;
+    private String version;
     private List<FormFieldResponse> fields;
 
     public String getId() {
@@ -71,6 +73,22 @@ public class FormDetailResponse {
 
     public void setModule(String module) {
         this.module = module;
+    }
+
+    public String getFormVersionId() {
+        return formVersionId;
+    }
+
+    public void setFormVersionId(String formVersionId) {
+        this.formVersionId = formVersionId;
+    }
+
+    public String getVersion() {
+        return version;
+    }
+
+    public void setVersion(String version) {
+        this.version = version;
     }
 
     public List<FormFieldResponse> getFields() {

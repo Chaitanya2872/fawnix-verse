@@ -17,6 +17,8 @@ export function timeAgo(date: string | Date) {
 export const STATUS_COLORS: Record<string, string> = {
   applied: "badge-gray",
   shortlisted: "badge-blue",
+  reviewed: "badge-yellow",
+  new: "badge-gray",
   hr_screening: "badge-yellow",
   interview_scheduled: "badge-purple",
   interview_completed: "badge-blue",
@@ -52,6 +54,8 @@ export const STATUS_COLORS: Record<string, string> = {
 export const STATUS_LABELS: Record<string, string> = {
   applied: "Applied",
   shortlisted: "Shortlisted",
+  reviewed: "Reviewed",
+  new: "New",
   hr_screening: "HR Screening",
   interview_scheduled: "Interview Scheduled",
   interview_completed: "Interview Done",

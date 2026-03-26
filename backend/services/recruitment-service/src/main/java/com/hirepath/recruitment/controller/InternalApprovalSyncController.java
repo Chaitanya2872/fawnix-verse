@@ -9,10 +9,17 @@ import com.hirepath.recruitment.domain.JobStatus;
 import com.hirepath.recruitment.domain.Offer;
 import com.hirepath.recruitment.domain.OfferStatus;
 import com.hirepath.recruitment.domain.RequestStatus;
+import com.hirepath.recruitment.domain.CandidateApplication;
+import com.hirepath.recruitment.domain.CandidateStatus;
+import com.hirepath.recruitment.domain.ApplicationDecision;
+import com.hirepath.recruitment.domain.PipelineStage;
 import com.hirepath.recruitment.dto.ApprovalStatusUpdateRequest;
+import com.hirepath.recruitment.repository.ApplicationDecisionRepository;
+import com.hirepath.recruitment.repository.CandidateApplicationRepository;
 import com.hirepath.recruitment.repository.HiringRequestRepository;
 import com.hirepath.recruitment.repository.JobPositionRepository;
 import com.hirepath.recruitment.repository.OfferRepository;
+import com.hirepath.recruitment.repository.PipelineStageRepository;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,15 +35,24 @@ public class InternalApprovalSyncController {
     private final HiringRequestRepository hiringRequestRepository;
     private final JobPositionRepository jobPositionRepository;
     private final OfferRepository offerRepository;
+    private final ApplicationDecisionRepository decisionRepository;
+    private final CandidateApplicationRepository applicationRepository;
+    private final PipelineStageRepository pipelineStageRepository;
 
     public InternalApprovalSyncController(
         HiringRequestRepository hiringRequestRepository,
         JobPositionRepository jobPositionRepository,
-        OfferRepository offerRepository
+        OfferRepository offerRepository,
+        ApplicationDecisionRepository decisionRepository,
+        CandidateApplicationRepository applicationRepository,
+        PipelineStageRepository pipelineStageRepository
     ) {
         this.hiringRequestRepository = hiringRequestRepository;
         this.jobPositionRepository = jobPositionRepository;
         this.offerRepository = offerRepository;
+        this.decisionRepository = decisionRepository;
+        this.applicationRepository = applicationRepository;
+        this.pipelineStageRepository = pipelineStageRepository;
     }
 
     @PostMapping("/status")
@@ -51,6 +67,9 @@ public class InternalApprovalSyncController {
         }
         if ("offer".equals(entityType)) {
             return updateOffer(request);
+        }
+        if ("application_decision".equals(entityType)) {
+            return updateDecision(request);
         }
         return ResponseEntity.badRequest().body("Unsupported entity_type");
     }
@@ -98,5 +117,40 @@ public class InternalApprovalSyncController {
         }
         offerRepository.save(offer);
         return ResponseEntity.ok(Map.of("message", "Offer updated"));
+    }
+
+    private ResponseEntity<?> updateDecision(ApprovalStatusUpdateRequest request) {
+        CandidateApplication application = applicationRepository.findById(UUID.fromString(request.getEntityId())).orElse(null);
+        if (application == null) {
+            return ResponseEntity.notFound().build();
+        }
+        ApplicationDecision decision = decisionRepository.findByApplicationId(application.getId()).orElse(null);
+        String status = request.getStatus() != null ? request.getStatus().trim().toLowerCase() : null;
+        if (decision != null && request.getApprovalRequestId() != null && !request.getApprovalRequestId().isBlank()) {
+            decision.setApprovalRequestId(request.getApprovalRequestId());
+            decisionRepository.save(decision);
+        }
+        if ("approved".equals(status)) {
+            application.setStatus(CandidateStatus.SELECTED);
+            application.setDecisionStatus("selected");
+            moveToCategoryStage(application, "hired");
+        } else if ("rejected".equals(status) || "cancelled".equals(status)) {
+            application.setStatus(CandidateStatus.REJECTED);
+            application.setDecisionStatus("rejected");
+            moveToCategoryStage(application, "rejected");
+        }
+        applicationRepository.save(application);
+        return ResponseEntity.ok(Map.of("message", "Decision updated"));
+    }
+
+    private void moveToCategoryStage(CandidateApplication application, String category) {
+        if (application.getPosition() == null) {
+            return;
+        }
+        PipelineStage stage = pipelineStageRepository.findTopByVacancyIdAndCategoryIgnoreCase(application.getPosition().getId(), category)
+            .orElse(null);
+        if (stage != null) {
+            application.setPipelineStage(stage);
+        }
     }
 }

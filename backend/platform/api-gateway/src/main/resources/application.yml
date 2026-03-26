@@ -45,7 +45,7 @@ spring:
         - id: recruitment-service
           uri: lb://RECRUITMENT-SERVICE
           predicates:
-            - Path=/api/recruitment/hiring-requests/**,/api/recruitment/positions/**,/api/recruitment/postings/**,/api/candidates/**,/api/interviews/**,/api/offers/**,/api/public/forms/**
+            - Path=/api/recruitment/hiring-requests/**,/api/recruitment/positions/**,/api/recruitment/postings/**,/api/recruitment/intake/**,/api/recruitment/pipeline/**,/api/recruitment/decisions/**,/api/recruitment/analytics/**,/api/recruitment/vacancies/**,/api/candidates/**,/api/interviews/**,/api/offers/**,/api/public/forms/**
         - id: integration-service
           uri: lb://INTEGRATION-SERVICE
           predicates:

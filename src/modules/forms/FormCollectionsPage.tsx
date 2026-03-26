@@ -1,7 +1,8 @@
 ﻿import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Plus } from 'lucide-react'
-import { formsApi, type Form, type FormCollection, type FormModule } from '@/lib/formsApi'
+import { formsApi } from '@/lib/formsApi'
+import type { Form, FormCollection, FormModule } from '@/lib/formsApi'
 
 export default function FormCollectionsPage() {
   const qc = useQueryClient()

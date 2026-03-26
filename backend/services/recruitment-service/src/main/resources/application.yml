@@ -43,6 +43,10 @@ app:
       refresh-token-expiration-days: 14
       secret: ${JWT_SECRET:change-this-local-dev-secret-change-this-local-dev-secret}
     internal-service-secret: ${INTERNAL_SERVICE_SECRET:fawnix-internal-secret}
+  public-forms:
+    rate-limit:
+      max: ${PUBLIC_FORMS_RATE_LIMIT_MAX:10}
+      window-seconds: ${PUBLIC_FORMS_RATE_LIMIT_WINDOW_SECONDS:300}
 
 storage:
   s3:

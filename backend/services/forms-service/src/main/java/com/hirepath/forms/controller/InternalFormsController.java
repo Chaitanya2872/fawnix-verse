@@ -8,7 +8,9 @@ import java.util.Map;
 import com.hirepath.forms.domain.ApplicationForm;
 import com.hirepath.forms.domain.ApplicationFormField;
 import com.hirepath.forms.domain.ApplicationFormStatus;
+import com.hirepath.forms.domain.ApplicationFormVersion;
 import com.hirepath.forms.repository.ApplicationFormRepository;
+import com.hirepath.forms.repository.ApplicationFormVersionRepository;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -21,9 +23,14 @@ import org.springframework.web.bind.annotation.RestController;
 public class InternalFormsController {
 
     private final ApplicationFormRepository formRepository;
+    private final ApplicationFormVersionRepository versionRepository;
 
-    public InternalFormsController(ApplicationFormRepository formRepository) {
+    public InternalFormsController(
+        ApplicationFormRepository formRepository,
+        ApplicationFormVersionRepository versionRepository
+    ) {
         this.formRepository = formRepository;
+        this.versionRepository = versionRepository;
     }
 
     @GetMapping("/{slug}")
@@ -46,6 +53,11 @@ public class InternalFormsController {
         payload.put("public_slug", form.getPublicSlug());
         payload.put("position_id", form.getPositionId());
         payload.put("module", form.getModule());
+        ApplicationFormVersion version = versionRepository.findTopByFormIdOrderByCreatedAtDesc(form.getId()).orElse(null);
+        if (version != null) {
+            payload.put("form_version_id", version.getId());
+            payload.put("version", version.getVersion());
+        }
         payload.put("fields", fields.stream().map(field -> {
             Map<String, Object> row = new LinkedHashMap<>();
             row.put("field_key", field.getFieldKey());

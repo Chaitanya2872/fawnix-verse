@@ -1,5 +1,8 @@
 package com.hirepath.recruitment.controller;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.time.OffsetDateTime;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -8,26 +11,28 @@ import java.util.UUID;
 
 import com.hirepath.recruitment.client.FormsClient;
 import com.hirepath.recruitment.client.dto.FormDetailResponse;
-import com.hirepath.recruitment.domain.ApplicationFormSubmission;
-import com.hirepath.recruitment.domain.Candidate;
-import com.hirepath.recruitment.domain.CandidateApplication;
-import com.hirepath.recruitment.domain.CandidateStatus;
+import com.hirepath.recruitment.client.dto.InternalFormSubmissionRequest;
+import com.hirepath.recruitment.domain.CandidateIntake;
+import com.hirepath.recruitment.domain.IntakeStatus;
 import com.hirepath.recruitment.domain.JobPosition;
-import com.hirepath.recruitment.repository.ApplicationFormSubmissionRepository;
-import com.hirepath.recruitment.repository.CandidateApplicationRepository;
-import com.hirepath.recruitment.repository.CandidateRepository;
+import com.hirepath.recruitment.repository.CandidateIntakeRepository;
 import com.hirepath.recruitment.repository.JobPositionRepository;
 import com.hirepath.recruitment.service.StorageService;
+import com.hirepath.recruitment.service.RecruitmentEventService;
+import com.hirepath.recruitment.util.PublicFormRateLimiter;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.interceptor.TransactionAspectSupport;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.multipart.MultipartHttpServletRequest;
@@ -40,25 +45,25 @@ public class PublicApplyController {
 
     private final FormsClient formsClient;
     private final JobPositionRepository jobPositionRepository;
-    private final CandidateRepository candidateRepository;
-    private final CandidateApplicationRepository applicationRepository;
-    private final ApplicationFormSubmissionRepository submissionRepository;
+    private final CandidateIntakeRepository intakeRepository;
     private final StorageService storageService;
+    private final PublicFormRateLimiter rateLimiter;
+    private final RecruitmentEventService eventService;
 
     public PublicApplyController(
         FormsClient formsClient,
         JobPositionRepository jobPositionRepository,
-        CandidateRepository candidateRepository,
-        CandidateApplicationRepository applicationRepository,
-        ApplicationFormSubmissionRepository submissionRepository,
-        StorageService storageService
+        CandidateIntakeRepository intakeRepository,
+        StorageService storageService,
+        PublicFormRateLimiter rateLimiter,
+        RecruitmentEventService eventService
     ) {
         this.formsClient = formsClient;
         this.jobPositionRepository = jobPositionRepository;
-        this.candidateRepository = candidateRepository;
-        this.applicationRepository = applicationRepository;
-        this.submissionRepository = submissionRepository;
+        this.intakeRepository = intakeRepository;
         this.storageService = storageService;
+        this.rateLimiter = rateLimiter;
+        this.eventService = eventService;
     }
 
     @GetMapping("/{slug}")
@@ -110,7 +115,20 @@ public class PublicApplyController {
 
     @PostMapping(value = "/{slug}/submit", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @Transactional
-    public ResponseEntity<?> submit(@PathVariable String slug, MultipartHttpServletRequest request) {
+    public ResponseEntity<?> submit(
+        @PathVariable String slug,
+        MultipartHttpServletRequest request,
+        @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
+        @RequestParam(value = "link", required = false) String linkSlug
+    ) {
+        String clientIp = resolveClientIp(request);
+        String rateKey = (linkSlug != null && !linkSlug.isBlank()) ? linkSlug + ":" + clientIp : slug + ":" + clientIp;
+        var rateResult = rateLimiter.allow(rateKey);
+        if (!rateResult.allowed()) {
+            return ResponseEntity.status(429)
+                .header("Retry-After", String.valueOf(rateResult.retryAfterSeconds()))
+                .body("Rate limit exceeded");
+        }
         FormDetailResponse form;
         try {
             form = formsClient.getFormBySlug(slug);
@@ -180,70 +198,112 @@ public class PublicApplyController {
             return ResponseEntity.badRequest().body("full_name and email are required");
         }
 
-        Candidate candidate = candidateRepository.findByEmail(email).orElse(null);
-        if (candidate != null) {
-            CandidateApplication existing = applicationRepository
-                .findByCandidate_IdAndPosition_Id(candidate.getId(), position.getId())
-                .orElse(null);
+        String effectiveKey = StringUtils.hasText(idempotencyKey) ? idempotencyKey : UUID.randomUUID().toString();
+        InternalFormSubmissionRequest internalRequest = new InternalFormSubmissionRequest();
+        internalRequest.setFormId(form.getId());
+        internalRequest.setFormVersionId(form.getFormVersionId());
+        internalRequest.setFormName(form.getName());
+        internalRequest.setCandidateId(null);
+        internalRequest.setCandidateName(fullName);
+        internalRequest.setCandidateEmail(email);
+        internalRequest.setApplicationId(null);
+        internalRequest.setAnswers(answers);
+        internalRequest.setResumeUrl(resumeUrl);
+        internalRequest.setSource("public_form");
+        internalRequest.setIdempotencyKey(effectiveKey);
+        internalRequest.setLinkSlug(linkSlug);
+        internalRequest.setSubmittedAt(OffsetDateTime.now());
+
+        try {
+            Map<?, ?> submissionResult = (Map<?, ?>) formsClient.createSubmission(internalRequest);
+            UUID submissionId = parseSubmissionId(submissionResult);
+            CandidateIntake intake = buildIntake(position.getId(), form.getId(), submissionId, fullName, email, resumeUrl, answers, "public_form");
+            String dedupeHash = intake.getDedupeHash();
+            CandidateIntake existing = dedupeHash != null
+                ? intakeRepository.findTopByVacancyIdAndDedupeHashOrderByCreatedAtDesc(position.getId(), dedupeHash).orElse(null)
+                : null;
             if (existing != null) {
-                return ResponseEntity.status(HttpStatus.CONFLICT).body("Application already exists for this position");
+                intake.setDuplicateOfIntakeId(existing.getId());
+                intake.setStatus(IntakeStatus.REJECTED);
+                intakeRepository.save(intake);
+                return ResponseEntity.status(HttpStatus.CONFLICT).body("Duplicate application detected");
             }
+            CandidateIntake saved = intakeRepository.save(intake);
+            eventService.audit("intake", saved.getId().toString(), "created", null, Map.of(
+                "vacancy_id", position.getId(),
+                "form_id", form.getId()
+            ));
+        } catch (FeignException ex) {
+            TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
+            if (ex.status() == 410) {
+                return ResponseEntity.status(HttpStatus.GONE).body("Link is expired or disabled");
+            }
+            if (ex.status() == 400) {
+                return ResponseEntity.badRequest().body("Invalid submission payload");
+            }
+            return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body("Unable to persist submission");
         }
-
-        if (candidate == null) {
-            candidate = new Candidate();
-            candidate.setFullName(fullName);
-            candidate.setEmail(email);
-            candidate.setPhone(stringValue(answers.get("phone")));
-            candidate.setLocation(stringValue(answers.get("location")));
-            candidate.setLinkedinUrl(stringValue(answers.get("linkedin_url")));
-            candidate.setPortfolioUrl(stringValue(answers.get("portfolio_url")));
-            candidate.setResumeUrl(resumeUrl);
-            candidate.setSource("public_form");
-            candidateRepository.save(candidate);
-        } else {
-            if (!StringUtils.hasText(candidate.getFullName())) {
-                candidate.setFullName(fullName);
-            }
-            if (!StringUtils.hasText(candidate.getPhone())) {
-                candidate.setPhone(stringValue(answers.get("phone")));
-            }
-            if (!StringUtils.hasText(candidate.getLocation())) {
-                candidate.setLocation(stringValue(answers.get("location")));
-            }
-            if (!StringUtils.hasText(candidate.getLinkedinUrl())) {
-                candidate.setLinkedinUrl(stringValue(answers.get("linkedin_url")));
-            }
-            if (!StringUtils.hasText(candidate.getPortfolioUrl())) {
-                candidate.setPortfolioUrl(stringValue(answers.get("portfolio_url")));
-            }
-            if (resumeUrl != null) {
-                candidate.setResumeUrl(resumeUrl);
-            }
-            candidateRepository.save(candidate);
-        }
-
-        CandidateApplication application = new CandidateApplication();
-        application.setCandidate(candidate);
-        application.setPosition(position);
-        application.setStatus(CandidateStatus.APPLIED);
-        application.setConsentGiven(true);
-        applicationRepository.save(application);
-
-        ApplicationFormSubmission submission = new ApplicationFormSubmission();
-        submission.setFormId(form.getId());
-        submission.setFormName(form.getName());
-        submission.setCandidate(candidate);
-        submission.setApplication(application);
-        submission.setAnswers(answers);
-        submission.setResumeUrl(resumeUrl);
-        submission.setSource("public_form");
-        submissionRepository.save(submission);
 
         return ResponseEntity.status(HttpStatus.CREATED).body(Map.of("message", "Application submitted"));
     }
 
     private String stringValue(Object value) {
         return value == null ? null : value.toString();
+    }
+
+    private CandidateIntake buildIntake(UUID vacancyId, String formId, UUID submissionId, String fullName, String email, String resumeUrl, Map<String, Object> answers, String source) {
+        CandidateIntake intake = new CandidateIntake();
+        intake.setVacancyId(vacancyId);
+        intake.setFormId(formId);
+        intake.setFormSubmissionId(submissionId);
+        intake.setCandidateName(fullName);
+        intake.setEmail(email);
+        intake.setPhone(stringValue(answers.get("phone")));
+        intake.setResumeUrl(resumeUrl);
+        intake.setSource(source);
+        intake.setStatus(IntakeStatus.NEW);
+        intake.setDedupeHash(buildDedupeHash(vacancyId, email));
+        return intake;
+    }
+
+    private String buildDedupeHash(UUID vacancyId, String email) {
+        if (vacancyId == null || email == null) {
+            return null;
+        }
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            String raw = vacancyId + ":" + email.trim().toLowerCase();
+            byte[] hash = digest.digest(raw.getBytes(StandardCharsets.UTF_8));
+            StringBuilder sb = new StringBuilder();
+            for (byte b : hash) {
+                sb.append(String.format("%02x", b));
+            }
+            return sb.toString();
+        } catch (Exception ex) {
+            return null;
+        }
+    }
+
+    private UUID parseSubmissionId(Map<?, ?> submissionResult) {
+        if (submissionResult == null) {
+            return null;
+        }
+        Object id = submissionResult.get("id");
+        if (id == null) {
+            return null;
+        }
+        try {
+            return UUID.fromString(id.toString());
+        } catch (Exception ex) {
+            return null;
+        }
+    }
+
+    private String resolveClientIp(MultipartHttpServletRequest request) {
+        String forwarded = request.getHeader("X-Forwarded-For");
+        if (forwarded != null && !forwarded.isBlank()) {
+            return forwarded.split(",")[0].trim();
+        }
+        return request.getRemoteAddr();
     }
 }

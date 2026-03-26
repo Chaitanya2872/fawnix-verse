@@ -3,7 +3,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { BarChart3, Copy, FileText, Link2, Layers, Plus, QrCode, Search } from 'lucide-react'
 import QRCode from 'react-qr-code'
-import { formsApi, type Form, type FormCollection } from '@/lib/formsApi'
+import { formsApi } from '@/lib/formsApi'
+import type { Form, FormCollection } from '@/lib/formsApi'
 import { cn, STATUS_COLORS } from '@/lib/utils'
 
 type Filters = {

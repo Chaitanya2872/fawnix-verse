@@ -71,6 +71,8 @@ const ERP_NAV_SECTIONS: readonly SidebarNavSection[] = [
     items: [
       { label: "Hiring Requests", to: "/recruitment/hiring-requests", icon: ClipboardList, permission: PERMISSIONS.MODULE_RECRUITMENT },
       { label: "Positions", to: "/recruitment/positions", icon: Briefcase, permission: PERMISSIONS.MODULE_RECRUITMENT },
+      { label: "Intake", to: "/recruitment/intake", icon: UserRoundSearch, permission: PERMISSIONS.MODULE_RECRUITMENT },
+      { label: "Pipeline", to: "/recruitment/pipeline", icon: Target, permission: PERMISSIONS.MODULE_RECRUITMENT },
       { label: "Candidates", to: "/recruitment/candidates", icon: UserRoundSearch, permission: PERMISSIONS.MODULE_RECRUITMENT },
       { label: "Interviews", to: "/recruitment/interviews", icon: CalendarClock, permission: PERMISSIONS.MODULE_RECRUITMENT },
       { label: "Offers", to: "/recruitment/offers", icon: FileCheck2, permission: PERMISSIONS.MODULE_RECRUITMENT },

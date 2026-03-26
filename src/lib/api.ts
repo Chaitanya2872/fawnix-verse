@@ -33,6 +33,19 @@ export const recruitmentApi = {
   publishPosting: (id: string, data: object) =>
     api.post(`/recruitment/postings/${id}/publish`, data),
   closePosting: (id: string) => api.post(`/recruitment/postings/${id}/close`),
+  listIntake: (params?: object) => api.get("/recruitment/intake", { params }),
+  updateIntake: (id: string, data: object) => api.patch(`/recruitment/intake/${id}`, data),
+  shortlistIntake: (id: string) => api.post(`/recruitment/intake/${id}/shortlist`),
+  getPipeline: (vacancyId: string) => api.get(`/recruitment/pipeline/${vacancyId}`),
+  movePipeline: (data: object) => api.post("/recruitment/pipeline/move", data),
+  getPipelineHistory: (applicationId: string) => api.get(`/recruitment/pipeline/history/${applicationId}`),
+  getVacancyPipelineConfig: (id: string) => api.get(`/recruitment/vacancies/${id}/pipeline-config`),
+  updateVacancyPipelineConfig: (id: string, data: object) => api.patch(`/recruitment/vacancies/${id}/pipeline-config`, data),
+  getVacancyInterviewRounds: (id: string) => api.get(`/recruitment/vacancies/${id}/interview-rounds`),
+  updateVacancyInterviewRounds: (id: string, data: object) => api.patch(`/recruitment/vacancies/${id}/interview-rounds`, data),
+  createDecision: (data: object) => api.post("/recruitment/decisions", data),
+  getDecision: (applicationId: string) => api.get(`/recruitment/decisions/${applicationId}`),
+  getRecruitmentAnalytics: () => api.get("/recruitment/analytics"),
   getForms: () => api.get("/recruitment/forms"),
   getForm: (id: string) => api.get(`/recruitment/forms/${id}`),
   createForm: (data: object) => api.post("/recruitment/forms", data),
@@ -142,9 +155,17 @@ export const calendarApi = {
 };
 
 export const publicFormsApi = {
-  getForm: (slug: string) => rawApi.get(`/public/forms/${slug}`),
-  submitForm: (slug: string, data: FormData) =>
-    rawApi.post(`/public/forms/${slug}/submit`, data, {
-      headers: { "Content-Type": "multipart/form-data" },
-    }),
+  getForm: (slug: string, linkSlug?: string) => {
+    const query = linkSlug ? `?link=${encodeURIComponent(linkSlug)}` : "";
+    return rawApi.get(`/public/forms/${slug}${query}`);
+  },
+  submitForm: (slug: string, data: FormData, idempotencyKey?: string, linkSlug?: string) => {
+    const query = linkSlug ? `?link=${encodeURIComponent(linkSlug)}` : "";
+    return rawApi.post(`/public/forms/${slug}/submit${query}`, data, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+        ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {}),
+      },
+    });
+  },
 };

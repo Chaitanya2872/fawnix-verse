@@ -11,17 +11,17 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-import com.hirepath.recruitment.domain.ApplicationFormSubmission;
 import com.hirepath.recruitment.domain.Candidate;
 import com.hirepath.recruitment.domain.CandidateApplication;
 import com.hirepath.recruitment.domain.CandidateStatus;
 import com.hirepath.recruitment.domain.JobPosition;
+import com.hirepath.recruitment.domain.CandidateIntake;
 import com.hirepath.recruitment.domain.UserRole;
 import com.hirepath.recruitment.dto.ApplicationStatusUpdateRequest;
 import com.hirepath.recruitment.dto.CandidateApplicationCreateRequest;
 import com.hirepath.recruitment.dto.CandidateCreateRequest;
-import com.hirepath.recruitment.repository.ApplicationFormSubmissionRepository;
 import com.hirepath.recruitment.repository.CandidateApplicationRepository;
+import com.hirepath.recruitment.repository.CandidateIntakeRepository;
 import com.hirepath.recruitment.repository.CandidateRepository;
 import com.hirepath.recruitment.repository.JobPositionRepository;
 import com.hirepath.recruitment.util.UserContext;
@@ -48,18 +48,18 @@ public class CandidateController {
     private final CandidateRepository candidateRepository;
     private final CandidateApplicationRepository candidateApplicationRepository;
     private final JobPositionRepository jobPositionRepository;
-    private final ApplicationFormSubmissionRepository submissionRepository;
+    private final CandidateIntakeRepository intakeRepository;
 
     public CandidateController(
         CandidateRepository candidateRepository,
         CandidateApplicationRepository candidateApplicationRepository,
         JobPositionRepository jobPositionRepository,
-        ApplicationFormSubmissionRepository submissionRepository
+        CandidateIntakeRepository intakeRepository
     ) {
         this.candidateRepository = candidateRepository;
         this.candidateApplicationRepository = candidateApplicationRepository;
         this.jobPositionRepository = jobPositionRepository;
-        this.submissionRepository = submissionRepository;
+        this.intakeRepository = intakeRepository;
     }
 
     @GetMapping
@@ -255,24 +255,18 @@ public class CandidateController {
         @AuthenticationPrincipal AppUserDetails user
     ) {
         UserContext.requireRole(user, UserRole.ADMIN, UserRole.HR_MANAGER, UserRole.RECRUITER);
-        List<ApplicationFormSubmission> submissions = submissionRepository.findAll();
+        List<CandidateApplication> applications = candidateApplicationRepository.findAll();
 
-        if (formId != null && !formId.isBlank()) {
-            submissions = submissions.stream()
-                .filter(submission -> formId.equals(submission.getFormId()))
-                .toList();
-        }
         if (candidateId != null && !candidateId.isBlank()) {
-            submissions = submissions.stream()
-                .filter(submission -> submission.getCandidate() != null
-                    && candidateId.equals(submission.getCandidate().getId().toString()))
+            applications = applications.stream()
+                .filter(application -> application.getCandidate() != null
+                    && candidateId.equals(application.getCandidate().getId().toString()))
                 .toList();
         }
         if (positionId != null && !positionId.isBlank()) {
-            submissions = submissions.stream()
-                .filter(submission -> submission.getApplication() != null
-                    && submission.getApplication().getPosition() != null
-                    && positionId.equals(submission.getApplication().getPosition().getId().toString()))
+            applications = applications.stream()
+                .filter(application -> application.getPosition() != null
+                    && positionId.equals(application.getPosition().getId().toString()))
                 .toList();
         }
         if (status != null && !status.isBlank()) {
@@ -280,29 +274,29 @@ public class CandidateController {
                 .map(String::trim)
                 .filter(s -> !s.isEmpty())
                 .toList();
-            submissions = submissions.stream()
-                .filter(submission -> submission.getApplication() != null
-                    && submission.getApplication().getStatus() != null
-                    && statuses.contains(submission.getApplication().getStatus().getValue()))
+            applications = applications.stream()
+                .filter(application -> application.getStatus() != null
+                    && statuses.contains(application.getStatus().getValue()))
                 .toList();
         }
         if (source != null && !source.isBlank()) {
-            submissions = submissions.stream()
-                .filter(submission -> source.equalsIgnoreCase(submission.getSource()))
+            applications = applications.stream()
+                .filter(application -> application.getCandidate() != null
+                    && source.equalsIgnoreCase(application.getCandidate().getSource()))
                 .toList();
         }
         if (minExperience != null) {
-            submissions = submissions.stream()
-                .filter(submission -> submission.getCandidate() != null
-                    && submission.getCandidate().getExperienceYears() != null
-                    && submission.getCandidate().getExperienceYears() >= minExperience)
+            applications = applications.stream()
+                .filter(application -> application.getCandidate() != null
+                    && application.getCandidate().getExperienceYears() != null
+                    && application.getCandidate().getExperienceYears() >= minExperience)
                 .toList();
         }
         if (maxExperience != null) {
-            submissions = submissions.stream()
-                .filter(submission -> submission.getCandidate() != null
-                    && submission.getCandidate().getExperienceYears() != null
-                    && submission.getCandidate().getExperienceYears() <= maxExperience)
+            applications = applications.stream()
+                .filter(application -> application.getCandidate() != null
+                    && application.getCandidate().getExperienceYears() != null
+                    && application.getCandidate().getExperienceYears() <= maxExperience)
                 .toList();
         }
         if (skills != null && !skills.isBlank()) {
@@ -310,51 +304,58 @@ public class CandidateController {
                 .map(String::trim)
                 .filter(s -> !s.isEmpty())
                 .toList();
-            submissions = submissions.stream()
-                .filter(submission -> submission.getCandidate() != null
-                    && submission.getCandidate().getSkills() != null
-                    && submission.getCandidate().getSkills().stream().anyMatch(skillValues::contains))
+            applications = applications.stream()
+                .filter(application -> application.getCandidate() != null
+                    && application.getCandidate().getSkills() != null
+                    && application.getCandidate().getSkills().stream().anyMatch(skillValues::contains))
                 .toList();
         }
         if (search != null && !search.isBlank()) {
             String pattern = search.toLowerCase();
-            submissions = submissions.stream()
-                .filter(submission -> submission.getCandidate() != null
-                    && ((submission.getCandidate().getFullName() != null
-                        && submission.getCandidate().getFullName().toLowerCase().contains(pattern))
-                        || (submission.getCandidate().getEmail() != null
-                            && submission.getCandidate().getEmail().toLowerCase().contains(pattern))))
+            applications = applications.stream()
+                .filter(application -> application.getCandidate() != null
+                    && ((application.getCandidate().getFullName() != null
+                        && application.getCandidate().getFullName().toLowerCase().contains(pattern))
+                        || (application.getCandidate().getEmail() != null
+                            && application.getCandidate().getEmail().toLowerCase().contains(pattern))))
                 .toList();
         }
 
         OffsetDateTime from = parseDate(dateFrom, false);
         OffsetDateTime to = parseDate(dateTo, true);
         if (from != null) {
-            submissions = submissions.stream()
-                .filter(submission -> submission.getSubmittedAt() != null && !submission.getSubmittedAt().isBefore(from))
+            applications = applications.stream()
+                .filter(application -> application.getAppliedAt() != null && !application.getAppliedAt().isBefore(from))
                 .toList();
         }
         if (to != null) {
-            submissions = submissions.stream()
-                .filter(submission -> submission.getSubmittedAt() != null && submission.getSubmittedAt().isBefore(to))
+            applications = applications.stream()
+                .filter(application -> application.getAppliedAt() != null && application.getAppliedAt().isBefore(to))
                 .toList();
         }
 
-        int total = submissions.size();
-        submissions = submissions.stream()
-            .sorted(Comparator.comparing(ApplicationFormSubmission::getSubmittedAt).reversed())
+        if (formId != null && !formId.isBlank()) {
+            applications = applications.stream()
+                .filter(application -> application.getIntake() != null
+                    && formId.equals(application.getIntake().getFormId()))
+                .toList();
+        }
+
+        int total = applications.size();
+        applications = applications.stream()
+            .sorted(Comparator.comparing(CandidateApplication::getAppliedAt).reversed())
             .collect(Collectors.toList());
         int fromIndex = Math.min(skip, total);
         int toIndex = Math.min(fromIndex + limit, total);
-        List<ApplicationFormSubmission> page = submissions.subList(fromIndex, toIndex);
+        List<CandidateApplication> page = applications.subList(fromIndex, toIndex);
 
-        List<Map<String, Object>> data = page.stream().map(submission -> {
-            CandidateApplication application = submission.getApplication();
-            Candidate candidate = submission.getCandidate();
-            JobPosition position = application != null ? application.getPosition() : null;
+        List<Map<String, Object>> data = page.stream().map(application -> {
+            Candidate candidate = application.getCandidate();
+            JobPosition position = application.getPosition();
+            CandidateIntake intake = application.getIntake();
             Map<String, Object> row = new LinkedHashMap<>();
-            row.put("submission_id", submission.getId());
-            row.put("application_id", application != null ? application.getId() : null);
+            row.put("submission_id", intake != null ? intake.getFormSubmissionId() : null);
+            row.put("application_id", application.getId());
             row.put("candidate_id", candidate != null ? candidate.getId() : null);
             row.put("candidate_name", candidate != null ? candidate.getFullName() : null);
             row.put("candidate_email", candidate != null ? candidate.getEmail() : null);
@@ -362,16 +363,15 @@ public class CandidateController {
             row.put("candidate_location", candidate != null ? candidate.getLocation() : null);
             row.put("skills", candidate != null && candidate.getSkills() != null ? candidate.getSkills() : List.of());
             row.put("experience_years", candidate != null ? candidate.getExperienceYears() : null);
-            row.put("status", application != null && application.getStatus() != null ? application.getStatus().getValue() : null);
-            row.put("notes", application != null ? application.getNotes() : null);
-            row.put("source", submission.getSource() != null ? submission.getSource() : (candidate != null ? candidate.getSource() : null));
-            row.put("submitted_at", submission.getSubmittedAt());
-            row.put("form_id", submission.getFormId());
-            row.put("form_name", submission.getFormName());
+            row.put("status", application.getStatus() != null ? application.getStatus().getValue() : null);
+            row.put("notes", application.getNotes());
+            row.put("source", intake != null ? intake.getSource() : (candidate != null ? candidate.getSource() : null));
+            row.put("submitted_at", application.getAppliedAt());
+            row.put("form_id", intake != null ? intake.getFormId() : null);
+            row.put("form_name", null);
             row.put("position_id", position != null ? position.getId() : null);
             row.put("position_title", position != null ? position.getTitle() : null);
-            row.put("resume_url", submission.getResumeUrl() != null ? submission.getResumeUrl()
-                : (candidate != null ? candidate.getResumeUrl() : null));
+            row.put("resume_url", intake != null ? intake.getResumeUrl() : (candidate != null ? candidate.getResumeUrl() : null));
             return row;
         }).toList();
 

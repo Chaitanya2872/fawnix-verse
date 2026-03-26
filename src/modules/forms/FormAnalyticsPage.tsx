@@ -1,7 +1,8 @@
 ﻿import { useQuery } from '@tanstack/react-query'
 import { BarChart3, Clock, FileText, TrendingUp, Target } from 'lucide-react'
 import { Line, LineChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import { formsApi, type FormAnalytics } from '@/lib/formsApi'
+import { formsApi } from '@/lib/formsApi'
+import type { FormAnalytics } from '@/lib/formsApi'
 
 function StatCard({ label, value, icon: Icon }: { label: string; value: string; icon: React.FC<any> }) {
   return (
@@ -20,12 +21,17 @@ function StatCard({ label, value, icon: Icon }: { label: string; value: string; 
 }
 
 export default function FormAnalyticsPage() {
-  const { data } = useQuery({
+  const { data, isLoading } = useQuery({
     queryKey: ['forms-analytics'],
     queryFn: () => formsApi.listAnalytics().then(r => r.data),
   })
 
   const analytics: FormAnalytics | undefined = data
+
+  const formatMetric = (value: number | null | undefined, suffix = '') => {
+    if (value === null || value === undefined) return '—'
+    return `${value}${suffix}`
+  }
 
   return (
     <div className="animate-in">
@@ -39,8 +45,8 @@ export default function FormAnalyticsPage() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
         <StatCard label="Total Forms" value={analytics ? String(analytics.total_forms) : '—'} icon={FileText} />
         <StatCard label="Submissions (7d)" value={analytics ? String(analytics.submissions_last_7) : '—'} icon={TrendingUp} />
-        <StatCard label="Completion Rate" value={analytics ? `${analytics.completion_rate}%` : '—'} icon={Target} />
-        <StatCard label="Avg Completion" value={analytics ? `${analytics.avg_completion_time_days} days` : '—'} icon={Clock} />
+        <StatCard label="Completion Rate" value={formatMetric(analytics?.completion_rate, '%')} icon={Target} />
+        <StatCard label="Avg Completion" value={formatMetric(analytics?.avg_completion_time_days, ' days')} icon={Clock} />
       </div>
 
       <div className="card p-5">
@@ -51,17 +57,21 @@ export default function FormAnalyticsPage() {
           </div>
           <BarChart3 className="w-4 h-4 text-gray-300" />
         </div>
-        <ResponsiveContainer width="100%" height={220}>
-          <LineChart data={analytics?.trend || []}>
+        {isLoading && <div className="py-6 text-sm text-gray-400">Loading analytics...</div>}
+        {!isLoading && (
+          <ResponsiveContainer width="100%" height={220}>
+            <LineChart data={analytics?.trend || []}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
             <XAxis dataKey="label" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
             <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
             <Tooltip />
             <Line type="monotone" dataKey="submissions" stroke="#6366f1" strokeWidth={2} dot={false} name="Submissions" />
             <Line type="monotone" dataKey="completed" stroke="#10b981" strokeWidth={2} dot={false} name="Completed" />
-          </LineChart>
-        </ResponsiveContainer>
+            </LineChart>
+          </ResponsiveContainer>
+        )}
       </div>
     </div>
   )
 }
+

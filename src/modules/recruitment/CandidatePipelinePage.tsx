@@ -1,169 +1,248 @@
-import { useState } from 'react'
-import { cn, getInitials } from '@/lib/utils'
-import { Plus, MoreHorizontal, Search, Filter, ChevronDown } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { AlertCircle, ChevronDown, Filter, Search } from 'lucide-react'
+import { recruitmentApi } from '@/lib/api'
+import { cn, getInitials, timeAgo, STATUS_COLORS } from '@/lib/utils'
 
-const STAGES = [
-  { id: 'applied', label: 'Applied', color: 'bg-gray-400', count: 24 },
-  { id: 'shortlisted', label: 'Shortlisted', color: 'bg-blue-400', count: 12 },
-  { id: 'hr_screening', label: 'HR Screening', color: 'bg-amber-400', count: 8 },
-  { id: 'interview_scheduled', label: 'Interview', color: 'bg-violet-400', count: 6 },
-  { id: 'selected', label: 'Selected', color: 'bg-emerald-400', count: 4 },
-  { id: 'offer_sent', label: 'Offer', color: 'bg-teal-400', count: 3 },
-]
-
-const mockCards: Record<string, any[]> = {
-  applied: [
-    { id: '1', name: 'Emily Rodriguez', role: 'Sr. Frontend Dev', score: 92, time: '2h ago', source: 'LinkedIn' },
-    { id: '2', name: 'Marcus Chen', role: 'Full Stack Eng', score: 88, time: '5h ago', source: 'Referral' },
-    { id: '3', name: 'Priya Sharma', role: 'Product Designer', score: 80, time: '1d ago', source: 'LinkedIn' },
-  ],
-  shortlisted: [
-    { id: '4', name: 'Arjun Patel', role: 'DevOps Engineer', score: 85, time: '1d ago', source: 'Naukri' },
-    { id: '5', name: 'Sneha Reddy', role: 'Data Engineer', score: 79, time: '2d ago', source: 'LinkedIn' },
-  ],
-  hr_screening: [
-    { id: '6', name: 'Rohit Kumar', role: 'Backend Dev', score: 82, time: '3d ago', source: 'Direct' },
-  ],
-  interview_scheduled: [
-    { id: '7', name: 'Anjali Singh', role: 'QA Lead', score: 77, time: '4d ago', source: 'Referral' },
-    { id: '8', name: 'Vikram Mehta', role: 'Android Dev', score: 84, time: '2d ago', source: 'Naukri' },
-  ],
-  selected: [
-    { id: '9', name: 'Kavya Nair', role: 'ML Engineer', score: 91, time: '5d ago', source: 'LinkedIn' },
-  ],
-  offer_sent: [
-    { id: '10', name: 'Suresh Iyer', role: 'Solution Architect', score: 96, time: '1w ago', source: 'Direct' },
-  ],
+type PipelineStage = {
+  id: string
+  name: string
+  order_index: number
+  is_terminal: boolean
+  is_active: boolean
+  category?: string | null
 }
 
-function CandidateCard({ candidate }: { candidate: any }) {
+type PipelineCard = {
+  application_id: string
+  candidate_id: string
+  candidate_name: string
+  current_title?: string | null
+  skills?: string[]
+  applied_at?: string | null
+  status?: string | null
+}
+
+type PipelineResponse = {
+  stages: PipelineStage[]
+  cards: Record<string, PipelineCard[]>
+}
+
+function CandidateCard({ candidate }: { candidate: PipelineCard }) {
   return (
     <div className="kanban-card group">
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-2">
           <div className="w-7 h-7 rounded-full bg-gradient-to-br from-brand-400 to-violet-500 flex items-center justify-center text-white text-[10px] font-semibold shrink-0">
-            {getInitials(candidate.name)}
+            {getInitials(candidate.candidate_name || 'C')}
           </div>
           <div>
-            <p className="text-xs font-semibold text-gray-900">{candidate.name}</p>
-            <p className="text-[11px] text-gray-400">{candidate.role}</p>
+            <p className="text-xs font-semibold text-gray-900">{candidate.candidate_name || 'Candidate'}</p>
+            <p className="text-[11px] text-gray-400">{candidate.current_title || '—'}</p>
           </div>
         </div>
-        <button className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-gray-600">
-          <MoreHorizontal className="w-3.5 h-3.5" />
-        </button>
+        {candidate.status && (
+          <span className={cn('badge text-[10px]', STATUS_COLORS[candidate.status] || 'badge-gray')}>
+            {candidate.status.replace('_', ' ')}
+          </span>
+        )}
       </div>
       <div className="flex items-center justify-between mt-3">
         <div className="flex items-center gap-1.5">
           <div className="w-16 h-1 bg-gray-100 rounded-full overflow-hidden">
             <div
               className="h-full bg-brand-500 rounded-full"
-              style={{ width: `${candidate.score}%` }}
+              style={{ width: `${Math.min(100, (candidate.skills?.length || 0) * 10)}%` }}
             />
           </div>
-          <span className="text-[10px] font-medium text-gray-600">{candidate.score}%</span>
+          <span className="text-[10px] font-medium text-gray-600">{candidate.skills?.length || 0} skills</span>
         </div>
-        <span className="text-[10px] text-gray-400">{candidate.time}</span>
+        <span className="text-[10px] text-gray-400">
+          {candidate.applied_at ? timeAgo(candidate.applied_at) : '—'}
+        </span>
       </div>
-      <div className="mt-2">
-        <span className="badge-blue text-[10px]">{candidate.source}</span>
-      </div>
+      {candidate.skills && candidate.skills.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-1">
+          {candidate.skills.slice(0, 2).map(skill => (
+            <span key={skill} className="badge-blue text-[10px]">{skill}</span>
+          ))}
+          {candidate.skills.length > 2 && (
+            <span className="badge-gray text-[10px]">+{candidate.skills.length - 2}</span>
+          )}
+        </div>
+      )}
     </div>
   )
 }
 
 export default function CandidatePipelinePage() {
-  const [cards, setCards] = useState(mockCards)
+  const qc = useQueryClient()
+  const [search, setSearch] = useState('')
+  const [selectedVacancy, setSelectedVacancy] = useState('')
   const [dragOver, setDragOver] = useState<string | null>(null)
+  const [dragging, setDragging] = useState<{ applicationId: string; fromStageId: string } | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  const { data: positionsData } = useQuery({
+    queryKey: ['positions'],
+    queryFn: () => recruitmentApi.getPositions({}).then(r => r.data),
+  })
+
+  useEffect(() => {
+    if (!selectedVacancy && positionsData?.data?.length) {
+      setSelectedVacancy(positionsData.data[0].id)
+    }
+  }, [positionsData, selectedVacancy])
+
+  const { data: pipelineData, isLoading } = useQuery<PipelineResponse>({
+    queryKey: ['pipeline', selectedVacancy],
+    enabled: Boolean(selectedVacancy),
+    queryFn: () => recruitmentApi.getPipeline(selectedVacancy).then(r => r.data),
+  })
+
+  const moveMutation = useMutation({
+    mutationFn: (payload: { applicationId: string; toStageId: string; reason?: string }) =>
+      recruitmentApi.movePipeline(payload),
+    onSuccess: () => {
+      setError(null)
+      qc.invalidateQueries({ queryKey: ['pipeline', selectedVacancy] })
+    },
+    onError: (err: any) => {
+      const message = err?.response?.data || 'Unable to move candidate'
+      setError(typeof message === 'string' ? message : 'Unable to move candidate')
+    },
+  })
+
+  const stages = pipelineData?.stages ?? []
+  const cardsByStage = pipelineData?.cards ?? {}
+
+  const filteredCards = useMemo(() => {
+    const needle = search.trim().toLowerCase()
+    if (!needle) return cardsByStage
+    const next: Record<string, PipelineCard[]> = {}
+    stages.forEach(stage => {
+      const list = cardsByStage[stage.id] || []
+      next[stage.id] = list.filter(card =>
+        (card.candidate_name || '').toLowerCase().includes(needle) ||
+        (card.current_title || '').toLowerCase().includes(needle)
+      )
+    })
+    return next
+  }, [search, cardsByStage, stages])
+
+  const positions = positionsData?.data ?? []
+
+  const handleDrop = (stageId: string) => {
+    setDragOver(null)
+    if (!dragging || dragging.fromStageId === stageId) return
+    moveMutation.mutate({ applicationId: dragging.applicationId, toStageId: stageId })
+  }
 
   return (
     <div className="animate-in">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="page-title">Candidate Pipeline</h1>
-          <p className="page-subtitle">Visual overview of your hiring funnel</p>
+          <p className="page-subtitle">Drag candidates through the hiring workflow</p>
         </div>
         <div className="flex items-center gap-2">
           <div className="relative">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input placeholder="Search candidates..." className="input pl-9 text-sm py-1.5 w-52" />
+            <input
+              placeholder="Search candidates..."
+              className="input pl-9 text-sm py-1.5 w-52"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
           </div>
-          <button className="btn-secondary">
-            <Filter className="w-4 h-4" />
-            All Jobs
-            <ChevronDown className="w-3.5 h-3.5" />
-          </button>
+          <div className="relative">
+            <Filter className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <select
+              className="input pl-9 text-sm py-1.5 pr-8 w-56"
+              value={selectedVacancy}
+              onChange={e => setSelectedVacancy(e.target.value)}
+            >
+              <option value="">Select vacancy</option>
+              {positions.map((p: any) => (
+                <option key={p.id} value={p.id}>{p.title}</option>
+              ))}
+            </select>
+            <ChevronDown className="w-3.5 h-3.5 absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          </div>
         </div>
       </div>
 
-      {/* Pipeline board */}
-      <div className="overflow-x-auto pb-4">
-        <div className="flex gap-4 min-w-max">
-          {STAGES.map(stage => {
-            const stageCandidates = cards[stage.id] || []
-            return (
-              <div
-                key={stage.id}
-                className={cn(
-                  'w-60 flex flex-col gap-2',
-                  dragOver === stage.id && 'opacity-80'
-                )}
-                onDragOver={e => { e.preventDefault(); setDragOver(stage.id) }}
-                onDragLeave={() => setDragOver(null)}
-                onDrop={() => setDragOver(null)}
-              >
-                {/* Column header */}
-                <div className="flex items-center justify-between px-1">
-                  <div className="flex items-center gap-2">
-                    <div className={cn('w-2 h-2 rounded-full', stage.color)} />
-                    <span className="text-xs font-semibold text-gray-700">{stage.label}</span>
-                    <span className="text-xs text-gray-400 bg-gray-100 px-1.5 rounded-full">
-                      {stageCandidates.length}
-                    </span>
-                  </div>
-                  <button className="text-gray-300 hover:text-gray-500">
-                    <Plus className="w-3.5 h-3.5" />
-                  </button>
-                </div>
+      {error && (
+        <div className="mb-4 flex items-center gap-2 text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+          <AlertCircle className="w-4 h-4" />
+          {error}
+        </div>
+      )}
 
-                {/* Cards */}
-                <div className={cn('kanban-col rounded-xl p-2 min-h-[120px]', dragOver === stage.id ? 'bg-brand-50' : 'bg-gray-50/50')}>
-                  {stageCandidates.map(c => (
-                    <div key={c.id} draggable>
-                      <CandidateCard candidate={c} />
-                    </div>
-                  ))}
-                  {stageCandidates.length === 0 && (
-                    <div className="flex items-center justify-center h-20 text-xs text-gray-300 border-2 border-dashed border-gray-200 rounded-lg">
-                      Drop candidates here
-                    </div>
+      {!selectedVacancy && (
+        <div className="card p-6 text-sm text-gray-500">
+          Select a vacancy to load the pipeline.
+        </div>
+      )}
+
+      {selectedVacancy && (
+        <div className="overflow-x-auto pb-4">
+          <div className="flex gap-4 min-w-max">
+            {stages.map(stage => {
+              const stageCandidates = filteredCards[stage.id] || []
+              return (
+                <div
+                  key={stage.id}
+                  className={cn(
+                    'w-64 flex flex-col gap-2',
+                    dragOver === stage.id && 'opacity-80'
                   )}
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      </div>
+                  onDragOver={e => { e.preventDefault(); setDragOver(stage.id) }}
+                  onDragLeave={() => setDragOver(null)}
+                  onDrop={() => handleDrop(stage.id)}
+                >
+                  <div className="flex items-center justify-between px-1">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full bg-brand-500" />
+                      <span className="text-xs font-semibold text-gray-700">{stage.name}</span>
+                      <span className="text-xs text-gray-400 bg-gray-100 px-1.5 rounded-full">
+                        {stageCandidates.length}
+                      </span>
+                    </div>
+                  </div>
 
-      {/* Summary bar */}
-      <div className="mt-6 card p-4">
-        <div className="flex items-center gap-8">
-          {STAGES.map(stage => (
-            <div key={stage.id} className="text-center">
-              <div className="text-lg font-display font-bold text-gray-900">
-                {(mockCards[stage.id] || []).length}
+                  <div className={cn('kanban-col rounded-xl p-2 min-h-[140px]', dragOver === stage.id ? 'bg-brand-50' : 'bg-gray-50/50')}>
+                    {stageCandidates.map(c => (
+                      <div
+                        key={c.application_id}
+                        draggable
+                        onDragStart={() => setDragging({ applicationId: c.application_id, fromStageId: stage.id })}
+                        onDragEnd={() => setDragging(null)}
+                      >
+                        <CandidateCard candidate={c} />
+                      </div>
+                    ))}
+                    {stageCandidates.length === 0 && (
+                      <div className="flex items-center justify-center h-20 text-xs text-gray-300 border-2 border-dashed border-gray-200 rounded-lg">
+                        Drop candidates here
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+            {stages.length === 0 && !isLoading && (
+              <div className="card p-6 text-sm text-gray-500">
+                No pipeline stages configured yet for this vacancy.
               </div>
-              <div className="text-xs text-gray-500">{stage.label}</div>
-            </div>
-          ))}
-          <div className="text-center ml-auto">
-            <div className="text-lg font-display font-bold text-brand-600">
-              {Object.values(mockCards).flat().length}
-            </div>
-            <div className="text-xs text-gray-500">Total</div>
+            )}
           </div>
         </div>
-      </div>
+      )}
+
+      {isLoading && (
+        <div className="text-sm text-gray-400 mt-4">Loading pipeline...</div>
+      )}
     </div>
   )
 }

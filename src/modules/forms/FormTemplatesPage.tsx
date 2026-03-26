@@ -1,7 +1,8 @@
 ﻿import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Eye, Plus, Star } from 'lucide-react'
-import { formsApi, type FormField, type FormTemplate } from '@/lib/formsApi'
+import { formsApi } from '@/lib/formsApi'
+import type { FormField, FormTemplate } from '@/lib/formsApi'
 import { cn } from '@/lib/utils'
 
 const defaultFields: FormField[] = [

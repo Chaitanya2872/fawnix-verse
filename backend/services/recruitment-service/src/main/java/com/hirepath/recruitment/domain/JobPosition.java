@@ -67,6 +67,12 @@ public class JobPosition {
     @Enumerated(EnumType.STRING)
     private JobStatus status = JobStatus.OPEN;
 
+    @Column(name = "workflow_version")
+    private Integer workflowVersion = 1;
+
+    @Column(name = "pipeline_config_status")
+    private String pipelineConfigStatus;
+
     @CreationTimestamp
     @Column(name = "created_at")
     private OffsetDateTime createdAt;
@@ -183,6 +189,22 @@ public class JobPosition {
 
     public void setStatus(JobStatus status) {
         this.status = status;
+    }
+
+    public Integer getWorkflowVersion() {
+        return workflowVersion;
+    }
+
+    public void setWorkflowVersion(Integer workflowVersion) {
+        this.workflowVersion = workflowVersion;
+    }
+
+    public String getPipelineConfigStatus() {
+        return pipelineConfigStatus;
+    }
+
+    public void setPipelineConfigStatus(String pipelineConfigStatus) {
+        this.pipelineConfigStatus = pipelineConfigStatus;
     }
 
     public OffsetDateTime getCreatedAt() {

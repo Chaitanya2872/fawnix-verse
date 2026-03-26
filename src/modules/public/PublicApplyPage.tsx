@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useMemo, useRef, useState } from 'react'
+import { useLocation, useParams } from 'react-router-dom'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { publicFormsApi } from '@/lib/api'
 
@@ -14,17 +14,32 @@ type Field = {
 
 export default function PublicApplyPage() {
   const { slug } = useParams()
+  const location = useLocation()
+  const linkSlug = useMemo(() => {
+    const params = new URLSearchParams(location.search)
+    const link = params.get('link')
+    return link ?? undefined
+  }, [location.search])
   const [values, setValues] = useState<Record<string, any>>({})
   const [submitted, setSubmitted] = useState(false)
+  const idempotencyKeyRef = useRef<string>()
+  if (!idempotencyKeyRef.current) {
+    if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+      idempotencyKeyRef.current = crypto.randomUUID()
+    } else {
+      idempotencyKeyRef.current = `${Date.now()}-${Math.random().toString(16).slice(2)}`
+    }
+  }
+  const idempotencyKey = idempotencyKeyRef.current
 
   const { data, isLoading } = useQuery({
-    queryKey: ['public-form', slug],
-    queryFn: () => publicFormsApi.getForm(slug as string).then(r => r.data),
+    queryKey: ['public-form', slug, linkSlug],
+    queryFn: () => publicFormsApi.getForm(slug as string, linkSlug).then(r => r.data),
     enabled: !!slug,
   })
 
   const mutation = useMutation({
-    mutationFn: (payload: FormData) => publicFormsApi.submitForm(slug as string, payload),
+    mutationFn: (payload: FormData) => publicFormsApi.submitForm(slug as string, payload, idempotencyKey, linkSlug),
     onSuccess: () => setSubmitted(true),
   })
 

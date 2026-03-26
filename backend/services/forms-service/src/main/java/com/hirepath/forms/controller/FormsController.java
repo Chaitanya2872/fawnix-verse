@@ -21,24 +21,29 @@ import com.hirepath.forms.domain.ApplicationFormField;
 import com.hirepath.forms.domain.ApplicationFormLink;
 import com.hirepath.forms.domain.ApplicationFormStatus;
 import com.hirepath.forms.domain.ApplicationFormTemplate;
+import com.hirepath.forms.domain.ApplicationFormVersion;
 import com.hirepath.forms.domain.FormFieldSnapshot;
 import com.hirepath.forms.domain.FormLinkStatus;
 import com.hirepath.forms.dto.CollectionCreateRequest;
 import com.hirepath.forms.dto.FormCreateRequest;
 import com.hirepath.forms.dto.FormFieldDto;
 import com.hirepath.forms.dto.FormUpdateRequest;
+import com.hirepath.forms.dto.LinkCreateRequest;
 import com.hirepath.forms.dto.TemplateCreateRequest;
 import com.hirepath.forms.repository.ApplicationFormCollectionRepository;
 import com.hirepath.forms.repository.ApplicationFormFavoriteRepository;
 import com.hirepath.forms.repository.ApplicationFormFieldRepository;
 import com.hirepath.forms.repository.ApplicationFormLinkRepository;
 import com.hirepath.forms.repository.ApplicationFormRepository;
+import com.hirepath.forms.repository.ApplicationFormSubmissionRepository;
 import com.hirepath.forms.repository.ApplicationFormTemplateRepository;
+import com.hirepath.forms.repository.ApplicationFormVersionRepository;
 import com.hirepath.forms.security.service.AppUserDetails;
 
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -61,6 +66,8 @@ public class FormsController {
     private final ApplicationFormCollectionRepository collectionRepository;
     private final ApplicationFormLinkRepository linkRepository;
     private final ApplicationFormFavoriteRepository favoriteRepository;
+    private final ApplicationFormVersionRepository versionRepository;
+    private final ApplicationFormSubmissionRepository submissionRepository;
 
     public FormsController(
         ApplicationFormRepository formRepository,
@@ -68,7 +75,9 @@ public class FormsController {
         ApplicationFormTemplateRepository templateRepository,
         ApplicationFormCollectionRepository collectionRepository,
         ApplicationFormLinkRepository linkRepository,
-        ApplicationFormFavoriteRepository favoriteRepository
+        ApplicationFormFavoriteRepository favoriteRepository,
+        ApplicationFormVersionRepository versionRepository,
+        ApplicationFormSubmissionRepository submissionRepository
     ) {
         this.formRepository = formRepository;
         this.fieldRepository = fieldRepository;
@@ -76,6 +85,8 @@ public class FormsController {
         this.collectionRepository = collectionRepository;
         this.linkRepository = linkRepository;
         this.favoriteRepository = favoriteRepository;
+        this.versionRepository = versionRepository;
+        this.submissionRepository = submissionRepository;
     }
 
     @GetMapping
@@ -153,6 +164,7 @@ public class FormsController {
     }
 
     @PostMapping
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_HR_MANAGER','ROLE_RECRUITER')")
     public ResponseEntity<?> createForm(
         @RequestBody FormCreateRequest request,
         @AuthenticationPrincipal AppUserDetails user
@@ -232,6 +244,7 @@ public class FormsController {
     }
 
     @PatchMapping("/{id}")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_HR_MANAGER','ROLE_RECRUITER')")
     public ResponseEntity<?> updateForm(@PathVariable UUID id, @RequestBody FormUpdateRequest request) {
         ApplicationForm form = formRepository.findById(id).orElse(null);
         if (form == null) {
@@ -289,6 +302,7 @@ public class FormsController {
     }
 
     @PostMapping("/{id}/publish")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_HR_MANAGER','ROLE_RECRUITER')")
     public ResponseEntity<?> publish(@PathVariable UUID id) {
         ApplicationForm form = formRepository.findWithFieldsById(id).orElse(null);
         if (form == null) {
@@ -309,6 +323,7 @@ public class FormsController {
         }
         form.setStatus(ApplicationFormStatus.PUBLISHED);
         formRepository.save(form);
+        createVersionSnapshot(form);
         return ResponseEntity.ok(Map.of(
             "public_slug", form.getPublicSlug(),
             "message", "Form published"
@@ -316,6 +331,7 @@ public class FormsController {
     }
 
     @PostMapping("/{id}/archive")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_HR_MANAGER','ROLE_RECRUITER')")
     public ResponseEntity<?> archive(@PathVariable UUID id) {
         ApplicationForm form = formRepository.findById(id).orElse(null);
         if (form == null) {
@@ -351,6 +367,7 @@ public class FormsController {
     }
 
     @PostMapping("/templates")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_HR_MANAGER','ROLE_RECRUITER')")
     public ResponseEntity<?> createTemplate(
         @RequestBody TemplateCreateRequest request,
         @AuthenticationPrincipal AppUserDetails user
@@ -421,6 +438,7 @@ public class FormsController {
     }
 
     @PostMapping("/collections")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_HR_MANAGER','ROLE_RECRUITER')")
     public ResponseEntity<?> createCollection(@RequestBody CollectionCreateRequest request) {
         String module;
         try {
@@ -466,14 +484,20 @@ public class FormsController {
         }
 
         List<Map<String, Object>> data = links.stream().map(link -> {
+            refreshLinkStatus(link);
             Map<String, Object> row = new LinkedHashMap<>();
             row.put("id", link.getId());
             row.put("form_id", link.getFormId());
             row.put("form_name", link.getFormId() != null ? formNames.get(link.getFormId()) : null);
+            row.put("slug", link.getSlug());
             row.put("candidate_name", link.getCandidateName());
             row.put("candidate_email", link.getCandidateEmail());
             row.put("module", link.getModule() != null ? link.getModule() : "recruitment");
             row.put("status", link.getStatus() != null ? link.getStatus().name().toLowerCase() : null);
+            row.put("is_active", link.isActive());
+            row.put("max_submissions", link.getMaxSubmissions());
+            row.put("current_submissions", link.getCurrentSubmissions());
+            row.put("access_type", link.getAccessType());
             row.put("url", link.getUrl());
             row.put("expires_at", link.getExpiresAt());
             row.put("created_at", link.getCreatedAt());
@@ -483,7 +507,44 @@ public class FormsController {
         return ResponseEntity.ok(Map.of("data", data));
     }
 
+    @PostMapping("/links")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_HR_MANAGER','ROLE_RECRUITER')")
+    public ResponseEntity<?> createLink(@RequestBody LinkCreateRequest request) {
+        if (request.getFormId() == null || request.getFormId().isBlank()) {
+            return ResponseEntity.badRequest().body("form_id is required");
+        }
+        ApplicationForm form = formRepository.findById(UUID.fromString(request.getFormId())).orElse(null);
+        if (form == null) {
+            return ResponseEntity.notFound().build();
+        }
+        if (form.getStatus() != ApplicationFormStatus.PUBLISHED) {
+            return ResponseEntity.badRequest().body("Form must be published before creating links");
+        }
+
+        String linkSlug = generateUniqueLinkSlug(form.getName());
+        ApplicationFormLink link = new ApplicationFormLink();
+        link.setFormId(form.getId().toString());
+        link.setSlug(linkSlug);
+        link.setCandidateName(request.getCandidateName() != null ? request.getCandidateName() : "Candidate");
+        link.setCandidateEmail(request.getCandidateEmail() != null ? request.getCandidateEmail() : "unknown@email");
+        link.setModule(normalizeModule(request.getModule(), form.getModule() != null ? form.getModule() : "recruitment"));
+        link.setStatus(FormLinkStatus.ACTIVE);
+        link.setActive(true);
+        link.setMaxSubmissions(request.getMaxSubmissions());
+        link.setCurrentSubmissions(0);
+        link.setAccessType(request.getAccessType() != null ? request.getAccessType() : "public");
+        link.setExpiresAt(request.getExpiresAt());
+        link.setUrl("/apply/" + form.getPublicSlug() + "?link=" + linkSlug);
+        ApplicationFormLink saved = linkRepository.save(link);
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(Map.of(
+            "id", saved.getId(),
+            "url", saved.getUrl()
+        ));
+    }
+
     @PostMapping("/links/{id}/resend")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_HR_MANAGER','ROLE_RECRUITER')")
     public ResponseEntity<?> resendLink(@PathVariable UUID id) {
         ApplicationFormLink link = linkRepository.findById(id).orElse(null);
         if (link == null) {
@@ -491,17 +552,20 @@ public class FormsController {
         }
         link.setLastSentAt(OffsetDateTime.now());
         link.setStatus(FormLinkStatus.ACTIVE);
+        link.setActive(true);
         linkRepository.save(link);
         return ResponseEntity.ok(Map.of("message", "Link resent"));
     }
 
     @PostMapping("/links/{id}/expire")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_HR_MANAGER','ROLE_RECRUITER')")
     public ResponseEntity<?> expireLink(@PathVariable UUID id) {
         ApplicationFormLink link = linkRepository.findById(id).orElse(null);
         if (link == null) {
             return ResponseEntity.notFound().build();
         }
         link.setStatus(FormLinkStatus.DISABLED);
+        link.setActive(false);
         linkRepository.save(link);
         return ResponseEntity.ok(Map.of("message", "Link disabled"));
     }
@@ -512,22 +576,39 @@ public class FormsController {
         long published = formRepository.findAll().stream()
             .filter(f -> f.getStatus() == ApplicationFormStatus.PUBLISHED)
             .count();
+        OffsetDateTime since = OffsetDateTime.now().minusDays(7);
+        long submissionsLast7 = submissionRepository.findBySubmittedAtAfter(since).size();
+        List<Map<String, Object>> trend = buildTrend();
         return ResponseEntity.ok(Map.of(
             "total_forms", total,
             "published_forms", published,
-            "submissions_last_7", 0,
-            "completion_rate", 0,
-            "avg_completion_time_days", 0,
-            "trend", List.of()
+            "submissions_last_7", submissionsLast7,
+            "completion_rate", null,
+            "avg_completion_time_days", null,
+            "trend", trend
         ));
     }
 
     @GetMapping("/{id}/submissions")
     public ResponseEntity<?> listSubmissions(@PathVariable UUID id) {
+        int limit = 50;
+        List<Map<String, Object>> rows = submissionRepository
+            .findByFormIdOrderBySubmittedAtDesc(id, org.springframework.data.domain.PageRequest.of(0, limit))
+            .stream()
+            .map(submission -> {
+                Map<String, Object> row = new LinkedHashMap<>();
+                row.put("id", submission.getId());
+                row.put("candidate_name", submission.getCandidateName());
+                row.put("candidate_email", submission.getCandidateEmail());
+                row.put("submitted_at", submission.getSubmittedAt());
+                return row;
+            }).toList();
+        long total = submissionRepository.countByFormId(id);
+        long last7 = submissionRepository.countByFormIdAndSubmittedAtAfter(id, OffsetDateTime.now().minusDays(7));
         return ResponseEntity.ok(Map.of(
-            "total", 0,
-            "last_7_days", 0,
-            "data", List.of()
+            "total", total,
+            "last_7_days", last7,
+            "data", rows
         ));
     }
 
@@ -606,6 +687,47 @@ public class FormsController {
         return row;
     }
 
+    private void createVersionSnapshot(ApplicationForm form) {
+        List<Map<String, Object>> snapshot = form.getFields().stream()
+            .sorted(Comparator.comparing(f -> f.getOrderIndex() == null ? 0 : f.getOrderIndex()))
+            .map(this::fieldToMap)
+            .toList();
+        ApplicationFormVersion version = new ApplicationFormVersion();
+        version.setFormId(form.getId());
+        version.setVersion(form.getVersion() != null ? form.getVersion() : "v1.0");
+        version.setSchemaSnapshot(snapshot);
+        versionRepository.save(version);
+    }
+
+    private void refreshLinkStatus(ApplicationFormLink link) {
+        if (link.getExpiresAt() != null && link.getExpiresAt().isBefore(OffsetDateTime.now())) {
+            link.setStatus(FormLinkStatus.EXPIRED);
+            link.setActive(false);
+            linkRepository.save(link);
+        }
+    }
+
+    private List<Map<String, Object>> buildTrend() {
+        OffsetDateTime start = OffsetDateTime.now().minusDays(13).withHour(0).withMinute(0).withSecond(0).withNano(0);
+        List<Map<String, Object>> trend = new ArrayList<>();
+        Map<String, Long> counts = new HashMap<>();
+        submissionRepository.findBySubmittedAtAfter(start).forEach(submission -> {
+            String key = submission.getSubmittedAt().toLocalDate().toString();
+            counts.put(key, counts.getOrDefault(key, 0L) + 1);
+        });
+        for (int i = 0; i < 14; i++) {
+            OffsetDateTime day = start.plusDays(i);
+            String key = day.toLocalDate().toString();
+            long submissions = counts.getOrDefault(key, 0L);
+            trend.add(Map.of(
+                "label", key,
+                "submissions", submissions,
+                "completed", 0
+            ));
+        }
+        return trend;
+    }
+
     private ApplicationFieldType parseFieldType(String value) {
         if (value == null) {
             return ApplicationFieldType.TEXT;
@@ -661,5 +783,17 @@ public class FormsController {
             }
         }
         throw new IllegalStateException("Unable to generate unique slug");
+    }
+
+    private String generateUniqueLinkSlug(String base) {
+        String baseSlug = slugify(base);
+        for (int i = 0; i < 5; i++) {
+            String suffix = UUID.randomUUID().toString().replace("-", "").substring(0, 6);
+            String candidate = baseSlug + "-" + suffix;
+            if (!linkRepository.existsBySlug(candidate)) {
+                return candidate;
+            }
+        }
+        throw new IllegalStateException("Unable to generate unique link slug");
     }
 }

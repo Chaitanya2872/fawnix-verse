@@ -37,6 +37,14 @@ public class CandidateApplication {
     @JoinColumn(name = "position_id")
     private JobPosition position;
 
+    @ManyToOne
+    @JoinColumn(name = "intake_id")
+    private CandidateIntake intake;
+
+    @ManyToOne
+    @JoinColumn(name = "pipeline_stage_id")
+    private PipelineStage pipelineStage;
+
     @Enumerated(EnumType.STRING)
     private CandidateStatus status = CandidateStatus.APPLIED;
 
@@ -68,6 +76,18 @@ public class CandidateApplication {
 
     private String notes;
 
+    @Column(name = "decision_status")
+    private String decisionStatus;
+
+    @Column(name = "decision_notes")
+    private String decisionNotes;
+
+    @Column(name = "decision_at")
+    private OffsetDateTime decisionAt;
+
+    @Column(name = "dedupe_key")
+    private String dedupeKey;
+
     @OneToMany(mappedBy = "application")
     private List<Interview> interviews;
 
@@ -95,6 +115,22 @@ public class CandidateApplication {
 
     public void setPosition(JobPosition position) {
         this.position = position;
+    }
+
+    public CandidateIntake getIntake() {
+        return intake;
+    }
+
+    public void setIntake(CandidateIntake intake) {
+        this.intake = intake;
+    }
+
+    public PipelineStage getPipelineStage() {
+        return pipelineStage;
+    }
+
+    public void setPipelineStage(PipelineStage pipelineStage) {
+        this.pipelineStage = pipelineStage;
     }
 
     public CandidateStatus getStatus() {
@@ -167,6 +203,38 @@ public class CandidateApplication {
 
     public void setNotes(String notes) {
         this.notes = notes;
+    }
+
+    public String getDecisionStatus() {
+        return decisionStatus;
+    }
+
+    public void setDecisionStatus(String decisionStatus) {
+        this.decisionStatus = decisionStatus;
+    }
+
+    public String getDecisionNotes() {
+        return decisionNotes;
+    }
+
+    public void setDecisionNotes(String decisionNotes) {
+        this.decisionNotes = decisionNotes;
+    }
+
+    public OffsetDateTime getDecisionAt() {
+        return decisionAt;
+    }
+
+    public void setDecisionAt(OffsetDateTime decisionAt) {
+        this.decisionAt = decisionAt;
+    }
+
+    public String getDedupeKey() {
+        return dedupeKey;
+    }
+
+    public void setDedupeKey(String dedupeKey) {
+        this.dedupeKey = dedupeKey;
     }
 
     public List<Interview> getInterviews() {

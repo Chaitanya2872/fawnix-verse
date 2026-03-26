@@ -25,6 +25,9 @@ public class ApplicationFormLink {
     @Column(name = "form_id", nullable = false)
     private String formId;
 
+    @Column(name = "slug")
+    private String slug;
+
     @Column(name = "candidate_name", nullable = false)
     private String candidateName;
 
@@ -35,6 +38,18 @@ public class ApplicationFormLink {
 
     @Enumerated(EnumType.STRING)
     private FormLinkStatus status = FormLinkStatus.ACTIVE;
+
+    @Column(name = "is_active", nullable = false)
+    private boolean active = true;
+
+    @Column(name = "max_submissions")
+    private Integer maxSubmissions;
+
+    @Column(name = "current_submissions", nullable = false)
+    private int currentSubmissions = 0;
+
+    @Column(name = "access_type")
+    private String accessType;
 
     @Column(nullable = false)
     private String url;
@@ -59,6 +74,14 @@ public class ApplicationFormLink {
 
     public void setFormId(String formId) {
         this.formId = formId;
+    }
+
+    public String getSlug() {
+        return slug;
+    }
+
+    public void setSlug(String slug) {
+        this.slug = slug;
     }
 
     public String getCandidateName() {
@@ -91,6 +114,38 @@ public class ApplicationFormLink {
 
     public void setStatus(FormLinkStatus status) {
         this.status = status;
+    }
+
+    public boolean isActive() {
+        return active;
+    }
+
+    public void setActive(boolean active) {
+        this.active = active;
+    }
+
+    public Integer getMaxSubmissions() {
+        return maxSubmissions;
+    }
+
+    public void setMaxSubmissions(Integer maxSubmissions) {
+        this.maxSubmissions = maxSubmissions;
+    }
+
+    public int getCurrentSubmissions() {
+        return currentSubmissions;
+    }
+
+    public void setCurrentSubmissions(int currentSubmissions) {
+        this.currentSubmissions = currentSubmissions;
+    }
+
+    public String getAccessType() {
+        return accessType;
+    }
+
+    public void setAccessType(String accessType) {
+        this.accessType = accessType;
     }
 
     public String getUrl() {

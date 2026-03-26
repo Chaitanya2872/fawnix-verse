@@ -350,6 +350,8 @@ public class RecruitmentController {
             row.put("approval_flow_id", position.getApprovalFlowId());
             row.put("application_form_id", position.getApplicationFormId());
             row.put("interview_rounds", deserializeRounds(position.getInterviewRounds()));
+            row.put("workflow_version", position.getWorkflowVersion());
+            row.put("pipeline_config_status", position.getPipelineConfigStatus());
             return row;
         }).toList();
         return ResponseEntity.ok(Map.of("data", data));
@@ -382,6 +384,8 @@ public class RecruitmentController {
         row.put("approval_flow_id", position.getApprovalFlowId());
         row.put("application_form_id", position.getApplicationFormId());
         row.put("interview_rounds", deserializeRounds(position.getInterviewRounds()));
+        row.put("workflow_version", position.getWorkflowVersion());
+        row.put("pipeline_config_status", position.getPipelineConfigStatus());
         return ResponseEntity.ok(row);
     }
 
@@ -410,6 +414,7 @@ public class RecruitmentController {
         position.setApprovalFlowId(request.getApprovalFlowId());
         position.setApplicationFormId(request.getApplicationFormId());
         position.setInterviewRounds(serializeRounds(request.getInterviewRounds()));
+        position.setPipelineConfigStatus("pending");
         if (request.getStatus() != null) {
             try {
                 position.setStatus(JobStatus.fromValue(request.getStatus()));
