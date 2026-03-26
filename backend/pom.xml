@@ -25,6 +25,13 @@
     <module>services/inventory-service</module>
     <module>services/hrms-service</module>
     <module>services/sales-service</module>
+    <module>services/org-service</module>
+    <module>services/forms-service</module>
+    <module>services/approval-service</module>
+    <module>services/recruitment-service</module>
+    <module>services/integration-service</module>
+    <module>services/analytics-service</module>
+    <module>services/notifications-service</module>
   </modules>
 
   <properties>

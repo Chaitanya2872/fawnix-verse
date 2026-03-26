@@ -1,0 +1,1 @@
+-- Baseline schema for analytics-service (no persistent tables yet)

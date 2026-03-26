@@ -59,6 +59,15 @@ public class UserController {
     return userService.updateUser(id, request);
   }
 
+  @PatchMapping("/{id}/role")
+  @PreAuthorize("hasRole('ADMIN')")
+  public UserDtos.UserResponse updateUserRole(
+      @PathVariable String id,
+      @Valid @RequestBody UserDtos.UpdateUserRoleRequest request
+  ) {
+    return userService.updateUserRole(id, request.role());
+  }
+
   @PatchMapping("/{id}/status")
   @PreAuthorize("hasRole('ADMIN')")
   public UserDtos.UserResponse updateUserStatus(

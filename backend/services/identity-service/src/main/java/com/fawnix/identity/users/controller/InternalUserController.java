@@ -3,6 +3,7 @@ package com.fawnix.identity.users.controller;
 import com.fawnix.identity.common.exception.ForbiddenOperationException;
 import com.fawnix.identity.users.dto.AssigneeResponse;
 import com.fawnix.identity.users.dto.InternalUserResponse;
+import com.fawnix.identity.users.dto.UserSummaryResponse;
 import com.fawnix.identity.users.service.UserService;
 import java.util.List;
 import java.util.Objects;
@@ -53,6 +54,14 @@ public class InternalUserController {
   ) {
     verifySecret(providedSecret);
     return userService.getAssignees();
+  }
+
+  @GetMapping("/summary")
+  public UserSummaryResponse getSummary(
+      @RequestHeader("X-Internal-Service-Secret") String providedSecret
+  ) {
+    verifySecret(providedSecret);
+    return userService.getUserSummary();
   }
 
   private void verifySecret(String providedSecret) {

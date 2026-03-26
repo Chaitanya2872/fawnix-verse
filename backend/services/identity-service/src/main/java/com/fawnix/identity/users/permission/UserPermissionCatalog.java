@@ -16,6 +16,13 @@ public final class UserPermissionCatalog {
   public static final String MODULE_HRMS = "module.hrms";
   public static final String MODULE_REPORTS = "module.reports";
   public static final String MODULE_ADMIN = "module.admin";
+  public static final String MODULE_RECRUITMENT = "module.recruitment";
+  public static final String MODULE_FORMS = "module.forms";
+  public static final String MODULE_APPROVALS = "module.approvals";
+  public static final String MODULE_ORG = "module.org";
+  public static final String MODULE_INTEGRATIONS = "module.integrations";
+  public static final String MODULE_ANALYTICS = "module.analytics";
+  public static final String MODULE_NOTIFICATIONS = "module.notifications";
 
   public static final String PAGE_DASHBOARD = "page.dashboard";
   public static final String PAGE_CRM_LEADS = "page.crm.leads";
@@ -39,6 +46,13 @@ public final class UserPermissionCatalog {
       MODULE_HRMS,
       MODULE_REPORTS,
       MODULE_ADMIN,
+      MODULE_RECRUITMENT,
+      MODULE_FORMS,
+      MODULE_APPROVALS,
+      MODULE_ORG,
+      MODULE_INTEGRATIONS,
+      MODULE_ANALYTICS,
+      MODULE_NOTIFICATIONS,
       PAGE_DASHBOARD,
       PAGE_CRM_LEADS,
       PAGE_CRM_CONTACTS,
@@ -84,6 +98,36 @@ public final class UserPermissionCatalog {
           MODULE_REPORTS,
           PAGE_DASHBOARD,
           PAGE_REPORTS
+      ));
+      case ROLE_HR_MANAGER -> new LinkedHashSet<>(List.of(
+          MODULE_RECRUITMENT,
+          MODULE_FORMS,
+          MODULE_APPROVALS,
+          MODULE_ORG,
+          MODULE_INTEGRATIONS,
+          MODULE_ANALYTICS,
+          MODULE_NOTIFICATIONS,
+          PAGE_DASHBOARD
+      ));
+      case ROLE_RECRUITER -> new LinkedHashSet<>(List.of(
+          MODULE_RECRUITMENT,
+          MODULE_FORMS,
+          MODULE_INTEGRATIONS,
+          MODULE_ANALYTICS,
+          PAGE_DASHBOARD
+      ));
+      case ROLE_HIRING_MANAGER -> new LinkedHashSet<>(List.of(
+          MODULE_RECRUITMENT,
+          MODULE_APPROVALS,
+          PAGE_DASHBOARD
+      ));
+      case ROLE_INTERVIEWER -> new LinkedHashSet<>(List.of(
+          MODULE_RECRUITMENT,
+          PAGE_DASHBOARD
+      ));
+      case ROLE_EMPLOYEE -> new LinkedHashSet<>(List.of(
+          MODULE_RECRUITMENT,
+          PAGE_DASHBOARD
       ));
     };
   }

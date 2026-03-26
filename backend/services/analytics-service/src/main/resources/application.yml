@@ -1,0 +1,41 @@
+spring:
+  application:
+    name: analytics-service
+  datasource:
+    url: ${ANALYTICS_DB_URL:jdbc:postgresql://localhost:5432/fawnix_analytics}
+    username: ${ANALYTICS_DB_USERNAME:postgres}
+    password: ${ANALYTICS_DB_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        format_sql: true
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+server:
+  port: ${SERVER_PORT:8091}
+
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_SERVER_URL:http://localhost:8761/eureka/}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+app:
+  security:
+    jwt:
+      issuer: fawnix-verse
+      access-token-expiration-minutes: 30
+      refresh-token-expiration-days: 14
+      secret: ${JWT_SECRET:change-this-local-dev-secret-change-this-local-dev-secret}
+    internal-service-secret: ${INTERNAL_SERVICE_SECRET:fawnix-internal-secret}
