@@ -1,9 +1,10 @@
 fawnixverse.acstechnologies.co.in {
     handle /api/* {
-        reverse_proxy 172.31.32.125:8089
+        reverse_proxy api-gateway:8080
     }
 
     handle {
-        reverse_proxy 172.31.32.125:5173
+        reverse_proxy frontend:80
     }
 }
+
