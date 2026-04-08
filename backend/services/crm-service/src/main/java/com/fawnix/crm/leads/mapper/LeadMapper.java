@@ -5,6 +5,7 @@ import com.fawnix.crm.contact.entity.LeadContactRecordingEntity;
 import com.fawnix.crm.leads.dto.LeadDtos;
 import com.fawnix.crm.leads.entity.LeadEntity;
 import com.fawnix.crm.leads.entity.LeadStatus;
+import com.fawnix.crm.leads.entity.LeadStatusHistoryEntity;
 import com.fawnix.crm.leads.entity.LeadTagEntity;
 import com.fawnix.crm.remarks.entity.LeadRemarkEntity;
 import com.fawnix.crm.remarks.entity.LeadRemarkVersionEntity;
@@ -21,10 +22,18 @@ import org.springframework.stereotype.Component;
 public class LeadMapper {
 
   public LeadDtos.LeadResponse toResponse(LeadEntity lead) {
-    return toResponse(lead, null);
+    return toResponse(lead, List.of(), null);
   }
 
   public LeadDtos.LeadResponse toResponse(LeadEntity lead, LeadDtos.WhatsappDispatchLog whatsappAssignment) {
+    return toResponse(lead, List.of(), whatsappAssignment);
+  }
+
+  public LeadDtos.LeadResponse toResponse(
+      LeadEntity lead,
+      List<LeadStatusHistoryEntity> statusHistory,
+      LeadDtos.WhatsappDispatchLog whatsappAssignment
+  ) {
     return new LeadDtos.LeadResponse(
         lead.getId(),
         lead.getName(),
@@ -62,12 +71,25 @@ public class LeadMapper {
         lead.getRemarks().stream().map(this::toRemarkResponse).toList(),
         lead.getContactRecordings().stream().map(this::toContactRecordingResponse).toList(),
         lead.getActivities().stream().map(this::toActivityResponse).toList(),
+        statusHistory.stream().map(this::toStatusHistoryResponse).toList(),
         lead.getLastContactedAt(),
         lead.getFollowUpAt(),
         lead.getConvertedAt(),
         lead.getCreatedAt(),
         lead.getUpdatedAt(),
         whatsappAssignment
+    );
+  }
+
+  private LeadDtos.LeadStatusHistoryEntryResponse toStatusHistoryResponse(LeadStatusHistoryEntity entry) {
+    return new LeadDtos.LeadStatusHistoryEntryResponse(
+        entry.getId(),
+        entry.getFromStatus() != null ? entry.getFromStatus().name() : null,
+        entry.getToStatus() != null ? entry.getToStatus().name() : null,
+        entry.getChangedByUserId(),
+        entry.getChangedByName(),
+        entry.getNote(),
+        entry.getChangedAt()
     );
   }
 

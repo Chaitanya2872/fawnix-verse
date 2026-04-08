@@ -116,6 +116,7 @@ public class DataSeeder implements ApplicationRunner {
   private String roleId(RoleName roleName) {
     return switch (roleName) {
       case ROLE_ADMIN -> "00000000-0000-0000-0000-000000000001";
+      case ROLE_REPORTING_MANAGER -> "00000000-0000-0000-0000-000000000010";
       case ROLE_SALES_MANAGER -> "00000000-0000-0000-0000-000000000002";
       case ROLE_SALES_REP -> "00000000-0000-0000-0000-000000000003";
       case ROLE_VIEWER -> "00000000-0000-0000-0000-000000000004";

@@ -17,8 +17,11 @@ export type DiscountType = (typeof DiscountType)[keyof typeof DiscountType];
 
 export type QuoteLineItem = {
   id: string;
+  inventoryProductId?: string | null;
   name: string;
+  make?: string | null;
   description: string | null;
+  utility?: string | null;
   quantity: number;
   unit: string | null;
   unitPrice: number;
@@ -40,6 +43,7 @@ export type Quote = {
   id: string;
   quoteNumber: string;
   status: QuoteStatus;
+  leadId?: string | null;
   customerName: string;
   company: string | null;
   email: string | null;
@@ -63,14 +67,19 @@ export type Quote = {
 };
 
 export type QuoteFormItem = {
+  clientId?: string;
+  inventoryProductId?: string;
   name: string;
+  make: string;
   description: string;
+  utility: string;
   quantity: number;
   unit: string;
   unitPrice: number;
 };
 
 export type QuoteFormData = {
+  leadId?: string;
   customerName: string;
   company: string;
   email: string;

@@ -20,7 +20,8 @@ export async function fetchProducts(filter: ProductFilter): Promise<PaginatedPro
 }
 
 export async function createProduct(data: ProductFormData): Promise<Product> {
-  const response = await api.post<Product>("/inventory", data);
+  const { status, createdAt, updatedAt, ...payload } = data as Product & ProductFormData;
+  const response = await api.post<Product>("/inventory", payload);
   return response.data;
 }
 
@@ -28,7 +29,8 @@ export async function updateProduct(
   id: string,
   data: Partial<ProductFormData>
 ): Promise<Product> {
-  const response = await api.patch<Product>(`/inventory/${id}`, data);
+  const { status, createdAt, updatedAt, ...payload } = data as Product & ProductFormData;
+  const response = await api.patch<Product>(`/inventory/${id}`, payload);
   return response.data;
 }
 

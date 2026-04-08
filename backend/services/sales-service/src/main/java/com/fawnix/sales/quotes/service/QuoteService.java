@@ -88,7 +88,7 @@ public class QuoteService {
     quote.setCreatedByName(actor.getFullName());
     quote.setUpdatedByUserId(actor.getUserId());
     quote.setUpdatedByName(actor.getFullName());
-    applyBaseFields(quote, request.customerName(), request.company(), request.email(), request.phone(),
+    applyBaseFields(quote, request.leadId(), request.customerName(), request.company(), request.email(), request.phone(),
         request.billingAddress(), request.shippingAddress(), request.currency(), request.status(),
         request.discountType(), request.discountValue(), request.taxRate(), request.validUntil(),
         request.notes(), request.terms());
@@ -109,6 +109,9 @@ public class QuoteService {
 
     if (request.customerName() != null) {
       quote.setCustomerName(trimToNull(request.customerName()));
+    }
+    if (request.leadId() != null) {
+      quote.setLeadId(trimToNull(request.leadId()));
     }
     if (request.company() != null) {
       quote.setCompany(trimToNull(request.company()));
@@ -181,6 +184,7 @@ public class QuoteService {
 
   private void applyBaseFields(
       QuoteEntity quote,
+      String leadId,
       String customerName,
       String company,
       String email,
@@ -196,6 +200,7 @@ public class QuoteService {
       String notes,
       String terms
   ) {
+    quote.setLeadId(trimToNull(leadId));
     quote.setCustomerName(trimToNull(customerName));
     quote.setCompany(trimToNull(company));
     quote.setEmail(trimToNull(email));
@@ -224,8 +229,11 @@ public class QuoteService {
       line.setId(UUID.randomUUID().toString());
       line.setQuote(quote);
       line.setPosition(position++);
+      line.setInventoryProductId(trimToNull(item.inventoryProductId()));
       line.setName(item.name().trim());
+      line.setMake(trimToNull(item.make()));
       line.setDescription(trimToNull(item.description()));
+      line.setUtility(trimToNull(item.utility()));
       line.setQuantity(scaleQuantity(item.quantity()));
       line.setUnit(trimToNull(item.unit()));
       line.setUnitPrice(scaleMoney(item.unitPrice()));
@@ -285,8 +293,11 @@ public class QuoteService {
         .sorted(Comparator.comparingInt(QuoteLineItemEntity::getPosition))
         .map(item -> new QuoteDtos.QuoteLineItemResponse(
             item.getId(),
+            item.getInventoryProductId(),
             item.getName(),
+            item.getMake(),
             item.getDescription(),
+            item.getUtility(),
             item.getQuantity(),
             item.getUnit(),
             item.getUnitPrice(),
@@ -298,6 +309,7 @@ public class QuoteService {
         quote.getId(),
         quote.getQuoteNumber(),
         quote.getStatus(),
+        quote.getLeadId(),
         quote.getCustomerName(),
         quote.getCompany(),
         quote.getEmail(),
@@ -352,7 +364,7 @@ public class QuoteService {
 
   private String normalizeCurrency(String currency) {
     if (currency == null || currency.isBlank()) {
-      return "USD";
+      return "INR";
     }
     return currency.trim().toUpperCase(Locale.ROOT);
   }

@@ -35,12 +35,34 @@ import { InventoryLayout } from "./layout";
 // ---------------------------------------------------------------------------
 
 function formatCurrency(value: number) {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(value);
+  return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(value);
 }
 
 function exportCSV(products: Product[]) {
-  const headers = ["Name", "SKU", "Category", "Stock Qty", "Price", "Status"];
-  const rows = products.map((p) => [`"${p.name}"`, p.sku, p.category, p.stockQty, p.price, p.status]);
+  const headers = [
+    "Name",
+    "SKU",
+    "Category",
+    "Sub Category",
+    "Brand",
+    "Unit",
+    "Reorder Level",
+    "Stock Qty",
+    "Price",
+    "Status",
+  ];
+  const rows = products.map((p) => [
+    `"${p.name}"`,
+    p.sku,
+    p.category,
+    p.subCategory ?? "",
+    p.brand ?? "",
+    p.unit ?? "",
+    p.reorderLevel ?? "",
+    p.stockQty,
+    p.price,
+    p.status,
+  ]);
   const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
   const blob = new Blob([csv], { type: "text/csv" });
   const url = URL.createObjectURL(blob);
@@ -99,7 +121,14 @@ interface ProductDialogProps {
 const defaultForm: ProductFormData = {
   name: "",
   sku: "",
-  category: "Electronics",
+  category: "Smart Switches",
+  subCategory: "",
+  brand: "",
+  unit: "pcs",
+  reorderLevel: 0,
+  description: "",
+  hsnCode: "",
+  notes: "",
   stockQty: 0,
   price: 0,
   status: ProductStatus.IN_STOCK,
@@ -108,7 +137,21 @@ const defaultForm: ProductFormData = {
 function ProductDialog({ open, onClose, product, onSave, isLoading }: ProductDialogProps) {
   const [form, setForm] = useState<ProductFormData>(
     product
-      ? { name: product.name, sku: product.sku, category: product.category, stockQty: product.stockQty, price: product.price, status: product.status }
+      ? {
+          name: product.name,
+          sku: product.sku,
+          category: product.category,
+          subCategory: product.subCategory ?? "",
+          brand: product.brand ?? "",
+          unit: product.unit ?? "pcs",
+          reorderLevel: product.reorderLevel ?? 0,
+          description: product.description ?? "",
+          hsnCode: product.hsnCode ?? "",
+          notes: product.notes ?? "",
+          stockQty: product.stockQty,
+          price: product.price,
+          status: product.status,
+        }
       : defaultForm
   );
 
@@ -116,7 +159,21 @@ function ProductDialog({ open, onClose, product, onSave, isLoading }: ProductDia
     if (open) {
       setForm(
         product
-          ? { name: product.name, sku: product.sku, category: product.category, stockQty: product.stockQty, price: product.price, status: product.status }
+          ? {
+              name: product.name,
+              sku: product.sku,
+              category: product.category,
+              subCategory: product.subCategory ?? "",
+              brand: product.brand ?? "",
+              unit: product.unit ?? "pcs",
+              reorderLevel: product.reorderLevel ?? 0,
+              description: product.description ?? "",
+              hsnCode: product.hsnCode ?? "",
+              notes: product.notes ?? "",
+              stockQty: product.stockQty,
+              price: product.price,
+              status: product.status,
+            }
           : defaultForm
       );
     }
@@ -205,6 +262,63 @@ function ProductDialog({ open, onClose, product, onSave, isLoading }: ProductDia
               </div>
             </div>
 
+            {/* Sub Category + Brand */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                  Sub Category
+                </label>
+                <input
+                  type="text"
+                  value={form.subCategory ?? ""}
+                  onChange={(e) => handleChange("subCategory", e.target.value)}
+                  placeholder="e.g. Touch Panel"
+                  className={inputCls}
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                  Brand / Make
+                </label>
+                <input
+                  type="text"
+                  value={form.brand ?? ""}
+                  onChange={(e) => handleChange("brand", e.target.value)}
+                  placeholder="e.g. IOTIQ"
+                  className={inputCls}
+                />
+              </div>
+            </div>
+
+            {/* Unit + Reorder Level */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                  Unit
+                </label>
+                <input
+                  type="text"
+                  value={form.unit ?? ""}
+                  onChange={(e) => handleChange("unit", e.target.value)}
+                  placeholder="pcs / mtrs / sets"
+                  className={inputCls}
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                  Reorder Level
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  step={0.01}
+                  value={form.reorderLevel ?? 0}
+                  onChange={(e) => handleChange("reorderLevel", parseFloat(e.target.value) || 0)}
+                  className={inputCls}
+                />
+              </div>
+            </div>
+
             {/* Stock + Price */}
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -221,7 +335,7 @@ function ProductDialog({ open, onClose, product, onSave, isLoading }: ProductDia
               </div>
               <div>
                 <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
-                  Price (USD)
+                  Price (INR)
                 </label>
                 <input
                   type="number"
@@ -232,6 +346,48 @@ function ProductDialog({ open, onClose, product, onSave, isLoading }: ProductDia
                   className={inputCls}
                 />
               </div>
+            </div>
+
+            {/* HSN + Description */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                  HSN Code
+                </label>
+                <input
+                  type="text"
+                  value={form.hsnCode ?? ""}
+                  onChange={(e) => handleChange("hsnCode", e.target.value)}
+                  placeholder="e.g. 8536"
+                  className={inputCls}
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                  Description
+                </label>
+                <input
+                  type="text"
+                  value={form.description ?? ""}
+                  onChange={(e) => handleChange("description", e.target.value)}
+                  placeholder="Short product description"
+                  className={inputCls}
+                />
+              </div>
+            </div>
+
+            {/* Notes */}
+            <div>
+              <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                Notes
+              </label>
+              <input
+                type="text"
+                value={form.notes ?? ""}
+                onChange={(e) => handleChange("notes", e.target.value)}
+                placeholder="Optional notes"
+                className={inputCls}
+              />
             </div>
           </div>
 

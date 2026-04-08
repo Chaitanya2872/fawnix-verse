@@ -4,6 +4,7 @@ import com.fawnix.crm.leads.entity.LeadEntity;
 import com.fawnix.crm.leads.entity.LeadPriority;
 import com.fawnix.crm.leads.entity.LeadSource;
 import com.fawnix.crm.leads.entity.LeadStatus;
+import jakarta.persistence.criteria.Subquery;
 import java.time.Instant;
 import java.util.Locale;
 import org.springframework.data.jpa.domain.Specification;
@@ -18,13 +19,15 @@ public final class LeadSpecifications {
       LeadStatus status,
       LeadSource source,
       LeadPriority priority,
-      String assignedTo
+      String assignedTo,
+      String questionnaireStatus
   ) {
     return Specification.where(search(search))
         .and(status(status))
         .and(source(source))
         .and(priority(priority))
-        .and(assignedTo(assignedTo));
+        .and(assignedTo(assignedTo))
+        .and(questionnaireStatus(questionnaireStatus));
   }
 
   private static Specification<LeadEntity> search(String search) {
@@ -72,6 +75,40 @@ public final class LeadSpecifications {
         criteriaBuilder.equal(criteriaBuilder.lower(root.get("assignedToName")), normalized),
         criteriaBuilder.equal(criteriaBuilder.lower(root.get("assignedToUserId")), normalized)
     );
+  }
+
+  private static Specification<LeadEntity> questionnaireStatus(String questionnaireStatus) {
+    if (questionnaireStatus == null || questionnaireStatus.isBlank() || "ALL".equalsIgnoreCase(questionnaireStatus)) {
+      return null;
+    }
+
+    String normalized = questionnaireStatus.trim().toUpperCase(Locale.ROOT);
+    return switch (normalized) {
+      case "ANSWERED" -> (root, query, criteriaBuilder) -> {
+        Subquery<String> answeredSubquery = query.subquery(String.class);
+        var questionnaireRoot = answeredSubquery.from(com.fawnix.crm.integrations.whatsapp.LeadWhatsappQuestionnaireEntity.class);
+        answeredSubquery.select(questionnaireRoot.get("id"));
+        answeredSubquery.where(
+            criteriaBuilder.equal(questionnaireRoot.get("lead"), root),
+            criteriaBuilder.isNotNull(questionnaireRoot.get("completedAt"))
+        );
+        return criteriaBuilder.exists(answeredSubquery);
+      };
+      case "NO_RESPONSE" -> (root, query, criteriaBuilder) -> {
+        Subquery<String> answeredSubquery = query.subquery(String.class);
+        var questionnaireRoot = answeredSubquery.from(com.fawnix.crm.integrations.whatsapp.LeadWhatsappQuestionnaireEntity.class);
+        answeredSubquery.select(questionnaireRoot.get("id"));
+        answeredSubquery.where(
+            criteriaBuilder.equal(questionnaireRoot.get("lead"), root),
+            criteriaBuilder.isNotNull(questionnaireRoot.get("completedAt"))
+        );
+        return criteriaBuilder.and(
+            criteriaBuilder.isNotNull(root.get("whatsappQuestionnaireSentAt")),
+            criteriaBuilder.not(criteriaBuilder.exists(answeredSubquery))
+        );
+      };
+      default -> null;
+    };
   }
 
   public static Specification<LeadEntity> createdBetween(Instant start, Instant end) {

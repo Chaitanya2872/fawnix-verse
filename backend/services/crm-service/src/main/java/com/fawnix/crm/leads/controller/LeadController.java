@@ -53,11 +53,22 @@ public class LeadController {
       @RequestParam(defaultValue = "ALL") String source,
       @RequestParam(defaultValue = "ALL") String priority,
       @RequestParam(defaultValue = "") String assignedTo,
+      @RequestParam(defaultValue = "ALL") String questionnaireStatus,
       @RequestParam(defaultValue = "1") int page,
       @RequestParam(defaultValue = "10") int pageSize,
       @AuthenticationPrincipal AppUserDetails userDetails
   ) {
-    return leadService.getLeads(search, status, source, priority, assignedTo, page, pageSize, userDetails);
+    return leadService.getLeads(
+        search,
+        status,
+        source,
+        priority,
+        assignedTo,
+        questionnaireStatus,
+        page,
+        pageSize,
+        userDetails
+    );
   }
 
   @GetMapping("/notifications")

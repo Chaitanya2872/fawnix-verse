@@ -11,6 +11,13 @@ export interface Product {
   name: string;
   sku: string;
   category: string;
+  subCategory?: string | null;
+  brand?: string | null;
+  unit?: string | null;
+  reorderLevel?: number | null;
+  description?: string | null;
+  hsnCode?: string | null;
+  notes?: string | null;
   stockQty: number;
   price: number;
   status: ProductStatus;
@@ -37,15 +44,14 @@ export interface PaginatedProducts {
 }
 
 export const PRODUCT_CATEGORIES = [
-  "Electronics",
-  "Clothing",
-  "Food & Beverage",
-  "Office Supplies",
-  "Furniture",
-  "Health & Beauty",
-  "Sports",
-  "Toys",
-  "Automotive",
+  "Smart Switches",
+  "Automation",
+  "CCTV",
+  "Networking",
+  "Access Control",
+  "Lighting",
+  "Home Theater",
+  "Solar",
   "Other",
 ] as const;
 

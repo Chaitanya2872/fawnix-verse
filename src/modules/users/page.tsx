@@ -211,7 +211,7 @@ function UserFormFields({
           ))}
         </div>
         <p className="text-xs text-slate-500">
-          Admins always have full access even if permissions are unset.
+          Admins and reporting managers always have full access even if permissions are unset.
         </p>
       </div>
     </div>
@@ -220,7 +220,9 @@ function UserFormFields({
 
 export default function UsersPage() {
   const { data: currentUser } = useCurrentUser({ enabled: hasStoredSession() });
-  const isAdmin = currentUser?.roles?.includes("ROLE_ADMIN");
+  const isAdmin =
+    currentUser?.roles?.includes("ROLE_ADMIN") ||
+    currentUser?.roles?.includes("ROLE_REPORTING_MANAGER");
 
   const usersQuery = useUsers({ enabled: Boolean(isAdmin) });
   const createUserMutation = useCreateUser();

@@ -17,9 +17,12 @@ public final class QuoteDtos {
   }
 
   public record QuoteLineItemRequest(
+      String inventoryProductId,
       @NotBlank(message = "Item name is required.")
       String name,
+      String make,
       String description,
+      String utility,
       @NotNull(message = "Quantity is required.")
       @DecimalMin(value = "0.01", message = "Quantity must be greater than 0.")
       BigDecimal quantity,
@@ -31,6 +34,7 @@ public final class QuoteDtos {
   }
 
   public record CreateQuoteRequest(
+      String leadId,
       @NotBlank(message = "Customer name is required.")
       String customerName,
       String company,
@@ -53,6 +57,7 @@ public final class QuoteDtos {
   }
 
   public record UpdateQuoteRequest(
+      String leadId,
       String customerName,
       String company,
       String email,
@@ -80,8 +85,11 @@ public final class QuoteDtos {
 
   public record QuoteLineItemResponse(
       String id,
+      String inventoryProductId,
       String name,
+      String make,
       String description,
+      String utility,
       BigDecimal quantity,
       String unit,
       BigDecimal unitPrice,
@@ -93,6 +101,7 @@ public final class QuoteDtos {
       String id,
       String quoteNumber,
       QuoteStatus status,
+      String leadId,
       String customerName,
       String company,
       String email,

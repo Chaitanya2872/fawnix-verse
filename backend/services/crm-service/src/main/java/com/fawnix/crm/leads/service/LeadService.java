@@ -88,6 +88,7 @@ public class LeadService {
       String source,
       String priority,
       String assignedTo,
+      String questionnaireStatus,
       int page,
       int pageSize,
       AppUserDetails actor
@@ -104,7 +105,8 @@ public class LeadService {
         statusFilter,
         sourceFilter,
         priorityFilter,
-        effectiveAssignedTo
+        effectiveAssignedTo,
+        questionnaireStatus
     );
 
     int resolvedPage = Math.max(page, 1);
@@ -130,7 +132,8 @@ public class LeadService {
 
   @Transactional(readOnly = true)
   public LeadDtos.LeadResponse getLead(String id) {
-    return leadMapper.toResponse(requireLead(id));
+    LeadEntity lead = requireLead(id);
+    return leadMapper.toResponse(lead, leadStatusHistoryService.getLeadHistory(id), null);
   }
 
   @Transactional(readOnly = true)
@@ -352,7 +355,15 @@ public class LeadService {
       }
     }
     if (request.status() != null) {
-      updateStatusInternal(lead, leadRequestValidator.parseStatus(request.status()), currentUser, now, request.convertedAt());
+      updateStatusInternal(
+          lead,
+          leadRequestValidator.parseStatus(request.status()),
+          currentUser,
+          now,
+          request.convertedAt(),
+          request.followUpAt(),
+          request.statusRemark()
+      );
     } else if (request.convertedAt() != null) {
       lead.setConvertedAt(request.convertedAt());
     }
@@ -390,7 +401,15 @@ public class LeadService {
     LeadEntity lead = requireLead(id);
     Instant now = Instant.now();
 
-    updateStatusInternal(lead, leadRequestValidator.parseStatus(request.status()), currentUser, now, null);
+    updateStatusInternal(
+        lead,
+        leadRequestValidator.parseStatus(request.status()),
+        currentUser,
+        now,
+        null,
+        request.followUpAt(),
+        request.remark()
+    );
     touchLead(lead, currentUser, now);
     return leadMapper.toResponse(leadRepository.save(lead));
   }
@@ -413,7 +432,7 @@ public class LeadService {
     );
 
     if (lead.getStatus() == LeadStatus.NEW || lead.getStatus() == LeadStatus.CONTACTED) {
-      updateStatusInternal(lead, LeadStatus.CONTACTED, currentUser, now, null);
+      updateStatusInternal(lead, LeadStatus.CONTACTED, currentUser, now, null, null, null);
     }
     lead.setLastContactedAt(now);
     leadRemarkService.addRemark(lead, processed.remarkContent(), currentUser, now);
@@ -467,7 +486,7 @@ public class LeadService {
           dispatchResult.reason()
       );
       if (lead.getStatus() == LeadStatus.QUALIFIED || lead.getStatus() == LeadStatus.UNQUALIFIED) {
-        updateStatusInternal(lead, LeadStatus.ASSIGNED_TO_SALESPERSON, currentUser, now, null);
+        updateStatusInternal(lead, LeadStatus.ASSIGNED_TO_SALESPERSON, currentUser, now, null, null, null);
       }
       touchLead(lead, currentUser, now);
     }
@@ -546,13 +565,51 @@ public class LeadService {
       LeadStatus nextStatus,
       AppUserDetails actor,
       Instant now,
-      Instant convertedAt
+      Instant convertedAt,
+      Instant followUpAt,
+      String remark
   ) {
     LeadStatus currentStatus = lead.getStatus();
+    if (nextStatus == LeadStatus.FOLLOW_UP) {
+      Instant effectiveFollowUpAt = followUpAt != null ? followUpAt : lead.getFollowUpAt();
+      if (effectiveFollowUpAt == null) {
+        throw new BadRequestException("Follow-up date is required for follow-up stage.");
+      }
+      if (followUpAt != null) {
+        lead.setFollowUpAt(followUpAt);
+        lead.setFollowUpReminderSentAt(null);
+      }
+    }
+
     if (lead.getStatus() == nextStatus) {
       if (convertedAt != null && nextStatus == LeadStatus.CONVERTED) {
         lead.setConvertedAt(convertedAt);
       }
+      if (nextStatus == LeadStatus.FOLLOW_UP) {
+        leadActivityService.addActivity(
+            lead,
+            LeadActivityType.STATUS_CHANGE,
+            followUpAt != null ? "Lead follow-up was rescheduled." : "Lead follow-up was updated.",
+            actor,
+            now
+        );
+      } else {
+        leadActivityService.addActivity(
+            lead,
+            LeadActivityType.STATUS_CHANGE,
+            "Lead stage entry recorded for " + prettyStatus(nextStatus) + ".",
+            actor,
+            now
+        );
+      }
+      leadStatusHistoryService.recordTransition(
+          lead,
+          currentStatus,
+          nextStatus,
+          actor,
+          now,
+          trimToNull(remark)
+      );
       return;
     }
 
@@ -562,7 +619,14 @@ public class LeadService {
       lead.setConvertedAt(convertedAt);
     }
     applyStatusTimestamps(lead, nextStatus, now);
-    leadStatusHistoryService.recordTransition(lead, currentStatus, nextStatus, actor, now);
+    leadStatusHistoryService.recordTransition(
+        lead,
+        currentStatus,
+        nextStatus,
+        actor,
+        now,
+        trimToNull(remark)
+    );
     leadActivityService.addActivity(
         lead,
         LeadActivityType.STATUS_CHANGE,
@@ -663,7 +727,9 @@ public class LeadService {
       return false;
     }
     boolean adminLike = actor.getRoleNames().stream()
-        .anyMatch(role -> role.equals("ROLE_ADMIN") || role.equals("ROLE_SALES_MANAGER"));
+        .anyMatch(role -> role.equals("ROLE_ADMIN")
+            || role.equals("ROLE_REPORTING_MANAGER")
+            || role.equals("ROLE_SALES_MANAGER"));
     return !adminLike && actor.getRoleNames().contains("ROLE_SALES_REP");
   }
 

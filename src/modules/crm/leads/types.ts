@@ -90,6 +90,16 @@ export interface LeadActivity {
   createdAt: string;
 }
 
+export interface LeadStatusHistoryEntry {
+  id: string;
+  fromStatus: LeadStatus | null;
+  toStatus: LeadStatus;
+  changedByUserId: string | null;
+  changedByName: string | null;
+  note: string | null;
+  changedAt: string;
+}
+
 export interface Lead {
   id: string;
   name: string;
@@ -127,6 +137,7 @@ export interface Lead {
   remarks: LeadRemark[];
   contactRecordings: LeadContactRecording[];
   activities: LeadActivity[];
+  statusHistory: LeadStatusHistoryEntry[];
   lastContactedAt: string | null;
   followUpAt: string | null;
   convertedAt: string | null;
@@ -238,6 +249,7 @@ export interface LeadFilter {
   source: LeadSource | "ALL";
   assignedTo: string;
   priority: LeadPriority | "ALL";
+  questionnaireStatus?: "ALL" | "ANSWERED" | "NO_RESPONSE";
   page: number;
   pageSize: number;
 }
@@ -264,6 +276,7 @@ export type LeadUpdateData = Partial<
     convertedAt: string | null;
     lastContactedAt: string | null;
     followUpAt: string | null;
+    statusRemark: string | null;
   }
 >;
 

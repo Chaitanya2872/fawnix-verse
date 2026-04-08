@@ -16,6 +16,7 @@ function toIsoOrNull(value: string) {
 
 function serializeForm(data: QuoteFormData) {
   return {
+    leadId: data.leadId || null,
     customerName: data.customerName,
     company: data.company || null,
     email: data.email || null,
@@ -31,8 +32,11 @@ function serializeForm(data: QuoteFormData) {
     notes: data.notes || null,
     terms: data.terms || null,
     items: data.items.map((item) => ({
+      inventoryProductId: item.inventoryProductId || null,
       name: item.name,
+      make: item.make || null,
       description: item.description || null,
+      utility: item.utility || null,
       quantity: item.quantity,
       unit: item.unit || null,
       unitPrice: item.unitPrice,

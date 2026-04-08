@@ -423,7 +423,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 18
-      start_period: 120s
+      start_period: 420s
     networks:
       - fawnix-network
 
@@ -653,25 +653,7 @@ services:
         condition: service_healthy
       crm-service:
         condition: service_healthy
-      inventory-service:
-        condition: service_healthy
-      hrms-service:
-        condition: service_healthy
-      sales-service:
-        condition: service_healthy
-      org-service:
-        condition: service_healthy
       forms-service:
-        condition: service_healthy
-      approval-service:
-        condition: service_healthy
-      recruitment-service:
-        condition: service_healthy
-      integration-service:
-        condition: service_healthy
-      analytics-service:
-        condition: service_healthy
-      notifications-service:
         condition: service_healthy
     environment:
       SERVER_PORT: "8080"

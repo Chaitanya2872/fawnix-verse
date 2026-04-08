@@ -57,12 +57,23 @@ import ApprovalWorkflowsSettingsPage from "@/modules/integrations/ApprovalWorkfl
 import PortalCredentialsPage from "@/modules/integrations/PortalCredentialsPage";
 import CalendarIntegrationsPage from "@/modules/integrations/CalendarIntegrationsPage";
 import PublicApplyPage from "@/modules/public/PublicApplyPage";
+import { P2PModuleLayout } from "@/modules/purchases/p2p/components/P2PModuleLayout";
+import P2PDashboardPage from "@/modules/purchases/p2p/dashboard/page";
+import P2PPrManagementPage from "@/modules/purchases/p2p/pr/page";
+import P2PBudgetValidationPage from "@/modules/purchases/p2p/budget/page";
+import P2PVendorEvaluationPage from "@/modules/purchases/p2p/vendors/page";
+import P2PNegotiationPage from "@/modules/purchases/p2p/negotiation/page";
+import P2PPurchaseOrderPage from "@/modules/purchases/p2p/po/page";
+import P2PMaterialReceiptPage from "@/modules/purchases/p2p/receipt/page";
+import P2PInvoicePage from "@/modules/purchases/p2p/invoice/page";
+import P2PPaymentPage from "@/modules/purchases/p2p/payment/page";
+import P2PAlertsPage from "@/modules/purchases/p2p/alerts/page";
+import P2PReportsPage from "@/modules/purchases/p2p/reports/page";
 
 function RecruitmentFormRedirect() {
   const { id } = useParams();
   return <Navigate to={id ? `/forms/${id}` : "/forms"} replace />;
 }
-// import PurchasesPage from "@/modules/purchases/page";
 // import LeadsPage from "@/modules/crm/lead-management/page";
 // import AccountingPage from "@/modules/accounting/page";
 // import ReportsPage from "@/modules/reports/page";
@@ -105,7 +116,39 @@ export const router = createBrowserRouter([
               </RequirePermission>
             ),
           },
-          //   { path: "purchases", element: <PurchasesPage /> },
+          {
+            path: "p2p",
+            element: (
+              <RequirePermission permission={PERMISSIONS.PAGE_PURCHASES}>
+                <P2PModuleLayout />
+              </RequirePermission>
+            ),
+            children: [
+              { index: true, element: <P2PDashboardPage /> },
+              { path: "pr", element: <P2PPrManagementPage /> },
+              { path: "budget", element: <P2PBudgetValidationPage /> },
+              { path: "vendors", element: <P2PVendorEvaluationPage /> },
+              { path: "negotiation", element: <P2PNegotiationPage /> },
+              { path: "po", element: <P2PPurchaseOrderPage /> },
+              { path: "receipt", element: <P2PMaterialReceiptPage /> },
+              { path: "invoice", element: <P2PInvoicePage /> },
+              { path: "payment", element: <P2PPaymentPage /> },
+              { path: "alerts", element: <P2PAlertsPage /> },
+              { path: "reports", element: <P2PReportsPage /> },
+            ],
+          },
+          { path: "purchases", element: <Navigate to="/p2p" replace /> },
+          { path: "purchases/p2p", element: <Navigate to="/p2p" replace /> },
+          { path: "purchases/p2p/pr", element: <Navigate to="/p2p/pr" replace /> },
+          { path: "purchases/p2p/budget", element: <Navigate to="/p2p/budget" replace /> },
+          { path: "purchases/p2p/vendors", element: <Navigate to="/p2p/vendors" replace /> },
+          { path: "purchases/p2p/negotiation", element: <Navigate to="/p2p/negotiation" replace /> },
+          { path: "purchases/p2p/po", element: <Navigate to="/p2p/po" replace /> },
+          { path: "purchases/p2p/receipt", element: <Navigate to="/p2p/receipt" replace /> },
+          { path: "purchases/p2p/invoice", element: <Navigate to="/p2p/invoice" replace /> },
+          { path: "purchases/p2p/payment", element: <Navigate to="/p2p/payment" replace /> },
+          { path: "purchases/p2p/alerts", element: <Navigate to="/p2p/alerts" replace /> },
+          { path: "purchases/p2p/reports", element: <Navigate to="/p2p/reports" replace /> },
           {
             path: "crm/leads",
             element: (

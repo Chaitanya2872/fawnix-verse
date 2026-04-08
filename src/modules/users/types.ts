@@ -1,5 +1,6 @@
 export type UserRole =
   | "ROLE_ADMIN"
+  | "ROLE_REPORTING_MANAGER"
   | "ROLE_SALES_MANAGER"
   | "ROLE_SALES_REP"
   | "ROLE_VIEWER";
@@ -39,6 +40,7 @@ export type UpdateUserPayload = {
 
 export const USER_ROLE_OPTIONS: { value: UserRole; label: string }[] = [
   { value: "ROLE_ADMIN", label: "Admin" },
+  { value: "ROLE_REPORTING_MANAGER", label: "Reporting Manager" },
   { value: "ROLE_SALES_MANAGER", label: "Manager" },
   { value: "ROLE_SALES_REP", label: "Employee" },
   { value: "ROLE_VIEWER", label: "Viewer" },
@@ -52,6 +54,7 @@ export const USER_LANGUAGE_OPTIONS: { value: string; label: string }[] = [
 
 const ROLE_LABELS: Record<string, string> = {
   ROLE_ADMIN: "Admin",
+  ROLE_REPORTING_MANAGER: "Reporting Manager",
   ROLE_SALES_MANAGER: "Manager",
   ROLE_SALES_REP: "Employee",
   ROLE_VIEWER: "Viewer",
@@ -62,6 +65,7 @@ export function getPrimaryRole(roles: string[] | null | undefined): UserRole {
     return "ROLE_VIEWER";
   }
   if (roles.includes("ROLE_ADMIN")) return "ROLE_ADMIN";
+  if (roles.includes("ROLE_REPORTING_MANAGER")) return "ROLE_REPORTING_MANAGER";
   if (roles.includes("ROLE_SALES_MANAGER")) return "ROLE_SALES_MANAGER";
   if (roles.includes("ROLE_SALES_REP")) return "ROLE_SALES_REP";
   if (roles.includes("ROLE_VIEWER")) return "ROLE_VIEWER";

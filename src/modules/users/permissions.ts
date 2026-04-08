@@ -45,6 +45,7 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
 
 export const ROLE_DEFAULT_PERMISSIONS: Record<UserRole, Permission[]> = {
   ROLE_ADMIN: Object.values(PERMISSIONS),
+  ROLE_REPORTING_MANAGER: Object.values(PERMISSIONS),
   ROLE_SALES_MANAGER: [
     PERMISSIONS.MODULE_CRM,
     PERMISSIONS.MODULE_REPORTS,

@@ -1,9 +1,13 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ArrowUpRight, Plus, RefreshCw, Search, Sparkles, X } from "lucide-react";
+import { ArrowUpRight, Pencil, Plus, RefreshCw, Search, Sparkles, X } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
-import { useCreateQuote, useQuotes } from "./hooks";
+import { useLeads } from "@/modules/crm/leads/hooks";
+import { LeadStatus } from "@/modules/crm/leads/types";
+import { useProducts } from "@/modules/inventory/hooks";
+import type { Product } from "@/modules/inventory/types";
+import { useCreateQuote, useQuote, useQuotes, useUpdateQuote } from "./hooks";
 import {
   DiscountType,
   QuoteStatus,
@@ -14,6 +18,21 @@ import {
 } from "./types";
 
 const PAGE_SIZE = 200;
+
+function createClientItem(overrides?: Partial<QuoteFormItem>): QuoteFormItem {
+  return {
+    clientId: crypto.randomUUID(),
+    inventoryProductId: "",
+    name: "",
+    make: "",
+    description: "",
+    utility: "",
+    quantity: 1,
+    unit: "",
+    unitPrice: 0,
+    ...overrides,
+  };
+}
 
 const STATUS_LABELS: Record<QuoteStatus, string> = {
   DRAFT: "Draft",
@@ -32,12 +51,19 @@ const STATUS_TONES: Record<QuoteStatus, string> = {
 };
 
 const fmtCurrency = (value: number) =>
-  new Intl.NumberFormat("en-US", {
+  new Intl.NumberFormat("en-IN", {
     style: "currency",
-    currency: "USD",
-    notation: "compact",
-    maximumFractionDigits: 1,
+    currency: "INR",
+    maximumFractionDigits: 2,
   }).format(value);
+
+const fieldLabelCls = "text-xs font-semibold text-slate-500";
+const inputCls =
+  "mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm outline-none transition focus:border-emerald-300 focus:ring-2 focus:ring-emerald-100 hover:border-slate-300";
+const selectCls =
+  "w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm outline-none transition focus:border-emerald-300 focus:ring-2 focus:ring-emerald-100 hover:border-slate-300";
+const textareaCls =
+  "mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm outline-none transition focus:border-emerald-300 focus:ring-2 focus:ring-emerald-100 hover:border-slate-300";
 
 const fmtDate = (value: string) =>
   new Date(value).toLocaleDateString("en-US", {
@@ -45,9 +71,19 @@ const fmtDate = (value: string) =>
     day: "numeric",
   });
 
-function QuoteCard({ quote }: { quote: QuoteSummary }) {
+function QuoteCard({
+  quote,
+  onOpen,
+}: {
+  quote: QuoteSummary;
+  onOpen: (id: string) => void;
+}) {
   return (
-    <div className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-3 shadow-sm">
+    <button
+      type="button"
+      onClick={() => onOpen(quote.id)}
+      className="flex w-full flex-col gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-emerald-100"
+    >
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-sm font-semibold text-slate-900">{quote.customerName}</p>
@@ -62,16 +98,18 @@ function QuoteCard({ quote }: { quote: QuoteSummary }) {
         <span>Total: {fmtCurrency(quote.total)}</span>
         <span>Updated: {fmtDate(quote.updatedAt)}</span>
       </div>
-    </div>
+    </button>
   );
 }
 
 function KanbanColumn({
   status,
   quotes,
+  onOpenQuote,
 }: {
   status: QuoteStatus;
   quotes: QuoteSummary[];
+  onOpenQuote: (id: string) => void;
 }) {
   return (
     <div className="flex min-w-[260px] flex-1 flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
@@ -95,7 +133,9 @@ function KanbanColumn({
             No quotes in this lane.
           </div>
         ) : (
-          quotes.map((quote) => <QuoteCard key={quote.id} quote={quote} />)
+          quotes.map((quote) => (
+            <QuoteCard key={quote.id} quote={quote} onOpen={onOpenQuote} />
+          ))
         )}
       </div>
     </div>
@@ -110,15 +150,21 @@ export default function SalesPage() {
     pageSize: PAGE_SIZE,
   });
   const [showBuilder, setShowBuilder] = useState(false);
+  const [builderMode, setBuilderMode] = useState<"create" | "edit">("create");
+  const [editingQuoteId, setEditingQuoteId] = useState<string | null>(null);
   const [builderError, setBuilderError] = useState<string | null>(null);
+  const [activeQuoteId, setActiveQuoteId] = useState<string | null>(null);
+  const [selectedLeadId, setSelectedLeadId] = useState("");
+  const [selectedProductId, setSelectedProductId] = useState("");
   const [form, setForm] = useState<QuoteFormData>({
+    leadId: "",
     customerName: "",
     company: "",
     email: "",
     phone: "",
     billingAddress: "",
     shippingAddress: "",
-    currency: "USD",
+    currency: "INR",
     status: QuoteStatus.DRAFT,
     discountType: DiscountType.PERCENT,
     discountValue: 0,
@@ -126,20 +172,41 @@ export default function SalesPage() {
     validUntil: "",
     notes: "",
     terms: "",
-    items: [
-      {
-        name: "",
-        description: "",
-        quantity: 1,
-        unit: "",
-        unitPrice: 0,
-      },
-    ],
+    items: [createClientItem()],
   });
 
   const { data, isLoading, isError, error, refetch } = useQuotes(filter);
   const createQuote = useCreateQuote();
+  const updateQuote = useUpdateQuote();
   const quotes = data?.data ?? [];
+  const activeQuote = useQuote(activeQuoteId ?? "");
+  const qualifiedLeadsQuery = useLeads(
+    {
+      search: "",
+      status: LeadStatus.QUALIFIED,
+      source: "ALL",
+      assignedTo: "",
+      priority: "ALL",
+      page: 1,
+      pageSize: 200,
+    },
+    { enabled: showBuilder }
+  );
+  const productsQuery = useProducts({
+    search: "",
+    category: "",
+    status: "ALL",
+    page: 1,
+    pageSize: 200,
+  });
+  const qualifiedLeads = useMemo(() => {
+    const leads = qualifiedLeadsQuery.data?.data ?? [];
+    return [...leads].sort((a, b) => a.name.localeCompare(b.name));
+  }, [qualifiedLeadsQuery.data?.data]);
+  const inventoryProducts = useMemo(() => {
+    const products = productsQuery.data?.data ?? [];
+    return [...products].sort((a, b) => a.name.localeCompare(b.name));
+  }, [productsQuery.data?.data]);
 
   const grouped = useMemo(() => {
     const map: Record<QuoteStatus, QuoteSummary[]> = {
@@ -192,10 +259,7 @@ export default function SalesPage() {
   function addItem() {
     setForm((prev) => ({
       ...prev,
-      items: [
-        ...prev.items,
-        { name: "", description: "", quantity: 1, unit: "", unitPrice: 0 },
-      ],
+      items: [...prev.items, createClientItem()],
     }));
   }
 
@@ -206,13 +270,114 @@ export default function SalesPage() {
     }));
   }
 
+  function handleSelectLead(leadId: string) {
+    setSelectedLeadId(leadId);
+    const lead = qualifiedLeads.find((item) => item.id === leadId);
+    if (!lead) {
+      setForm((prev) => ({ ...prev, leadId: "" }));
+      return;
+    }
+    setForm((prev) => ({
+      ...prev,
+      leadId: lead.id,
+      customerName: lead.name ?? "",
+      company: lead.company ?? "",
+      email: lead.email ?? "",
+      phone: lead.phone ?? "",
+    }));
+  }
+
+  function addInventoryProduct(product: Product) {
+    setForm((prev) => ({
+      ...prev,
+      items: [
+        ...prev.items,
+        createClientItem({
+          inventoryProductId: product.id,
+          name: product.name,
+          make: product.brand ?? "",
+          description: product.description ?? product.category ?? "",
+          utility: product.category ?? "",
+          quantity: 1,
+          unit: product.unit ?? "pcs",
+          unitPrice: product.price ?? 0,
+        }),
+      ],
+    }));
+  }
+
   function openBuilder() {
     setBuilderError(null);
+    setBuilderMode("create");
+    setEditingQuoteId(null);
+    setSelectedLeadId("");
+    setSelectedProductId("");
+    setForm({
+      leadId: "",
+      customerName: "",
+      company: "",
+      email: "",
+      phone: "",
+      billingAddress: "",
+      shippingAddress: "",
+      currency: "INR",
+      status: QuoteStatus.DRAFT,
+      discountType: DiscountType.PERCENT,
+      discountValue: 0,
+      taxRate: 0,
+      validUntil: "",
+      notes: "",
+      terms: "",
+      items: [createClientItem()],
+    });
     setShowBuilder(true);
   }
 
   function closeBuilder() {
     setShowBuilder(false);
+  }
+
+  function openEditBuilder() {
+    if (!activeQuote.data) return;
+    const quote = activeQuote.data;
+    setBuilderError(null);
+    setBuilderMode("edit");
+    setEditingQuoteId(quote.id);
+    setSelectedLeadId(quote.leadId ?? "");
+    setSelectedProductId("");
+    setForm({
+      leadId: quote.leadId ?? "",
+      customerName: quote.customerName ?? "",
+      company: quote.company ?? "",
+      email: quote.email ?? "",
+      phone: quote.phone ?? "",
+      billingAddress: quote.billingAddress ?? "",
+      shippingAddress: quote.shippingAddress ?? "",
+      currency: quote.currency ?? "INR",
+      status: quote.status,
+      discountType: quote.discountType ?? DiscountType.PERCENT,
+      discountValue: quote.discountValue ?? 0,
+      taxRate: quote.taxRate ?? 0,
+      validUntil: quote.validUntil ? quote.validUntil.slice(0, 10) : "",
+      notes: quote.notes ?? "",
+      terms: quote.terms ?? "",
+      items: quote.items.length > 0
+        ? quote.items.map((item) =>
+            createClientItem({
+              inventoryProductId: item.inventoryProductId ?? "",
+              name: item.name,
+              make: item.make ?? "",
+              description: item.description ?? "",
+              utility: item.utility ?? "",
+              quantity: item.quantity,
+              unit: item.unit ?? "",
+              unitPrice: item.unitPrice,
+            })
+          )
+        : [createClientItem()],
+    });
+    setActiveQuoteId(null);
+    setShowBuilder(true);
   }
 
   function validateForm(): string | null {
@@ -239,7 +404,11 @@ export default function SalesPage() {
       return;
     }
     setBuilderError(null);
-    await createQuote.mutateAsync(form);
+    if (builderMode === "edit" && editingQuoteId) {
+      await updateQuote.mutateAsync({ id: editingQuoteId, data: form });
+    } else {
+      await createQuote.mutateAsync(form);
+    }
     closeBuilder();
   }
 
@@ -272,7 +441,7 @@ export default function SalesPage() {
             <div className="flex items-start justify-between border-b border-slate-200 px-6 py-5">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-600">Quotation Builder</p>
-                <h2 className="mt-1 text-xl font-semibold text-slate-900">Build a new quote</h2>
+                <h2 className="mt-1 text-xl font-semibold text-slate-900">{builderMode === "edit" ? "Edit quotation" : "Build a new quotation"}</h2>
                 <p className="mt-1 text-sm text-slate-500">
                   Add products, apply discount (max 12%), and confirm totals before saving.
                 </p>
@@ -288,59 +457,137 @@ export default function SalesPage() {
             <div className="flex-1 overflow-y-auto">
               <div className="grid gap-6 px-6 py-6 lg:grid-cols-[minmax(0,1fr)_360px]">
                 <div className="space-y-6 min-w-0">
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div>
-                    <label className="text-xs font-semibold text-slate-500">Customer Name</label>
-                    <input
-                      value={form.customerName}
-                      onChange={(e) => setForm((prev) => ({ ...prev, customerName: e.target.value }))}
-                      className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-emerald-300"
-                      placeholder="Customer name"
-                    />
+                <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <h3 className="text-sm font-semibold text-slate-800">Customer</h3>
+                      <p className="text-xs text-slate-500">Choose from qualified leads and refine details.</p>
+                    </div>
+                    {qualifiedLeadsQuery.isLoading ? (
+                      <span className="text-xs text-slate-400">Loading qualified leads...</span>
+                    ) : null}
+                    {qualifiedLeadsQuery.isError ? (
+                      <span className="text-xs text-rose-500">Unable to load qualified leads.</span>
+                    ) : null}
                   </div>
-                  <div>
-                    <label className="text-xs font-semibold text-slate-500">Company</label>
-                    <input
-                      value={form.company}
-                      onChange={(e) => setForm((prev) => ({ ...prev, company: e.target.value }))}
-                      className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-emerald-300"
-                      placeholder="Company"
-                    />
+                  <div className="mt-4 grid gap-4 lg:grid-cols-[1.2fr_1fr]">
+                    <div>
+                      <label className={fieldLabelCls}>Qualified Lead</label>
+                      <select
+                        value={selectedLeadId}
+                        onChange={(e) => handleSelectLead(e.target.value)}
+                        className={`${selectCls} mt-1`}
+                      >
+                        <option value="">Select a qualified lead</option>
+                        {qualifiedLeads.map((lead) => (
+                          <option key={lead.id} value={lead.id}>
+                            {[lead.name, lead.company, lead.email].filter(Boolean).join(" | ")}
+                          </option>
+                        ))}
+                      </select>
+                      {qualifiedLeads.length === 0 && !qualifiedLeadsQuery.isLoading ? (
+                        <p className="mt-1 text-xs text-slate-400">No qualified leads available yet.</p>
+                      ) : null}
+                    </div>
+                    <div>
+                      <label className={fieldLabelCls}>Customer Name</label>
+                      <input
+                        value={form.customerName}
+                        onChange={(e) => setForm((prev) => ({ ...prev, customerName: e.target.value }))}
+                        className={inputCls}
+                        placeholder="Customer name"
+                      />
+                    </div>
                   </div>
-                  <div>
-                    <label className="text-xs font-semibold text-slate-500">Email</label>
-                    <input
-                      value={form.email}
-                      onChange={(e) => setForm((prev) => ({ ...prev, email: e.target.value }))}
-                      className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-emerald-300"
-                      placeholder="Email"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs font-semibold text-slate-500">Phone</label>
-                    <input
-                      value={form.phone}
-                      onChange={(e) => setForm((prev) => ({ ...prev, phone: e.target.value }))}
-                      className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-emerald-300"
-                      placeholder="Phone"
-                    />
+                  <div className="mt-3 grid gap-4 md:grid-cols-2">
+                    <div>
+                      <label className={fieldLabelCls}>Company</label>
+                      <input
+                        value={form.company}
+                        onChange={(e) => setForm((prev) => ({ ...prev, company: e.target.value }))}
+                        className={inputCls}
+                        placeholder="Company"
+                      />
+                    </div>
+                    <div>
+                      <label className={fieldLabelCls}>Email</label>
+                      <input
+                        value={form.email}
+                        onChange={(e) => setForm((prev) => ({ ...prev, email: e.target.value }))}
+                        className={inputCls}
+                        placeholder="Email"
+                      />
+                    </div>
+                    <div>
+                      <label className={fieldLabelCls}>Phone</label>
+                      <input
+                        value={form.phone}
+                        onChange={(e) => setForm((prev) => ({ ...prev, phone: e.target.value }))}
+                        className={inputCls}
+                        placeholder="Phone"
+                      />
+                    </div>
+                    <div className="hidden md:block" />
                   </div>
                 </div>
 
                 <div className="rounded-2xl border border-slate-200 bg-slate-50/50 p-4">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-sm font-semibold text-slate-800">Products</h3>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <h3 className="text-sm font-semibold text-slate-800">Products</h3>
+                      <p className="text-xs text-slate-500">
+                        Add from inventory or create a custom line item.
+                      </p>
+                    </div>
                     <button
                       onClick={addItem}
-                      className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                      className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
                     >
                       <Plus className="h-3.5 w-3.5" />
-                      Add Product
+                      Add Custom Item
                     </button>
                   </div>
+                  <div className="mt-4 grid gap-3 md:grid-cols-[2fr_1fr_auto]">
+                    <div>
+                      <label className={fieldLabelCls}>Inventory Product</label>
+                      <select
+                        value={selectedProductId}
+                        onChange={(e) => setSelectedProductId(e.target.value)}
+                        className={`${selectCls} mt-1`}
+                      >
+                        <option value="">Select from inventory</option>
+                        {inventoryProducts.map((product) => (
+                          <option key={product.id} value={product.id}>
+                            {[product.name, product.sku, product.price ? fmtCurrency(product.price) : null].filter(Boolean).join(" | ")}
+                          </option>
+                        ))}
+                      </select>
+                      {productsQuery.isLoading ? (
+                        <p className="mt-1 text-xs text-slate-400">Loading inventory...</p>
+                      ) : null}
+                    </div>
+                    <div>
+                      <label className={fieldLabelCls}>Action</label>
+                      <button
+                        onClick={() => {
+                          const product = inventoryProducts.find((item) => item.id === selectedProductId);
+                          if (product) {
+                            addInventoryProduct(product);
+                            setSelectedProductId("");
+                          }
+                        }}
+                        disabled={!selectedProductId}
+                        className="mt-1 inline-flex w-full items-center justify-center rounded-xl bg-emerald-600 px-3 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        Add to Quote
+                      </button>
+                    </div>
+                    <div className="hidden md:block" />
+                  </div>
+
                   <div className="mt-4 space-y-4">
                     {form.items.map((item, index) => (
-                      <div key={`${index}-${item.name}`} className="rounded-xl border border-slate-200 bg-white p-3">
+                      <div key={item.clientId ?? `${index}-${item.inventoryProductId ?? "custom"}`} className="rounded-xl border border-slate-200 bg-white p-3">
                         <div className="flex items-center justify-between">
                           <p className="text-xs font-semibold text-slate-500">Item {index + 1}</p>
                           {form.items.length > 1 && (
@@ -352,19 +599,25 @@ export default function SalesPage() {
                             </button>
                           )}
                         </div>
-                        <div className="mt-2 grid gap-3 md:grid-cols-[2fr_1fr_1fr]">
+                        <div className="mt-2 grid gap-3 md:grid-cols-[2fr_1fr_1fr_1fr]">
                           <input
                             value={item.name}
                             onChange={(e) => updateItem(index, { name: e.target.value })}
-                            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-emerald-300"
+                            className={inputCls}
                             placeholder="Product name"
+                          />
+                          <input
+                            value={item.make}
+                            onChange={(e) => updateItem(index, { make: e.target.value })}
+                            className={inputCls}
+                            placeholder="Make / Brand"
                           />
                           <input
                             type="number"
                             min={1}
                             value={item.quantity}
                             onChange={(e) => updateItem(index, { quantity: Number(e.target.value) || 0 })}
-                            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-emerald-300"
+                            className={inputCls}
                             placeholder="Qty"
                           />
                           <input
@@ -372,21 +625,27 @@ export default function SalesPage() {
                             min={0}
                             value={item.unitPrice}
                             onChange={(e) => updateItem(index, { unitPrice: Number(e.target.value) || 0 })}
-                            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-emerald-300"
-                            placeholder="Unit price"
+                            className={inputCls}
+                            placeholder="Unit price (INR)"
                           />
                         </div>
-                        <div className="mt-2 grid gap-3 md:grid-cols-[2fr_1fr]">
+                        <div className="mt-2 grid gap-3 md:grid-cols-[2fr_1fr_1fr]">
                           <input
                             value={item.description}
                             onChange={(e) => updateItem(index, { description: e.target.value })}
-                            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-emerald-300"
+                            className={inputCls}
                             placeholder="Description (optional)"
+                          />
+                          <input
+                            value={item.utility}
+                            onChange={(e) => updateItem(index, { utility: e.target.value })}
+                            className={inputCls}
+                            placeholder="Product utility"
                           />
                           <input
                             value={item.unit}
                             onChange={(e) => updateItem(index, { unit: e.target.value })}
-                            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-emerald-300"
+                            className={inputCls}
                             placeholder="Unit (pcs, sqft)"
                           />
                         </div>
@@ -404,7 +663,7 @@ export default function SalesPage() {
                         <select
                           value={form.discountType}
                           onChange={(e) => setForm((prev) => ({ ...prev, discountType: e.target.value as DiscountType }))}
-                          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-emerald-300"
+                          className={selectCls}
                         >
                           <option value={DiscountType.PERCENT}>Discount %</option>
                           <option value={DiscountType.AMOUNT}>Discount Amount</option>
@@ -415,8 +674,8 @@ export default function SalesPage() {
                           max={form.discountType === DiscountType.PERCENT ? 12 : undefined}
                           value={form.discountValue}
                           onChange={(e) => setForm((prev) => ({ ...prev, discountValue: Number(e.target.value) || 0 }))}
-                          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-emerald-300"
-                          placeholder="Discount"
+                          className={inputCls}
+                          placeholder={form.discountType === DiscountType.PERCENT ? "Discount %" : "Discount (INR)"}
                         />
                       </div>
                       {form.discountType === DiscountType.PERCENT ? (
@@ -428,14 +687,14 @@ export default function SalesPage() {
                           min={0}
                           value={form.taxRate}
                           onChange={(e) => setForm((prev) => ({ ...prev, taxRate: Number(e.target.value) || 0 }))}
-                          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-emerald-300"
+                          className={inputCls}
                           placeholder="Tax %"
                         />
                         <input
                           type="date"
                           value={form.validUntil}
                           onChange={(e) => setForm((prev) => ({ ...prev, validUntil: e.target.value }))}
-                          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-emerald-300"
+                          className={inputCls}
                         />
                       </div>
                     </div>
@@ -464,18 +723,18 @@ export default function SalesPage() {
                   </div>
 
                   <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                    <label className="text-xs font-semibold text-slate-500">Notes</label>
+                    <label className={fieldLabelCls}>Notes</label>
                     <textarea
                       value={form.notes}
                       onChange={(e) => setForm((prev) => ({ ...prev, notes: e.target.value }))}
-                      className="mt-2 h-20 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-emerald-300"
+                      className={`${textareaCls} h-20`}
                       placeholder="Notes for customer"
                     />
-                    <label className="mt-3 block text-xs font-semibold text-slate-500">Terms</label>
+                    <label className={`mt-3 block ${fieldLabelCls}`}>Terms</label>
                     <textarea
                       value={form.terms}
                       onChange={(e) => setForm((prev) => ({ ...prev, terms: e.target.value }))}
-                      className="mt-2 h-20 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-emerald-300"
+                      className={`${textareaCls} h-20`}
                       placeholder="Terms & conditions"
                     />
                   </div>
@@ -494,12 +753,145 @@ export default function SalesPage() {
                 </button>
                 <button
                   onClick={handleCreateQuote}
-                  disabled={createQuote.isPending}
+                  disabled={createQuote.isPending || updateQuote.isPending}
                   className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
                 >
-                  {createQuote.isPending ? "Saving..." : "Create Quote"}
+                  {createQuote.isPending || updateQuote.isPending
+                    ? "Saving..."
+                    : builderMode === "edit"
+                      ? "Save Changes"
+                      : "Create Quotation"}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {activeQuoteId ? (
+        <div className="fixed inset-0 z-40 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            onClick={() => setActiveQuoteId(null)}
+          />
+          <div className="relative z-10 flex max-h-[85vh] w-full max-w-4xl flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl">
+            <div className="flex items-start justify-between border-b border-slate-200 px-6 py-5">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-600">
+                  Quotation Details
+                </p>
+                <h2 className="mt-1 text-xl font-semibold text-slate-900">
+                  {activeQuote.data?.quoteNumber ?? "Loading..."}
+                </h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  {activeQuote.data?.customerName ?? "Fetching quote information."}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                {activeQuote.data?.status === QuoteStatus.DRAFT ? (
+                  <button
+                    onClick={openEditBuilder}
+                    className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                    Edit Draft
+                  </button>
+                ) : null}
+                <button
+                  onClick={() => setActiveQuoteId(null)}
+                  className="flex h-9 w-9 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto px-6 py-6">
+              {activeQuote.isLoading ? (
+                <div className="text-sm text-slate-500">Loading quotation...</div>
+              ) : activeQuote.isError || !activeQuote.data ? (
+                <div className="text-sm text-rose-500">Unable to load this quotation.</div>
+              ) : (
+                <div className="space-y-6">
+                  <div className="grid gap-4 rounded-2xl border border-slate-200 bg-slate-50/60 p-4 md:grid-cols-2">
+                    <div>
+                      <p className="text-xs font-semibold text-slate-500">Company</p>
+                      <p className="text-sm text-slate-700">{activeQuote.data.company ?? "-"}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold text-slate-500">Contact</p>
+                      <p className="text-sm text-slate-700">
+                        {[activeQuote.data.email ?? "-", activeQuote.data.phone].filter(Boolean).join(" | ")}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold text-slate-500">Status</p>
+                      <p className="text-sm text-slate-700">{STATUS_LABELS[activeQuote.data.status]}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold text-slate-500">Valid Until</p>
+                      <p className="text-sm text-slate-700">
+                        {activeQuote.data.validUntil ? fmtDate(activeQuote.data.validUntil) : "-"}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-slate-200 bg-white">
+                    <div className="border-b border-slate-200 px-4 py-3 text-sm font-semibold text-slate-800">
+                      Line Items
+                    </div>
+                    <div className="divide-y divide-slate-100">
+                      {activeQuote.data.items.map((item) => (
+                        <div
+                          key={item.id}
+                          className="flex flex-col gap-3 px-4 py-3 md:flex-row md:items-center md:justify-between"
+                        >
+                          <div>
+                            <p className="font-semibold text-slate-800">{item.name}</p>
+                            <p className="text-xs text-slate-500">
+                              {item.make ? `Make: ${item.make} | ` : ""}
+                              {item.utility ? `Utility: ${item.utility} | ` : ""}
+                              {item.description ?? "No description"}
+                              {item.unit ? ` | ${item.unit}` : ""}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-6 text-sm text-slate-600">
+                            <span>Qty: {item.quantity}</span>
+                            <span>{fmtCurrency(item.unitPrice)}</span>
+                            <span className="font-semibold text-slate-800">
+                              {fmtCurrency(item.lineTotal)}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+                    <h3 className="text-sm font-semibold text-slate-800">Summary</h3>
+                    <div className="mt-3 space-y-2 text-sm">
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-500">Subtotal</span>
+                        <span className="font-semibold">{fmtCurrency(activeQuote.data.subtotal)}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-500">Discount</span>
+                        <span className="font-semibold text-rose-500">
+                          - {fmtCurrency(activeQuote.data.discountTotal)}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-500">Tax</span>
+                        <span className="font-semibold">{fmtCurrency(activeQuote.data.taxTotal)}</span>
+                      </div>
+                      <div className="flex items-center justify-between border-t border-slate-200 pt-3 text-base">
+                        <span className="font-semibold text-slate-700">Total</span>
+                        <span className="font-semibold text-emerald-600">
+                          {fmtCurrency(activeQuote.data.total)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -509,7 +901,7 @@ export default function SalesPage() {
           <div className="space-y-2">
             <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-emerald-700">
               <Sparkles className="h-3 w-3" />
-              Sales Command Center
+              Quotation Command Center
             </div>
             <h1 className="text-2xl font-semibold text-slate-900">
               Track quotes from draft to close.
@@ -585,10 +977,16 @@ export default function SalesPage() {
 
       <div className="flex gap-4 overflow-x-auto pb-2">
         {(Object.keys(STATUS_LABELS) as QuoteStatus[]).map((status) => (
-          <KanbanColumn key={status} status={status} quotes={grouped[status]} />
+          <KanbanColumn
+            key={status}
+            status={status}
+            quotes={grouped[status]}
+            onOpenQuote={(id) => setActiveQuoteId(id)}
+          />
         ))}
       </div>
     </div>
   );
 }
+
 

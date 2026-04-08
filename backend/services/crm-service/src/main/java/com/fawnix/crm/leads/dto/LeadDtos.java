@@ -85,12 +85,15 @@ public final class LeadDtos {
       String metaLeadId,
       String metaFormId,
       String metaAdId,
-      Instant sourceCreatedAt
+      Instant sourceCreatedAt,
+      String statusRemark
   ) {
   }
 
   public record UpdateLeadStatusRequest(
-      @NotBlank String status
+      @NotBlank String status,
+      Instant followUpAt,
+      String remark
   ) {
   }
 
@@ -158,6 +161,17 @@ public final class LeadDtos {
   ) {
   }
 
+  public record LeadStatusHistoryEntryResponse(
+      String id,
+      String fromStatus,
+      String toStatus,
+      String changedByUserId,
+      String changedByName,
+      String note,
+      Instant changedAt
+  ) {
+  }
+
   public record WhatsappDispatchLog(
       boolean sent,
       String reason
@@ -201,6 +215,7 @@ public final class LeadDtos {
       List<LeadRemarkResponse> remarks,
       List<LeadContactRecordingResponse> contactRecordings,
       List<LeadActivityResponse> activities,
+      List<LeadStatusHistoryEntryResponse> statusHistory,
       Instant lastContactedAt,
       Instant followUpAt,
       Instant convertedAt,

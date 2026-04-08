@@ -164,7 +164,7 @@ public class FormsController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_HR_MANAGER','ROLE_RECRUITER')")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_REPORTING_MANAGER','ROLE_HR_MANAGER','ROLE_RECRUITER')")
     public ResponseEntity<?> createForm(
         @RequestBody FormCreateRequest request,
         @AuthenticationPrincipal AppUserDetails user
@@ -244,7 +244,7 @@ public class FormsController {
     }
 
     @PatchMapping("/{id}")
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_HR_MANAGER','ROLE_RECRUITER')")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_REPORTING_MANAGER','ROLE_HR_MANAGER','ROLE_RECRUITER')")
     public ResponseEntity<?> updateForm(@PathVariable UUID id, @RequestBody FormUpdateRequest request) {
         ApplicationForm form = formRepository.findById(id).orElse(null);
         if (form == null) {
@@ -302,7 +302,7 @@ public class FormsController {
     }
 
     @PostMapping("/{id}/publish")
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_HR_MANAGER','ROLE_RECRUITER')")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_REPORTING_MANAGER','ROLE_HR_MANAGER','ROLE_RECRUITER')")
     public ResponseEntity<?> publish(@PathVariable UUID id) {
         ApplicationForm form = formRepository.findWithFieldsById(id).orElse(null);
         if (form == null) {
@@ -331,7 +331,7 @@ public class FormsController {
     }
 
     @PostMapping("/{id}/archive")
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_HR_MANAGER','ROLE_RECRUITER')")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_REPORTING_MANAGER','ROLE_HR_MANAGER','ROLE_RECRUITER')")
     public ResponseEntity<?> archive(@PathVariable UUID id) {
         ApplicationForm form = formRepository.findById(id).orElse(null);
         if (form == null) {
@@ -367,7 +367,7 @@ public class FormsController {
     }
 
     @PostMapping("/templates")
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_HR_MANAGER','ROLE_RECRUITER')")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_REPORTING_MANAGER','ROLE_HR_MANAGER','ROLE_RECRUITER')")
     public ResponseEntity<?> createTemplate(
         @RequestBody TemplateCreateRequest request,
         @AuthenticationPrincipal AppUserDetails user
@@ -438,7 +438,7 @@ public class FormsController {
     }
 
     @PostMapping("/collections")
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_HR_MANAGER','ROLE_RECRUITER')")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_REPORTING_MANAGER','ROLE_HR_MANAGER','ROLE_RECRUITER')")
     public ResponseEntity<?> createCollection(@RequestBody CollectionCreateRequest request) {
         String module;
         try {
@@ -508,7 +508,7 @@ public class FormsController {
     }
 
     @PostMapping("/links")
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_HR_MANAGER','ROLE_RECRUITER')")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_REPORTING_MANAGER','ROLE_HR_MANAGER','ROLE_RECRUITER')")
     public ResponseEntity<?> createLink(@RequestBody LinkCreateRequest request) {
         if (request.getFormId() == null || request.getFormId().isBlank()) {
             return ResponseEntity.badRequest().body("form_id is required");
@@ -544,7 +544,7 @@ public class FormsController {
     }
 
     @PostMapping("/links/{id}/resend")
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_HR_MANAGER','ROLE_RECRUITER')")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_REPORTING_MANAGER','ROLE_HR_MANAGER','ROLE_RECRUITER')")
     public ResponseEntity<?> resendLink(@PathVariable UUID id) {
         ApplicationFormLink link = linkRepository.findById(id).orElse(null);
         if (link == null) {
@@ -558,7 +558,7 @@ public class FormsController {
     }
 
     @PostMapping("/links/{id}/expire")
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_HR_MANAGER','ROLE_RECRUITER')")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_REPORTING_MANAGER','ROLE_HR_MANAGER','ROLE_RECRUITER')")
     public ResponseEntity<?> expireLink(@PathVariable UUID id) {
         ApplicationFormLink link = linkRepository.findById(id).orElse(null);
         if (link == null) {

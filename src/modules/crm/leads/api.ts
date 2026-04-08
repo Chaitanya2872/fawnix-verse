@@ -49,6 +49,7 @@ function normalizeLead(lead: Lead): Lead {
     remarks: lead.remarks ?? [],
     contactRecordings: lead.contactRecordings ?? [],
     activities: lead.activities ?? [],
+    statusHistory: lead.statusHistory ?? [],
     lastContactedAt: lead.lastContactedAt ?? null,
     followUpAt: lead.followUpAt ?? null,
     convertedAt: lead.convertedAt ?? null,

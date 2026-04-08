@@ -16,7 +16,6 @@ import {
   Network,
   Settings,
   Settings2,
-  ShoppingBag,
   ShoppingCart,
   Target,
   UserRoundSearch,
@@ -53,17 +52,17 @@ const ERP_NAV_SECTIONS: readonly SidebarNavSection[] = [
     heading: "Operations",
     items: [
       { label: "Inventory", to: "/inventory", icon: Boxes, permission: PERMISSIONS.PAGE_INVENTORY },
-      { label: "Sales", to: "/sales", icon: ShoppingCart, permission: PERMISSIONS.PAGE_SALES },
-      { label: "Purchases", to: "/purchases", icon: ShoppingBag, permission: PERMISSIONS.PAGE_PURCHASES },
+      { label: "Quotations", to: "/sales", icon: FileText, permission: PERMISSIONS.PAGE_SALES },
+      { label: "P2P", to: "/p2p", icon: ShoppingCart, permission: PERMISSIONS.PAGE_PURCHASES },
     ],
   },
   {
     heading: "CRM",
     items: [
       { label: "Leads", to: "/crm/leads", icon: UserPlus, permission: PERMISSIONS.PAGE_CRM_LEADS },
-      { label: "Accounts", to: "/crm/accounts", icon: Building2, permission: PERMISSIONS.PAGE_CRM_ACCOUNTS },
-      { label: "Tasks", to: "/crm/presales", icon: Target, permission: PERMISSIONS.PAGE_CRM_PRESALES },
-      { label: "Opportunities", to: "/crm/opportunities", icon: Target, permission: PERMISSIONS.PAGE_CRM_OPPORTUNITIES },
+      { label: "Quotations", to: "/sales", icon: FileText, permission: PERMISSIONS.PAGE_SALES },
+      { label: "Analytics", to: "/reports", icon: BarChart3, permission: PERMISSIONS.PAGE_REPORTS },
+      {label: "Integrations", to: "/settings", icon: Settings, permission: PERMISSIONS.PAGE_ADMIN_SETTINGS },
     ],
   },
   {
@@ -91,8 +90,7 @@ const ERP_NAV_SECTIONS: readonly SidebarNavSection[] = [
   {
     heading: "Integrations",
     items: [
-      { label: "Portal Credentials", to: "/settings/portal-credentials", icon: Settings, permission: PERMISSIONS.MODULE_INTEGRATIONS },
-      { label: "Calendar Integrations", to: "/settings/calendar-integrations", icon: CalendarClock, permission: PERMISSIONS.MODULE_INTEGRATIONS },
+      { label: "CRM Integrations", to: "/settings", icon: Settings, permission: PERMISSIONS.PAGE_ADMIN_SETTINGS },
     ],
   },
   {
@@ -106,7 +104,6 @@ const ERP_NAV_SECTIONS: readonly SidebarNavSection[] = [
     heading: "Administration",
     items: [
       { label: "Users", to: "/users", icon: Users, permission: PERMISSIONS.PAGE_ADMIN_USERS },
-      { label: "Settings", to: "/settings", icon: Settings, permission: PERMISSIONS.PAGE_ADMIN_SETTINGS },
     ],
   },
 ];

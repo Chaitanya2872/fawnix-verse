@@ -6,6 +6,7 @@ import com.fawnix.crm.leads.entity.LeadStatusHistoryEntity;
 import com.fawnix.crm.leads.repository.LeadStatusHistoryRepository;
 import com.fawnix.crm.security.service.AppUserDetails;
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 
@@ -26,6 +27,7 @@ public class LeadStatusHistoryService {
     entry.setToStatus(status);
     entry.setChangedByUserId(actor.getUserId());
     entry.setChangedByName(actor.getFullName());
+    entry.setNote(null);
     entry.setChangedAt(now);
     historyRepository.save(entry);
   }
@@ -35,7 +37,8 @@ public class LeadStatusHistoryService {
       LeadStatus fromStatus,
       LeadStatus toStatus,
       AppUserDetails actor,
-      Instant now
+      Instant now,
+      String note
   ) {
     LeadStatusHistoryEntity entry = new LeadStatusHistoryEntity();
     entry.setId(UUID.randomUUID().toString());
@@ -44,8 +47,13 @@ public class LeadStatusHistoryService {
     entry.setToStatus(toStatus);
     entry.setChangedByUserId(actor.getUserId());
     entry.setChangedByName(actor.getFullName());
+    entry.setNote(note);
     entry.setChangedAt(now);
     historyRepository.save(entry);
+  }
+
+  public List<LeadStatusHistoryEntity> getLeadHistory(String leadId) {
+    return historyRepository.findAllByLead_IdOrderByChangedAtAsc(leadId);
   }
 
   public void deleteForLead(String leadId) {

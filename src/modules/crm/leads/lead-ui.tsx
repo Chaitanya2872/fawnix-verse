@@ -2,6 +2,8 @@
 import React from "react";
 import {
   AlertCircle,
+  ArrowDownRight,
+  ArrowUpRight,
   CheckCircle2,
   Phone,
   Send,
@@ -75,10 +77,10 @@ export const STATUS_CFG: Record<
   LOST:                     { label: "Lost",                     cls: "bg-red-50 text-red-700 border-red-200 dark:bg-red-950 dark:text-red-300 dark:border-red-800", dot: "bg-red-500", icon: <XCircle className="h-3 w-3" />, step: 8 },
 };
 
-export const PRIORITY_CFG: Record<LeadPriority, { label: string; cls: string; dot: string }> = {
-  LOW:    { label: "Low",    cls: "text-slate-500",  dot: "bg-slate-400" },
-  MEDIUM: { label: "Medium", cls: "text-amber-600",  dot: "bg-amber-500" },
-  HIGH:   { label: "High",   cls: "text-red-600",    dot: "bg-red-500"   },
+export const PRIORITY_CFG: Record<LeadPriority, { label: string; cls: string; dot: string; icon: React.ReactNode }> = {
+  LOW:    { label: "Low",    cls: "text-slate-500",  dot: "bg-slate-400", icon: <ArrowDownRight className="h-3.5 w-3.5" /> },
+  MEDIUM: { label: "Medium", cls: "text-amber-600",  dot: "bg-amber-500", icon: <span className="inline-block h-2 w-2 rounded-full bg-amber-500" /> },
+  HIGH:   { label: "High",   cls: "text-red-600",    dot: "bg-red-500",   icon: <ArrowUpRight className="h-3.5 w-3.5" /> },
 };
 
 export const REP_COLORS: Record<string, string> = {
@@ -100,10 +102,11 @@ export function StatusBadge({ status }: { status: LeadStatus }) {
 }
 
 export function PriorityDot({ priority }: { priority: LeadPriority }) {
-  const { cls, dot, label } = PRIORITY_CFG[priority];
+  const { cls, dot, icon, label } = PRIORITY_CFG[priority];
   return (
     <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${cls}`}>
       <span className={`h-2 w-2 rounded-full ${dot}`} />
+      <span className="inline-flex items-center">{icon}</span>
       {label}
     </span>
   );
@@ -138,16 +141,27 @@ export function PipelineProgress({ status }: { status: LeadStatus }) {
 }
 
 export function getDrawerStageTargets(status: LeadStatus) {
-  return getLeadStatusTransitions(status).filter((nextStatus) => nextStatus !== LeadStatus.CONVERTED);
+  const nextStatuses = getLeadStatusTransitions(status).filter((nextStatus) => nextStatus !== LeadStatus.CONVERTED);
+  if (status === LeadStatus.FOLLOW_UP) {
+    return [LeadStatus.FOLLOW_UP, ...nextStatuses];
+  }
+  return nextStatuses;
 }
 
 export function getMenuStageTargets(status: LeadStatus) {
-  return getLeadStatusTransitions(status);
+  const nextStatuses = getLeadStatusTransitions(status);
+  if (status === LeadStatus.FOLLOW_UP) {
+    return [LeadStatus.FOLLOW_UP, ...nextStatuses];
+  }
+  return nextStatuses;
 }
 
 export function getStageActionLabel(status: LeadStatus) {
   if (status === LeadStatus.CONVERTED) {
     return "Convert to Opportunity";
+  }
+  if (status === LeadStatus.FOLLOW_UP) {
+    return "Schedule Follow Up";
   }
   if (status === LeadStatus.LOST) {
     return "Mark as Lost";

@@ -37,6 +37,9 @@ public class LeadStatusHistoryEntity {
   @Column(name = "changed_by_name", length = 120)
   private String changedByName;
 
+  @Column(name = "note", columnDefinition = "text")
+  private String note;
+
   @Column(name = "changed_at", nullable = false)
   private Instant changedAt;
 
@@ -86,6 +89,14 @@ public class LeadStatusHistoryEntity {
 
   public void setChangedByName(String changedByName) {
     this.changedByName = changedByName;
+  }
+
+  public String getNote() {
+    return note;
+  }
+
+  public void setNote(String note) {
+    this.note = note;
   }
 
   public Instant getChangedAt() {

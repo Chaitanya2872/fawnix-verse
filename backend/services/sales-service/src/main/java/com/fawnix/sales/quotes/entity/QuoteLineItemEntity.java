@@ -27,8 +27,17 @@ public class QuoteLineItemEntity {
   @Column(name = "name", length = 160, nullable = false)
   private String name;
 
+  @Column(name = "inventory_product_id", length = 36)
+  private String inventoryProductId;
+
+  @Column(name = "make", length = 120)
+  private String make;
+
   @Column(name = "description", columnDefinition = "text")
   private String description;
+
+  @Column(name = "utility", columnDefinition = "text")
+  private String utility;
 
   @Column(name = "quantity", precision = 12, scale = 2, nullable = false)
   private BigDecimal quantity = BigDecimal.ZERO;
@@ -74,12 +83,36 @@ public class QuoteLineItemEntity {
     this.name = name;
   }
 
+  public String getInventoryProductId() {
+    return inventoryProductId;
+  }
+
+  public void setInventoryProductId(String inventoryProductId) {
+    this.inventoryProductId = inventoryProductId;
+  }
+
+  public String getMake() {
+    return make;
+  }
+
+  public void setMake(String make) {
+    this.make = make;
+  }
+
   public String getDescription() {
     return description;
   }
 
   public void setDescription(String description) {
     this.description = description;
+  }
+
+  public String getUtility() {
+    return utility;
+  }
+
+  public void setUtility(String utility) {
+    this.utility = utility;
   }
 
   public BigDecimal getQuantity() {

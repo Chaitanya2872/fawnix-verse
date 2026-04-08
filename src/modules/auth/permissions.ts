@@ -53,7 +53,9 @@ export function hasPermission(
   permission: Permission
 ): boolean {
   if (!user) return false;
-  if (user.roles?.includes("ROLE_ADMIN")) return true;
+  if (user.roles?.includes("ROLE_ADMIN") || user.roles?.includes("ROLE_REPORTING_MANAGER")) {
+    return true;
+  }
   const permissions = user.permissions ?? [];
   if (permissions.includes(permission)) return true;
 

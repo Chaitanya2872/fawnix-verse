@@ -4,6 +4,8 @@ import {
   Building2,
   CheckCircle2,
   Clock,
+  ArrowDownRight,
+  GitBranch,
   Loader2,
   Mail,
   Phone,
@@ -14,6 +16,7 @@ import {
 import {
   type AssigneeOption,
   type Lead,
+  LeadPriority,
   LeadStatus,
   LEAD_SOURCE_LABELS,
   LEAD_STATUS_LABELS,
@@ -34,6 +37,7 @@ import {
 
 const TABS = [
   { id: "overview", label: "Overview" },
+  { id: "history", label: "History" },
   { id: "notes", label: "Notes & Remarks" },
   { id: "activity", label: "Activity" },
 ] as const;
@@ -45,6 +49,8 @@ export function LeadDetailPanel({
   assignees,
   onClose,
   onStatusChange,
+  onLogStageEntry,
+  onPriorityChange,
   onConvert,
   onAssignLead,
   onAddRemark,
@@ -62,6 +68,8 @@ export function LeadDetailPanel({
   assignees: AssigneeOption[];
   onClose: () => void;
   onStatusChange: (status: LeadStatus) => void;
+  onLogStageEntry: () => void;
+  onPriorityChange: (priority: LeadPriority) => void;
   onConvert: () => void;
   onAssignLead: (assignee: AssigneeOption) => void;
   onAddRemark: (content: string) => void;
@@ -97,6 +105,35 @@ export function LeadDetailPanel({
       })),
     [lead.remarks]
   );
+
+  const historyStages = useMemo(() => {
+    const grouped = new Map<
+      LeadStatus,
+      {
+        status: LeadStatus;
+        entries: Lead["statusHistory"];
+        firstChangedAt: string;
+      }
+    >();
+
+    lead.statusHistory.forEach((entry) => {
+      const existing = grouped.get(entry.toStatus);
+      if (existing) {
+        existing.entries.push(entry);
+        return;
+      }
+      grouped.set(entry.toStatus, {
+        status: entry.toStatus,
+        entries: [entry],
+        firstChangedAt: entry.changedAt,
+      });
+    });
+
+    return Array.from(grouped.values()).sort(
+      (left, right) =>
+        new Date(left.firstChangedAt).getTime() - new Date(right.firstChangedAt).getTime()
+    );
+  }, [lead.statusHistory]);
 
   function handleAddRemark() {
     const nextRemark = remarkInput.trim();
@@ -363,6 +400,39 @@ export function LeadDetailPanel({
               </div>
 
               <div className="rounded-xl border border-border bg-muted/10 p-4">
+                <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Priority</p>
+                <div className="flex items-center justify-between gap-3">
+                  <PriorityDot priority={lead.priority} />
+                  {isUpdating && <Loader2 className="h-4 w-4 animate-spin text-sky-600" />}
+                </div>
+                <div className="mt-3 grid grid-cols-3 gap-2">
+                  <button
+                    onClick={() => onPriorityChange(LeadPriority.HIGH)}
+                    disabled={isUpdating || lead.priority === LeadPriority.HIGH}
+                    className="inline-flex items-center justify-center gap-1 rounded-lg border border-border bg-background px-2 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 disabled:opacity-50"
+                  >
+                    <ArrowUpRight className="h-3.5 w-3.5" />
+                    High
+                  </button>
+                  <button
+                    onClick={() => onPriorityChange(LeadPriority.MEDIUM)}
+                    disabled={isUpdating || lead.priority === LeadPriority.MEDIUM}
+                    className="inline-flex items-center justify-center gap-1 rounded-lg border border-border bg-background px-2 py-2 text-xs font-semibold text-amber-600 hover:bg-amber-50 disabled:opacity-50"
+                  >
+                    Medium
+                  </button>
+                  <button
+                    onClick={() => onPriorityChange(LeadPriority.LOW)}
+                    disabled={isUpdating || lead.priority === LeadPriority.LOW}
+                    className="inline-flex items-center justify-center gap-1 rounded-lg border border-border bg-background px-2 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                  >
+                    <ArrowDownRight className="h-3.5 w-3.5" />
+                    Low
+                  </button>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-border bg-muted/10 p-4">
                 <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Build Quotation</p>
                 <p className="text-xs text-muted-foreground">
                   Create a quote for this lead and keep deals moving.
@@ -393,6 +463,84 @@ export function LeadDetailPanel({
                 )}
               </div>
             </aside>
+          </div>
+        )}
+
+        {activeTab === "history" && (
+          <div className="space-y-4">
+            <div className="flex justify-end">
+              <button
+                onClick={onLogStageEntry}
+                disabled={isUpdating}
+                className="inline-flex items-center gap-2 rounded-lg bg-sky-600 px-3 py-2 text-xs font-semibold text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isUpdating && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                Add Stage Entry
+              </button>
+            </div>
+            {historyStages.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-border bg-muted/20 px-4 py-6 text-center text-sm text-muted-foreground">
+                No stage history yet for this lead.
+              </div>
+            ) : (
+              historyStages.map((stage, index) => (
+                <div key={stage.status} className="relative pl-10">
+                  {index < historyStages.length - 1 ? (
+                    <div className="absolute left-[17px] top-10 h-[calc(100%+1rem)] w-px bg-border" />
+                  ) : null}
+                  <div className="absolute left-0 top-1 flex h-9 w-9 items-center justify-center rounded-full border border-sky-200 bg-sky-50 text-sky-700">
+                    <GitBranch className="h-4 w-4" />
+                  </div>
+
+                  <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-foreground">
+                          {LEAD_STATUS_LABELS[stage.status]}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {stage.entries.length} {stage.entries.length === 1 ? "entry" : "entries"}
+                        </p>
+                      </div>
+                      <span className="rounded-full border border-border bg-muted/30 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
+                        First reached {fmtDateTime(stage.entries[0]?.changedAt)}
+                      </span>
+                    </div>
+
+                    <div className="mt-4 space-y-3">
+                      {stage.entries.map((entry, entryIndex) => (
+                        <div key={entry.id} className="rounded-xl border border-border bg-muted/10 p-3">
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div>
+                              <p className="text-sm font-medium text-foreground">
+                                {entry.fromStatus
+                                  ? `${LEAD_STATUS_LABELS[entry.fromStatus]} -> ${LEAD_STATUS_LABELS[entry.toStatus]}`
+                                  : `Entered ${LEAD_STATUS_LABELS[entry.toStatus]}`}
+                              </p>
+                              <p className="mt-1 text-xs text-muted-foreground">
+                                {entry.changedByName ?? "System"} on {fmtDateTime(entry.changedAt)}
+                              </p>
+                            </div>
+                            <span className="rounded-full bg-background px-2 py-1 text-[11px] font-medium text-muted-foreground">
+                              Entry {entryIndex + 1}
+                            </span>
+                          </div>
+                          {entry.note ? (
+                            <p className="mt-3 rounded-lg border border-sky-100 bg-sky-50/70 px-3 py-2 text-sm text-slate-700">
+                              {entry.note}
+                            </p>
+                          ) : (
+                            <p className="mt-3 text-xs text-muted-foreground">
+                              No transition note was captured for this move.
+                            </p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         )}
 

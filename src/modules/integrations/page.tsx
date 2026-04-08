@@ -52,6 +52,7 @@ export default function IntegrationsPage() {
   const { data: currentUser } = useCurrentUser({ enabled: hasStoredSession() });
   const isAdmin =
     currentUser?.roles?.includes("ROLE_ADMIN") ||
+    currentUser?.roles?.includes("ROLE_REPORTING_MANAGER") ||
     currentUser?.roles?.includes("ROLE_SALES_MANAGER");
 
   const metaSettingsQuery = useMetaIntegrationSettings({ enabled: Boolean(isAdmin) });

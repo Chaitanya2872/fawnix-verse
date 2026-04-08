@@ -19,7 +19,9 @@ public class LeadSecurityService {
     }
 
     boolean adminLike = details.getRoleNames().stream()
-        .anyMatch(role -> role.equals("ROLE_ADMIN") || role.equals("ROLE_SALES_MANAGER"));
+        .anyMatch(role -> role.equals("ROLE_ADMIN")
+            || role.equals("ROLE_REPORTING_MANAGER")
+            || role.equals("ROLE_SALES_MANAGER"));
     if (adminLike) {
       return true;
     }

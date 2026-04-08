@@ -5,6 +5,7 @@ import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   AlertCircle,
+  CalendarDays,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -26,6 +27,7 @@ import {
   type LeadFormData,
   type LeadImportResult,
   type LeadUpdateData,
+  getLeadStatusTransitions,
   LeadPriority,
   LeadSource,
   LeadStatus,
@@ -41,9 +43,11 @@ import {
   useEditLeadRemark,
   useLeadAssignees,
   useLeadDetail,
+  useLeadNotifications,
   useLeads,
   useImportLeads,
   useUpdateLead,
+  useUpdateLeadPriority,
 } from "./hooks";
 import { LeadsLayout } from "./layout";
 import { useCurrentUser } from "@/modules/auth/hooks";
@@ -68,6 +72,38 @@ const BASE_FORM: LeadFormData = {
   tags: [],
   followUpAt: null,
 };
+
+function toDateTimeLocalValue(value: string | null) {
+  if (!value) {
+    return "";
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+  const timezoneOffsetMs = date.getTimezoneOffset() * 60_000;
+  return new Date(date.getTime() - timezoneOffsetMs).toISOString().slice(0, 16);
+}
+
+function fromDateTimeLocalValue(value: string) {
+  if (!value) {
+    return null;
+  }
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+  return parsed.toISOString();
+}
+
+function toDateInputValue(value: Date) {
+  return value.toISOString().slice(0, 10);
+}
+
+function parseDateInputValue(value: string) {
+  const parsed = new Date(`${value}T00:00:00`);
+  return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+}
 
 type LeadDialogMode = "create" | "edit";
 
@@ -163,6 +199,7 @@ function CreateLeadDialog({
   const inputCls =
     "w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm text-foreground placeholder-muted-foreground outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500/30 transition-colors";
   const labelCls = "mb-1.5 block text-xs font-medium text-muted-foreground";
+  const followUpValue = toDateTimeLocalValue(form.followUpAt);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -239,6 +276,22 @@ function CreateLeadDialog({
                 ))}
               </select>
             </div>
+            {form.status === LeadStatus.FOLLOW_UP ? (
+              <div>
+                <label className={labelCls}>Follow Up Date</label>
+                <input
+                  type="datetime-local"
+                  value={followUpValue}
+                  onChange={(e) =>
+                    setForm((previous) => ({
+                      ...previous,
+                      followUpAt: fromDateTimeLocalValue(e.target.value),
+                    }))
+                  }
+                  className={inputCls}
+                />
+              </div>
+            ) : null}
           </div>
         </div>
 
@@ -246,7 +299,7 @@ function CreateLeadDialog({
           {errorMessage && <p className="mr-auto text-xs font-medium text-red-600">{errorMessage}</p>}
           <button onClick={onClose} className="rounded-lg px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground">Cancel</button>
           <button
-            disabled={isLoading || !form.name || !form.company}
+            disabled={isLoading || !form.name || !form.company || (form.status === LeadStatus.FOLLOW_UP && !form.followUpAt)}
             onClick={() => onSave({ ...form, assignedToUserId: resolvedAssigneeId })}
             className="inline-flex items-center gap-2 rounded-lg bg-sky-600 px-5 py-2 text-sm font-semibold text-white shadow hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
@@ -308,8 +361,12 @@ function StageUpdateDialog({
   open,
   lead,
   targetStatus,
+  allowedStatuses,
   remark,
+  followUpAt,
+  onTargetStatusChange,
   onRemarkChange,
+  onFollowUpAtChange,
   onClose,
   onConfirm,
   isLoading,
@@ -318,8 +375,12 @@ function StageUpdateDialog({
   open: boolean;
   lead: Lead | null;
   targetStatus: LeadStatus | null;
+  allowedStatuses: LeadStatus[];
   remark: string;
+  followUpAt: string;
+  onTargetStatusChange: (value: LeadStatus) => void;
   onRemarkChange: (value: string) => void;
+  onFollowUpAtChange: (value: string) => void;
   onClose: () => void;
   onConfirm: () => void;
   isLoading?: boolean;
@@ -330,8 +391,39 @@ function StageUpdateDialog({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
       <div className="relative z-10 w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl">
-        <h3 className="text-base font-semibold">Move to {LEAD_STATUS_LABELS[targetStatus]}</h3>
-        <p className="mt-1 text-xs text-muted-foreground">A remark is required to update the stage.</p>
+        <h3 className="text-base font-semibold">
+          {allowedStatuses.length > 1 ? "Add Stage Entry" : `Move to ${LEAD_STATUS_LABELS[targetStatus]}`}
+        </h3>
+        <p className="mt-1 text-xs text-muted-foreground">
+          A remark is required to update the stage history.
+        </p>
+        {allowedStatuses.length > 1 ? (
+          <div className="mt-4">
+            <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Stage</label>
+            <select
+              value={targetStatus}
+              onChange={(e) => onTargetStatusChange(e.target.value as LeadStatus)}
+              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-sky-500"
+            >
+              {allowedStatuses.map((status) => (
+                <option key={status} value={status}>
+                  {LEAD_STATUS_LABELS[status]}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : null}
+        {targetStatus === LeadStatus.FOLLOW_UP ? (
+          <div className="mt-4">
+            <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Follow Up Date</label>
+            <input
+              type="datetime-local"
+              value={followUpAt}
+              onChange={(e) => onFollowUpAtChange(e.target.value)}
+              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-sky-500"
+            />
+          </div>
+        ) : null}
         <textarea
           rows={3}
           value={remark}
@@ -345,6 +437,168 @@ function StageUpdateDialog({
             {isLoading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
             Confirm
           </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FollowUpCalendarDialog({
+  open,
+  leads,
+  dueCount,
+  month,
+  selectedDate,
+  onMonthChange,
+  onSelectDate,
+  onClose,
+  onOpenLead,
+}: {
+  open: boolean;
+  leads: Lead[];
+  dueCount: number;
+  month: Date;
+  selectedDate: string;
+  onMonthChange: (value: string) => void;
+  onSelectDate: (value: string) => void;
+  onClose: () => void;
+  onOpenLead: (lead: Lead) => void;
+}) {
+  if (!open) return null;
+
+  const monthStart = new Date(month.getFullYear(), month.getMonth(), 1);
+  const firstGridDate = new Date(monthStart);
+  firstGridDate.setDate(monthStart.getDate() - monthStart.getDay());
+
+  const selectedEntries = leads
+    .filter((lead) => lead.followUpAt?.slice(0, 10) === selectedDate)
+    .sort((left, right) => new Date(left.followUpAt ?? "").getTime() - new Date(right.followUpAt ?? "").getTime());
+
+  const gridDates = Array.from({ length: 42 }, (_, index) => {
+    const date = new Date(firstGridDate);
+    date.setDate(firstGridDate.getDate() + index);
+    const iso = toDateInputValue(date);
+    const entries = leads.filter((lead) => lead.followUpAt?.slice(0, 10) === iso);
+    return {
+      date,
+      iso,
+      entries,
+      inMonth: date.getMonth() === month.getMonth(),
+    };
+  });
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative z-10 flex max-h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-3xl border border-border bg-card shadow-2xl">
+        <div className="flex items-start justify-between border-b border-border px-6 py-5">
+          <div>
+            <h3 className="text-lg font-semibold text-card-foreground">Follow-up Calendar</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Track scheduled callbacks and reminder workload. {dueCount} follow-ups are currently due.
+            </p>
+          </div>
+          <button onClick={onClose} className="flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground hover:bg-accent">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="grid flex-1 gap-0 overflow-hidden lg:grid-cols-[minmax(0,1fr)_360px]">
+          <div className="overflow-auto px-6 py-5">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <input
+                type="month"
+                value={`${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, "0")}`}
+                onChange={(e) => onMonthChange(e.target.value)}
+                className="rounded-lg border border-border bg-background px-3 py-2 text-sm"
+              />
+              <div className="text-xs font-medium text-muted-foreground">
+                Selected date: <span className="text-foreground">{selectedDate}</span>
+              </div>
+            </div>
+            <div className="grid grid-cols-7 gap-2 text-center text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((label) => (
+                <div key={label} className="py-2">{label}</div>
+              ))}
+            </div>
+            <div className="grid grid-cols-7 gap-2">
+              {gridDates.map((cell) => {
+                const isSelected = cell.iso === selectedDate;
+                const isDue = cell.entries.some((lead) => {
+                  if (!lead.followUpAt) return false;
+                  return new Date(lead.followUpAt).getTime() <= Date.now();
+                });
+                return (
+                  <button
+                    key={cell.iso}
+                    type="button"
+                    onClick={() => onSelectDate(cell.iso)}
+                    className={`min-h-[92px] rounded-2xl border p-2 text-left transition ${
+                      isSelected
+                        ? "border-sky-400 bg-sky-50"
+                        : "border-border bg-background hover:border-sky-200 hover:bg-accent/40"
+                    } ${!cell.inMonth ? "opacity-50" : ""}`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-semibold text-foreground">{cell.date.getDate()}</span>
+                      {cell.entries.length > 0 ? (
+                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${isDue ? "bg-rose-100 text-rose-700" : "bg-emerald-100 text-emerald-700"}`}>
+                          {cell.entries.length}
+                        </span>
+                      ) : null}
+                    </div>
+                    <div className="mt-2 space-y-1">
+                      {cell.entries.slice(0, 2).map((lead) => (
+                        <div key={lead.id} className="truncate rounded-lg bg-muted/60 px-2 py-1 text-[11px] text-foreground">
+                          {lead.name}
+                        </div>
+                      ))}
+                      {cell.entries.length > 2 ? (
+                        <div className="text-[10px] font-medium text-muted-foreground">
+                          +{cell.entries.length - 2} more
+                        </div>
+                      ) : null}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <aside className="border-t border-border bg-muted/20 px-6 py-5 lg:border-l lg:border-t-0">
+            <div className="mb-4">
+              <p className="text-sm font-semibold text-foreground">Scheduled Follow-ups</p>
+              <p className="text-xs text-muted-foreground">Open a lead directly from the selected date.</p>
+            </div>
+            <div className="space-y-3 overflow-auto">
+              {selectedEntries.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-border bg-background px-4 py-6 text-center text-sm text-muted-foreground">
+                  No follow-ups scheduled for this date.
+                </div>
+              ) : (
+                selectedEntries.map((lead) => (
+                  <button
+                    key={lead.id}
+                    type="button"
+                    onClick={() => onOpenLead(lead)}
+                    className="w-full rounded-xl border border-border bg-background p-4 text-left transition hover:border-sky-200 hover:bg-sky-50/40"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-foreground">{lead.name}</p>
+                        <p className="text-xs text-muted-foreground">{lead.company}</p>
+                      </div>
+                      <PriorityDot priority={lead.priority} />
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2 text-xs text-muted-foreground">
+                      <span className="rounded-full bg-muted px-2 py-1">{lead.followUpAt ? fmtDateTime(lead.followUpAt) : "-"}</span>
+                      <span className="rounded-full bg-muted px-2 py-1">{LEAD_STATUS_LABELS[lead.status]}</span>
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+          </aside>
         </div>
       </div>
     </div>
@@ -412,19 +666,28 @@ export default function LeadsPage() {
     source: "ALL",
     assignedTo: "",
     priority: "ALL",
+    questionnaireStatus: "ALL",
     page: 1,
     pageSize: PAGE_SIZE,
   });
   const [quickView, setQuickView] = useState<"ALL" | "MY_QUEUE" | "UNASSIGNED" | "NEEDS_CONTACT" | "FOLLOW_UP" | "CUSTOM">("ALL");
   const [formState, setFormState] = useState<{ mode: LeadDialogMode; lead: Lead | null } | null>(null);
-  const [stageUpdateTarget, setStageUpdateTarget] = useState<{ lead: Lead; status: LeadStatus } | null>(null);
+  const [stageUpdateTarget, setStageUpdateTarget] = useState<{
+    lead: Lead;
+    status: LeadStatus;
+    allowedStatuses: LeadStatus[];
+  } | null>(null);
   const [stageRemark, setStageRemark] = useState("");
+  const [stageFollowUpAt, setStageFollowUpAt] = useState("");
   const [stageUpdateError, setStageUpdateError] = useState<string | null>(null);
   const [isStageUpdating, setIsStageUpdating] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deletingLeadId, setDeletingLeadId] = useState<string | null>(null);
   const [deleteLeadTarget, setDeleteLeadTarget] = useState<Lead | null>(null);
   const [showFilters, setShowFilters] = useState(false);
+  const [calendarOpen, setCalendarOpen] = useState(false);
+  const [calendarMonth, setCalendarMonth] = useState(new Date());
+  const [calendarSelectedDate, setCalendarSelectedDate] = useState(toDateInputValue(new Date()));
   const [importOpen, setImportOpen] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importResult, setImportResult] = useState<LeadImportResult | null>(null);
@@ -439,9 +702,24 @@ export default function LeadsPage() {
   const assigneesQuery = useLeadAssignees();
   const assignees = assigneesQuery.data ?? [];
   const { data, isLoading, isError, error } = useLeads(filter, { refetchInterval: 15_000 });
+  const notificationsQuery = useLeadNotifications({ enabled: calendarOpen, refetchInterval: 15_000 });
+  const followUpCalendarQuery = useLeads(
+    {
+      search: "",
+      status: "ALL",
+      source: "ALL",
+      assignedTo: "",
+      priority: "ALL",
+      questionnaireStatus: "ALL",
+      page: 1,
+      pageSize: 500,
+    },
+    { enabled: calendarOpen }
+  );
   const leadDetail = useLeadDetail(isDetailView ? routeLeadId ?? null : null);
   const createLead = useCreateLead();
   const updateLead = useUpdateLead();
+  const updateLeadPriority = useUpdateLeadPriority();
   const assignLead = useAssignLead();
   const createLeadRemark = useCreateLeadRemark();
   const editLeadRemark = useEditLeadRemark();
@@ -527,17 +805,19 @@ export default function LeadsPage() {
     setFormState(null);
   }
 
-  function openStageUpdateDialog(lead: Lead, status: LeadStatus) {
+  function openStageUpdateDialog(lead: Lead, status: LeadStatus, allowedStatuses: LeadStatus[] = [status]) {
     resetMutations();
     setStageUpdateError(null);
     setStageRemark("");
-    setStageUpdateTarget({ lead, status });
+    setStageFollowUpAt(toDateTimeLocalValue(status === LeadStatus.FOLLOW_UP ? lead.followUpAt : null));
+    setStageUpdateTarget({ lead, status, allowedStatuses });
   }
 
   function closeStageUpdateDialog() {
     setStageUpdateTarget(null);
     setStageUpdateError(null);
     setStageRemark("");
+    setStageFollowUpAt("");
   }
 
   async function handleConfirmStageUpdate() {
@@ -547,22 +827,44 @@ export default function LeadsPage() {
       setStageUpdateError("Please add a remark for this stage update.");
       return;
     }
+    if (stageUpdateTarget.status === LeadStatus.FOLLOW_UP && !stageFollowUpAt) {
+      setStageUpdateError("Please choose a follow-up date.");
+      return;
+    }
     setStageUpdateError(null);
     setIsStageUpdating(true);
     try {
       const { lead, status } = stageUpdateTarget;
-      const updateData: LeadUpdateData = { status };
+      const updateData: LeadUpdateData = { status, statusRemark: remark };
+      if (status === LeadStatus.FOLLOW_UP) {
+        updateData.followUpAt = fromDateTimeLocalValue(stageFollowUpAt);
+      }
       if (status === LeadStatus.CONVERTED) {
         updateData.convertedAt = new Date().toISOString();
       }
       await updateLead.mutateAsync({ id: lead.id, data: updateData });
-      await createLeadRemark.mutateAsync({ id: lead.id, input: { content: remark } });
       closeStageUpdateDialog();
     } catch (err) {
       setStageUpdateError(err instanceof Error ? err.message : "Failed to update lead stage.");
     } finally {
       setIsStageUpdating(false);
     }
+  }
+
+  function handleStageTargetChange(status: LeadStatus) {
+    setStageUpdateTarget((previous) => {
+      if (!previous) return previous;
+      if (status !== LeadStatus.FOLLOW_UP) {
+        setStageFollowUpAt("");
+      } else if (!stageFollowUpAt) {
+        setStageFollowUpAt(toDateTimeLocalValue(previous.lead.followUpAt));
+      }
+      return {
+        ...previous,
+        status,
+      };
+    });
+    setStageUpdateError(null);
   }
 
   function openDeleteLeadDialog(lead: Lead) {
@@ -594,6 +896,12 @@ export default function LeadsPage() {
     openStageUpdateDialog(lead, status);
   }
 
+  function handleLogStageEntry(lead: Lead) {
+    const nextStatuses = getLeadStatusTransitions(lead.status);
+    const allowedStatuses = [lead.status, ...LEAD_STATUS_ORDER.filter((status) => nextStatuses.includes(status))];
+    openStageUpdateDialog(lead, lead.status, allowedStatuses);
+  }
+
   function handleAssignLead(id: string, assignee: AssigneeOption) {
     assignLead.mutate(
       {
@@ -622,6 +930,10 @@ export default function LeadsPage() {
     createLeadRemark.mutate({ id, input: { content } });
   }
 
+  function handlePriorityChange(id: string, priority: LeadPriority) {
+    updateLeadPriority.mutate({ id, priority });
+  }
+
   function handleEditRemark(id: string, remarkId: string, content: string) {
     editLeadRemark.mutate({ id, remarkId, input: { content } });
   }
@@ -637,8 +949,29 @@ export default function LeadsPage() {
     setImportOpen(true);
   }
 
+  function handleCalendarMonthChange(value: string) {
+    if (!value) return;
+    const nextMonth = parseDateInputValue(`${value}-01`);
+    setCalendarMonth(nextMonth);
+    setCalendarSelectedDate(toDateInputValue(nextMonth));
+  }
+
   function closeImportDialog() {
     setImportOpen(false);
+  }
+
+  function resetFilters() {
+    setQuickView("ALL");
+    setFilter({
+      search: "",
+      status: "ALL",
+      source: "ALL",
+      assignedTo: isSalesRep && myQueueValue ? myQueueValue : "",
+      priority: "ALL",
+      questionnaireStatus: "ALL",
+      page: 1,
+      pageSize: PAGE_SIZE,
+    });
   }
 
   async function handleImportLeads() {
@@ -702,6 +1035,10 @@ export default function LeadsPage() {
           <button onClick={openImportDialog} className="rounded-xl border border-border px-3 py-2 text-xs font-semibold text-muted-foreground hover:bg-accent hover:text-foreground">
             <FileText className="mr-2 inline h-3.5 w-3.5" />
             Import
+          </button>
+          <button onClick={() => setCalendarOpen(true)} className="rounded-xl border border-border px-3 py-2 text-xs font-semibold text-muted-foreground hover:bg-accent hover:text-foreground">
+            <CalendarDays className="mr-2 inline h-3.5 w-3.5" />
+            Follow-up Calendar
           </button>
           <button onClick={openCreateDialog} className="rounded-xl bg-sky-600 px-3 py-2 text-xs font-semibold text-white hover:bg-sky-700">
             <Plus className="mr-2 inline h-3.5 w-3.5" />
@@ -835,8 +1172,20 @@ export default function LeadsPage() {
                       <option value="LOW">Low</option>
                     </select>
                   </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-muted-foreground">WhatsApp Questionnaire</label>
+                    <select
+                      value={filter.questionnaireStatus ?? "ALL"}
+                      onChange={(e) => updateFilter({ questionnaireStatus: e.target.value as LeadFilter["questionnaireStatus"] })}
+                      className="rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-sky-500"
+                    >
+                      <option value="ALL">All Leads</option>
+                      <option value="ANSWERED">Answered</option>
+                      <option value="NO_RESPONSE">No Response</option>
+                    </select>
+                  </div>
                   <div className="flex items-end">
-                    <button onClick={() => setFilter({ search: "", status: "ALL", source: "ALL", assignedTo: "", priority: "ALL", page: 1, pageSize: PAGE_SIZE })} className="rounded-lg border border-border px-3 py-2 text-sm text-muted-foreground hover:bg-accent hover:text-foreground">
+                    <button onClick={resetFilters} className="rounded-lg border border-border px-3 py-2 text-sm text-muted-foreground hover:bg-accent hover:text-foreground">
                       Clear All
                     </button>
                   </div>
@@ -987,12 +1336,14 @@ export default function LeadsPage() {
               assignees={assignees}
               onClose={() => navigate("/crm/leads")}
               onStatusChange={(s) => handleStatusChange(selectedLead, s)}
+              onLogStageEntry={() => handleLogStageEntry(selectedLead)}
+              onPriorityChange={(priority) => handlePriorityChange(selectedLead.id, priority)}
               onConvert={() => openStageUpdateDialog(selectedLead, LeadStatus.CONVERTED)}
               onAssignLead={(assignee) => handleAssignLead(selectedLead.id, assignee)}
               onAddRemark={(content) => handleAddRemark(selectedLead.id, content)}
               onEditRemark={(remarkId, content) => handleEditRemark(selectedLead.id, remarkId, content)}
               onBuildQuote={() => navigate("/sales")}
-              isUpdating={updateLead.isPending}
+              isUpdating={updateLead.isPending || updateLeadPriority.isPending}
               isAssigning={assignLead.isPending}
               isCreatingRemark={createLeadRemark.isPending}
               editingRemarkId={editLeadRemark.variables?.remarkId ?? null}
@@ -1021,12 +1372,31 @@ export default function LeadsPage() {
         open={Boolean(stageUpdateTarget)}
         lead={stageUpdateTarget?.lead ?? null}
         targetStatus={stageUpdateTarget?.status ?? null}
+        allowedStatuses={stageUpdateTarget?.allowedStatuses ?? []}
         remark={stageRemark}
+        followUpAt={stageFollowUpAt}
+        onTargetStatusChange={handleStageTargetChange}
         onRemarkChange={setStageRemark}
+        onFollowUpAtChange={setStageFollowUpAt}
         onClose={closeStageUpdateDialog}
         onConfirm={handleConfirmStageUpdate}
         isLoading={isStageUpdating}
         errorMessage={stageUpdateError}
+      />
+
+      <FollowUpCalendarDialog
+        open={calendarOpen}
+        leads={(followUpCalendarQuery.data?.data ?? []).filter((lead) => Boolean(lead.followUpAt))}
+        dueCount={notificationsQuery.data?.followUpDueCount ?? 0}
+        month={calendarMonth}
+        selectedDate={calendarSelectedDate}
+        onMonthChange={handleCalendarMonthChange}
+        onSelectDate={setCalendarSelectedDate}
+        onClose={() => setCalendarOpen(false)}
+        onOpenLead={(lead) => {
+          setCalendarOpen(false);
+          navigate(`/crm/leads/${lead.id}`);
+        }}
       />
 
       <DeleteLeadDialog

@@ -56,7 +56,7 @@ public class ApprovalFlowController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_HR_MANAGER')")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_REPORTING_MANAGER','ROLE_HR_MANAGER')")
     public ResponseEntity<?> create(@RequestBody ApprovalFlowCreateRequest request) {
         try {
             var saved = flowService.create(request);
@@ -68,7 +68,7 @@ public class ApprovalFlowController {
     }
 
     @PatchMapping("/{id}")
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_HR_MANAGER')")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_REPORTING_MANAGER','ROLE_HR_MANAGER')")
     public ResponseEntity<?> update(@PathVariable UUID id, @RequestBody ApprovalFlowUpdateRequest request) {
         try {
             var saved = flowService.update(id, request);
@@ -82,7 +82,7 @@ public class ApprovalFlowController {
     }
 
     @PostMapping("/{id}/deactivate")
-    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_HR_MANAGER')")
+    @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_REPORTING_MANAGER','ROLE_HR_MANAGER')")
     public ResponseEntity<?> deactivate(@PathVariable UUID id) {
         var saved = flowService.deactivate(id);
         if (saved == null) {

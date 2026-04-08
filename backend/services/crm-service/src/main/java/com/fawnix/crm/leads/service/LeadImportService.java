@@ -199,6 +199,7 @@ public class LeadImportService {
           null,
           null,
           null,
+          null,
           null
       );
       leadService.updateLead(existing.get().getId(), updateRequest, actor);

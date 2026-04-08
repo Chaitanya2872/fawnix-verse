@@ -247,7 +247,7 @@ export default function ReportsPage() {
     return (
       <Card>
         <CardContent className="p-6 text-sm text-slate-500">
-          {error instanceof Error ? error.message : "Failed to load reports."}
+          {error instanceof Error ? error.message : "Failed to load analytics."}
         </CardContent>
       </Card>
     );
@@ -309,14 +309,14 @@ export default function ReportsPage() {
     }
 
     const blob = new Blob([rows.join("\n")], { type: "text/csv;charset=utf-8" });
-    triggerBlobDownload(blob, `fawnix-reports-${Date.now()}.csv`);
+    triggerBlobDownload(blob, `fawnix-analytics-${Date.now()}.csv`);
   };
 
   const handleExportPDF = () => {
     const doc = new jsPDF({ unit: "pt", format: "a4" });
     let y = 40;
     doc.setFontSize(16);
-    doc.text("Fawnix Verse CRM Report", 40, y);
+    doc.text("Fawnix Verse CRM Analytics", 40, y);
     y += 24;
     doc.setFontSize(10);
     doc.text(`Generated: ${new Date().toLocaleString()}`, 40, y);
@@ -362,7 +362,7 @@ export default function ReportsPage() {
       )
     );
 
-    doc.save(`fawnix-reports-${Date.now()}.pdf`);
+    doc.save(`fawnix-analytics-${Date.now()}.pdf`);
   };
 
   return (
@@ -372,7 +372,7 @@ export default function ReportsPage() {
           <div className="space-y-2">
             <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-emerald-700">
               <Sparkles className="h-3 w-3" />
-              Reports and Analytics
+              Analytics
             </div>
             <h1 className="text-2xl font-semibold text-slate-900">
               A focused view of pipeline and performance.
