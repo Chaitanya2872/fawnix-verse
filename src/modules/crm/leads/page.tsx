@@ -53,7 +53,7 @@ import { LeadsLayout } from "./layout";
 import { useCurrentUser } from "@/modules/auth/hooks";
 import { RowActions } from "./components/RowActions";
 import { LeadDetailPanel } from "./components/LeadDetailPanel";
-import { fmt, PriorityDot, REP_COLORS, StatusBadge, getInitials } from "./lead-ui";
+import { fmt, fmtDate, PriorityDot, REP_COLORS, StatusBadge, getInitials } from "./lead-ui";
 
 const PAGE_SIZE = 10;
 
@@ -938,6 +938,20 @@ export default function LeadsPage() {
     editLeadRemark.mutate({ id, remarkId, input: { content } });
   }
 
+  async function handleUpdateProjectLocation(
+    id: string,
+    projectLocation: string,
+    projectState: string | null
+  ) {
+    await updateLead.mutateAsync({
+      id,
+      data: {
+        projectLocation,
+        projectState,
+      },
+    });
+  }
+
   function handleLeadRowClick(lead: Lead) {
     navigate(`/crm/leads/${lead.id}`);
   }
@@ -1209,7 +1223,7 @@ export default function LeadsPage() {
                 <span>Status</span>
                 <span>Priority</span>
                 <span>Assigned To</span>
-                <span>Est. Value</span>
+                <span>Captured Date</span>
                 <span />
               </div>
 
@@ -1277,8 +1291,8 @@ export default function LeadsPage() {
                           </div>
                           <span className="text-sm">{lead.assignedTo || "Unassigned"}</span>
                         </div>
-                        <div className="hidden lg:block font-semibold tabular-nums text-emerald-600">
-                          {fmt(lead.estimatedValue)}
+                        <div className="hidden lg:block text-sm font-medium text-slate-600">
+                          {fmtDate(lead.createdAt)}
                         </div>
                         <div className="hidden lg:flex justify-end" onClick={(e) => e.stopPropagation()}>
                           <RowActions
@@ -1342,6 +1356,9 @@ export default function LeadsPage() {
               onAssignLead={(assignee) => handleAssignLead(selectedLead.id, assignee)}
               onAddRemark={(content) => handleAddRemark(selectedLead.id, content)}
               onEditRemark={(remarkId, content) => handleEditRemark(selectedLead.id, remarkId, content)}
+              onUpdateProjectLocation={(projectLocation, projectState) =>
+                handleUpdateProjectLocation(selectedLead.id, projectLocation, projectState)
+              }
               onBuildQuote={() => navigate("/sales")}
               isUpdating={updateLead.isPending || updateLeadPriority.isPending}
               isAssigning={assignLead.isPending}

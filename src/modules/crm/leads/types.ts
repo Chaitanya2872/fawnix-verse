@@ -276,6 +276,8 @@ export type LeadUpdateData = Partial<
     convertedAt: string | null;
     lastContactedAt: string | null;
     followUpAt: string | null;
+    projectLocation: string | null;
+    projectState: string | null;
     statusRemark: string | null;
   }
 >;

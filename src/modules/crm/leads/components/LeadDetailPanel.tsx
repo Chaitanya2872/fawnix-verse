@@ -8,6 +8,8 @@ import {
   GitBranch,
   Loader2,
   Mail,
+  MapPin,
+  Pencil,
   Phone,
   Tag,
   X,
@@ -34,6 +36,7 @@ import {
   REP_COLORS,
   StatusBadge,
 } from "../lead-ui";
+import { LeadLocationPickerDialog } from "./LeadLocationPickerDialog";
 
 const TABS = [
   { id: "overview", label: "Overview" },
@@ -55,6 +58,7 @@ export function LeadDetailPanel({
   onAssignLead,
   onAddRemark,
   onEditRemark,
+  onUpdateProjectLocation,
   onBuildQuote,
   isUpdating,
   isAssigning,
@@ -74,6 +78,10 @@ export function LeadDetailPanel({
   onAssignLead: (assignee: AssigneeOption) => void;
   onAddRemark: (content: string) => void;
   onEditRemark: (remarkId: string, content: string) => void;
+  onUpdateProjectLocation?: (
+    projectLocation: string,
+    projectState: string | null
+  ) => Promise<void>;
   onBuildQuote?: () => void;
   isUpdating: boolean;
   isAssigning: boolean;
@@ -94,6 +102,7 @@ export function LeadDetailPanel({
   const [draftAssignee, setDraftAssignee] = useState<{ leadId: string; value: string } | null>(null);
   const [remarkInput, setRemarkInput] = useState("");
   const [editingRemark, setEditingRemark] = useState<{ id: string; value: string } | null>(null);
+  const [locationPickerOpen, setLocationPickerOpen] = useState(false);
 
   const draftAssigneeValue = draftAssignee?.leadId === lead.id ? draftAssignee.value : lead.assignedTo;
 
@@ -245,7 +254,19 @@ export function LeadDetailPanel({
                 </div>
 
                 <div className="rounded-xl border border-border bg-muted/10 p-4">
-                  <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Project</p>
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Project</p>
+                    {onUpdateProjectLocation ? (
+                      <button
+                        type="button"
+                        onClick={() => setLocationPickerOpen(true)}
+                        className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-3 py-1.5 text-[11px] font-semibold text-sky-700 hover:bg-sky-50"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                        Edit Location
+                      </button>
+                    ) : null}
+                  </div>
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <div className="rounded-lg border border-border bg-background px-3 py-2">
                       <p className="text-[11px] text-muted-foreground">Project Stage</p>
@@ -267,9 +288,17 @@ export function LeadDetailPanel({
                       <p className="text-[11px] text-muted-foreground">Community</p>
                       <p className="text-sm font-medium">{lead.community ?? "-"}</p>
                     </div>
-                    <div className="rounded-lg border border-border bg-background px-3 py-2">
+                    <div className="rounded-lg border border-border bg-background px-3 py-2 sm:col-span-2">
                       <p className="text-[11px] text-muted-foreground">Location</p>
-                      <p className="text-sm font-medium">{lead.projectLocation ?? "-"}</p>
+                      <div className="mt-1 flex items-start gap-2">
+                        <MapPin className="mt-0.5 h-4 w-4 flex-shrink-0 text-sky-600" />
+                        <div className="min-w-0">
+                          <p className="break-words text-sm font-medium leading-6">
+                            {lead.projectLocation ?? "-"}
+                          </p>
+                          <p className="text-xs text-muted-foreground">{lead.projectState ?? "State not set"}</p>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -703,6 +732,18 @@ export function LeadDetailPanel({
           </div>
         )}
       </div>
+
+      <LeadLocationPickerDialog
+        open={locationPickerOpen}
+        initialLocation={lead.projectLocation}
+        initialState={lead.projectState}
+        isSaving={isUpdating}
+        onClose={() => setLocationPickerOpen(false)}
+        onSave={async (projectLocation, projectState) => {
+          if (!onUpdateProjectLocation) return;
+          await onUpdateProjectLocation(projectLocation, projectState);
+        }}
+      />
     </div>
   );
 }

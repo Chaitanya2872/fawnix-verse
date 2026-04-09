@@ -133,7 +133,7 @@ public class LeadService {
   @Transactional(readOnly = true)
   public LeadDtos.LeadResponse getLead(String id) {
     LeadEntity lead = requireLead(id);
-    return leadMapper.toResponse(lead, leadStatusHistoryService.getLeadHistory(id), null);
+    return toLeadResponse(lead, null);
   }
 
   @Transactional(readOnly = true)
@@ -233,7 +233,7 @@ public class LeadService {
     leadStatusHistoryService.recordInitial(saved, saved.getStatus(), currentUser, now);
     whatsappQuestionnaireService.sendIntro(saved);
     notificationStreamService.sendLeadCreated();
-    return leadMapper.toResponse(saved);
+    return toLeadResponse(saved, null);
   }
 
   @Transactional
@@ -389,7 +389,7 @@ public class LeadService {
     }
 
     touchLead(lead, currentUser, now);
-    return leadMapper.toResponse(leadRepository.save(lead), whatsappDispatchLog);
+    return toLeadResponse(leadRepository.save(lead), whatsappDispatchLog);
   }
 
   @Transactional
@@ -411,7 +411,7 @@ public class LeadService {
         request.remark()
     );
     touchLead(lead, currentUser, now);
-    return leadMapper.toResponse(leadRepository.save(lead));
+    return toLeadResponse(leadRepository.save(lead), null);
   }
 
   @Transactional
@@ -444,7 +444,7 @@ public class LeadService {
         now
     );
     touchLead(lead, currentUser, now);
-    return leadMapper.toResponse(leadRepository.save(lead));
+    return toLeadResponse(leadRepository.save(lead), null);
   }
 
   @Transactional
@@ -491,7 +491,7 @@ public class LeadService {
       touchLead(lead, currentUser, now);
     }
 
-    return leadMapper.toResponse(leadRepository.save(lead), whatsappDispatchLog);
+    return toLeadResponse(leadRepository.save(lead), whatsappDispatchLog);
   }
 
   @Transactional
@@ -504,7 +504,7 @@ public class LeadService {
     Instant now = Instant.now();
     lead.setPriority(leadRequestValidator.parsePriority(request.priority()));
     touchLead(lead, currentUser, now);
-    return leadMapper.toResponse(leadRepository.save(lead));
+    return toLeadResponse(leadRepository.save(lead), null);
   }
 
   @Transactional
@@ -526,7 +526,7 @@ public class LeadService {
         now
     );
     touchLead(lead, currentUser, now);
-    return leadMapper.toResponse(leadRepository.save(lead));
+    return toLeadResponse(leadRepository.save(lead), null);
   }
 
   @Transactional
@@ -549,7 +549,7 @@ public class LeadService {
         now
     );
     touchLead(lead, currentUser, now);
-    return leadMapper.toResponse(leadRepository.save(lead));
+    return toLeadResponse(leadRepository.save(lead), null);
   }
 
   @Transactional
@@ -814,5 +814,16 @@ public class LeadService {
   private String prettyStatus(LeadStatus status) {
     String lower = status.name().toLowerCase(Locale.ROOT).replace('_', ' ');
     return Character.toUpperCase(lower.charAt(0)) + lower.substring(1);
+  }
+
+  private LeadDtos.LeadResponse toLeadResponse(
+      LeadEntity lead,
+      LeadDtos.WhatsappDispatchLog whatsappDispatchLog
+  ) {
+    return leadMapper.toResponse(
+        lead,
+        leadStatusHistoryService.getLeadHistory(lead.getId()),
+        whatsappDispatchLog
+    );
   }
 }

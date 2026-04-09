@@ -119,7 +119,8 @@ export function useCreateLead() {
   return useMutation({
     mutationFn: (data: LeadFormData) => createLead(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: leadsKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: leadsKeys.lists(), refetchType: "active" });
+      queryClient.invalidateQueries({ queryKey: leadsKeys.notifications(), refetchType: "active" });
     },
   });
 }
@@ -132,7 +133,7 @@ export function useUpdateLead() {
       updateLead(id, data),
     onSuccess: (updatedLead) => {
       queryClient.setQueryData(leadsKeys.detail(updatedLead.id), updatedLead);
-      queryClient.invalidateQueries({ queryKey: leadsKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: leadsKeys.lists(), refetchType: "active" });
     },
   });
 }
@@ -145,7 +146,7 @@ export function useAssignLead() {
       assignLead(id, input),
     onSuccess: (updatedLead) => {
       queryClient.setQueryData(leadsKeys.detail(updatedLead.id), updatedLead);
-      queryClient.invalidateQueries({ queryKey: leadsKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: leadsKeys.lists(), refetchType: "active" });
     },
   });
 }
@@ -158,7 +159,7 @@ export function useUpdateLeadPriority() {
       updateLeadPriority(id, priority),
     onSuccess: (updatedLead) => {
       queryClient.setQueryData(leadsKeys.detail(updatedLead.id), updatedLead);
-      queryClient.invalidateQueries({ queryKey: leadsKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: leadsKeys.lists(), refetchType: "active" });
     },
   });
 }
@@ -176,7 +177,7 @@ export function useCreateLeadRemark() {
     }) => createLeadRemark(id, input),
     onSuccess: (updatedLead) => {
       queryClient.setQueryData(leadsKeys.detail(updatedLead.id), updatedLead);
-      queryClient.invalidateQueries({ queryKey: leadsKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: leadsKeys.lists(), refetchType: "active" });
     },
   });
 }
@@ -194,7 +195,7 @@ export function useContactLeadRecording() {
     }) => contactLeadWithRecording(id, input),
     onSuccess: (updatedLead) => {
       queryClient.setQueryData(leadsKeys.detail(updatedLead.id), updatedLead);
-      queryClient.invalidateQueries({ queryKey: leadsKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: leadsKeys.lists(), refetchType: "active" });
     },
   });
 }
@@ -214,7 +215,7 @@ export function useEditLeadRemark() {
     }) => editLeadRemark(id, remarkId, input),
     onSuccess: (updatedLead) => {
       queryClient.setQueryData(leadsKeys.detail(updatedLead.id), updatedLead);
-      queryClient.invalidateQueries({ queryKey: leadsKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: leadsKeys.lists(), refetchType: "active" });
     },
   });
 }
@@ -237,7 +238,8 @@ export function useImportLeads() {
   return useMutation({
     mutationFn: (file: File) => importLeads(file),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: leadsKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: leadsKeys.lists(), refetchType: "active" });
+      queryClient.invalidateQueries({ queryKey: leadsKeys.notifications(), refetchType: "active" });
     },
   });
 }

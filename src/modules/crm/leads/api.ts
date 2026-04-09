@@ -287,12 +287,24 @@ export function connectLeadNotificationsStream(
   onError?: (error: unknown) => void
 ) {
   const controller = new AbortController();
+  let retryTimer: number | null = null;
 
-  const run = async () => {
+  const scheduleReconnect = () => {
+    if (controller.signal.aborted || retryTimer !== null) {
+      return;
+    }
+    retryTimer = window.setTimeout(() => {
+      retryTimer = null;
+      void run();
+    }, 3_000);
+  };
+
+  const run = async (): Promise<void> => {
     try {
       await ensureApiSession();
       const token = getAccessToken();
       if (!token) {
+        scheduleReconnect();
         return;
       }
 
@@ -306,6 +318,7 @@ export function connectLeadNotificationsStream(
 
       if (!response.ok || !response.body) {
         onError?.(new Error("Unable to open notifications stream."));
+        scheduleReconnect();
         return;
       }
 
@@ -316,9 +329,11 @@ export function connectLeadNotificationsStream(
       while (true) {
         const { value, done } = await reader.read();
         if (done) {
+          scheduleReconnect();
           break;
         }
         buffer += decoder.decode(value, { stream: true });
+        buffer = buffer.replace(/\r\n/g, "\n");
         let index = buffer.indexOf("\n\n");
         while (index !== -1) {
           const rawEvent = buffer.slice(0, index).trim();
@@ -352,14 +367,18 @@ export function connectLeadNotificationsStream(
     } catch (error) {
       if (!controller.signal.aborted) {
         onError?.(error);
+        scheduleReconnect();
       }
     }
   };
 
-  run();
+  void run();
 
   return () => {
     controller.abort();
+    if (retryTimer !== null) {
+      window.clearTimeout(retryTimer);
+    }
   };
 }
 

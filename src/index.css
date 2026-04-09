@@ -425,3 +425,67 @@
 .kanban-card:hover {
     box-shadow: 0 4px 16px -2px rgb(0 0 0 / 0.1), 0 2px 6px -2px rgb(0 0 0 / 0.06);
 }
+
+.quotation-sheet {
+    width: 840px;
+}
+
+.quotation-preview-stage {
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+}
+
+@media print {
+    @page {
+        size: A4 portrait;
+        margin: 6mm;
+    }
+
+    html,
+    body {
+        background: #fff !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    body.printing-quotation #root * {
+        visibility: hidden;
+    }
+
+    body.printing-quotation #root .quotation-print-layer,
+    body.printing-quotation #root .quotation-print-layer * {
+        visibility: visible;
+    }
+
+    body.printing-quotation #root .quotation-print-layer {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: #fff !important;
+    }
+
+    .quotation-print-root {
+        display: block;
+        overflow: visible !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: #fff !important;
+    }
+
+    .quotation-preview-stage {
+        display: block;
+        overflow: visible !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: #fff !important;
+    }
+
+    .quotation-sheet {
+        width: calc(210mm - 12mm);
+        transform: scale(0.94);
+        transform-origin: top left;
+    }
+}

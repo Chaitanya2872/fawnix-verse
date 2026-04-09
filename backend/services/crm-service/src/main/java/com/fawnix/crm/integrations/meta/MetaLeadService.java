@@ -64,11 +64,12 @@ public class MetaLeadService {
 
   public void handleWebhook(String payload, String signatureHeader) {
     if (!properties.enabled()) {
-      LOGGER.debug("Meta lead integration is disabled.");
+      LOGGER.info("Meta webhook received but Meta lead integration is disabled.");
       return;
     }
 
     if (!verifySignature(payload, signatureHeader)) {
+      LOGGER.warn("Meta webhook signature verification failed.");
       throw new IllegalArgumentException("Invalid Meta webhook signature.");
     }
 
@@ -84,6 +85,8 @@ public class MetaLeadService {
       return;
     }
 
+    LOGGER.info("Processing Meta webhook with {} entries.", root.path("entry").size());
+
     for (JsonNode entry : root.path("entry")) {
       String pageId = entry.path("id").asText(null);
       for (JsonNode change : entry.path("changes")) {
@@ -93,13 +96,24 @@ public class MetaLeadService {
         JsonNode value = change.path("value");
         String leadgenId = value.path("leadgen_id").asText(null);
         if (!StringUtils.hasText(leadgenId)) {
+          LOGGER.debug("Skipping Meta webhook change without leadgen_id for page {}.", pageId);
           continue;
         }
         if (ingestionRepository.existsByLeadgenId(leadgenId)) {
           LOGGER.info("Meta lead {} already processed, skipping.", leadgenId);
           continue;
         }
-        processLeadgen(leadgenId, pageId, value.path("form_id").asText(null), value.path("ad_id").asText(null));
+        try {
+          processLeadgen(
+              leadgenId,
+              pageId,
+              value.path("form_id").asText(null),
+              value.path("ad_id").asText(null)
+          );
+        } catch (Exception ex) {
+          LOGGER.error("Failed to process Meta leadgen {} from webhook.", leadgenId, ex);
+          throw ex;
+        }
       }
     }
   }
@@ -137,8 +151,13 @@ public class MetaLeadService {
           skipped++;
           continue;
         }
-        processLeadDetails(details, null, details.formId(), details.adId());
-        created++;
+        try {
+          processLeadDetails(details, null, details.formId(), details.adId());
+          created++;
+        } catch (Exception ex) {
+          LOGGER.error("Failed to ingest Meta lead {} during fetch-latest.", details.leadgenId(), ex);
+          skipped++;
+        }
       }
 
       processed += page.leads().size();
@@ -161,6 +180,13 @@ public class MetaLeadService {
     }
 
     MetaLeadClient.MetaLeadDetails details = metaLeadClient.fetchLead(leadgenId);
+    LOGGER.info(
+        "Fetched Meta lead details for leadgenId={}, pageId={}, formId={}, adId={}.",
+        leadgenId,
+        pageId,
+        formId,
+        adId
+    );
     if (StringUtils.hasText(configuredFormId)
         && StringUtils.hasText(details.formId())
         && !configuredFormId.equals(details.formId())) {
@@ -173,6 +199,13 @@ public class MetaLeadService {
   private void processLeadDetails(MetaLeadClient.MetaLeadDetails details, String pageId, String formId, String adId) {
     LeadDtos.CreateLeadRequest request = buildLeadRequest(details);
     var created = leadService.createLead(request, SYSTEM_ACTOR);
+    LOGGER.info(
+        "Created lead {} from Meta leadgenId={} (formId={}, adId={}).",
+        created.id(),
+        details.leadgenId(),
+        formId != null ? formId : details.formId(),
+        adId != null ? adId : details.adId()
+    );
 
     MetaLeadIngestionEntity ingestion = new MetaLeadIngestionEntity();
     ingestion.setId(UUID.randomUUID().toString());
@@ -185,6 +218,7 @@ public class MetaLeadService {
     ingestion.setCreatedAt(Instant.now());
     ingestion.setProcessedAt(Instant.now());
     ingestionRepository.save(ingestion);
+    LOGGER.info("Recorded Meta ingestion for leadgenId={} -> leadId={}.", details.leadgenId(), created.id());
   }
 
   private LeadDtos.CreateLeadRequest buildLeadRequest(MetaLeadClient.MetaLeadDetails details) {

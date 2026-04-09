@@ -1,15 +1,30 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import {
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  closestCorners,
+  useDraggable,
+  useDroppable,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragStartEvent,
+} from "@dnd-kit/core";
+import { CSS } from "@dnd-kit/utilities";
 import { ArrowUpRight, Pencil, Plus, RefreshCw, Search, Sparkles, X } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
-import { useLeads } from "@/modules/crm/leads/hooks";
+import { useLeadAssignees, useLeadDetail, useLeads } from "@/modules/crm/leads/hooks";
 import { LeadStatus } from "@/modules/crm/leads/types";
 import { useProducts } from "@/modules/inventory/hooks";
 import type { Product } from "@/modules/inventory/types";
-import { useCreateQuote, useQuote, useQuotes, useUpdateQuote } from "./hooks";
+import { useCreateQuote, useQuote, useQuotes, useUpdateQuote, useUpdateQuoteStatus } from "./hooks";
+import { QuotationDocument } from "./QuotationDocument";
 import {
   DiscountType,
+  type Quote,
   QuoteStatus,
   type QuoteFilter,
   type QuoteFormData,
@@ -74,14 +89,17 @@ const fmtDate = (value: string) =>
 function QuoteCard({
   quote,
   onOpen,
+  disabled = false,
 }: {
   quote: QuoteSummary;
   onOpen: (id: string) => void;
+  disabled?: boolean;
 }) {
   return (
     <button
       type="button"
       onClick={() => onOpen(quote.id)}
+      disabled={disabled}
       className="flex w-full flex-col gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-emerald-100"
     >
       <div className="flex items-start justify-between gap-3">
@@ -102,17 +120,70 @@ function QuoteCard({
   );
 }
 
+function DraggableQuoteCard({
+  quote,
+  onOpen,
+  disabled = false,
+}: {
+  quote: QuoteSummary;
+  onOpen: (id: string) => void;
+  disabled?: boolean;
+}) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: quote.id,
+    data: {
+      type: "quote",
+      quoteId: quote.id,
+      status: quote.status,
+    },
+    disabled,
+  });
+
+  const style = {
+    transform: CSS.Translate.toString(transform),
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={isDragging ? "opacity-40" : undefined}
+      {...attributes}
+      {...listeners}
+    >
+      <QuoteCard quote={quote} onOpen={onOpen} disabled={disabled} />
+    </div>
+  );
+}
+
 function KanbanColumn({
   status,
   quotes,
   onOpenQuote,
+  movingQuoteId,
 }: {
   status: QuoteStatus;
   quotes: QuoteSummary[];
   onOpenQuote: (id: string) => void;
+  movingQuoteId: string | null;
 }) {
+  const { setNodeRef, isOver } = useDroppable({
+    id: status,
+    data: {
+      type: "status-lane",
+      status,
+    },
+  });
+
   return (
-    <div className="flex min-w-[260px] flex-1 flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
+    <div
+      ref={setNodeRef}
+      className={`flex min-w-[260px] flex-1 flex-col gap-3 rounded-2xl border p-4 transition ${
+        isOver
+          ? "border-emerald-300 bg-emerald-50/70 shadow-sm"
+          : "border-slate-200 bg-slate-50/60"
+      }`}
+    >
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className={`flex h-8 w-8 items-center justify-center rounded-xl ${STATUS_TONES[status]}`}>
@@ -134,9 +205,64 @@ function KanbanColumn({
           </div>
         ) : (
           quotes.map((quote) => (
-            <QuoteCard key={quote.id} quote={quote} onOpen={onOpenQuote} />
+            <DraggableQuoteCard
+              key={quote.id}
+              quote={quote}
+              onOpen={onOpenQuote}
+              disabled={movingQuoteId === quote.id}
+            />
           ))
         )}
+      </div>
+    </div>
+  );
+}
+
+function QuotationPreviewModal({
+  quote,
+  salesRep,
+  onClose,
+}: {
+  quote: Quote;
+  salesRep?: { name: string; email?: string | null } | null;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    document.body.classList.add("printing-quotation");
+    return () => {
+      document.body.classList.remove("printing-quotation");
+    };
+  }, []);
+
+  return (
+    <div className="quotation-print-layer fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm print:static print:block print:bg-white print:p-0">
+      <div className="quotation-print-root relative flex h-[92vh] w-full max-w-[1100px] flex-col overflow-hidden rounded-3xl border border-slate-200 bg-[#f5f1e6] shadow-2xl print:h-auto print:max-w-none print:rounded-none print:border-none print:bg-white print:shadow-none">
+        <div className="flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4 print:hidden">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-700">
+              Quotation Preview
+            </p>
+            <h2 className="mt-1 text-lg font-semibold text-slate-900">{quote.quoteNumber}</h2>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => window.print()}
+              className="rounded-xl bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-700"
+            >
+              Print
+            </button>
+            <button
+              onClick={onClose}
+              className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+
+        <div className="quotation-preview-stage flex-1 overflow-auto bg-[#e9e2cf] p-6 print:overflow-visible print:bg-white print:p-0">
+          <QuotationDocument quote={quote} salesRep={salesRep} />
+        </div>
       </div>
     </div>
   );
@@ -154,6 +280,7 @@ export default function SalesPage() {
   const [editingQuoteId, setEditingQuoteId] = useState<string | null>(null);
   const [builderError, setBuilderError] = useState<string | null>(null);
   const [activeQuoteId, setActiveQuoteId] = useState<string | null>(null);
+  const [previewQuoteId, setPreviewQuoteId] = useState<string | null>(null);
   const [selectedLeadId, setSelectedLeadId] = useState("");
   const [selectedProductId, setSelectedProductId] = useState("");
   const [form, setForm] = useState<QuoteFormData>({
@@ -178,8 +305,16 @@ export default function SalesPage() {
   const { data, isLoading, isError, error, refetch } = useQuotes(filter);
   const createQuote = useCreateQuote();
   const updateQuote = useUpdateQuote();
+  const updateQuoteStatus = useUpdateQuoteStatus();
   const quotes = data?.data ?? [];
   const activeQuote = useQuote(activeQuoteId ?? "");
+  const previewQuote = useQuote(previewQuoteId ?? "");
+  const previewLead = useLeadDetail(previewQuote.data?.leadId ?? null);
+  const assigneesQuery = useLeadAssignees();
+  const [optimisticStatuses, setOptimisticStatuses] = useState<Record<string, QuoteStatus>>({});
+  const [draggingQuoteId, setDraggingQuoteId] = useState<string | null>(null);
+  const [movingQuoteId, setMovingQuoteId] = useState<string | null>(null);
+  const [quoteMoveError, setQuoteMoveError] = useState<string | null>(null);
   const qualifiedLeadsQuery = useLeads(
     {
       search: "",
@@ -208,6 +343,40 @@ export default function SalesPage() {
     return [...products].sort((a, b) => a.name.localeCompare(b.name));
   }, [productsQuery.data?.data]);
 
+  const previewSalesRep = useMemo(() => {
+    const lead = previewLead.data;
+    if (!lead?.assignedTo) {
+      return null;
+    }
+
+    const matchingAssignee = (assigneesQuery.data ?? []).find((assignee) => {
+      if (lead.assignedToUserId) {
+        return assignee.id === lead.assignedToUserId;
+      }
+      return assignee.name === lead.assignedTo;
+    });
+
+    return {
+      name: matchingAssignee?.name ?? lead.assignedTo,
+      email: matchingAssignee?.email ?? null,
+    };
+  }, [assigneesQuery.data, previewLead.data]);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    })
+  );
+
+  const projectedQuotes = useMemo(() => {
+    return quotes.map((quote) => {
+      const nextStatus = optimisticStatuses[quote.id];
+      return nextStatus ? { ...quote, status: nextStatus } : quote;
+    });
+  }, [optimisticStatuses, quotes]);
+
   const grouped = useMemo(() => {
     const map: Record<QuoteStatus, QuoteSummary[]> = {
       DRAFT: [],
@@ -216,11 +385,11 @@ export default function SalesPage() {
       REJECTED: [],
       EXPIRED: [],
     };
-    quotes.forEach((quote) => {
+    projectedQuotes.forEach((quote) => {
       map[quote.status]?.push(quote);
     });
     return map;
-  }, [quotes]);
+  }, [projectedQuotes]);
 
   const totalByStatus = useMemo(() => {
     return Object.entries(grouped).map(([status, items]) => ({
@@ -411,6 +580,55 @@ export default function SalesPage() {
     }
     closeBuilder();
   }
+
+  async function handleDragEnd(event: DragEndEvent) {
+    setDraggingQuoteId(null);
+    const quoteId = String(event.active.id);
+    const originStatus = event.active.data.current?.status as QuoteStatus | undefined;
+    const targetStatus = event.over?.id as QuoteStatus | undefined;
+
+    if (!originStatus || !targetStatus || originStatus === targetStatus) {
+      return;
+    }
+
+    const quote = projectedQuotes.find((item) => item.id === quoteId);
+    if (!quote) {
+      return;
+    }
+
+    setQuoteMoveError(null);
+    setOptimisticStatuses((prev) => ({ ...prev, [quoteId]: targetStatus }));
+    setMovingQuoteId(quoteId);
+    try {
+      await updateQuoteStatus.mutateAsync({ id: quoteId, status: targetStatus });
+      setOptimisticStatuses((prev) => {
+        const next = { ...prev };
+        delete next[quoteId];
+        return next;
+      });
+    } catch (error) {
+      setOptimisticStatuses((prev) => {
+        const next = { ...prev };
+        delete next[quoteId];
+        return next;
+      });
+      setQuoteMoveError(
+        error instanceof Error ? error.message : "Unable to update quotation status."
+      );
+    } finally {
+      setMovingQuoteId(null);
+    }
+  }
+
+  function handleDragStart(event: DragStartEvent) {
+    setDraggingQuoteId(String(event.active.id));
+    setQuoteMoveError(null);
+  }
+
+  const draggingQuote =
+    draggingQuoteId != null
+      ? projectedQuotes.find((quote) => quote.id === draggingQuoteId) ?? null
+      : null;
 
   if (isLoading) {
     return (
@@ -787,6 +1005,14 @@ export default function SalesPage() {
                 </p>
               </div>
               <div className="flex items-center gap-2">
+                {activeQuote.data ? (
+                  <button
+                    onClick={() => setPreviewQuoteId(activeQuote.data?.id ?? null)}
+                    className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                  >
+                    Preview Quote
+                  </button>
+                ) : null}
                 {activeQuote.data?.status === QuoteStatus.DRAFT ? (
                   <button
                     onClick={openEditBuilder}
@@ -896,6 +1122,21 @@ export default function SalesPage() {
           </div>
         </div>
       ) : null}
+      {previewQuoteId ? (
+        previewQuote.data ? (
+          <QuotationPreviewModal
+            quote={previewQuote.data}
+            salesRep={previewSalesRep}
+            onClose={() => setPreviewQuoteId(null)}
+          />
+        ) : (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm">
+            <div className="rounded-2xl border border-slate-200 bg-white px-6 py-5 text-sm text-slate-600 shadow-xl">
+              Loading quotation preview...
+            </div>
+          </div>
+        )
+      ) : null}
       <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-6">
           <div className="space-y-2">
@@ -975,16 +1216,38 @@ export default function SalesPage() {
         ))}
       </div>
 
-      <div className="flex gap-4 overflow-x-auto pb-2">
-        {(Object.keys(STATUS_LABELS) as QuoteStatus[]).map((status) => (
-          <KanbanColumn
-            key={status}
-            status={status}
-            quotes={grouped[status]}
-            onOpenQuote={(id) => setActiveQuoteId(id)}
-          />
-        ))}
-      </div>
+      {quoteMoveError ? (
+        <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          {quoteMoveError}
+        </div>
+      ) : null}
+
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCorners}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+      >
+        <div className="flex gap-4 overflow-x-auto pb-2">
+          {(Object.keys(STATUS_LABELS) as QuoteStatus[]).map((status) => (
+            <KanbanColumn
+              key={status}
+              status={status}
+              quotes={grouped[status]}
+              onOpenQuote={(id) => setActiveQuoteId(id)}
+              movingQuoteId={movingQuoteId}
+            />
+          ))}
+        </div>
+
+        <DragOverlay>
+          {draggingQuote ? (
+            <div className="w-[280px] rotate-1 opacity-95">
+              <QuoteCard quote={draggingQuote} onOpen={() => {}} />
+            </div>
+          ) : null}
+        </DragOverlay>
+      </DndContext>
     </div>
   );
 }
