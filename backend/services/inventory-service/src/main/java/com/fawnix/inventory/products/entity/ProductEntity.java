@@ -50,6 +50,15 @@ public class ProductEntity {
   @Column(name = "price", precision = 14, scale = 2, nullable = false)
   private BigDecimal price = BigDecimal.ZERO;
 
+  @Column(name = "price_tier_1", precision = 14, scale = 2)
+  private BigDecimal priceTier1;
+
+  @Column(name = "price_tier_2", precision = 14, scale = 2)
+  private BigDecimal priceTier2;
+
+  @Column(name = "price_tier_3", precision = 14, scale = 2)
+  private BigDecimal priceTier3;
+
   @Column(name = "stock_qty", precision = 14, scale = 2, nullable = false)
   private BigDecimal stockQty = BigDecimal.ZERO;
 
@@ -165,6 +174,30 @@ public class ProductEntity {
 
   public void setStockQty(BigDecimal stockQty) {
     this.stockQty = stockQty;
+  }
+
+  public BigDecimal getPriceTier1() {
+    return priceTier1;
+  }
+
+  public void setPriceTier1(BigDecimal priceTier1) {
+    this.priceTier1 = priceTier1;
+  }
+
+  public BigDecimal getPriceTier2() {
+    return priceTier2;
+  }
+
+  public void setPriceTier2(BigDecimal priceTier2) {
+    this.priceTier2 = priceTier2;
+  }
+
+  public BigDecimal getPriceTier3() {
+    return priceTier3;
+  }
+
+  public void setPriceTier3(BigDecimal priceTier3) {
+    this.priceTier3 = priceTier3;
   }
 
   public ProductStatus getStatus() {

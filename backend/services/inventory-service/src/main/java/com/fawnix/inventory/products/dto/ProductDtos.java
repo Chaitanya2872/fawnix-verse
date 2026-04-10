@@ -3,7 +3,6 @@ package com.fawnix.inventory.products.dto;
 import com.fawnix.inventory.products.entity.ProductStatus;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
@@ -28,9 +27,14 @@ public final class ProductDtos {
       String description,
       String hsnCode,
       String notes,
-      @NotNull(message = "Price is required.")
       @DecimalMin(value = "0.00", message = "Price must be at least 0.")
       BigDecimal price,
+      @DecimalMin(value = "0.00", message = "Price 1 must be at least 0.")
+      BigDecimal priceTier1,
+      @DecimalMin(value = "0.00", message = "Price 2 must be at least 0.")
+      BigDecimal priceTier2,
+      @DecimalMin(value = "0.00", message = "Price 3 must be at least 0.")
+      BigDecimal priceTier3,
       @DecimalMin(value = "0.00", message = "Stock quantity cannot be negative.")
       BigDecimal stockQty
   ) {
@@ -48,6 +52,9 @@ public final class ProductDtos {
       String hsnCode,
       String notes,
       BigDecimal price,
+      BigDecimal priceTier1,
+      BigDecimal priceTier2,
+      BigDecimal priceTier3,
       BigDecimal stockQty
   ) {
   }
@@ -65,6 +72,9 @@ public final class ProductDtos {
       String hsnCode,
       String notes,
       BigDecimal price,
+      BigDecimal priceTier1,
+      BigDecimal priceTier2,
+      BigDecimal priceTier3,
       BigDecimal stockQty,
       ProductStatus status,
       Instant createdAt,

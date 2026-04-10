@@ -11,6 +11,7 @@ import {
 import {
   createProduct,
   deleteProduct,
+  fetchInventoryOverview,
   fetchProducts,
   updateProduct,
 } from "./api";
@@ -23,6 +24,7 @@ export const inventoryKeys = {
   all: ["inventory"] as const,
   lists: () => [...inventoryKeys.all, "list"] as const,
   list: (filter: ProductFilter) => [...inventoryKeys.lists(), filter] as const,
+  overview: () => [...inventoryKeys.all, "overview"] as const,
 };
 
 // ---------------------------------------------------------------------------
@@ -38,12 +40,21 @@ export function useProducts(filter: ProductFilter) {
   });
 }
 
+export function useInventoryOverview() {
+  return useQuery({
+    queryKey: inventoryKeys.overview(),
+    queryFn: fetchInventoryOverview,
+    staleTime: 30_000,
+  });
+}
+
 export function useCreateProduct() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (data: ProductFormData) => createProduct(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: inventoryKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: inventoryKeys.overview() });
     },
   });
 }
@@ -55,6 +66,7 @@ export function useUpdateProduct() {
       updateProduct(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: inventoryKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: inventoryKeys.overview() });
     },
   });
 }
@@ -65,6 +77,7 @@ export function useDeleteProduct() {
     mutationFn: (id: string) => deleteProduct(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: inventoryKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: inventoryKeys.overview() });
     },
   });
 }

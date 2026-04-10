@@ -14,15 +14,22 @@ import {
   Package,
   AlertTriangle,
   X,
+  Tags,
+  Layers3,
+  Factory,
+  ChartColumnIncreasing,
 } from "lucide-react";
 import {
   type Product,
   type ProductFilter,
   type ProductFormData,
+  INVENTORY_PRICE_LABELS,
+  PRODUCT_CATEGORY_GROUPS,
   ProductStatus,
   PRODUCT_CATEGORIES,
 } from "./types";
 import {
+  useInventoryOverview,
   useProducts,
   useCreateProduct,
   useUpdateProduct,
@@ -38,6 +45,23 @@ function formatCurrency(value: number) {
   return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(value);
 }
 
+function formatOptionalCurrency(value?: number | null) {
+  return value != null ? formatCurrency(value) : "-";
+}
+
+function formatDate(value?: string | null) {
+  if (!value) return "-";
+  return new Intl.DateTimeFormat("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(new Date(value));
+}
+
+function toNumber(value: number | string | null | undefined) {
+  return typeof value === "number" ? value : Number(value ?? 0);
+}
+
 function exportCSV(products: Product[]) {
   const headers = [
     "Name",
@@ -48,7 +72,10 @@ function exportCSV(products: Product[]) {
     "Unit",
     "Reorder Level",
     "Stock Qty",
-    "Price",
+    "Default Price",
+    "Price 1",
+    "Price 2",
+    "Price 3",
     "Status",
   ];
   const rows = products.map((p) => [
@@ -61,6 +88,9 @@ function exportCSV(products: Product[]) {
     p.reorderLevel ?? "",
     p.stockQty,
     p.price,
+    p.priceTier1 ?? "",
+    p.priceTier2 ?? "",
+    p.priceTier3 ?? "",
     p.status,
   ]);
   const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
@@ -131,6 +161,9 @@ const defaultForm: ProductFormData = {
   notes: "",
   stockQty: 0,
   price: 0,
+  priceTier1: null,
+  priceTier2: null,
+  priceTier3: null,
   status: ProductStatus.IN_STOCK,
 };
 
@@ -150,6 +183,9 @@ function ProductDialog({ open, onClose, product, onSave, isLoading }: ProductDia
           notes: product.notes ?? "",
           stockQty: product.stockQty,
           price: product.price,
+          priceTier1: product.priceTier1 ?? null,
+          priceTier2: product.priceTier2 ?? null,
+          priceTier3: product.priceTier3 ?? null,
           status: product.status,
         }
       : defaultForm
@@ -172,6 +208,9 @@ function ProductDialog({ open, onClose, product, onSave, isLoading }: ProductDia
               notes: product.notes ?? "",
               stockQty: product.stockQty,
               price: product.price,
+              priceTier1: product.priceTier1 ?? null,
+              priceTier2: product.priceTier2 ?? null,
+              priceTier3: product.priceTier3 ?? null,
               status: product.status,
             }
           : defaultForm
@@ -190,8 +229,12 @@ function ProductDialog({ open, onClose, product, onSave, isLoading }: ProductDia
     onSave(form);
   }
 
-  const inputCls = "w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm text-foreground placeholder-muted-foreground outline-none transition-colors focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30";
-  const selectCls = "w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm text-foreground outline-none transition-colors focus:border-violet-500";
+  const subCategoryOptions = PRODUCT_CATEGORY_GROUPS[
+    form.category as keyof typeof PRODUCT_CATEGORY_GROUPS
+  ] ?? [];
+
+  const inputCls = "w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm text-foreground placeholder-muted-foreground outline-none transition-colors focus:border-ring focus:ring-1 focus:ring-ring/30";
+  const selectCls = "w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm text-foreground outline-none transition-colors focus:border-ring";
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -199,7 +242,7 @@ function ProductDialog({ open, onClose, product, onSave, isLoading }: ProductDia
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
 
       {/* Dialog panel */}
-      <div className="relative z-10 w-full max-w-lg rounded-2xl border border-border bg-card shadow-2xl">
+      <div className="relative z-10 max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-2xl border border-border bg-card shadow-2xl">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-border px-6 py-4">
           <h2 className="text-base font-semibold text-card-foreground">
@@ -226,7 +269,7 @@ function ProductDialog({ open, onClose, product, onSave, isLoading }: ProductDia
                 type="text"
                 value={form.name}
                 onChange={(e) => handleChange("name", e.target.value)}
-                placeholder="e.g. Wireless Headphones"
+                placeholder="e.g. 4 Module With Edge"
                 className={inputCls}
               />
             </div>
@@ -269,12 +312,18 @@ function ProductDialog({ open, onClose, product, onSave, isLoading }: ProductDia
                   Sub Category
                 </label>
                 <input
+                  list="inventory-subcategory-options"
                   type="text"
                   value={form.subCategory ?? ""}
                   onChange={(e) => handleChange("subCategory", e.target.value)}
                   placeholder="e.g. Touch Panel"
                   className={inputCls}
                 />
+                <datalist id="inventory-subcategory-options">
+                  {subCategoryOptions.map((subCategory) => (
+                    <option key={subCategory} value={subCategory} />
+                  ))}
+                </datalist>
               </div>
               <div>
                 <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
@@ -335,7 +384,7 @@ function ProductDialog({ open, onClose, product, onSave, isLoading }: ProductDia
               </div>
               <div>
                 <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
-                  Price (INR)
+                  Default Price (INR)
                 </label>
                 <input
                   type="number"
@@ -343,6 +392,57 @@ function ProductDialog({ open, onClose, product, onSave, isLoading }: ProductDia
                   step={0.01}
                   value={form.price}
                   onChange={(e) => handleChange("price", parseFloat(e.target.value) || 0)}
+                  className={inputCls}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                  {INVENTORY_PRICE_LABELS.priceTier1}
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  step={0.01}
+                  value={form.priceTier1 ?? ""}
+                  onChange={(e) =>
+                    handleChange("priceTier1", e.target.value === "" ? null : parseFloat(e.target.value) || 0)
+                  }
+                  placeholder="Sheet price column 1"
+                  className={inputCls}
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                  {INVENTORY_PRICE_LABELS.priceTier2}
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  step={0.01}
+                  value={form.priceTier2 ?? ""}
+                  onChange={(e) =>
+                    handleChange("priceTier2", e.target.value === "" ? null : parseFloat(e.target.value) || 0)
+                  }
+                  placeholder="Sheet price column 2"
+                  className={inputCls}
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                  {INVENTORY_PRICE_LABELS.priceTier3}
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  step={0.01}
+                  value={form.priceTier3 ?? ""}
+                  onChange={(e) =>
+                    handleChange("priceTier3", e.target.value === "" ? null : parseFloat(e.target.value) || 0)
+                  }
+                  placeholder="Sheet price column 3"
                   className={inputCls}
                 />
               </div>
@@ -403,7 +503,7 @@ function ProductDialog({ open, onClose, product, onSave, isLoading }: ProductDia
             <button
               type="submit"
               disabled={isLoading}
-              className="inline-flex items-center gap-2 rounded-lg bg-violet-600 px-5 py-2 text-sm font-semibold text-white shadow-md transition-opacity hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground shadow-md transition-opacity hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isLoading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
               {product ? "Save Changes" : "Add Product"}
@@ -524,6 +624,66 @@ function StatCard({ label, value, valueClass = "text-foreground" }: { label: str
   );
 }
 
+type InventoryView = "items" | "categories" | "brands" | "usage";
+
+function ModuleTabs({
+  value,
+  onChange,
+}: {
+  value: InventoryView;
+  onChange: (value: InventoryView) => void;
+}) {
+  const tabs: Array<{ id: InventoryView; label: string; icon: typeof Package }> = [
+    { id: "items", label: "Manage Items", icon: Package },
+    { id: "categories", label: "Manage Categories", icon: Layers3 },
+    { id: "brands", label: "By Brand", icon: Factory },
+    { id: "usage", label: "Usage Consumption", icon: ChartColumnIncreasing },
+  ];
+
+  return (
+    <div className="flex flex-wrap gap-2">
+      {tabs.map((tab) => {
+        const Icon = tab.icon;
+        const active = value === tab.id;
+        return (
+          <button
+            key={tab.id}
+            onClick={() => onChange(tab.id)}
+            className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-medium transition-colors ${
+              active
+                ? "border-primary bg-primary text-primary-foreground"
+                : "border-border bg-background text-muted-foreground hover:bg-accent hover:text-foreground"
+            }`}
+          >
+            <Icon className="h-4 w-4" />
+            {tab.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function SectionCard({
+  title,
+  subtitle,
+  children,
+}: {
+  title: string;
+  subtitle: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="overflow-hidden rounded-2xl border border-border bg-card">
+      <div className="border-b border-border px-5 py-4">
+        <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+        <p className="mt-1 text-xs text-muted-foreground">{subtitle}</p>
+      </div>
+      <div className="p-5">{children}</div>
+    </div>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Main Page
 // ---------------------------------------------------------------------------
@@ -531,9 +691,11 @@ function StatCard({ label, value, valueClass = "text-foreground" }: { label: str
 const PAGE_SIZE = 8;
 
 export default function InventoryPage() {
+  const [view, setView] = useState<InventoryView>("items");
   const [filter, setFilter] = useState<ProductFilter>({
     search: "",
     category: "",
+    brand: "",
     status: "ALL",
     page: 1,
     pageSize: PAGE_SIZE,
@@ -544,6 +706,7 @@ export default function InventoryPage() {
   const [deleteProduct, setDeleteProduct] = useState<Product | null>(null);
 
   const { data, isLoading, isError } = useProducts(filter);
+  const overviewQuery = useInventoryOverview();
   const createMutation = useCreateProduct();
   const updateMutation = useUpdateProduct();
   const deleteMutation = useDeleteProduct();
@@ -568,11 +731,55 @@ export default function InventoryPage() {
 
   const lowStock = data?.data.filter((p) => p.status === ProductStatus.LOW_STOCK).length ?? 0;
   const outOfStock = data?.data.filter((p) => p.status === ProductStatus.OUT_OF_STOCK).length ?? 0;
+  const overview = overviewQuery.data;
+  const fallbackCategories = PRODUCT_CATEGORIES.map((category) => {
+    const matchingProducts = data?.data.filter((product) => product.category === category) ?? [];
+    const brandCount = new Set(
+      matchingProducts
+        .map((product) => product.brand?.trim())
+        .filter((brand): brand is string => Boolean(brand))
+    ).size;
+
+    return {
+      category,
+      productCount: matchingProducts.length,
+      brandCount,
+      totalStockQty: matchingProducts.reduce((sum, product) => sum + toNumber(product.stockQty), 0),
+      lowStockCount: matchingProducts.filter((product) => product.status === ProductStatus.LOW_STOCK).length,
+      outOfStockCount: matchingProducts.filter((product) => product.status === ProductStatus.OUT_OF_STOCK).length,
+    };
+  });
+  const categorySummaries = overview?.categories ?? fallbackCategories;
+  const fallbackBrands = Array.from(
+    new Map(
+      (data?.data ?? [])
+        .filter((product) => product.brand && product.brand.trim())
+        .map((product) => [
+          product.brand!.trim(),
+          {
+            brand: product.brand!.trim(),
+            productCount: 0,
+            categoryCount: 0,
+            totalStockQty: 0,
+          },
+        ])
+    ).values()
+  ).map((brandSummary) => {
+    const matchingProducts = (data?.data ?? []).filter((product) => product.brand?.trim() === brandSummary.brand);
+    return {
+      brand: brandSummary.brand,
+      productCount: matchingProducts.length,
+      categoryCount: new Set(matchingProducts.map((product) => product.category)).size,
+      totalStockQty: matchingProducts.reduce((sum, product) => sum + toNumber(product.stockQty), 0),
+    };
+  });
+  const brandSummaries = overview?.brands ?? fallbackBrands;
+  const brandOptions = brandSummaries.map((brand) => brand.brand);
 
   const AddButton = (
     <button
       onClick={() => setAddOpen(true)}
-      className="inline-flex items-center gap-2 rounded-xl bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md transition-colors hover:bg-violet-700"
+      className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow-md transition-colors hover:bg-primary/90"
     >
       <Plus className="h-4 w-4" />
       Add Product
@@ -582,24 +789,32 @@ export default function InventoryPage() {
   return (
     <>
       <InventoryLayout addProductButton={AddButton}>
-        {/* Stats row */}
-        <div className="grid grid-cols-3 gap-4">
-          <StatCard label="Total Products" value={data?.total ?? "—"} />
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+          <StatCard label="Total Products" value={overview?.totalProducts ?? data?.total ?? "-"} />
+          <StatCard label="Categories" value={overview?.totalCategories ?? "-"} />
+          <StatCard label="Brands" value={overview?.totalBrands ?? "-"} />
           <StatCard label="Low Stock" value={lowStock} valueClass="text-amber-500" />
           <StatCard label="Out of Stock" value={outOfStock} valueClass="text-red-500" />
         </div>
 
-        {/* Toolbar */}
+        <div className="rounded-2xl border border-amber-200 bg-amber-50/70 px-4 py-3 text-sm text-amber-900">
+          Inventory is now structured as its own module with item management, category views, brand views,
+          and usage consumption tracking from stock-outward transactions.
+        </div>
+
+        <ModuleTabs value={view} onChange={setView} />
+
+        {view === "items" ? (
         <div className="flex flex-wrap items-center gap-3">
           {/* Search */}
           <div className="relative min-w-[200px] flex-1">
             <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
             <input
               type="text"
-              placeholder="Search by name or SKU…"
+              placeholder="Search by name or SKU..."
               value={filter.search}
               onChange={(e) => updateFilter({ search: e.target.value })}
-              className="w-full rounded-xl border border-border bg-background py-2.5 pl-9 pr-4 text-sm text-foreground placeholder-muted-foreground outline-none transition-colors focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30"
+              className="w-full rounded-xl border border-border bg-background py-2.5 pl-9 pr-4 text-sm text-foreground placeholder-muted-foreground outline-none transition-colors focus:border-ring focus:ring-1 focus:ring-ring/30"
             />
           </div>
 
@@ -607,7 +822,7 @@ export default function InventoryPage() {
           <select
             value={filter.category}
             onChange={(e) => updateFilter({ category: e.target.value })}
-            className="rounded-xl border border-border bg-background px-3 py-2.5 text-sm text-foreground outline-none transition-colors focus:border-violet-500"
+            className="rounded-xl border border-border bg-background px-3 py-2.5 text-sm text-foreground outline-none transition-colors focus:border-ring"
           >
             <option value="">All Categories</option>
             {PRODUCT_CATEGORIES.map((cat) => (
@@ -615,11 +830,22 @@ export default function InventoryPage() {
             ))}
           </select>
 
+          <select
+            value={filter.brand}
+            onChange={(e) => updateFilter({ brand: e.target.value })}
+            className="rounded-xl border border-border bg-background px-3 py-2.5 text-sm text-foreground outline-none transition-colors focus:border-ring"
+          >
+            <option value="">All Brands</option>
+            {brandOptions.map((brand) => (
+              <option key={brand} value={brand}>{brand}</option>
+            ))}
+          </select>
+
           {/* Status filter */}
           <select
             value={filter.status}
             onChange={(e) => updateFilter({ status: e.target.value as ProductFilter["status"] })}
-            className="rounded-xl border border-border bg-background px-3 py-2.5 text-sm text-foreground outline-none transition-colors focus:border-violet-500"
+            className="rounded-xl border border-border bg-background px-3 py-2.5 text-sm text-foreground outline-none transition-colors focus:border-ring"
           >
             <option value="ALL">All Statuses</option>
             <option value={ProductStatus.IN_STOCK}>In Stock</option>
@@ -636,13 +862,36 @@ export default function InventoryPage() {
             Export CSV
           </button>
         </div>
+        ) : (
+        <div className="rounded-2xl border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
+          {view === "categories" && "Manage categories from the live item catalog and stock positions."}
+          {view === "brands" && "Review brand coverage across categories and current inventory depth."}
+          {view === "usage" && "Track consumption through outward stock transactions and recent issue activity."}
+        </div>
+        )}
 
-        {/* Table */}
+        {view === "items" ? (
         <div className="overflow-hidden rounded-2xl border border-border bg-card">
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[1560px] text-sm">
             <thead>
               <tr className="border-b border-border bg-muted/50">
-                {["Product", "SKU", "Category", "Stock Qty", "Price", "Status", ""].map((h) => (
+                {[
+                  "Product",
+                  "SKU",
+                  "Category",
+                  "Sub Category",
+                  "Brand",
+                  "Unit",
+                  "Reorder Level",
+                  "Stock Qty",
+                  INVENTORY_PRICE_LABELS.defaultPrice,
+                  INVENTORY_PRICE_LABELS.priceTier1,
+                  INVENTORY_PRICE_LABELS.priceTier2,
+                  INVENTORY_PRICE_LABELS.priceTier3,
+                  "Status",
+                  "",
+                ].map((h) => (
                   <th
                     key={h}
                     className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground"
@@ -655,20 +904,20 @@ export default function InventoryPage() {
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td colSpan={7} className="py-16 text-center">
-                    <Loader2 className="mx-auto h-6 w-6 animate-spin text-violet-500" />
-                    <p className="mt-3 text-sm text-muted-foreground">Loading products…</p>
+                  <td colSpan={14} className="py-16 text-center">
+                    <Loader2 className="mx-auto h-6 w-6 animate-spin text-primary" />
+                    <p className="mt-3 text-sm text-muted-foreground">Loading products...</p>
                   </td>
                 </tr>
               ) : isError ? (
                 <tr>
-                  <td colSpan={7} className="py-16 text-center text-sm text-red-500">
+                  <td colSpan={14} className="py-16 text-center text-sm text-red-500">
                     Failed to load products. Please try again.
                   </td>
                 </tr>
               ) : data?.data.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-16 text-center">
+                  <td colSpan={14} className="py-16 text-center">
                     <Package className="mx-auto h-8 w-8 text-muted-foreground/30" />
                     <p className="mt-3 text-sm text-muted-foreground">No products found</p>
                   </td>
@@ -679,13 +928,26 @@ export default function InventoryPage() {
                     key={product.id}
                     className={`transition-colors hover:bg-muted/40 ${idx !== 0 ? "border-t border-border" : ""}`}
                   >
-                    <td className="px-5 py-4 font-medium text-foreground">{product.name}</td>
+                    <td className="px-5 py-4">
+                      <div className="font-medium text-foreground">{product.name}</div>
+                      {product.description ? (
+                        <div className="mt-1 max-w-[280px] truncate text-xs text-muted-foreground">
+                          {product.description}
+                        </div>
+                      ) : null}
+                    </td>
                     <td className="px-5 py-4">
                       <code className="rounded-md bg-muted px-2 py-0.5 text-xs text-muted-foreground">
                         {product.sku}
                       </code>
                     </td>
                     <td className="px-5 py-4 text-muted-foreground">{product.category}</td>
+                    <td className="px-5 py-4 text-muted-foreground">{product.subCategory ?? "-"}</td>
+                    <td className="px-5 py-4 text-muted-foreground">{product.brand ?? "-"}</td>
+                    <td className="px-5 py-4 text-muted-foreground">{product.unit ?? "-"}</td>
+                    <td className="px-5 py-4 tabular-nums text-muted-foreground">
+                      {product.reorderLevel?.toLocaleString("en-IN") ?? "-"}
+                    </td>
                     <td className="px-5 py-4">
                       <span
                         className={`tabular-nums font-semibold ${
@@ -702,6 +964,15 @@ export default function InventoryPage() {
                     <td className="px-5 py-4 tabular-nums text-muted-foreground">
                       {formatCurrency(product.price)}
                     </td>
+                    <td className="px-5 py-4 tabular-nums text-muted-foreground">
+                      {formatOptionalCurrency(product.priceTier1)}
+                    </td>
+                    <td className="px-5 py-4 tabular-nums text-muted-foreground">
+                      {formatOptionalCurrency(product.priceTier2)}
+                    </td>
+                    <td className="px-5 py-4 tabular-nums text-muted-foreground">
+                      {formatOptionalCurrency(product.priceTier3)}
+                    </td>
                     <td className="px-5 py-4">
                       <StatusBadge status={product.status} />
                     </td>
@@ -712,7 +983,8 @@ export default function InventoryPage() {
                 ))
               )}
             </tbody>
-          </table>
+            </table>
+          </div>
 
           {/* Pagination */}
           {data && data.totalPages > 1 && (
@@ -720,7 +992,7 @@ export default function InventoryPage() {
               <p className="text-xs text-muted-foreground">
                 Showing{" "}
                 <span className="font-medium text-foreground">
-                  {(data.page - 1) * data.pageSize + 1}–{Math.min(data.page * data.pageSize, data.total)}
+                  {(data.page - 1) * data.pageSize + 1}-{Math.min(data.page * data.pageSize, data.total)}
                 </span>{" "}
                 of <span className="font-medium text-foreground">{data.total}</span> products
               </p>
@@ -740,7 +1012,7 @@ export default function InventoryPage() {
                     onClick={() => setFilter((prev) => ({ ...prev, page: pg }))}
                     className={`flex h-7 w-7 items-center justify-center rounded-lg text-xs font-medium transition-colors ${
                       pg === filter.page
-                        ? "bg-violet-600 text-white"
+                        ? "bg-primary text-primary-foreground"
                         : "text-muted-foreground hover:bg-accent"
                     }`}
                   >
@@ -759,9 +1031,276 @@ export default function InventoryPage() {
             </div>
           )}
         </div>
+        ) : null}
+
+        {view === "categories" ? (
+          <SectionCard
+            title="Category Management"
+            subtitle="Track inventory by category, low stock exposure, and how many brands sit under each category."
+          >
+            {overviewQuery.isLoading ? (
+              <div className="py-12 text-center">
+                <Loader2 className="mx-auto h-6 w-6 animate-spin text-primary" />
+              </div>
+            ) : overviewQuery.isError ? (
+              <div className="space-y-4">
+                <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                  Live category summaries could not be loaded from the overview API. Showing a fallback summary from the
+                  currently loaded item list instead.
+                </div>
+                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                  {categorySummaries.map((category) => (
+                    <div key={category.category} className="rounded-xl border border-border bg-background p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold text-foreground">{category.category}</p>
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            {category.productCount} items across {category.brandCount} brands
+                          </p>
+                        </div>
+                        <Tags className="h-4 w-4 text-primary" />
+                      </div>
+                      <div className="mt-4 grid grid-cols-3 gap-3 text-center">
+                        <div className="rounded-lg bg-muted/50 px-3 py-2">
+                          <p className="text-xs text-muted-foreground">Stock</p>
+                          <p className="mt-1 text-sm font-semibold text-foreground">{category.totalStockQty}</p>
+                        </div>
+                        <div className="rounded-lg bg-amber-500/10 px-3 py-2">
+                          <p className="text-xs text-amber-700">Low</p>
+                          <p className="mt-1 text-sm font-semibold text-amber-700">{category.lowStockCount}</p>
+                        </div>
+                        <div className="rounded-lg bg-red-500/10 px-3 py-2">
+                          <p className="text-xs text-red-600">Out</p>
+                          <p className="mt-1 text-sm font-semibold text-red-600">{category.outOfStockCount}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : overview?.categories.length ? (
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                {categorySummaries.map((category) => (
+                  <div key={category.category} className="rounded-xl border border-border bg-background p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-foreground">{category.category}</p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {category.productCount} items across {category.brandCount} brands
+                        </p>
+                      </div>
+                      <Tags className="h-4 w-4 text-primary" />
+                    </div>
+                    <div className="mt-4 grid grid-cols-3 gap-3 text-center">
+                      <div className="rounded-lg bg-muted/50 px-3 py-2">
+                        <p className="text-xs text-muted-foreground">Stock</p>
+                        <p className="mt-1 text-sm font-semibold text-foreground">{category.totalStockQty}</p>
+                      </div>
+                      <div className="rounded-lg bg-amber-500/10 px-3 py-2">
+                        <p className="text-xs text-amber-700">Low</p>
+                        <p className="mt-1 text-sm font-semibold text-amber-700">{category.lowStockCount}</p>
+                      </div>
+                      <div className="rounded-lg bg-red-500/10 px-3 py-2">
+                        <p className="text-xs text-red-600">Out</p>
+                        <p className="mt-1 text-sm font-semibold text-red-600">{category.outOfStockCount}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                {categorySummaries.map((category) => (
+                  <div key={category.category} className="rounded-xl border border-border bg-background p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-foreground">{category.category}</p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {category.productCount} items across {category.brandCount} brands
+                        </p>
+                      </div>
+                      <Tags className="h-4 w-4 text-primary" />
+                    </div>
+                    <div className="mt-4 grid grid-cols-3 gap-3 text-center">
+                      <div className="rounded-lg bg-muted/50 px-3 py-2">
+                        <p className="text-xs text-muted-foreground">Stock</p>
+                        <p className="mt-1 text-sm font-semibold text-foreground">{category.totalStockQty}</p>
+                      </div>
+                      <div className="rounded-lg bg-amber-500/10 px-3 py-2">
+                        <p className="text-xs text-amber-700">Low</p>
+                        <p className="mt-1 text-sm font-semibold text-amber-700">{category.lowStockCount}</p>
+                      </div>
+                      <div className="rounded-lg bg-red-500/10 px-3 py-2">
+                        <p className="text-xs text-red-600">Out</p>
+                        <p className="mt-1 text-sm font-semibold text-red-600">{category.outOfStockCount}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </SectionCard>
+        ) : null}
+
+        {view === "brands" ? (
+          <SectionCard
+            title="Brand Inventory"
+            subtitle="See which brands are active in inventory and how broadly they are spread across categories."
+          >
+            {overviewQuery.isLoading ? (
+              <div className="py-12 text-center">
+                <Loader2 className="mx-auto h-6 w-6 animate-spin text-primary" />
+              </div>
+            ) : overviewQuery.isError ? (
+              <div className="space-y-4">
+                <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                  Live brand summaries could not be loaded from the overview API. Showing a fallback summary from the
+                  currently loaded item list instead.
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[720px] text-sm">
+                    <thead>
+                      <tr className="border-b border-border bg-muted/50">
+                        {["Brand", "Items", "Categories", "Total Stock Qty"].map((heading) => (
+                          <th
+                            key={heading}
+                            className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+                          >
+                            {heading}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {brandSummaries.map((brand) => (
+                        <tr key={brand.brand} className="border-t border-border">
+                          <td className="px-4 py-3 font-medium text-foreground">{brand.brand}</td>
+                          <td className="px-4 py-3 text-muted-foreground">{brand.productCount}</td>
+                          <td className="px-4 py-3 text-muted-foreground">{brand.categoryCount}</td>
+                          <td className="px-4 py-3 text-muted-foreground">{brand.totalStockQty}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : brandSummaries.length ? (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[720px] text-sm">
+                  <thead>
+                    <tr className="border-b border-border bg-muted/50">
+                      {["Brand", "Items", "Categories", "Total Stock Qty"].map((heading) => (
+                        <th
+                          key={heading}
+                          className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+                        >
+                          {heading}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {brandSummaries.map((brand) => (
+                      <tr key={brand.brand} className="border-t border-border">
+                        <td className="px-4 py-3 font-medium text-foreground">{brand.brand}</td>
+                        <td className="px-4 py-3 text-muted-foreground">{brand.productCount}</td>
+                        <td className="px-4 py-3 text-muted-foreground">{brand.categoryCount}</td>
+                        <td className="px-4 py-3 text-muted-foreground">{brand.totalStockQty}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">No branded items found yet.</p>
+            )}
+          </SectionCard>
+        ) : null}
+
+        {view === "usage" ? (
+          <div className="grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
+            <SectionCard
+              title="Consumption Summary"
+              subtitle="Usage is calculated from outward stock transactions in the inventory service."
+            >
+              {overviewQuery.isLoading ? (
+                <div className="py-12 text-center">
+                  <Loader2 className="mx-auto h-6 w-6 animate-spin text-primary" />
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="rounded-xl bg-muted/50 px-4 py-3">
+                    <p className="text-xs text-muted-foreground">Outward Transactions</p>
+                    <p className="mt-1 text-2xl font-bold text-foreground">
+                      {overview?.consumption.outwardTransactionCount ?? 0}
+                    </p>
+                  </div>
+                  <div className="rounded-xl bg-muted/50 px-4 py-3">
+                    <p className="text-xs text-muted-foreground">Consumed Quantity</p>
+                    <p className="mt-1 text-2xl font-bold text-foreground">
+                      {overview?.consumption.consumedQuantity ?? 0}
+                    </p>
+                  </div>
+                  <div className="rounded-xl bg-muted/50 px-4 py-3">
+                    <p className="text-xs text-muted-foreground">Last Consumption</p>
+                    <p className="mt-1 text-sm font-semibold text-foreground">
+                      {formatDate(overview?.consumption.lastConsumedOn)}
+                    </p>
+                  </div>
+                </div>
+              )}
+            </SectionCard>
+
+            <SectionCard
+              title="Recent Usage Consumption"
+              subtitle="Recent outward movements by item, category, and issuing context."
+            >
+              {overviewQuery.isLoading ? (
+                <div className="py-12 text-center">
+                  <Loader2 className="mx-auto h-6 w-6 animate-spin text-primary" />
+                </div>
+              ) : overview?.recentConsumption.length ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[920px] text-sm">
+                    <thead>
+                      <tr className="border-b border-border bg-muted/50">
+                        {["Date", "Item", "Category", "Brand", "Qty", "Issued By", "Project"].map((heading) => (
+                          <th
+                            key={heading}
+                            className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+                          >
+                            {heading}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {overview.recentConsumption.map((item) => (
+                        <tr key={item.id} className="border-t border-border">
+                          <td className="px-4 py-3 text-muted-foreground">{formatDate(item.txnDate)}</td>
+                          <td className="px-4 py-3">
+                            <div className="font-medium text-foreground">{item.productName}</div>
+                            <div className="mt-1 text-xs text-muted-foreground">{item.sku}</div>
+                          </td>
+                          <td className="px-4 py-3 text-muted-foreground">{item.category}</td>
+                          <td className="px-4 py-3 text-muted-foreground">{item.brand ?? "-"}</td>
+                          <td className="px-4 py-3 font-semibold text-foreground">{item.quantity}</td>
+                          <td className="px-4 py-3 text-muted-foreground">{item.issuedBy ?? "-"}</td>
+                          <td className="px-4 py-3 text-muted-foreground">{item.projectRef ?? "-"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">No outward usage transactions recorded yet.</p>
+              )}
+            </SectionCard>
+          </div>
+        ) : null}
       </InventoryLayout>
 
-      {/* ── Portaled Dialogs (outside layout so they cover the full viewport) ── */}
+      {/* Portaled dialogs stay outside the layout so they cover the full viewport. */}
       <ProductDialog
         open={addOpen}
         onClose={() => setAddOpen(false)}

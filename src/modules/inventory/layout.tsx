@@ -14,8 +14,8 @@ function InventoryLayout({ children, addProductButton }: InventoryLayoutProps) {
       <div className="flex items-start justify-between gap-4">
         <div>
           <div className="mb-1.5 flex items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-violet-500/20 bg-violet-500/10 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-violet-400">
-              <span className="h-1 w-1 rounded-full bg-violet-400" />
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/10 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-primary">
+              <span className="h-1 w-1 rounded-full bg-primary" />
               Module
             </span>
           </div>

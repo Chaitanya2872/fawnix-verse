@@ -1,6 +1,7 @@
 package com.fawnix.inventory.products.controller;
 
 import com.fawnix.inventory.products.dto.ProductDtos;
+import com.fawnix.inventory.products.dto.InventoryOverviewDtos;
 import com.fawnix.inventory.products.service.ProductService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -29,11 +30,17 @@ public class ProductController {
   public ProductDtos.ProductListResponse listProducts(
       @RequestParam(required = false) String search,
       @RequestParam(required = false) String category,
+      @RequestParam(required = false) String brand,
       @RequestParam(required = false) String status,
       @RequestParam(defaultValue = "1") int page,
       @RequestParam(defaultValue = "20") int pageSize
   ) {
-    return productService.getProducts(search, category, status, page, pageSize);
+    return productService.getProducts(search, category, brand, status, page, pageSize);
+  }
+
+  @GetMapping("/overview")
+  public InventoryOverviewDtos.InventoryOverviewResponse getOverview() {
+    return productService.getOverview();
   }
 
   @GetMapping("/{id}")

@@ -17,6 +17,8 @@ public class GatewayAuthenticationFilter implements GlobalFilter, Ordered {
   private static final List<String> PUBLIC_PREFIXES = List.of(
       "/api/auth/login",
       "/api/auth/register",
+      "/api/auth/request-otp",
+      "/api/auth/verify-otp",
       "/api/auth/refresh",
       "/api/integrations/meta/webhook",
       "/api/integrations/whatsapp/webhook",

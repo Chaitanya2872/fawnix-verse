@@ -2,17 +2,26 @@ package com.fawnix.inventory.products.service;
 
 import com.fawnix.inventory.common.exception.BadRequestException;
 import com.fawnix.inventory.common.exception.ResourceNotFoundException;
+import com.fawnix.inventory.products.dto.InventoryOverviewDtos;
 import com.fawnix.inventory.products.dto.ProductDtos;
 import com.fawnix.inventory.products.entity.ProductEntity;
 import com.fawnix.inventory.products.entity.ProductStatus;
 import com.fawnix.inventory.products.repository.ProductRepository;
 import com.fawnix.inventory.products.specification.ProductSpecifications;
+import com.fawnix.inventory.transactions.entity.StockTransactionEntity;
+import com.fawnix.inventory.transactions.entity.TransactionType;
+import com.fawnix.inventory.transactions.repository.StockTransactionRepository;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -26,21 +35,27 @@ public class ProductService {
   private static final BigDecimal ZERO = BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
 
   private final ProductRepository productRepository;
+  private final StockTransactionRepository stockTransactionRepository;
 
-  public ProductService(ProductRepository productRepository) {
+  public ProductService(
+      ProductRepository productRepository,
+      StockTransactionRepository stockTransactionRepository
+  ) {
     this.productRepository = productRepository;
+    this.stockTransactionRepository = stockTransactionRepository;
   }
 
   @Transactional(readOnly = true)
   public ProductDtos.ProductListResponse getProducts(
       String search,
       String category,
+      String brand,
       String status,
       int page,
       int pageSize
   ) {
     ProductStatus statusFilter = parseStatus(status);
-    Specification<ProductEntity> specification = ProductSpecifications.withFilters(search, category, statusFilter);
+    Specification<ProductEntity> specification = ProductSpecifications.withFilters(search, category, brand, statusFilter);
 
     int resolvedPage = Math.max(page, 1);
     int resolvedPageSize = Math.max(pageSize, 1);
@@ -63,6 +78,90 @@ public class ProductService {
   }
 
   @Transactional(readOnly = true)
+  public InventoryOverviewDtos.InventoryOverviewResponse getOverview() {
+    List<ProductEntity> products = productRepository.findAll(Sort.by(Sort.Direction.ASC, "category").and(Sort.by(Sort.Direction.ASC, "name")));
+    List<StockTransactionEntity> outwardTransactions = stockTransactionRepository.findAll().stream()
+        .filter(transaction -> transaction.getTxnType() == TransactionType.OUTWARD)
+        .sorted(Comparator.comparing(StockTransactionEntity::getTxnDate).reversed()
+            .thenComparing(StockTransactionEntity::getCreatedAt, Comparator.reverseOrder()))
+        .toList();
+
+    Map<String, List<ProductEntity>> byCategory = products.stream()
+        .collect(Collectors.groupingBy(ProductEntity::getCategory));
+
+    List<InventoryOverviewDtos.CategorySummary> categories = byCategory.entrySet().stream()
+        .map(entry -> {
+          List<ProductEntity> categoryProducts = entry.getValue();
+          return new InventoryOverviewDtos.CategorySummary(
+              entry.getKey(),
+              categoryProducts.size(),
+              categoryProducts.stream().map(ProductEntity::getBrand).filter(Objects::nonNull).map(String::trim).filter(value -> !value.isEmpty()).distinct().count(),
+              sumProductStock(categoryProducts),
+              categoryProducts.stream().filter(product -> product.getStatus() == ProductStatus.LOW_STOCK).count(),
+              categoryProducts.stream().filter(product -> product.getStatus() == ProductStatus.OUT_OF_STOCK).count()
+          );
+        })
+        .sorted(Comparator.comparing(InventoryOverviewDtos.CategorySummary::category))
+        .toList();
+
+    List<InventoryOverviewDtos.BrandSummary> brands = products.stream()
+        .filter(product -> product.getBrand() != null && !product.getBrand().isBlank())
+        .collect(Collectors.groupingBy(product -> product.getBrand().trim()))
+        .entrySet().stream()
+        .map(entry -> {
+          List<ProductEntity> brandProducts = entry.getValue();
+          return new InventoryOverviewDtos.BrandSummary(
+              entry.getKey(),
+              brandProducts.size(),
+              brandProducts.stream().map(ProductEntity::getCategory).distinct().count(),
+              sumProductStock(brandProducts)
+          );
+        })
+        .sorted(Comparator.comparing(InventoryOverviewDtos.BrandSummary::productCount).reversed()
+            .thenComparing(InventoryOverviewDtos.BrandSummary::brand))
+        .toList();
+
+    BigDecimal consumedQuantity = outwardTransactions.stream()
+        .map(StockTransactionEntity::getQuantity)
+        .reduce(ZERO, BigDecimal::add);
+    LocalDate lastConsumedOn = outwardTransactions.stream()
+        .map(StockTransactionEntity::getTxnDate)
+        .max(LocalDate::compareTo)
+        .orElse(null);
+
+    List<InventoryOverviewDtos.ConsumptionItem> recentConsumption = outwardTransactions.stream()
+        .limit(12)
+        .map(transaction -> new InventoryOverviewDtos.ConsumptionItem(
+            transaction.getId(),
+            transaction.getProduct().getSku(),
+            transaction.getProduct().getName(),
+            transaction.getProduct().getCategory(),
+            transaction.getProduct().getBrand(),
+            transaction.getTxnDate(),
+            transaction.getQuantity(),
+            transaction.getProjectRef(),
+            transaction.getIssuedBy(),
+            transaction.getNotes()
+        ))
+        .toList();
+
+    return new InventoryOverviewDtos.InventoryOverviewResponse(
+        products.size(),
+        categories.size(),
+        brands.size(),
+        sumProductStock(products),
+        categories,
+        brands,
+        new InventoryOverviewDtos.ConsumptionSummary(
+            outwardTransactions.size(),
+            consumedQuantity,
+            lastConsumedOn
+        ),
+        recentConsumption
+    );
+  }
+
+  @Transactional(readOnly = true)
   public ProductDtos.ProductResponse getProduct(String id) {
     return toResponse(requireProduct(id));
   }
@@ -78,7 +177,8 @@ public class ProductService {
     applyFields(product, request.sku(), request.name(), request.category(),
         request.subCategory(), request.brand(), request.unit(),
         request.reorderLevel(), request.description(), request.hsnCode(),
-        request.notes(), request.price(), request.stockQty());
+        request.notes(), request.price(), request.priceTier1(), request.priceTier2(),
+        request.priceTier3(), request.stockQty());
     product.setCreatedAt(now);
     product.setUpdatedAt(now);
     return toResponse(productRepository.save(product));
@@ -123,6 +223,15 @@ public class ProductService {
     if (request.price() != null) {
       product.setPrice(scale(request.price()));
     }
+    if (request.priceTier1() != null) {
+      product.setPriceTier1(scale(request.priceTier1()));
+    }
+    if (request.priceTier2() != null) {
+      product.setPriceTier2(scale(request.priceTier2()));
+    }
+    if (request.priceTier3() != null) {
+      product.setPriceTier3(scale(request.priceTier3()));
+    }
     if (request.stockQty() != null) {
       product.setStockQty(scale(request.stockQty()));
     }
@@ -163,6 +272,9 @@ public class ProductService {
       String hsnCode,
       String notes,
       BigDecimal price,
+      BigDecimal priceTier1,
+      BigDecimal priceTier2,
+      BigDecimal priceTier3,
       BigDecimal stockQty
   ) {
     product.setSku(sku.trim());
@@ -175,7 +287,10 @@ public class ProductService {
     product.setDescription(trimToNull(description));
     product.setHsnCode(trimToNull(hsnCode));
     product.setNotes(trimToNull(notes));
-    product.setPrice(scale(defaultMoney(price)));
+    product.setPrice(scale(resolveEffectivePrice(price, priceTier1, priceTier2, priceTier3)));
+    product.setPriceTier1(scaleNullable(priceTier1));
+    product.setPriceTier2(scaleNullable(priceTier2));
+    product.setPriceTier3(scaleNullable(priceTier3));
     product.setStockQty(scale(defaultMoney(stockQty)));
     product.setStatus(resolveStatus(product.getStockQty(), product.getReorderLevel()));
   }
@@ -194,6 +309,9 @@ public class ProductService {
         product.getHsnCode(),
         product.getNotes(),
         product.getPrice(),
+        product.getPriceTier1(),
+        product.getPriceTier2(),
+        product.getPriceTier3(),
         product.getStockQty(),
         product.getStatus(),
         product.getCreatedAt(),
@@ -217,6 +335,13 @@ public class ProductService {
     }
   }
 
+  private BigDecimal sumProductStock(List<ProductEntity> products) {
+    return products.stream()
+        .map(ProductEntity::getStockQty)
+        .filter(Objects::nonNull)
+        .reduce(ZERO, BigDecimal::add);
+  }
+
   private ProductStatus resolveStatus(BigDecimal stockQty, BigDecimal reorderLevel) {
     BigDecimal qty = defaultMoney(stockQty);
     BigDecimal threshold = defaultMoney(reorderLevel);
@@ -238,6 +363,34 @@ public class ProductService {
 
   private BigDecimal scale(BigDecimal value) {
     return value.setScale(2, RoundingMode.HALF_UP);
+  }
+
+  private BigDecimal scaleNullable(BigDecimal value) {
+    if (value == null) {
+      return null;
+    }
+    return scale(value);
+  }
+
+  private BigDecimal resolveEffectivePrice(
+      BigDecimal explicitPrice,
+      BigDecimal priceTier1,
+      BigDecimal priceTier2,
+      BigDecimal priceTier3
+  ) {
+    if (explicitPrice != null) {
+      return explicitPrice;
+    }
+    if (priceTier1 != null) {
+      return priceTier1;
+    }
+    if (priceTier2 != null) {
+      return priceTier2;
+    }
+    if (priceTier3 != null) {
+      return priceTier3;
+    }
+    return ZERO;
   }
 
   private String normalizeUnit(String unit) {

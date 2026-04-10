@@ -1,5 +1,6 @@
 import { api } from "@/services/api-client";
 import type {
+  InventoryOverview,
   Product,
   ProductFilter,
   ProductFormData,
@@ -11,11 +12,17 @@ export async function fetchProducts(filter: ProductFilter): Promise<PaginatedPro
     params: {
       search: filter.search,
       category: filter.category,
+      brand: filter.brand,
       status: filter.status,
       page: filter.page,
       pageSize: filter.pageSize,
     },
   });
+  return response.data;
+}
+
+export async function fetchInventoryOverview(): Promise<InventoryOverview> {
+  const response = await api.get<InventoryOverview>("/inventory/overview");
   return response.data;
 }
 

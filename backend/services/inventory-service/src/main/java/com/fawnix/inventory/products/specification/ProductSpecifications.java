@@ -13,6 +13,7 @@ public final class ProductSpecifications {
   public static Specification<ProductEntity> withFilters(
       String search,
       String category,
+      String brand,
       ProductStatus status
   ) {
     return (root, query, cb) -> {
@@ -30,6 +31,9 @@ public final class ProductSpecifications {
       }
       if (category != null && !category.isBlank()) {
         predicate = cb.and(predicate, cb.equal(cb.lower(root.get("category")), category.trim().toLowerCase(Locale.ROOT)));
+      }
+      if (brand != null && !brand.isBlank()) {
+        predicate = cb.and(predicate, cb.equal(cb.lower(root.get("brand")), brand.trim().toLowerCase(Locale.ROOT)));
       }
       if (status != null) {
         predicate = cb.and(predicate, cb.equal(root.get("status"), status));
