@@ -32,6 +32,7 @@
     <module>services/integration-service</module>
     <module>services/analytics-service</module>
     <module>services/notifications-service</module>
+    <module>services/procurement-service</module>
   </modules>
 
   <properties>

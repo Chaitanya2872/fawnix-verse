@@ -72,6 +72,12 @@ spring:
           uri: lb://SALES-SERVICE
           predicates:
             - Path=/api/sales/**
+        - id: procurement
+          uri: lb://PROCUREMENT-SERVICE
+          predicates:
+            - Path=/api/procurement/**,/api/procurement
+          filters:
+            - StripPrefix=1
 
 server:
   port: ${SERVER_PORT:8080}

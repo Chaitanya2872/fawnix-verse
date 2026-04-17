@@ -3,13 +3,6 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { LockKeyhole, ShieldCheck } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useLogin, useRequestOtp, useVerifyOtp } from "./hooks";
@@ -100,215 +93,209 @@ export default function AuthPage() {
   };
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-slate-950 text-white">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(59,130,246,0.28),_transparent_40%),radial-gradient(circle_at_bottom_right,_rgba(14,165,233,0.22),_transparent_38%),linear-gradient(135deg,_#020617_0%,_#0f172a_45%,_#111827_100%)]" />
+    <div className="flex min-h-screen">
+      {/* ── LEFT: full-bleed image panel ── */}
+      <div className="relative hidden lg:flex lg:w-1/2">
+        <img
+          src={authHero}
+          alt="Fawnix Verse secure collaboration"
+          className="absolute inset-0 h-full w-full object-cover"
+        />
+        {/* dark scrim so text is readable */}
+        <div className="absolute inset-0 bg-gradient-to-b from-slate-950/40 via-slate-950/50 to-slate-950/75" />
 
-      <div className="relative mx-auto flex min-h-screen max-w-6xl items-center justify-center px-4 py-12 sm:px-6 lg:px-8">
-        <div className="grid w-full gap-8 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
-          <section className="relative max-w-xl space-y-6">
-            <div className="pointer-events-none absolute -top-10 left-4 h-28 w-28 rounded-full bg-emerald-400/20 blur-3xl login-float" />
-            <div className="pointer-events-none absolute bottom-6 right-6 h-24 w-24 rounded-full bg-cyan-400/20 blur-3xl login-float login-float-delay" />
+        {/* overlay content — bottom-anchored */}
+        <div className="relative z-10 mt-auto p-10">
+          <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-medium tracking-[0.18em] text-emerald-100 uppercase backdrop-blur-sm">
+            <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
+            Trusted Digital Access
+          </div>
+          <h1 className="text-4xl font-semibold tracking-tight text-white sm:text-5xl">
+            Connect to your
+            <br />
+            Fawnix Verse workspace
+          </h1>
+          <div className="my-4 h-px w-24 bg-gradient-to-r from-emerald-300/70 via-cyan-300/50 to-transparent" />
+          <p className="max-w-sm text-base leading-7 text-white/70">
+            A secure launch point for CRM, sales, and operations. Authenticate
+            once to keep teams aligned and data flowing in real time.
+          </p>
+        </div>
+      </div>
 
-            <div className="rounded-[32px] border border-white/10 bg-white/5 p-6 backdrop-blur login-reveal">
-              <div className="relative mx-auto flex h-72 w-72 items-center justify-center sm:h-80 sm:w-80">
-                <div className="absolute inset-0 rounded-full bg-[radial-gradient(circle_at_top,_rgba(52,211,153,0.35),_transparent_55%),radial-gradient(circle_at_bottom,_rgba(34,211,238,0.28),_transparent_55%)] blur-2xl login-pulse" />
-                <div className="absolute inset-0 rounded-full border border-white/10 bg-white/5" />
-                <div className="absolute inset-2 rounded-full border border-emerald-300/30 login-orbit" />
-                <img
-                  src={authHero}
-                  alt="Fawnix Verse secure collaboration"
-                  className="relative z-10 h-[88%] w-[88%] rounded-full object-cover shadow-2xl shadow-emerald-500/20"
+      {/* ── RIGHT: login panel ── */}
+      <div className="flex w-full items-center justify-center bg-white px-6 py-12 lg:w-1/2">
+        <div className="w-full max-w-sm">
+          {/* header */}
+          <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-lg shadow-blue-600/30">
+            <LockKeyhole className="h-5 w-5" aria-hidden="true" />
+          </div>
+          <h2 className="mb-1 text-2xl font-semibold text-slate-900">Login</h2>
+          <p className="mb-6 text-sm text-slate-500">
+            Enter your workspace credentials to open the dashboard.
+          </p>
+
+          {/* tab switcher */}
+          <div className="mb-5 grid grid-cols-2 gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-1">
+            <button
+              type="button"
+              onClick={() => {
+                setAuthMode("password");
+                setErrorMessage(null);
+              }}
+              className={`rounded-xl px-3 py-2 text-xs font-semibold transition ${
+                authMode === "password"
+                  ? "bg-white text-slate-900 shadow-sm"
+                  : "text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              Sign in with Email
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setAuthMode("otp");
+                setErrorMessage(null);
+              }}
+              className={`rounded-xl px-3 py-2 text-xs font-semibold transition ${
+                authMode === "otp"
+                  ? "bg-white text-slate-900 shadow-sm"
+                  : "text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              Sign in with Fawnix
+            </button>
+          </div>
+
+          {/* password form */}
+          {authMode === "password" ? (
+            <form className="space-y-5" onSubmit={handleSubmit}>
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  autoComplete="email"
+                  value={credentials.email}
+                  onChange={(event) =>
+                    setCredentials((current) => ({
+                      ...current,
+                      email: event.target.value,
+                    }))
+                  }
+                  placeholder="name@company.com"
+                  className="h-11 border-slate-200 bg-white focus-visible:ring-blue-500"
+                  required
                 />
               </div>
-            </div>
 
-            <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-medium tracking-[0.18em] text-emerald-100 uppercase login-reveal login-reveal-delay-1">
-              <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
-              Trusted Digital Access
-            </div>
-
-            <div className="space-y-4 login-reveal login-reveal-delay-2">
-              <h1 className="text-4xl font-semibold tracking-tight text-white sm:text-5xl">
-                Connect to your Fawnix Verse workspace
-              </h1>
-              <div className="h-px w-32 bg-gradient-to-r from-emerald-300/70 via-cyan-300/50 to-transparent login-shimmer" />
-              <p className="max-w-lg text-base leading-7 text-slate-300 sm:text-lg">
-                A secure launch point for CRM, sales, and operations. Authenticate once
-                to keep teams aligned and data flowing in real time.
-              </p>
-            </div>
-          </section>
-
-          <Card className="border border-white/10 bg-white/95 text-slate-900 shadow-2xl shadow-slate-950/25">
-            <CardHeader className="space-y-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-lg shadow-blue-600/30">
-                <LockKeyhole className="h-5 w-5" aria-hidden="true" />
-              </div>
-              <div className="space-y-1">
-                <CardTitle className="text-2xl">Login</CardTitle>
-                <CardDescription className="text-sm text-slate-500">
-                  Enter your workspace credentials to open the dashboard.
-                </CardDescription>
-              </div>
-            </CardHeader>
-
-            <CardContent className="space-y-5">
-              <div className="grid grid-cols-2 gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-1">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAuthMode("password");
-                    setErrorMessage(null);
-                  }}
-                  className={`rounded-xl px-3 py-2 text-xs font-semibold transition ${
-                    authMode === "password"
-                      ? "bg-white text-slate-900 shadow-sm"
-                      : "text-slate-500 hover:text-slate-700"
-                  }`}
-                >
-                  Password
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAuthMode("otp");
-                    setErrorMessage(null);
-                  }}
-                  className={`rounded-xl px-3 py-2 text-xs font-semibold transition ${
-                    authMode === "otp"
-                      ? "bg-white text-slate-900 shadow-sm"
-                      : "text-slate-500 hover:text-slate-700"
-                  }`}
-                >
-                  Sign in with Fawnix
-                </button>
+              <div className="space-y-2">
+                <Label htmlFor="password">Password</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  autoComplete="current-password"
+                  value={credentials.password}
+                  onChange={(event) =>
+                    setCredentials((current) => ({
+                      ...current,
+                      password: event.target.value,
+                    }))
+                  }
+                  placeholder="Enter your password"
+                  className="h-11 border-slate-200 bg-white focus-visible:ring-blue-500"
+                  required
+                />
               </div>
 
-              {authMode === "password" ? (
-                <form className="space-y-5" onSubmit={handleSubmit}>
-                  <div className="space-y-2">
-                    <Label htmlFor="email">Email</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      autoComplete="email"
-                      value={credentials.email}
-                      onChange={(event) =>
-                        setCredentials((current) => ({
-                          ...current,
-                          email: event.target.value,
-                        }))
-                      }
-                      placeholder="name@company.com"
-                      className="h-11 border-slate-200 bg-white focus-visible:ring-blue-500"
-                      required
-                    />
-                  </div>
+              {errorMessage ? (
+                <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                  {errorMessage}
+                </div>
+              ) : null}
 
-                  <div className="space-y-2">
-                    <Label htmlFor="password">Password</Label>
-                    <Input
-                      id="password"
-                      type="password"
-                      autoComplete="current-password"
-                      value={credentials.password}
-                      onChange={(event) =>
-                        setCredentials((current) => ({
-                          ...current,
-                          password: event.target.value,
-                        }))
-                      }
-                      placeholder="Enter your password"
-                      className="h-11 border-slate-200 bg-white focus-visible:ring-blue-500"
-                      required
-                    />
-                  </div>
-
-                  {errorMessage ? (
-                    <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-                      {errorMessage}
-                    </div>
-                  ) : null}
-
+              <Button
+                type="submit"
+                className="h-11 w-full bg-blue-600 text-white hover:bg-blue-700"
+                disabled={loginMutation.isPending}
+              >
+                {loginMutation.isPending ? "Signing in..." : "Sign in"}
+              </Button>
+            </form>
+          ) : (
+            /* OTP form */
+            <form className="space-y-5" onSubmit={handleVerifyOtp}>
+              <div className="space-y-2">
+                <Label htmlFor="empCode">Employee Code</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="empCode"
+                    value={otpForm.empCode}
+                    onChange={(event) =>
+                      setOtpForm((current) => ({
+                        ...current,
+                        empCode: event.target.value,
+                      }))
+                    }
+                    placeholder="Enter your employee code"
+                    className="h-11 border-slate-200 bg-white focus-visible:ring-emerald-500"
+                    required
+                  />
                   <Button
-                    type="submit"
-                    className="h-11 w-full bg-blue-600 text-white hover:bg-blue-700"
-                    disabled={loginMutation.isPending}
+                    type="button"
+                    onClick={handleRequestOtp}
+                    className="h-11 bg-emerald-600 text-white hover:bg-emerald-700"
+                    disabled={
+                      requestOtpMutation.isPending || !otpForm.empCode.trim()
+                    }
                   >
-                    {loginMutation.isPending ? "Signing in..." : "Sign in"}
+                    {requestOtpMutation.isPending ? "Sending..." : "Request OTP"}
                   </Button>
-                </form>
-              ) : (
-                <form className="space-y-5" onSubmit={handleVerifyOtp}>
-                  <div className="space-y-2">
-                    <Label htmlFor="empCode">Employee Code</Label>
-                    <div className="flex gap-2">
-                      <Input
-                        id="empCode"
-                        value={otpForm.empCode}
-                        onChange={(event) =>
-                          setOtpForm((current) => ({
-                            ...current,
-                            empCode: event.target.value,
-                          }))
-                        }
-                        placeholder="Enter your employee code"
-                        className="h-11 border-slate-200 bg-white focus-visible:ring-emerald-500"
-                        required
-                      />
-                      <Button
-                        type="button"
-                        onClick={handleRequestOtp}
-                        className="h-11 bg-emerald-600 text-white hover:bg-emerald-700"
-                        disabled={requestOtpMutation.isPending || !otpForm.empCode.trim()}
-                      >
-                        {requestOtpMutation.isPending ? "Sending..." : "Request OTP"}
-                      </Button>
-                    </div>
-                    {otpStatus?.message ? (
-                      <p className="text-xs text-emerald-700">
-                        {otpStatus.message}
-                        {otpStatus.expiresInMinutes
-                          ? ` (expires in ${otpStatus.expiresInMinutes} min)`
-                          : ""}
-                      </p>
-                    ) : null}
-                  </div>
+                </div>
+                {otpStatus?.message ? (
+                  <p className="text-xs text-emerald-700">
+                    {otpStatus.message}
+                    {otpStatus.expiresInMinutes
+                      ? ` (expires in ${otpStatus.expiresInMinutes} min)`
+                      : ""}
+                  </p>
+                ) : null}
+              </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="otp">OTP</Label>
-                    <Input
-                      id="otp"
-                      value={otpForm.otp}
-                      onChange={(event) =>
-                        setOtpForm((current) => ({
-                          ...current,
-                          otp: event.target.value,
-                        }))
-                      }
-                      placeholder="Enter OTP"
-                      className="h-11 border-slate-200 bg-white focus-visible:ring-emerald-500"
-                      required
-                    />
-                  </div>
+              <div className="space-y-2">
+                <Label htmlFor="otp">OTP</Label>
+                <Input
+                  id="otp"
+                  value={otpForm.otp}
+                  onChange={(event) =>
+                    setOtpForm((current) => ({
+                      ...current,
+                      otp: event.target.value,
+                    }))
+                  }
+                  placeholder="Enter OTP"
+                  className="h-11 border-slate-200 bg-white focus-visible:ring-emerald-500"
+                  required
+                />
+              </div>
 
-                  {errorMessage ? (
-                    <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-                      {errorMessage}
-                    </div>
-                  ) : null}
+              {errorMessage ? (
+                <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                  {errorMessage}
+                </div>
+              ) : null}
 
-                  <Button
-                    type="submit"
-                    className="h-11 w-full bg-emerald-600 text-white hover:bg-emerald-700"
-                    disabled={verifyOtpMutation.isPending}
-                  >
-                    {verifyOtpMutation.isPending ? "Verifying..." : "Sign in with Fawnix"}
-                  </Button>
-                </form>
-              )}
-            </CardContent>
-          </Card>
+              <Button
+                type="submit"
+                className="h-11 w-full bg-emerald-600 text-white hover:bg-emerald-700"
+                disabled={verifyOtpMutation.isPending}
+              >
+                {verifyOtpMutation.isPending
+                  ? "Verifying..."
+                  : "Sign in with Fawnix"}
+              </Button>
+            </form>
+          )}
         </div>
       </div>
     </div>
