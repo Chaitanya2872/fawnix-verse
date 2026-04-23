@@ -1,9 +1,7 @@
 package com.fawnix.procurement.domain;
 
-public enum InvoiceStatus {
-  DRAFT,
+public enum PaymentStatus {
   PENDING_APPROVAL,
-  APPROVED,
   REJECTED,
   PAID
 }

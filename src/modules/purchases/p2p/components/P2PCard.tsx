@@ -6,10 +6,11 @@ type P2PCardProps = {
   description?: string;
   action?: ReactNode;
   className?: string;
+  contentClassName?: string;
   children: ReactNode;
 };
 
-export function P2PCard({ title, description, action, className, children }: P2PCardProps) {
+export function P2PCard({ title, description, action, className, contentClassName, children }: P2PCardProps) {
   return (
     <section className={cn("rounded-2xl border border-slate-200 bg-white p-6 shadow-sm", className)}>
       {(title || description || action) && (
@@ -21,7 +22,7 @@ export function P2PCard({ title, description, action, className, children }: P2P
           {action ? <div className="shrink-0">{action}</div> : null}
         </div>
       )}
-      <div className={title || description || action ? "mt-4" : ""}>{children}</div>
+      <div className={cn(title || description || action ? "mt-4" : "", contentClassName)}>{children}</div>
     </section>
   );
 }

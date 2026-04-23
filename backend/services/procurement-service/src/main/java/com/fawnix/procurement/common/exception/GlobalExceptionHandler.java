@@ -1,11 +1,9 @@
 package com.fawnix.procurement.common.exception;
 
-import com.fawnix.procurement.common.response.ApiErrorResponse;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.validation.ConstraintViolationException;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -14,23 +12,21 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.validation.FieldError;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
+
+import com.fawnix.procurement.common.response.ApiErrorResponse;
+
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.ConstraintViolationException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(GlobalExceptionHandler.class);
-
-  @ExceptionHandler(ResourceNotFoundException.class)
-  public ResponseEntity<ApiErrorResponse> handleNotFound(
-      ResourceNotFoundException exception,
-      HttpServletRequest request
-  ) {
-    LOGGER.warn("Resource not found for {} {}: {}", request.getMethod(), request.getRequestURI(), exception.getMessage());
-    return build(HttpStatus.NOT_FOUND, exception.getMessage(), request, Map.of());
-  }
 
   @ExceptionHandler({
       BadRequestException.class,
@@ -84,6 +80,24 @@ public class GlobalExceptionHandler {
   ) {
     LOGGER.warn("Malformed JSON for {} {}: {}", request.getMethod(), request.getRequestURI(), exception.getMessage());
     return build(HttpStatus.BAD_REQUEST, "Malformed JSON request body.", request, Map.of());
+  }
+
+  @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+  public ResponseEntity<ApiErrorResponse> handleMethodNotSupported(
+      HttpRequestMethodNotSupportedException exception,
+      HttpServletRequest request
+  ) {
+    LOGGER.warn("Method not supported for {} {}: {}", request.getMethod(), request.getRequestURI(), exception.getMessage());
+    return build(HttpStatus.METHOD_NOT_ALLOWED, "Request method is not supported for this endpoint.", request, Map.of());
+  }
+
+  @ExceptionHandler(NoResourceFoundException.class)
+  public ResponseEntity<ApiErrorResponse> handleNoResourceFound(
+      NoResourceFoundException exception,
+      HttpServletRequest request
+  ) {
+    LOGGER.warn("No handler or static resource found for {} {}: {}", request.getMethod(), request.getRequestURI(), exception.getMessage());
+    return build(HttpStatus.NOT_FOUND, "Endpoint not found.", request, Map.of());
   }
 
   @ExceptionHandler(Exception.class)

@@ -1,210 +1,137 @@
-import { useMemo, useState } from "react";
-import { Filter, LineChart, Sparkles } from "lucide-react";
+import { Loader2 } from "lucide-react";
+import {
+  useGoodsReceipts,
+  usePurchaseOrders,
+  usePurchaseRequisitions,
+  useVendors,
+} from "@/modules/purchases/hooks";
 import { P2PCard, P2PLayout, P2PStatusBadge } from "../components";
-import { KPI_CARDS, NEXT_ACTIONS, QUEUE_ALERTS, WORKFLOW_STAGES } from "../data";
-import { cn } from "@/lib/utils";
 
-const STAGE_TONE: Record<string, "success" | "warning" | "danger" | "info" | "neutral"> = {
-  complete: "success",
-  current: "info",
-  pending: "neutral",
-};
+function formatCurrency(value: number) {
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    maximumFractionDigits: 2,
+  }).format(value);
+}
 
 export default function P2PDashboardPage() {
-  const [activeStage, setActiveStage] = useState(WORKFLOW_STAGES[2].id);
+  const requisitionsQuery = usePurchaseRequisitions();
+  const ordersQuery = usePurchaseOrders();
+  const receiptsQuery = useGoodsReceipts();
+  const vendorsQuery = useVendors();
 
-  const filteredAlerts = useMemo(
-    () => QUEUE_ALERTS.filter((alert) => alert.stage === activeStage),
-    [activeStage]
-  );
+  const isLoading =
+    requisitionsQuery.isLoading ||
+    ordersQuery.isLoading ||
+    receiptsQuery.isLoading ||
+    vendorsQuery.isLoading;
 
-  const filteredActions = useMemo(
-    () => NEXT_ACTIONS.filter((action) => action.stage === activeStage),
-    [activeStage]
-  );
+  const requisitions = requisitionsQuery.data ?? [];
+  const orders = ordersQuery.data ?? [];
+  const receipts = receiptsQuery.data ?? [];
+  const vendors = vendorsQuery.data ?? [];
+
+  const totalRequisitionAmount = requisitions.reduce((sum, item) => sum + item.totalAmount, 0);
+  const totalOrderAmount = orders.reduce((sum, item) => sum + item.totalAmount, 0);
+  const submittedCount = requisitions.filter((item) => item.status === "SUBMITTED").length;
+  const approvedCount = requisitions.filter((item) => item.status === "APPROVED" || item.status === "PO_CREATED").length;
+  const draftCount = requisitions.filter((item) => item.status === "DRAFT").length;
+  const openPoCount = orders.filter((item) => item.status === "CREATED").length;
+
+  const recentRequisitions = [...requisitions]
+    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+    .slice(0, 5);
 
   return (
     <P2PLayout
       title="P2P Command Center"
-      subtitle="Monitor procurement performance, approvals, and payment health in one view."
+      subtitle="Live procurement overview across requisitions, orders, receipts, and supplier master data."
       meta={
         <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-slate-600">
           <span className="rounded-full border border-slate-200 bg-white px-3 py-1">
-            Cycle time: 12.4 days
+            Approved PRs: {approvedCount}
           </span>
           <span className="rounded-full border border-slate-200 bg-white px-3 py-1">
-            SLA adherence: 94%
+            Open POs: {openPoCount}
           </span>
           <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-emerald-700">
-            Stable pipeline
+            Receipts booked: {receipts.length}
           </span>
         </div>
       }
     >
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {KPI_CARDS.map((card) => (
-          <div
-            key={card.label}
-            className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
-          >
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
-              {card.label}
-            </p>
-            <div className="mt-2 flex items-end justify-between">
-              <p className="text-2xl font-semibold text-slate-900">{card.value}</p>
-              <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700">
-                {card.delta}
-              </span>
-            </div>
+        {[
+          { label: "Requisitions", value: requisitions.length, note: `${submittedCount} waiting approval` },
+          { label: "PO Value", value: formatCurrency(totalOrderAmount), note: `${orders.length} purchase order(s)` },
+          { label: "Vendor Master", value: vendors.length, note: "active suppliers" },
+          { label: "PR Value", value: formatCurrency(totalRequisitionAmount), note: `${draftCount} still in draft` },
+        ].map((card) => (
+          <div key={card.label} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">{card.label}</p>
+            <p className="mt-2 text-2xl font-semibold text-slate-900">{card.value}</p>
             <p className="mt-1 text-xs text-slate-500">{card.note}</p>
           </div>
         ))}
       </div>
 
-      <P2PCard
-        title="Workflow Stepper"
-        description="Tap a stage to filter queues and next actions."
-        action={
-          <button
-            type="button"
-            className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600"
-          >
-            <Filter className="h-3.5 w-3.5" />
-            Stage filter
-          </button>
-        }
-      >
-        <div className="flex flex-wrap gap-2">
-          {WORKFLOW_STAGES.map((stage) => (
-            <button
-              key={stage.id}
-              type="button"
-              onClick={() => setActiveStage(stage.id)}
-              className={cn(
-                "rounded-full border px-3 py-2 text-xs font-semibold uppercase tracking-wide transition",
-                activeStage === stage.id
-                  ? "border-blue-200 bg-blue-50 text-blue-700 shadow-sm"
-                  : "border-slate-200 bg-white text-slate-600 hover:border-blue-200 hover:text-blue-700"
-              )}
-            >
-              {stage.label}
-            </button>
-          ))}
-        </div>
-        <div className="mt-4 grid gap-3 md:grid-cols-[1.2fr_1fr]">
-          <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-semibold text-slate-900">Stage health</p>
-              <P2PStatusBadge label="On track" tone="success" />
+      <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
+        <P2PCard title="Recent Requisitions" description="Latest procurement requests flowing through the live service.">
+          {isLoading ? (
+            <div className="py-16 text-center">
+              <Loader2 className="mx-auto h-6 w-6 animate-spin text-blue-600" />
+              <p className="mt-3 text-sm text-slate-500">Loading dashboard data...</p>
             </div>
-            <div className="mt-3 space-y-2 text-xs text-slate-600">
-              {WORKFLOW_STAGES.map((stage) => (
-                <div key={stage.id} className="flex items-center justify-between">
-                  <span>{stage.label}</span>
-                  <P2PStatusBadge
-                    label={stage.status}
-                    tone={STAGE_TONE[stage.status]}
-                    className="capitalize"
-                  />
-                </div>
-              ))}
+          ) : recentRequisitions.length === 0 ? (
+            <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-6 text-sm text-slate-500">
+              No requisitions created yet.
             </div>
-          </div>
-          <div className="rounded-2xl border border-slate-200 bg-white p-4">
-            <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
-              <LineChart className="h-4 w-4 text-blue-600" />
-              Cycle performance
-            </div>
-            <p className="mt-1 text-xs text-slate-500">
-              Average processing time by stage (days).
-            </p>
-            <div className="mt-4 space-y-2">
-              {[
-                { label: "PR", value: 2.1 },
-                { label: "Budget", value: 1.6 },
-                { label: "Vendors", value: 2.8 },
-                { label: "Negotiation", value: 3.4 },
-              ].map((metric) => (
-                <div key={metric.label} className="flex items-center gap-3 text-xs text-slate-600">
-                  <span className="w-20 font-semibold text-slate-700">{metric.label}</span>
-                  <div className="h-2 flex-1 rounded-full bg-slate-100">
-                    <div
-                      className="h-2 rounded-full bg-blue-500"
-                      style={{ width: `${Math.min(metric.value * 18, 100)}%` }}
-                    />
-                  </div>
-                  <span className="w-10 text-right">{metric.value}d</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </P2PCard>
-
-      <div className="grid gap-6 lg:grid-cols-2">
-        <P2PCard
-          title="Queue Watch"
-          description="Alerts tied to the selected workflow stage."
-        >
-          <div className="space-y-3">
-            {filteredAlerts.length === 0 ? (
-              <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 text-sm text-slate-500">
-                No alerts for this stage.
-              </div>
-            ) : (
-              filteredAlerts.map((alert) => (
-                <div
-                  key={alert.id}
-                  className="rounded-xl border border-slate-200 bg-white p-4 transition hover:border-blue-200 hover:shadow-sm"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-sm font-semibold text-slate-900">{alert.title}</p>
+          ) : (
+            <div className="space-y-3">
+              {recentRequisitions.map((requisition) => (
+                <div key={requisition.id} className="rounded-xl border border-slate-200 bg-white p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">{requisition.prNumber}</p>
+                      <p className="text-xs text-slate-500">
+                        {requisition.department} · {requisition.items.length} item(s)
+                      </p>
+                    </div>
                     <P2PStatusBadge
-                      label={alert.tone === "success" ? "Completed" : alert.tone === "danger" ? "Issue" : "Pending"}
-                      tone={alert.tone as "success" | "warning" | "danger"}
+                      label={requisition.status.replace("_", " ")}
+                      tone={
+                        requisition.status === "REJECTED"
+                          ? "danger"
+                          : requisition.status === "DRAFT"
+                            ? "neutral"
+                            : requisition.status === "SUBMITTED"
+                              ? "warning"
+                              : "success"
+                      }
                     />
                   </div>
-                  <p className="mt-1 text-xs text-slate-500">{alert.detail}</p>
+                  <p className="mt-2 text-sm text-slate-700">{formatCurrency(requisition.totalAmount)}</p>
                 </div>
-              ))
-            )}
-          </div>
+              ))}
+            </div>
+          )}
         </P2PCard>
 
-        <P2PCard
-          title="Next Actions"
-          description="Focus tasks for the selected stage."
-          action={
-            <button
-              type="button"
-              className="inline-flex items-center gap-1.5 rounded-full bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm shadow-blue-600/20"
-            >
-              <Sparkles className="h-3.5 w-3.5" />
-              Auto-assign
-            </button>
-          }
-        >
+        <P2PCard title="Operational Queue" description="Current counts by live procurement stage.">
           <div className="space-y-3">
-            {filteredActions.length === 0 ? (
-              <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 text-sm text-slate-500">
-                No actions queued for this stage.
+            {[
+              { label: "Draft PRs", value: draftCount, tone: "neutral" as const },
+              { label: "Submitted PRs", value: submittedCount, tone: "warning" as const },
+              { label: "Approved / Converted PRs", value: approvedCount, tone: "success" as const },
+              { label: "Open Purchase Orders", value: openPoCount, tone: "info" as const },
+              { label: "Goods Receipts", value: receipts.length, tone: "success" as const },
+            ].map((item) => (
+              <div key={item.label} className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-4">
+                <span className="text-sm font-medium text-slate-700">{item.label}</span>
+                <P2PStatusBadge label={String(item.value)} tone={item.tone} />
               </div>
-            ) : (
-              filteredActions.map((action) => (
-                <div
-                  key={action.id}
-                  className="rounded-xl border border-slate-200 bg-white p-4 transition hover:border-blue-200 hover:shadow-sm"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-sm font-semibold text-slate-900">{action.action}</p>
-                    <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-600">
-                      {action.owner}
-                    </span>
-                  </div>
-                  <p className="mt-1 text-xs text-slate-500">Due {action.due}</p>
-                </div>
-              ))
-            )}
+            ))}
           </div>
         </P2PCard>
       </div>

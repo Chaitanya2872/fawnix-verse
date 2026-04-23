@@ -36,6 +36,10 @@ public class PurchaseRequisition extends AuditableEntity {
   private LocalDate neededByDate;
 
   @Enumerated(EnumType.STRING)
+  @Column(name = "request_type", nullable = false, length = 40)
+  private PurchaseRequisitionType requestType;
+
+  @Enumerated(EnumType.STRING)
   @Column(name = "status", nullable = false, length = 40)
   private PurchaseRequisitionStatus status;
 
@@ -57,6 +61,27 @@ public class PurchaseRequisition extends AuditableEntity {
 
   @Column(name = "rejection_reason", columnDefinition = "text")
   private String rejectionReason;
+
+  @Column(name = "evaluation_decision", length = 120)
+  private String evaluationDecision;
+
+  @Column(name = "evaluation_notes", columnDefinition = "text")
+  private String evaluationNotes;
+
+  @Column(name = "evaluation_updated_at")
+  private Instant evaluationUpdatedAt;
+
+  @Column(name = "negotiation_vendor_id")
+  private UUID negotiationVendorId;
+
+  @Column(name = "negotiated_amount", precision = 19, scale = 2)
+  private java.math.BigDecimal negotiatedAmount;
+
+  @Column(name = "negotiation_notes", columnDefinition = "text")
+  private String negotiationNotes;
+
+  @Column(name = "negotiation_updated_at")
+  private Instant negotiationUpdatedAt;
 
   public UUID getId() {
     return id;
@@ -104,6 +129,14 @@ public class PurchaseRequisition extends AuditableEntity {
 
   public void setNeededByDate(LocalDate neededByDate) {
     this.neededByDate = neededByDate;
+  }
+
+  public PurchaseRequisitionType getRequestType() {
+    return requestType;
+  }
+
+  public void setRequestType(PurchaseRequisitionType requestType) {
+    this.requestType = requestType;
   }
 
   public PurchaseRequisitionStatus getStatus() {
@@ -160,5 +193,61 @@ public class PurchaseRequisition extends AuditableEntity {
 
   public void setRejectionReason(String rejectionReason) {
     this.rejectionReason = rejectionReason;
+  }
+
+  public String getEvaluationDecision() {
+    return evaluationDecision;
+  }
+
+  public void setEvaluationDecision(String evaluationDecision) {
+    this.evaluationDecision = evaluationDecision;
+  }
+
+  public String getEvaluationNotes() {
+    return evaluationNotes;
+  }
+
+  public void setEvaluationNotes(String evaluationNotes) {
+    this.evaluationNotes = evaluationNotes;
+  }
+
+  public Instant getEvaluationUpdatedAt() {
+    return evaluationUpdatedAt;
+  }
+
+  public void setEvaluationUpdatedAt(Instant evaluationUpdatedAt) {
+    this.evaluationUpdatedAt = evaluationUpdatedAt;
+  }
+
+  public UUID getNegotiationVendorId() {
+    return negotiationVendorId;
+  }
+
+  public void setNegotiationVendorId(UUID negotiationVendorId) {
+    this.negotiationVendorId = negotiationVendorId;
+  }
+
+  public java.math.BigDecimal getNegotiatedAmount() {
+    return negotiatedAmount;
+  }
+
+  public void setNegotiatedAmount(java.math.BigDecimal negotiatedAmount) {
+    this.negotiatedAmount = negotiatedAmount;
+  }
+
+  public String getNegotiationNotes() {
+    return negotiationNotes;
+  }
+
+  public void setNegotiationNotes(String negotiationNotes) {
+    this.negotiationNotes = negotiationNotes;
+  }
+
+  public Instant getNegotiationUpdatedAt() {
+    return negotiationUpdatedAt;
+  }
+
+  public void setNegotiationUpdatedAt(Instant negotiationUpdatedAt) {
+    this.negotiationUpdatedAt = negotiationUpdatedAt;
   }
 }

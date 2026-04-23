@@ -1,8 +1,11 @@
 package com.fawnix.procurement.repository;
 
 import com.fawnix.procurement.domain.Invoice;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface InvoiceRepository extends JpaRepository<Invoice, UUID> {
+
+  Optional<Invoice> findByInvoiceNumber(String invoiceNumber);
 }

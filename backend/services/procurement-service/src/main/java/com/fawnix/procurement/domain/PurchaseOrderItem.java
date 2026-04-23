@@ -21,10 +21,10 @@ public class PurchaseOrderItem extends AuditableEntity {
   @JoinColumn(name = "purchase_order_id", nullable = false)
   private PurchaseOrder purchaseOrder;
 
-  @Column(name = "product_id", nullable = false)
+  @Column(name = "product_id")
   private UUID productId;
 
-  @Column(name = "sku", nullable = false, length = 60)
+  @Column(name = "sku", length = 60)
   private String sku;
 
   @Column(name = "product_name", nullable = false, length = 200)

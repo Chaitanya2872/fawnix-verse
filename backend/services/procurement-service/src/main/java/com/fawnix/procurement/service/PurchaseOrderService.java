@@ -112,17 +112,28 @@ public class PurchaseOrderService {
   }
 
   private PurchaseOrderItem createPurchaseOrderItem(PurchaseOrder purchaseOrder, PurchaseRequisitionItem requisitionItem) {
-    InventoryProductResponse product = fetchProduct(requisitionItem.getProductId());
     PurchaseOrderItem item = new PurchaseOrderItem();
     item.setId(UUID.randomUUID());
     item.setPurchaseOrder(purchaseOrder);
-    item.setProductId(requisitionItem.getProductId());
-    item.setSku(product.sku());
-    item.setProductName(product.name());
-    item.setCategory(product.category());
-    item.setUnit(product.unit());
+
+    if (requisitionItem.getProductId() != null) {
+      InventoryProductResponse product = fetchProduct(requisitionItem.getProductId());
+      item.setProductId(requisitionItem.getProductId());
+      item.setSku(product.sku());
+      item.setProductName(product.name());
+      item.setCategory(product.category());
+      item.setUnit(product.unit());
+      item.setUnitPrice(scale(product.price() == null ? requisitionItem.getEstimatedUnitPrice() : product.price()));
+    } else {
+      item.setProductId(null);
+      item.setSku(requisitionItem.getSku());
+      item.setProductName(requisitionItem.getProductName());
+      item.setCategory(requisitionItem.getCategory());
+      item.setUnit(requisitionItem.getUnit());
+      item.setUnitPrice(scale(requisitionItem.getEstimatedUnitPrice()));
+    }
+
     item.setQuantity(scale(requisitionItem.getQuantity()));
-    item.setUnitPrice(scale(product.price() == null ? requisitionItem.getEstimatedUnitPrice() : product.price()));
     item.setLineTotal(scale(item.getQuantity().multiply(item.getUnitPrice())));
     return item;
   }

@@ -2,8 +2,11 @@ package com.fawnix.procurement.dto;
 
 import com.fawnix.procurement.domain.ApprovalAction;
 import com.fawnix.procurement.domain.GoodsReceiptStatus;
+import com.fawnix.procurement.domain.InvoiceStatus;
+import com.fawnix.procurement.domain.PaymentStatus;
 import com.fawnix.procurement.domain.PurchaseOrderStatus;
 import com.fawnix.procurement.domain.PurchaseRequisitionStatus;
+import com.fawnix.procurement.domain.PurchaseRequisitionType;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Email;
@@ -25,6 +28,8 @@ public final class ProcurementDtos {
   public record CreatePurchaseRequisitionRequest(
       @NotNull(message = "Requester ID is required.")
       UUID requesterId,
+      @NotNull(message = "Request type is required.")
+      PurchaseRequisitionType requestType,
       @NotBlank(message = "Department is required.")
       String department,
       String purpose,
@@ -35,11 +40,21 @@ public final class ProcurementDtos {
   }
 
   public record PurchaseRequisitionItemRequest(
-      @NotNull(message = "Product ID is required.")
       UUID productId,
+      @Size(max = 60, message = "SKU cannot exceed 60 characters.")
+      String sku,
+      @Size(max = 200, message = "Product name cannot exceed 200 characters.")
+      String productName,
+      @Size(max = 80, message = "Category cannot exceed 80 characters.")
+      String category,
+      @Size(max = 20, message = "Unit cannot exceed 20 characters.")
+      String unit,
       @NotNull(message = "Quantity is required.")
       @DecimalMin(value = "0.01", message = "Quantity must be greater than 0.")
       BigDecimal quantity,
+      @NotNull(message = "Estimated unit price is required.")
+      @DecimalMin(value = "0.00", inclusive = true, message = "Estimated unit price cannot be negative.")
+      BigDecimal estimatedUnitPrice,
       String remarks
   ) {
   }
@@ -51,6 +66,23 @@ public final class ProcurementDtos {
       UUID actorId,
       @Size(max = 1000, message = "Remarks cannot exceed 1000 characters.")
       String remarks
+  ) {
+  }
+
+  public record UpdatePurchaseRequisitionEvaluationRequest(
+      @Size(max = 120, message = "Decision cannot exceed 120 characters.")
+      String decision,
+      @Size(max = 2000, message = "Evaluation notes cannot exceed 2000 characters.")
+      String notes
+  ) {
+  }
+
+  public record UpdatePurchaseRequisitionNegotiationRequest(
+      UUID vendorId,
+      @DecimalMin(value = "0.00", inclusive = true, message = "Negotiated amount cannot be negative.")
+      BigDecimal negotiatedAmount,
+      @Size(max = 2000, message = "Negotiation notes cannot exceed 2000 characters.")
+      String notes
   ) {
   }
 
@@ -71,6 +103,30 @@ public final class ProcurementDtos {
       LocalDate receiptDate,
       @NotNull(message = "Received by is required.")
       UUID receivedBy,
+      String remarks
+  ) {
+  }
+
+  public record CreateInvoiceRequest(
+      @NotBlank(message = "Invoice number is required.")
+      String invoiceNumber,
+      @NotNull(message = "Purchase order ID is required.")
+      UUID purchaseOrderId,
+      @NotNull(message = "Invoice date is required.")
+      LocalDate invoiceDate,
+      LocalDate dueDate,
+      @NotNull(message = "Invoice amount is required.")
+      @DecimalMin(value = "0.01", message = "Invoice amount must be greater than 0.")
+      BigDecimal amount
+  ) {
+  }
+
+  public record CreatePaymentRequest(
+      @NotNull(message = "Invoice ID is required.")
+      UUID invoiceId,
+      @NotNull(message = "Requested by is required.")
+      UUID requestedBy,
+      LocalDate paymentDate,
       String remarks
   ) {
   }
@@ -129,6 +185,7 @@ public final class ProcurementDtos {
       UUID id,
       String prNumber,
       UUID requesterId,
+      PurchaseRequisitionType requestType,
       String department,
       String purpose,
       LocalDate neededByDate,
@@ -138,6 +195,13 @@ public final class ProcurementDtos {
       Instant approvedAt,
       Instant rejectedAt,
       String rejectionReason,
+      String evaluationDecision,
+      String evaluationNotes,
+      Instant evaluationUpdatedAt,
+      UUID negotiationVendorId,
+      BigDecimal negotiatedAmount,
+      String negotiationNotes,
+      Instant negotiationUpdatedAt,
       BigDecimal totalAmount,
       List<PurchaseRequisitionItemResponse> items,
       Instant createdAt,
@@ -158,6 +222,16 @@ public final class ProcurementDtos {
       String state,
       String country,
       String postalCode,
+      Instant createdAt,
+      Instant updatedAt
+  ) {
+  }
+
+  public record VendorDocumentResponse(
+      UUID id,
+      String fileName,
+      String contentType,
+      long fileSize,
       Instant createdAt,
       Instant updatedAt
   ) {
@@ -203,6 +277,40 @@ public final class ProcurementDtos {
       LocalDate receiptDate,
       UUID receivedBy,
       GoodsReceiptStatus status,
+      String remarks,
+      Instant createdAt,
+      Instant updatedAt
+  ) {
+  }
+
+  public record InvoiceResponse(
+      UUID id,
+      String invoiceNumber,
+      UUID purchaseOrderId,
+      String poNumber,
+      VendorResponse vendor,
+      LocalDate invoiceDate,
+      LocalDate dueDate,
+      BigDecimal amount,
+      String matchingStatus,
+      String matchingNotes,
+      InvoiceStatus status,
+      Instant createdAt,
+      Instant updatedAt
+  ) {
+  }
+
+  public record PaymentResponse(
+      UUID id,
+      String paymentNumber,
+      UUID invoiceId,
+      String invoiceNumber,
+      VendorResponse vendor,
+      LocalDate paymentDate,
+      UUID requestedBy,
+      UUID approvedBy,
+      BigDecimal amount,
+      PaymentStatus status,
       String remarks,
       Instant createdAt,
       Instant updatedAt

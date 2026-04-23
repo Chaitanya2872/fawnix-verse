@@ -1,25 +1,40 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createGoodsReceipt,
+  createInvoice,
+  createPayment,
   createPurchaseOrder,
   createPurchaseRequisition,
   createVendor,
   deleteVendor,
+  deleteVendorDocument,
   fetchGoodsReceipts,
+  fetchInvoices,
+  fetchPayments,
   fetchProcurementProducts,
   fetchPurchaseOrders,
   fetchPurchaseRequisitions,
+  fetchVendorDocuments,
   fetchVendors,
   reviewPurchaseRequisition,
+  reviewInvoice,
+  reviewPayment,
   submitPurchaseRequisition,
+  uploadVendorDocument,
+  updatePurchaseRequisitionEvaluation,
+  updatePurchaseRequisitionNegotiation,
   updateVendor,
 } from "./api";
 import type {
   CreateGoodsReceiptPayload,
+  CreateInvoicePayload,
+  CreatePaymentPayload,
   CreatePurchaseOrderPayload,
   CreatePurchaseRequisitionPayload,
   CreateVendorPayload,
   ReviewPurchaseRequisitionPayload,
+  UpdatePurchaseRequisitionEvaluationPayload,
+  UpdatePurchaseRequisitionNegotiationPayload,
   UpdateVendorPayload,
 } from "./types";
 
@@ -28,8 +43,11 @@ export const procurementKeys = {
   products: () => [...procurementKeys.all, "products"] as const,
   requisitions: () => [...procurementKeys.all, "requisitions"] as const,
   vendors: () => [...procurementKeys.all, "vendors"] as const,
+  vendorDocuments: (vendorId: string) => [...procurementKeys.vendors(), vendorId, "documents"] as const,
   orders: () => [...procurementKeys.all, "orders"] as const,
   receipts: () => [...procurementKeys.all, "receipts"] as const,
+  invoices: () => [...procurementKeys.all, "invoices"] as const,
+  payments: () => [...procurementKeys.all, "payments"] as const,
 };
 
 export function useProcurementProducts() {
@@ -72,6 +90,34 @@ export function useReviewPurchaseRequisition() {
   });
 }
 
+export function useUpdatePurchaseRequisitionEvaluation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      payload,
+    }: {
+      id: string;
+      payload: UpdatePurchaseRequisitionEvaluationPayload;
+    }) => updatePurchaseRequisitionEvaluation(id, payload),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: procurementKeys.requisitions() }),
+  });
+}
+
+export function useUpdatePurchaseRequisitionNegotiation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      payload,
+    }: {
+      id: string;
+      payload: UpdatePurchaseRequisitionNegotiationPayload;
+    }) => updatePurchaseRequisitionNegotiation(id, payload),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: procurementKeys.requisitions() }),
+  });
+}
+
 export function useVendors() {
   return useQuery({
     queryKey: procurementKeys.vendors(),
@@ -84,6 +130,35 @@ export function useCreateVendor() {
   return useMutation({
     mutationFn: (payload: CreateVendorPayload) => createVendor(payload),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: procurementKeys.vendors() }),
+  });
+}
+
+export function useVendorDocuments(vendorId?: string) {
+  return useQuery({
+    queryKey: procurementKeys.vendorDocuments(vendorId ?? "unknown"),
+    queryFn: () => fetchVendorDocuments(vendorId!),
+    enabled: !!vendorId,
+  });
+}
+
+export function useUploadVendorDocument() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ vendorId, file }: { vendorId: string; file: File }) => uploadVendorDocument(vendorId, file),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: procurementKeys.vendorDocuments(variables.vendorId) });
+    },
+  });
+}
+
+export function useDeleteVendorDocument() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ vendorId, documentId }: { vendorId: string; documentId: string }) =>
+      deleteVendorDocument(vendorId, documentId),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: procurementKeys.vendorDocuments(variables.vendorId) });
+    },
   });
 }
 
@@ -142,6 +217,60 @@ export function useCreateGoodsReceipt() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: procurementKeys.receipts() });
       queryClient.invalidateQueries({ queryKey: procurementKeys.orders() });
+    },
+  });
+}
+
+export function useInvoices() {
+  return useQuery({
+    queryKey: procurementKeys.invoices(),
+    queryFn: fetchInvoices,
+  });
+}
+
+export function useCreateInvoice() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: CreateInvoicePayload) => createInvoice(payload),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: procurementKeys.invoices() }),
+  });
+}
+
+export function useReviewInvoice() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: ReviewPurchaseRequisitionPayload }) =>
+      reviewInvoice(id, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: procurementKeys.invoices() });
+      queryClient.invalidateQueries({ queryKey: procurementKeys.payments() });
+    },
+  });
+}
+
+export function usePayments() {
+  return useQuery({
+    queryKey: procurementKeys.payments(),
+    queryFn: fetchPayments,
+  });
+}
+
+export function useCreatePayment() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: CreatePaymentPayload) => createPayment(payload),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: procurementKeys.payments() }),
+  });
+}
+
+export function useReviewPayment() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: ReviewPurchaseRequisitionPayload }) =>
+      reviewPayment(id, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: procurementKeys.payments() });
+      queryClient.invalidateQueries({ queryKey: procurementKeys.invoices() });
     },
   });
 }

@@ -33,6 +33,7 @@ management:
 
 app:
   security:
+    internal-service-secret: ${INTERNAL_SERVICE_SECRET:fawnix-internal-secret}
     jwt:
       issuer: fawnix-verse
       access-token-expiration-minutes: 30

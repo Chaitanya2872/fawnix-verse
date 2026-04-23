@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/procurement/goods-receipts")
+@RequestMapping({"/procurement/goods-receipts", "/goods-receipts"})
 public class GoodsReceiptController {
 
   private final GoodsReceiptService goodsReceiptService;

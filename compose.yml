@@ -657,6 +657,7 @@ services:
       SERVER_PORT: "8093"
       EUREKA_SERVER_URL: http://eureka-server:8761/eureka/
       JWT_SECRET: ${JWT_SECRET:-change-this-local-dev-secret-change-this-local-dev-secret}
+      INTERNAL_SERVICE_SECRET: ${INTERNAL_SERVICE_SECRET:-fawnix-internal-secret}
       PROCUREMENT_DB_URL: jdbc:postgresql://postgres:5432/fawnix_procurement
       PROCUREMENT_DB_USERNAME: ${POSTGRES_USER:-postgres}
       PROCUREMENT_DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}

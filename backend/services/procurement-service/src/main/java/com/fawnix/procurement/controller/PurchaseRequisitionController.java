@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/procurement/requisitions")
+@RequestMapping({"/procurement/requisitions", "/requisitions"})
 public class PurchaseRequisitionController {
 
   private final PurchaseRequisitionService purchaseRequisitionService;
@@ -56,5 +56,21 @@ public class PurchaseRequisitionController {
       @Valid @RequestBody ProcurementDtos.ApprovalDecisionRequest request
   ) {
     return purchaseRequisitionService.reviewPurchaseRequisition(id, request);
+  }
+
+  @PostMapping("/{id}/evaluation")
+  public ProcurementDtos.PurchaseRequisitionResponse updatePurchaseRequisitionEvaluation(
+      @PathVariable UUID id,
+      @Valid @RequestBody ProcurementDtos.UpdatePurchaseRequisitionEvaluationRequest request
+  ) {
+    return purchaseRequisitionService.updatePurchaseRequisitionEvaluation(id, request);
+  }
+
+  @PostMapping("/{id}/negotiation")
+  public ProcurementDtos.PurchaseRequisitionResponse updatePurchaseRequisitionNegotiation(
+      @PathVariable UUID id,
+      @Valid @RequestBody ProcurementDtos.UpdatePurchaseRequisitionNegotiationRequest request
+  ) {
+    return purchaseRequisitionService.updatePurchaseRequisitionNegotiation(id, request);
   }
 }

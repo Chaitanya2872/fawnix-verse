@@ -1,11 +1,14 @@
 package com.fawnix.procurement.mapper;
 
 import com.fawnix.procurement.domain.GoodsReceipt;
+import com.fawnix.procurement.domain.Invoice;
+import com.fawnix.procurement.domain.Payment;
 import com.fawnix.procurement.domain.PurchaseOrder;
 import com.fawnix.procurement.domain.PurchaseOrderItem;
 import com.fawnix.procurement.domain.PurchaseRequisition;
 import com.fawnix.procurement.domain.PurchaseRequisitionItem;
 import com.fawnix.procurement.domain.Vendor;
+import com.fawnix.procurement.domain.VendorDocument;
 import com.fawnix.procurement.dto.ProcurementDtos;
 import java.math.BigDecimal;
 import java.util.List;
@@ -30,6 +33,7 @@ public class ProcurementMapper {
         requisition.getId(),
         requisition.getPrNumber(),
         requisition.getRequesterId(),
+        requisition.getRequestType(),
         requisition.getDepartment(),
         requisition.getPurpose(),
         requisition.getNeededByDate(),
@@ -39,6 +43,13 @@ public class ProcurementMapper {
         requisition.getApprovedAt(),
         requisition.getRejectedAt(),
         requisition.getRejectionReason(),
+        requisition.getEvaluationDecision(),
+        requisition.getEvaluationNotes(),
+        requisition.getEvaluationUpdatedAt(),
+        requisition.getNegotiationVendorId(),
+        requisition.getNegotiatedAmount(),
+        requisition.getNegotiationNotes(),
+        requisition.getNegotiationUpdatedAt(),
         totalAmount,
         itemResponses,
         requisition.getCreatedAt(),
@@ -79,6 +90,17 @@ public class ProcurementMapper {
         vendor.getPostalCode(),
         vendor.getCreatedAt(),
         vendor.getUpdatedAt()
+    );
+  }
+
+  public ProcurementDtos.VendorDocumentResponse toVendorDocumentResponse(VendorDocument vendorDocument) {
+    return new ProcurementDtos.VendorDocumentResponse(
+        vendorDocument.getId(),
+        vendorDocument.getFileName(),
+        vendorDocument.getContentType(),
+        vendorDocument.getFileSize(),
+        vendorDocument.getCreatedAt(),
+        vendorDocument.getUpdatedAt()
     );
   }
 
@@ -135,6 +157,46 @@ public class ProcurementMapper {
         receipt.getRemarks(),
         receipt.getCreatedAt(),
         receipt.getUpdatedAt()
+    );
+  }
+
+  public ProcurementDtos.InvoiceResponse toInvoiceResponse(
+      Invoice invoice,
+      String matchingStatus,
+      String matchingNotes
+  ) {
+    return new ProcurementDtos.InvoiceResponse(
+        invoice.getId(),
+        invoice.getInvoiceNumber(),
+        invoice.getPurchaseOrder().getId(),
+        invoice.getPurchaseOrder().getPoNumber(),
+        toVendorResponse(invoice.getVendor()),
+        invoice.getInvoiceDate(),
+        invoice.getDueDate(),
+        invoice.getAmount(),
+        matchingStatus,
+        matchingNotes,
+        invoice.getStatus(),
+        invoice.getCreatedAt(),
+        invoice.getUpdatedAt()
+    );
+  }
+
+  public ProcurementDtos.PaymentResponse toPaymentResponse(Payment payment) {
+    return new ProcurementDtos.PaymentResponse(
+        payment.getId(),
+        payment.getPaymentNumber(),
+        payment.getInvoice().getId(),
+        payment.getInvoice().getInvoiceNumber(),
+        toVendorResponse(payment.getInvoice().getVendor()),
+        payment.getPaymentDate(),
+        payment.getRequestedBy(),
+        payment.getApprovedBy(),
+        payment.getAmount(),
+        payment.getStatus(),
+        payment.getRemarks(),
+        payment.getCreatedAt(),
+        payment.getUpdatedAt()
     );
   }
 }

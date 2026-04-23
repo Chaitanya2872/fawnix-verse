@@ -3,15 +3,22 @@ import type { Product } from "@/modules/inventory/types";
 import { api, ensureApiSession, getApiErrorMessage } from "@/services/api-client";
 import type {
   CreateGoodsReceiptPayload,
+  CreateInvoicePayload,
+  CreatePaymentPayload,
   CreatePurchaseOrderPayload,
   CreatePurchaseRequisitionPayload,
   CreateVendorPayload,
   GoodsReceipt,
+  Invoice,
+  Payment,
   PurchaseOrder,
   PurchaseRequisition,
   ReviewPurchaseRequisitionPayload,
+  UpdatePurchaseRequisitionEvaluationPayload,
+  UpdatePurchaseRequisitionNegotiationPayload,
   UpdateVendorPayload,
   Vendor,
+  VendorDocument,
 } from "./types";
 
 function rethrow(error: unknown, fallback: string): never {
@@ -90,6 +97,38 @@ export async function reviewPurchaseRequisition(
   }
 }
 
+export async function updatePurchaseRequisitionEvaluation(
+  id: string,
+  payload: UpdatePurchaseRequisitionEvaluationPayload
+): Promise<PurchaseRequisition> {
+  try {
+    await ensureApiSession();
+    const response = await api.post<PurchaseRequisition>(
+      `/procurement/requisitions/${id}/evaluation`,
+      payload
+    );
+    return response.data;
+  } catch (error) {
+    rethrow(error, "Failed to save requisition evaluation.");
+  }
+}
+
+export async function updatePurchaseRequisitionNegotiation(
+  id: string,
+  payload: UpdatePurchaseRequisitionNegotiationPayload
+): Promise<PurchaseRequisition> {
+  try {
+    await ensureApiSession();
+    const response = await api.post<PurchaseRequisition>(
+      `/procurement/requisitions/${id}/negotiation`,
+      payload
+    );
+    return response.data;
+  } catch (error) {
+    rethrow(error, "Failed to save requisition negotiation.");
+  }
+}
+
 export async function fetchVendors(): Promise<Vendor[]> {
   try {
     await ensureApiSession();
@@ -126,6 +165,51 @@ export async function deleteVendor(id: string): Promise<void> {
     await api.delete(`/procurement/vendors/${id}`);
   } catch (error) {
     rethrow(error, "Failed to delete vendor.");
+  }
+}
+
+export async function fetchVendorDocuments(vendorId: string): Promise<VendorDocument[]> {
+  try {
+    await ensureApiSession();
+    const response = await api.get<VendorDocument[]>(`/procurement/vendors/${vendorId}/documents`);
+    return response.data;
+  } catch (error) {
+    rethrow(error, "Failed to load vendor documents.");
+  }
+}
+
+export async function uploadVendorDocument(vendorId: string, file: File): Promise<VendorDocument> {
+  try {
+    await ensureApiSession();
+    const formData = new FormData();
+    formData.append("file", file);
+    const response = await api.post<VendorDocument>(`/procurement/vendors/${vendorId}/documents`, formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+    return response.data;
+  } catch (error) {
+    rethrow(error, "Failed to upload vendor document.");
+  }
+}
+
+export async function deleteVendorDocument(vendorId: string, documentId: string): Promise<void> {
+  try {
+    await ensureApiSession();
+    await api.delete(`/procurement/vendors/${vendorId}/documents/${documentId}`);
+  } catch (error) {
+    rethrow(error, "Failed to delete vendor document.");
+  }
+}
+
+export async function fetchVendorDocumentContent(vendorId: string, documentId: string): Promise<Blob> {
+  try {
+    await ensureApiSession();
+    const response = await api.get(`/procurement/vendors/${vendorId}/documents/${documentId}/content`, {
+      responseType: "blob",
+    });
+    return response.data as Blob;
+  } catch (error) {
+    rethrow(error, "Failed to load vendor document content.");
   }
 }
 
@@ -174,5 +258,71 @@ export async function createGoodsReceipt(
     return response.data;
   } catch (error) {
     rethrow(error, "Failed to create goods receipt.");
+  }
+}
+
+export async function fetchInvoices(): Promise<Invoice[]> {
+  try {
+    await ensureApiSession();
+    const response = await api.get<Invoice[]>("/procurement/invoices");
+    return response.data;
+  } catch (error) {
+    rethrow(error, "Failed to load invoices.");
+  }
+}
+
+export async function createInvoice(payload: CreateInvoicePayload): Promise<Invoice> {
+  try {
+    await ensureApiSession();
+    const response = await api.post<Invoice>("/procurement/invoices", payload);
+    return response.data;
+  } catch (error) {
+    rethrow(error, "Failed to create invoice.");
+  }
+}
+
+export async function reviewInvoice(
+  id: string,
+  payload: ReviewPurchaseRequisitionPayload
+): Promise<Invoice> {
+  try {
+    await ensureApiSession();
+    const response = await api.post<Invoice>(`/procurement/invoices/${id}/approval-actions`, payload);
+    return response.data;
+  } catch (error) {
+    rethrow(error, "Failed to review invoice.");
+  }
+}
+
+export async function fetchPayments(): Promise<Payment[]> {
+  try {
+    await ensureApiSession();
+    const response = await api.get<Payment[]>("/procurement/payments");
+    return response.data;
+  } catch (error) {
+    rethrow(error, "Failed to load payments.");
+  }
+}
+
+export async function createPayment(payload: CreatePaymentPayload): Promise<Payment> {
+  try {
+    await ensureApiSession();
+    const response = await api.post<Payment>("/procurement/payments", payload);
+    return response.data;
+  } catch (error) {
+    rethrow(error, "Failed to create payment request.");
+  }
+}
+
+export async function reviewPayment(
+  id: string,
+  payload: ReviewPurchaseRequisitionPayload
+): Promise<Payment> {
+  try {
+    await ensureApiSession();
+    const response = await api.post<Payment>(`/procurement/payments/${id}/approval-actions`, payload);
+    return response.data;
+  } catch (error) {
+    rethrow(error, "Failed to review payment request.");
   }
 }

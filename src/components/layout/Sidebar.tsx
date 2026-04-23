@@ -17,10 +17,12 @@ import {
   Settings,
   Settings2,
   ShoppingCart,
+  Truck,
   Target,
   UserRoundSearch,
   UserPlus,
   Users,
+  CreditCard,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -53,7 +55,17 @@ const ERP_NAV_SECTIONS: readonly SidebarNavSection[] = [
     items: [
       { label: "Inventory", to: "/inventory", icon: Boxes, permission: PERMISSIONS.PAGE_INVENTORY },
       { label: "Quotations", to: "/sales", icon: FileText, permission: PERMISSIONS.PAGE_SALES },
-      { label: "P2P", to: "/p2p", icon: ShoppingCart, permission: PERMISSIONS.PAGE_PURCHASES },
+    ],
+  },
+  {
+    heading: "P2P",
+    items: [
+      { label: "PR Management", to: "/p2p/pr", icon: ClipboardList, permission: PERMISSIONS.PAGE_PURCHASES },
+      { label: "Vendor Management", to: "/p2p/vendors", icon: Building2, permission: PERMISSIONS.PAGE_PURCHASES },
+      { label: "Purchase Order", to: "/p2p/po", icon: ShoppingCart, permission: PERMISSIONS.PAGE_PURCHASES },
+      { label: "Material Receipt", to: "/p2p/receipt", icon: Truck, permission: PERMISSIONS.PAGE_PURCHASES },
+      { label: "Invoice", to: "/p2p/invoice", icon: FileText, permission: PERMISSIONS.PAGE_PURCHASES },
+      { label: "Payment", to: "/p2p/payment", icon: CreditCard, permission: PERMISSIONS.PAGE_PURCHASES },
     ],
   },
   {
