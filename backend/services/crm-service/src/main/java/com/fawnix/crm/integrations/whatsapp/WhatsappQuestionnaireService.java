@@ -11,6 +11,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
@@ -166,9 +167,11 @@ public class WhatsappQuestionnaireService {
     List<String> bodyParams = List.of(
         fallbackText(assigneeName, "Sales Executive"),
         fallbackText(lead.getName(), "New Lead"),
-        fallbackText(resolveLeadContact(lead), "N/A"),
+        fallbackText(resolveLeadPhoneNumber(lead), "Contact not available"),
         fallbackText(resolveLeadRemarks(lead), "No remarks yet"),
-        fallbackText(resolveLeadLocation(lead), "N/A")
+        fallbackText(resolveLeadLocation(lead), "Location not available"),
+        fallbackText(resolveLeadPropertyType(lead), "Property type not available"),
+        fallbackText(resolveLastFollowedUpPerson(lead), "Not available")
     );
 
     try {
@@ -678,34 +681,28 @@ public class WhatsappQuestionnaireService {
     return digits;
   }
 
-  private String resolveLeadContact(LeadEntity lead) {
+  private String resolveLeadPhoneNumber(LeadEntity lead) {
     if (StringUtils.hasText(lead.getPhone())) {
-      return lead.getPhone();
+      return lead.getPhone().trim();
     }
     if (StringUtils.hasText(lead.getAlternativePhone())) {
-      return lead.getAlternativePhone();
+      return lead.getAlternativePhone().trim();
     }
     if (StringUtils.hasText(lead.getEmail())) {
-      return lead.getEmail();
+      return lead.getEmail().trim();
     }
     return null;
   }
 
   private String resolveLeadRemarks(LeadEntity lead) {
     if (StringUtils.hasText(lead.getPresalesRemarks())) {
-      return lead.getPresalesRemarks();
+      return lead.getPresalesRemarks().trim();
     }
-    for (LeadRemarkEntity remark : lead.getRemarks()) {
-      List<LeadRemarkVersionEntity> versions = remark.getVersions();
-      if (versions == null || versions.isEmpty()) {
-        continue;
-      }
-      LeadRemarkVersionEntity latest = versions.get(versions.size() - 1);
-      if (latest != null && StringUtils.hasText(latest.getContent())) {
-        return latest.getContent();
-      }
+    LeadRemarkVersionEntity latestRemarkVersion = findLatestRemarkVersion(lead);
+    if (latestRemarkVersion != null && StringUtils.hasText(latestRemarkVersion.getContent())) {
+      return latestRemarkVersion.getContent().trim();
     }
-    return lead.getNotes();
+    return StringUtils.hasText(lead.getNotes()) ? lead.getNotes().trim() : null;
   }
 
   private String resolveLeadLocation(LeadEntity lead) {
@@ -719,6 +716,39 @@ public class WhatsappQuestionnaireService {
       return location;
     }
     return lead.getCompany();
+  }
+
+  private String resolveLeadPropertyType(LeadEntity lead) {
+    if (StringUtils.hasText(lead.getPropertyType())) {
+      return lead.getPropertyType().trim();
+    }
+    return lead.getProjectStage();
+  }
+
+  private String resolveLastFollowedUpPerson(LeadEntity lead) {
+    LeadRemarkVersionEntity latestRemarkVersion = findLatestRemarkVersion(lead);
+    if (latestRemarkVersion != null && StringUtils.hasText(latestRemarkVersion.getCreatedByName())) {
+      return latestRemarkVersion.getCreatedByName().trim();
+    }
+    LeadRemarkEntity latestRemark = lead.getRemarks().stream()
+        .max(Comparator.comparing(LeadRemarkEntity::getUpdatedAt))
+        .orElse(null);
+    if (latestRemark != null) {
+      if (StringUtils.hasText(latestRemark.getUpdatedByName())) {
+        return latestRemark.getUpdatedByName().trim();
+      }
+      if (StringUtils.hasText(latestRemark.getCreatedByName())) {
+        return latestRemark.getCreatedByName().trim();
+      }
+    }
+    return null;
+  }
+
+  private LeadRemarkVersionEntity findLatestRemarkVersion(LeadEntity lead) {
+    return lead.getRemarks().stream()
+        .flatMap(remark -> remark.getVersions().stream())
+        .max(Comparator.comparing(LeadRemarkVersionEntity::getCreatedAt))
+        .orElse(null);
   }
 
   private String joinNonBlank(String delimiter, String... values) {
