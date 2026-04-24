@@ -983,34 +983,6 @@ export default function LeadsPage() {
     editLeadRemark.mutate({ id, remarkId, input: { content } });
   }
 
-  async function handleUpdateProjectLocation(
-    id: string,
-    projectLocation: string,
-    projectState: string | null
-  ) {
-    try {
-      await updateLead.mutateAsync({
-        id,
-        data: {
-          projectLocation,
-          projectState,
-        },
-      });
-      pushToast({
-        tone: "success",
-        title: "Location updated",
-        message: "Project location was updated successfully.",
-      });
-    } catch (error) {
-      pushToast({
-        tone: "error",
-        title: "Location update failed",
-        message: error instanceof Error ? error.message : "Unable to save the mapped location.",
-      });
-      throw error;
-    }
-  }
-
   function handleLeadRowClick(lead: Lead) {
     navigate(`/crm/leads/${lead.id}`);
   }
@@ -1278,13 +1250,14 @@ export default function LeadsPage() {
                 </div>
               ) : null}
 
-              <div className="hidden lg:grid grid-cols-[minmax(220px,1.6fr)_minmax(160px,1fr)_minmax(160px,1fr)_110px_90px_minmax(140px,1fr)_120px_40px] gap-4 border-b border-border bg-muted/50 px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              <div className="hidden lg:grid grid-cols-[minmax(220px,1.6fr)_minmax(160px,1fr)_minmax(160px,1fr)_110px_90px_minmax(140px,1fr)_minmax(140px,1fr)_120px_40px] gap-4 border-b border-border bg-muted/50 px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 <span>Lead</span>
                 <span>Company</span>
                 <span>Contact</span>
                 <span>Status</span>
                 <span>Priority</span>
                 <span>Assigned To</span>
+                <span>Assigned By</span>
                 <span>Captured Date</span>
                 <span />
               </div>
@@ -1310,7 +1283,7 @@ export default function LeadsPage() {
                 ) : (
                   leads.map((lead) => (
                     <div key={lead.id} onClick={() => handleLeadRowClick(lead)} className="cursor-pointer px-5 py-4 transition hover:bg-muted/40">
-                      <div className="flex flex-col gap-3 lg:grid lg:grid-cols-[minmax(220px,1.6fr)_minmax(160px,1fr)_minmax(160px,1fr)_110px_90px_minmax(140px,1fr)_120px_40px] lg:items-center lg:gap-4">
+                      <div className="flex flex-col gap-3 lg:grid lg:grid-cols-[minmax(220px,1.6fr)_minmax(160px,1fr)_minmax(160px,1fr)_110px_90px_minmax(140px,1fr)_minmax(140px,1fr)_120px_40px] lg:items-center lg:gap-4">
                         <div className="flex items-start justify-between gap-3 lg:block">
                           <div className="flex items-center gap-3">
                             <div className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-[11px] font-bold ${REP_COLORS[lead.assignedTo] ?? "bg-slate-100 text-slate-700"}`}>
@@ -1352,6 +1325,9 @@ export default function LeadsPage() {
                             {getInitials(lead.assignedTo || "U")}
                           </div>
                           <span className="text-sm">{lead.assignedTo || "Unassigned"}</span>
+                        </div>
+                        <div className="hidden lg:block text-sm text-muted-foreground">
+                          {lead.assignedBy || "-"}
                         </div>
                         <div className="hidden lg:block text-sm font-medium text-slate-600">
                           {fmtDate(lead.createdAt)}
@@ -1418,9 +1394,6 @@ export default function LeadsPage() {
               onAssignLead={(assignee) => handleAssignLead(selectedLead.id, assignee)}
               onAddRemark={(content) => handleAddRemark(selectedLead.id, content)}
               onEditRemark={(remarkId, content) => handleEditRemark(selectedLead.id, remarkId, content)}
-              onUpdateProjectLocation={(projectLocation, projectState) =>
-                handleUpdateProjectLocation(selectedLead.id, projectLocation, projectState)
-              }
               onBuildQuote={() =>
                 navigate("/sales", {
                   state: {

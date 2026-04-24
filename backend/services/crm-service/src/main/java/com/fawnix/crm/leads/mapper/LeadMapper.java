@@ -1,6 +1,7 @@
 package com.fawnix.crm.leads.mapper;
 
 import com.fawnix.crm.activities.entity.LeadActivityEntity;
+import com.fawnix.crm.activities.entity.LeadActivityType;
 import com.fawnix.crm.contact.entity.LeadContactRecordingEntity;
 import com.fawnix.crm.leads.dto.LeadDtos;
 import com.fawnix.crm.leads.entity.LeadEntity;
@@ -65,6 +66,7 @@ public class LeadMapper {
         lead.getPriority().name(),
         lead.getAssignedToName() != null ? lead.getAssignedToName() : "",
         lead.getAssignedToUserId(),
+        resolveAssignedBy(lead),
         lead.getEstimatedValue(),
         lead.getNotes(),
         lead.getTags().stream().map(LeadTagEntity::getTagValue).toList(),
@@ -79,6 +81,14 @@ public class LeadMapper {
         lead.getUpdatedAt(),
         whatsappAssignment
     );
+  }
+
+  private String resolveAssignedBy(LeadEntity lead) {
+    return lead.getActivities().stream()
+        .filter(activity -> activity.getActivityType() == LeadActivityType.ASSIGNMENT_CHANGE)
+        .max(Comparator.comparing(LeadActivityEntity::getCreatedAt))
+        .map(activity -> activity.getCreatedByName() != null ? activity.getCreatedByName() : "System")
+        .orElse("");
   }
 
   private LeadDtos.LeadStatusHistoryEntryResponse toStatusHistoryResponse(LeadStatusHistoryEntity entry) {

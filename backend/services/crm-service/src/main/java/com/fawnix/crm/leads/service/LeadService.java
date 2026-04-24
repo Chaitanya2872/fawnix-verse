@@ -745,11 +745,6 @@ public class LeadService {
           "Add a proper follow-up remark before assigning this lead. Meta lead capture remarks do not count."
       );
     }
-    if (!hasMappedProjectLocation(lead)) {
-      throw new BadRequestException(
-          "Edit the project location from the map before assigning this lead."
-      );
-    }
   }
 
   private boolean hasUserFollowUpRemark(LeadEntity lead) {
@@ -777,20 +772,6 @@ public class LeadService {
         || normalized.contains("form id:")
         || normalized.contains("ad id:")
         || normalized.contains("created:");
-  }
-
-  private boolean hasMappedProjectLocation(LeadEntity lead) {
-    String location = trimToNull(lead.getProjectLocation());
-    String state = trimToNull(lead.getProjectState());
-    String propertyType = trimToNull(lead.getPropertyType());
-    String projectStage = trimToNull(lead.getProjectStage());
-    if (location == null || state == null) {
-      return false;
-    }
-    if (propertyType != null && location.equalsIgnoreCase(propertyType)) {
-      return false;
-    }
-    return projectStage == null || !location.equalsIgnoreCase(projectStage);
   }
 
   private String trimToNull(String value) {

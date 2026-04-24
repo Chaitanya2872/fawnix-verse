@@ -209,6 +209,7 @@ public final class LeadDtos {
       String priority,
       String assignedTo,
       String assignedToUserId,
+      String assignedBy,
       BigDecimal estimatedValue,
       String notes,
       List<String> tags,

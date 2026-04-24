@@ -44,6 +44,7 @@ function normalizeLead(lead: Lead): Lead {
     ...lead,
     assignedTo: lead.assignedTo ?? "",
     assignedToUserId: lead.assignedToUserId ?? null,
+    assignedBy: lead.assignedBy ?? "",
     notes: lead.notes ?? "",
     tags: lead.tags ?? [],
     remarks: lead.remarks ?? [],

@@ -131,6 +131,7 @@ export interface Lead {
   priority: LeadPriority;
   assignedTo: string;
   assignedToUserId: string | null;
+  assignedBy: string;
   estimatedValue: number;
   notes: string;
   tags: string[];
@@ -285,7 +286,6 @@ export type LeadUpdateData = Partial<
 export interface AssignLeadInput {
   assignedTo: string;
   assignedToUserId?: string | null;
-  assignedBy?: string;
 }
 
 export interface CreateLeadRemarkInput {
