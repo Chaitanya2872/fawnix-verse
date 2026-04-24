@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   DndContext,
   DragOverlay,
@@ -14,10 +15,23 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
-import { ArrowUpRight, Pencil, Plus, RefreshCw, Search, Sparkles, X } from "lucide-react";
+import {
+  ArrowRight,
+  ArrowUpRight,
+  CalendarDays,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Pencil,
+  Plus,
+  RefreshCw,
+  Search,
+  Sparkles,
+  X,
+} from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { useLeadAssignees, useLeadDetail, useLeads } from "@/modules/crm/leads/hooks";
-import { LeadStatus } from "@/modules/crm/leads/types";
+import { type Lead } from "@/modules/crm/leads/types";
 import { useProducts } from "@/modules/inventory/hooks";
 import type { Product } from "@/modules/inventory/types";
 import { useCreateQuote, useQuote, useQuotes, useUpdateQuote, useUpdateQuoteStatus } from "./hooks";
@@ -85,6 +99,549 @@ const fmtDate = (value: string) =>
     month: "short",
     day: "numeric",
   });
+
+function getLeadAddress(lead: Lead) {
+  return [lead.projectLocation, lead.projectState, lead.community].filter(Boolean).join(", ");
+}
+
+function getLeadSearchLabel(lead: Lead) {
+  return [lead.name, lead.phone, lead.email].filter(Boolean).join(" • ");
+}
+
+function createEmptyQuoteForm(): QuoteFormData {
+  return {
+    leadId: "",
+    customerName: "",
+    company: "",
+    email: "",
+    phone: "",
+    billingAddress: "",
+    shippingAddress: "",
+    currency: "INR",
+    status: QuoteStatus.DRAFT,
+    discountType: DiscountType.PERCENT,
+    discountValue: 0,
+    taxRate: 0,
+    validUntil: "",
+    notes: "",
+    terms: "",
+    items: [createClientItem()],
+  };
+}
+
+function buildLeadPrefill(lead: Lead): QuoteFormData {
+  const address = getLeadAddress(lead);
+  return {
+    ...createEmptyQuoteForm(),
+    leadId: lead.id,
+    customerName: lead.name ?? "",
+    company: lead.company ?? "",
+    email: lead.email ?? "",
+    phone: lead.phone ?? lead.alternativePhone ?? "",
+    billingAddress: address,
+    shippingAddress: address,
+    notes: lead.presalesRemarks ?? lead.notes ?? "",
+  };
+}
+
+function monthLabel(value: Date) {
+  return value.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+}
+
+function toDateOnlyValue(value: Date) {
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function parseDateOnlyValue(value: string) {
+  if (!value) {
+    return null;
+  }
+  const parsed = new Date(`${value}T00:00:00`);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function buildCalendarDays(month: Date) {
+  const monthStart = new Date(month.getFullYear(), month.getMonth(), 1);
+  const firstGridDate = new Date(monthStart);
+  const dayOffset = (monthStart.getDay() + 6) % 7;
+  firstGridDate.setDate(monthStart.getDate() - dayOffset);
+
+  return Array.from({ length: 42 }, (_, index) => {
+    const date = new Date(firstGridDate);
+    date.setDate(firstGridDate.getDate() + index);
+    return {
+      value: toDateOnlyValue(date),
+      label: date.getDate(),
+      inMonth: date.getMonth() === month.getMonth(),
+      date,
+    };
+  });
+}
+
+function ValidUntilDatePicker({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const initialDate = parseDateOnlyValue(value) ?? new Date();
+  const [open, setOpen] = useState(false);
+  const [view, setView] = useState<"days" | "months">("days");
+  const [activeMonth, setActiveMonth] = useState(
+    new Date(initialDate.getFullYear(), initialDate.getMonth(), 1)
+  );
+  const selectedDate = parseDateOnlyValue(value);
+  const days = useMemo(() => buildCalendarDays(activeMonth), [activeMonth]);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    const next = parseDateOnlyValue(value);
+    if (next) {
+      setActiveMonth(new Date(next.getFullYear(), next.getMonth(), 1));
+    }
+  }, [open, value]);
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((current) => !current)}
+        className="flex w-full items-center justify-between rounded-2xl border border-slate-200 bg-white px-3 py-2 text-left text-sm text-slate-800 shadow-sm transition hover:border-slate-300 focus:border-emerald-300 focus:outline-none focus:ring-2 focus:ring-emerald-100"
+      >
+        <span className={value ? "text-slate-800" : "text-slate-400"}>
+          {selectedDate
+            ? selectedDate.toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" })
+            : "Valid until"}
+        </span>
+        <CalendarDays className="h-4 w-4 text-slate-400" />
+      </button>
+
+      <div
+        className={`absolute right-0 top-[calc(100%+0.75rem)] z-30 w-[320px] origin-top-right rounded-[28px] border border-slate-200 bg-white p-4 shadow-2xl transition-all duration-200 ${
+          open ? "pointer-events-auto scale-100 opacity-100" : "pointer-events-none scale-95 opacity-0"
+        }`}
+      >
+        <div className="flex items-center justify-between">
+          <button
+            type="button"
+            onClick={() =>
+              setActiveMonth(
+                new Date(activeMonth.getFullYear(), activeMonth.getMonth() - 1, 1)
+              )
+            }
+            className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-slate-600 transition hover:bg-slate-50"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => setView((current) => (current === "days" ? "months" : "days"))}
+            className="inline-flex items-center gap-2 rounded-full px-3 py-2 text-base font-semibold text-slate-700 transition hover:bg-slate-50"
+          >
+            {monthLabel(activeMonth)}
+            <ChevronDown className={`h-4 w-4 transition ${view === "months" ? "rotate-180" : ""}`} />
+          </button>
+          <button
+            type="button"
+            onClick={() =>
+              setActiveMonth(
+                new Date(activeMonth.getFullYear(), activeMonth.getMonth() + 1, 1)
+              )
+            }
+            className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-slate-600 transition hover:bg-slate-50"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        </div>
+
+        {view === "days" ? (
+          <div className="mt-4">
+            <div className="grid grid-cols-7 gap-2 text-center text-xs font-semibold text-slate-400">
+              {["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"].map((label) => (
+                <span key={label} className="py-2">{label}</span>
+              ))}
+            </div>
+            <div className="mt-2 grid grid-cols-7 gap-2">
+              {days.map((day) => {
+                const isSelected = day.value === value;
+                return (
+                  <button
+                    key={day.value}
+                    type="button"
+                    onClick={() => {
+                      onChange(day.value);
+                      setOpen(false);
+                    }}
+                    className={`flex h-10 items-center justify-center rounded-full text-sm transition ${
+                      isSelected
+                        ? "bg-blue-600 font-semibold text-white shadow-lg shadow-blue-200"
+                        : day.inMonth
+                          ? "text-slate-700 hover:bg-slate-100"
+                          : "text-slate-300 hover:bg-slate-50"
+                    }`}
+                  >
+                    {day.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ) : (
+          <div className="mt-4 grid grid-cols-3 gap-3">
+            {Array.from({ length: 12 }, (_, index) => {
+              const monthDate = new Date(activeMonth.getFullYear(), index, 1);
+              const isActive = index === activeMonth.getMonth();
+              return (
+                <button
+                  key={index}
+                  type="button"
+                  onClick={() => {
+                    setActiveMonth(monthDate);
+                    setView("days");
+                  }}
+                  className={`rounded-2xl px-3 py-4 text-sm font-medium transition ${
+                    isActive
+                      ? "bg-blue-600 text-white shadow-lg shadow-blue-200"
+                      : "text-slate-700 hover:bg-slate-100"
+                  }`}
+                >
+                  {monthDate.toLocaleDateString("en-US", { month: "short" })}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-4">
+          <button
+            type="button"
+            onClick={() => {
+              onChange("");
+              setOpen(false);
+            }}
+            className="text-sm font-medium text-slate-500 transition hover:text-slate-700"
+          >
+            Clear
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              onChange(toDateOnlyValue(new Date()));
+              setOpen(false);
+            }}
+            className="rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+          >
+            Today
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function InventoryProductPicker({
+  products,
+  isLoading,
+  selectedProductId,
+  onSelectProduct,
+  onAddProduct,
+}: {
+  products: Product[];
+  isLoading: boolean;
+  selectedProductId: string;
+  onSelectProduct: (productId: string) => void;
+  onAddProduct: (product: Product) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const [activeCategory, setActiveCategory] = useState("All Products");
+  const [isOpen, setIsOpen] = useState(false);
+
+  const categories = useMemo(() => {
+    const next = Array.from(new Set(products.map((product) => product.category).filter(Boolean))).sort();
+    return ["All Products", ...next];
+  }, [products]);
+
+  const filteredProducts = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+    return products.filter((product) => {
+      const matchesCategory =
+        activeCategory === "All Products" || product.category === activeCategory;
+      if (!matchesCategory) {
+        return false;
+      }
+      if (!normalizedQuery) {
+        return true;
+      }
+      return [product.name, product.sku, product.brand, product.category, product.description]
+        .filter(Boolean)
+        .some((field) => field!.toLowerCase().includes(normalizedQuery));
+    });
+  }, [activeCategory, products, query]);
+
+  const selectedProduct = products.find((product) => product.id === selectedProductId) ?? null;
+
+  return (
+    <div className="relative">
+      <label className={fieldLabelCls}>Inventory Product</label>
+      <button
+        type="button"
+        onClick={() => setIsOpen((current) => !current)}
+        className="mt-1 flex w-full items-center justify-between rounded-2xl border border-slate-200 bg-white px-3 py-2 text-left text-sm text-slate-800 shadow-sm transition hover:border-slate-300 focus:border-emerald-300 focus:outline-none focus:ring-2 focus:ring-emerald-100"
+      >
+        <div className="min-w-0">
+          <p className={selectedProduct ? "font-medium text-slate-800" : "text-slate-400"}>
+            {selectedProduct ? selectedProduct.name : "Select from inventory"}
+          </p>
+          <p className="truncate text-xs text-slate-400">
+            {selectedProduct
+              ? [selectedProduct.category, selectedProduct.sku].filter(Boolean).join(" • ")
+              : "Search by name, SKU, brand, or category"}
+          </p>
+        </div>
+        <ChevronDown className={`h-4 w-4 text-slate-400 transition ${isOpen ? "rotate-180" : ""}`} />
+      </button>
+
+      <div
+        className={`absolute left-0 top-[calc(100%+0.75rem)] z-30 w-[min(760px,calc(100vw-4rem))] origin-top-left rounded-[28px] border border-slate-200 bg-white shadow-2xl transition-all duration-200 ${
+          isOpen ? "pointer-events-auto scale-100 opacity-100" : "pointer-events-none scale-95 opacity-0"
+        }`}
+      >
+        <div className="border-b border-slate-100 p-4">
+          <div className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+            <Search className="h-4 w-4 text-slate-400" />
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search inventory products"
+              className="w-full bg-transparent text-sm text-slate-800 outline-none placeholder:text-slate-400"
+            />
+          </div>
+        </div>
+
+        <div className="grid min-h-[360px] grid-cols-[220px_minmax(0,1fr)]">
+          <aside className="border-r border-slate-100 bg-slate-50/80 p-3">
+            <p className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+              Categories
+            </p>
+            <div className="space-y-1">
+              {categories.map((category) => {
+                const count =
+                  category === "All Products"
+                    ? products.length
+                    : products.filter((product) => product.category === category).length;
+                const isActive = category === activeCategory;
+                return (
+                  <button
+                    key={category}
+                    type="button"
+                    onClick={() => setActiveCategory(category)}
+                    className={`flex w-full items-center justify-between rounded-2xl px-3 py-3 text-left transition ${
+                      isActive
+                        ? "bg-blue-600 text-white shadow-lg shadow-blue-200"
+                        : "text-slate-600 hover:bg-white hover:text-slate-900"
+                    }`}
+                  >
+                    <span className="text-sm font-medium">{category}</span>
+                    <span className={`rounded-full px-2 py-0.5 text-[11px] ${isActive ? "bg-white/20" : "bg-slate-200 text-slate-500"}`}>
+                      {count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </aside>
+
+          <div className="flex flex-col">
+            <div className="flex items-center justify-between px-4 py-3">
+              <div>
+                <p className="text-sm font-semibold text-slate-900">{activeCategory}</p>
+                <p className="text-xs text-slate-500">{filteredProducts.length} matching products</p>
+              </div>
+            </div>
+            <div className="max-h-[360px] overflow-y-auto px-3 pb-3">
+              {isLoading ? (
+                <div className="px-3 py-8 text-sm text-slate-500">Loading inventory...</div>
+              ) : filteredProducts.length === 0 ? (
+                <div className="px-3 py-8 text-sm text-slate-500">No products found for this search.</div>
+              ) : (
+                filteredProducts.map((product) => {
+                  const isSelected = product.id === selectedProductId;
+                  return (
+                    <button
+                      key={product.id}
+                      type="button"
+                      onClick={() => onSelectProduct(product.id)}
+                      className={`mb-2 flex w-full items-center justify-between rounded-2xl border px-4 py-3 text-left transition ${
+                        isSelected
+                          ? "border-blue-300 bg-blue-50"
+                          : "border-transparent hover:border-slate-200 hover:bg-slate-50"
+                      }`}
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-slate-900">{product.name}</p>
+                        <p className="mt-1 truncate text-xs text-slate-500">
+                          {[product.sku, product.brand, product.category].filter(Boolean).join(" • ")}
+                        </p>
+                      </div>
+                      <div className="ml-4 text-right">
+                        <p className="text-sm font-semibold text-slate-900">{fmtCurrency(product.price ?? 0)}</p>
+                        <p className="text-xs text-slate-400">{product.unit ?? "pcs"}</p>
+                      </div>
+                    </button>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between border-t border-slate-100 px-4 py-3">
+          <button
+            type="button"
+            onClick={() => setIsOpen(false)}
+            className="text-sm font-medium text-slate-500 transition hover:text-slate-700"
+          >
+            Close
+          </button>
+          <button
+            type="button"
+            disabled={!selectedProduct}
+            onClick={() => {
+              if (!selectedProduct) {
+                return;
+              }
+              onAddProduct(selectedProduct);
+              setIsOpen(false);
+            }}
+            className="inline-flex items-center gap-2 rounded-full bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Add to Quote
+            <ArrowRight className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CustomerLeadSearch({
+  leads,
+  value,
+  selectedLeadId,
+  isLoading,
+  isError,
+  onChange,
+  onSelect,
+}: {
+  leads: Lead[];
+  value: string;
+  selectedLeadId: string;
+  isLoading: boolean;
+  isError: boolean;
+  onChange: (value: string) => void;
+  onSelect: (leadId: string) => void;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const normalizedQuery = value.trim().toLowerCase();
+  const filteredLeads = useMemo(() => {
+    if (!normalizedQuery) {
+      return leads.slice(0, 8);
+    }
+    return leads
+      .filter((lead) =>
+        [lead.name, lead.phone, lead.email, lead.company]
+          .filter(Boolean)
+          .some((field) => field!.toLowerCase().includes(normalizedQuery))
+      )
+      .slice(0, 8);
+  }, [leads, normalizedQuery]);
+
+  const selectedLead = leads.find((lead) => lead.id === selectedLeadId) ?? null;
+
+  return (
+    <div className="relative">
+      <label className={fieldLabelCls}>Customer Search</label>
+      <div className="mt-1 rounded-2xl border border-slate-200 bg-white shadow-sm transition-all duration-200 focus-within:border-emerald-300 focus-within:ring-2 focus-within:ring-emerald-100">
+        <div className="flex items-center gap-2 px-3 py-2">
+          <Search className="h-4 w-4 text-slate-400" />
+          <input
+            value={value}
+            onChange={(event) => {
+              onChange(event.target.value);
+              setIsOpen(true);
+              if (!event.target.value.trim()) {
+                onSelect("");
+              }
+            }}
+            onFocus={() => setIsOpen(true)}
+            onBlur={() => window.setTimeout(() => setIsOpen(false), 120)}
+            placeholder="Search by name, phone, or email"
+            className="w-full bg-transparent text-sm text-slate-800 outline-none placeholder:text-slate-400"
+          />
+        </div>
+        <div
+          className={`overflow-hidden border-t border-slate-100 transition-all duration-200 ${
+            isOpen ? "max-h-80 opacity-100" : "max-h-0 opacity-0"
+          }`}
+        >
+          {isLoading ? (
+            <div className="px-4 py-3 text-sm text-slate-500">Loading leads...</div>
+          ) : isError ? (
+            <div className="px-4 py-3 text-sm text-rose-500">Unable to load leads right now.</div>
+          ) : filteredLeads.length === 0 ? (
+            <div className="px-4 py-3 text-sm text-slate-500">No matching leads found.</div>
+          ) : (
+            <div className="max-h-72 overflow-y-auto p-2">
+              {filteredLeads.map((lead) => {
+                const isSelected = lead.id === selectedLeadId;
+                return (
+                  <button
+                    key={lead.id}
+                    type="button"
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() => {
+                      onChange(getLeadSearchLabel(lead));
+                      onSelect(lead.id);
+                      setIsOpen(false);
+                    }}
+                    className={`mb-2 w-full rounded-2xl border px-3 py-3 text-left transition ${
+                      isSelected
+                        ? "border-emerald-300 bg-emerald-50 shadow-sm"
+                        : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-slate-900">{lead.name}</p>
+                        <p className="mt-1 text-xs text-slate-500">
+                          {[lead.phone, lead.email, lead.company].filter(Boolean).join(" • ") || "No contact details"}
+                        </p>
+                      </div>
+                      <span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-600">
+                        {lead.status.replaceAll("_", " ")}
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+      {selectedLead ? (
+        <p className="mt-2 text-xs text-slate-500">
+          Selected: {selectedLead.name} {selectedLead.phone ? `• ${selectedLead.phone}` : ""}
+        </p>
+      ) : null}
+    </div>
+  );
+}
 
 function QuoteCard({
   quote,
@@ -269,6 +826,9 @@ function QuotationPreviewModal({
 }
 
 export default function SalesPage() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const builderState = (location.state as { openBuilder?: boolean; leadId?: string | null } | null) ?? null;
   const [filter, setFilter] = useState<QuoteFilter>({
     search: "",
     status: "ALL",
@@ -282,25 +842,9 @@ export default function SalesPage() {
   const [activeQuoteId, setActiveQuoteId] = useState<string | null>(null);
   const [previewQuoteId, setPreviewQuoteId] = useState<string | null>(null);
   const [selectedLeadId, setSelectedLeadId] = useState("");
+  const [leadSearchQuery, setLeadSearchQuery] = useState("");
   const [selectedProductId, setSelectedProductId] = useState("");
-  const [form, setForm] = useState<QuoteFormData>({
-    leadId: "",
-    customerName: "",
-    company: "",
-    email: "",
-    phone: "",
-    billingAddress: "",
-    shippingAddress: "",
-    currency: "INR",
-    status: QuoteStatus.DRAFT,
-    discountType: DiscountType.PERCENT,
-    discountValue: 0,
-    taxRate: 0,
-    validUntil: "",
-    notes: "",
-    terms: "",
-    items: [createClientItem()],
-  });
+  const [form, setForm] = useState<QuoteFormData>(createEmptyQuoteForm());
 
   const { data, isLoading, isError, error, refetch } = useQuotes(filter);
   const createQuote = useCreateQuote();
@@ -315,33 +859,62 @@ export default function SalesPage() {
   const [draggingQuoteId, setDraggingQuoteId] = useState<string | null>(null);
   const [movingQuoteId, setMovingQuoteId] = useState<string | null>(null);
   const [quoteMoveError, setQuoteMoveError] = useState<string | null>(null);
-  const qualifiedLeadsQuery = useLeads(
+  const customerLeadsQuery = useLeads(
     {
       search: "",
-      status: LeadStatus.QUALIFIED,
+      status: "ALL",
       source: "ALL",
       assignedTo: "",
       priority: "ALL",
       page: 1,
       pageSize: 200,
     },
-    { enabled: showBuilder }
+    { enabled: showBuilder || Boolean(builderState?.leadId) }
   );
+  const prefillLeadQuery = useLeadDetail(builderState?.leadId ?? null);
   const productsQuery = useProducts({
     search: "",
     category: "",
+    brand: "",
     status: "ALL",
     page: 1,
     pageSize: 200,
   });
-  const qualifiedLeads = useMemo(() => {
-    const leads = qualifiedLeadsQuery.data?.data ?? [];
+  const customerLeads = useMemo(() => {
+    const leads = customerLeadsQuery.data?.data ?? [];
     return [...leads].sort((a, b) => a.name.localeCompare(b.name));
-  }, [qualifiedLeadsQuery.data?.data]);
+  }, [customerLeadsQuery.data?.data]);
   const inventoryProducts = useMemo(() => {
     const products = productsQuery.data?.data ?? [];
     return [...products].sort((a, b) => a.name.localeCompare(b.name));
   }, [productsQuery.data?.data]);
+
+  useEffect(() => {
+    if (!builderState?.openBuilder) {
+      return;
+    }
+
+    if (builderState.leadId && prefillLeadQuery.isLoading) {
+      return;
+    }
+
+    const leadToPrefill =
+      (builderState.leadId ? prefillLeadQuery.data ?? null : null) ??
+      (builderState.leadId
+        ? customerLeads.find((lead) => lead.id === builderState.leadId) ?? null
+        : null);
+
+    openBuilder(leadToPrefill);
+    navigate(location.pathname, { replace: true });
+  }, [
+    builderState?.leadId,
+    builderState?.openBuilder,
+    customerLeads,
+    location.pathname,
+    navigate,
+    prefillLeadQuery.data,
+    prefillLeadQuery.isLoading,
+  ]);
 
   const previewSalesRep = useMemo(() => {
     const lead = previewLead.data;
@@ -441,18 +1014,31 @@ export default function SalesPage() {
 
   function handleSelectLead(leadId: string) {
     setSelectedLeadId(leadId);
-    const lead = qualifiedLeads.find((item) => item.id === leadId);
+    const lead = customerLeads.find((item) => item.id === leadId);
     if (!lead) {
-      setForm((prev) => ({ ...prev, leadId: "" }));
+      setLeadSearchQuery("");
+      setForm((prev) => ({
+        ...prev,
+        leadId: "",
+        customerName: "",
+        company: "",
+        email: "",
+        phone: "",
+        billingAddress: "",
+        shippingAddress: "",
+      }));
       return;
     }
+    setLeadSearchQuery(getLeadSearchLabel(lead));
     setForm((prev) => ({
       ...prev,
       leadId: lead.id,
       customerName: lead.name ?? "",
       company: lead.company ?? "",
       email: lead.email ?? "",
-      phone: lead.phone ?? "",
+      phone: lead.phone ?? lead.alternativePhone ?? "",
+      billingAddress: getLeadAddress(lead),
+      shippingAddress: getLeadAddress(lead),
     }));
   }
 
@@ -475,30 +1061,14 @@ export default function SalesPage() {
     }));
   }
 
-  function openBuilder() {
+  function openBuilder(prefillLead?: Lead | null) {
     setBuilderError(null);
     setBuilderMode("create");
     setEditingQuoteId(null);
-    setSelectedLeadId("");
+    setSelectedLeadId(prefillLead?.id ?? "");
+    setLeadSearchQuery(prefillLead ? getLeadSearchLabel(prefillLead) : "");
     setSelectedProductId("");
-    setForm({
-      leadId: "",
-      customerName: "",
-      company: "",
-      email: "",
-      phone: "",
-      billingAddress: "",
-      shippingAddress: "",
-      currency: "INR",
-      status: QuoteStatus.DRAFT,
-      discountType: DiscountType.PERCENT,
-      discountValue: 0,
-      taxRate: 0,
-      validUntil: "",
-      notes: "",
-      terms: "",
-      items: [createClientItem()],
-    });
+    setForm(prefillLead ? buildLeadPrefill(prefillLead) : createEmptyQuoteForm());
     setShowBuilder(true);
   }
 
@@ -513,6 +1083,9 @@ export default function SalesPage() {
     setBuilderMode("edit");
     setEditingQuoteId(quote.id);
     setSelectedLeadId(quote.leadId ?? "");
+    setLeadSearchQuery(
+      [quote.customerName, quote.phone, quote.email].filter(Boolean).join(" • ")
+    );
     setSelectedProductId("");
     setForm({
       leadId: quote.leadId ?? "",
@@ -679,32 +1252,28 @@ export default function SalesPage() {
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div>
                       <h3 className="text-sm font-semibold text-slate-800">Customer</h3>
-                      <p className="text-xs text-slate-500">Choose from qualified leads and refine details.</p>
+                      <p className="text-xs text-slate-500">Search leads instantly and refine customer details before saving.</p>
                     </div>
-                    {qualifiedLeadsQuery.isLoading ? (
-                      <span className="text-xs text-slate-400">Loading qualified leads...</span>
+                    {customerLeadsQuery.isLoading ? (
+                      <span className="text-xs text-slate-400">Loading leads...</span>
                     ) : null}
-                    {qualifiedLeadsQuery.isError ? (
-                      <span className="text-xs text-rose-500">Unable to load qualified leads.</span>
+                    {customerLeadsQuery.isError ? (
+                      <span className="text-xs text-rose-500">Unable to load leads.</span>
                     ) : null}
                   </div>
                   <div className="mt-4 grid gap-4 lg:grid-cols-[1.2fr_1fr]">
                     <div>
-                      <label className={fieldLabelCls}>Qualified Lead</label>
-                      <select
-                        value={selectedLeadId}
-                        onChange={(e) => handleSelectLead(e.target.value)}
-                        className={`${selectCls} mt-1`}
-                      >
-                        <option value="">Select a qualified lead</option>
-                        {qualifiedLeads.map((lead) => (
-                          <option key={lead.id} value={lead.id}>
-                            {[lead.name, lead.company, lead.email].filter(Boolean).join(" | ")}
-                          </option>
-                        ))}
-                      </select>
-                      {qualifiedLeads.length === 0 && !qualifiedLeadsQuery.isLoading ? (
-                        <p className="mt-1 text-xs text-slate-400">No qualified leads available yet.</p>
+                      <CustomerLeadSearch
+                        leads={customerLeads}
+                        value={leadSearchQuery}
+                        selectedLeadId={selectedLeadId}
+                        isLoading={customerLeadsQuery.isLoading}
+                        isError={customerLeadsQuery.isError}
+                        onChange={setLeadSearchQuery}
+                        onSelect={handleSelectLead}
+                      />
+                      {customerLeads.length === 0 && !customerLeadsQuery.isLoading ? (
+                        <p className="mt-1 text-xs text-slate-400">No leads available yet.</p>
                       ) : null}
                     </div>
                     <div>
@@ -767,22 +1336,16 @@ export default function SalesPage() {
                   </div>
                   <div className="mt-4 grid gap-3 md:grid-cols-[2fr_1fr_auto]">
                     <div>
-                      <label className={fieldLabelCls}>Inventory Product</label>
-                      <select
-                        value={selectedProductId}
-                        onChange={(e) => setSelectedProductId(e.target.value)}
-                        className={`${selectCls} mt-1`}
-                      >
-                        <option value="">Select from inventory</option>
-                        {inventoryProducts.map((product) => (
-                          <option key={product.id} value={product.id}>
-                            {[product.name, product.sku, product.price ? fmtCurrency(product.price) : null].filter(Boolean).join(" | ")}
-                          </option>
-                        ))}
-                      </select>
-                      {productsQuery.isLoading ? (
-                        <p className="mt-1 text-xs text-slate-400">Loading inventory...</p>
-                      ) : null}
+                      <InventoryProductPicker
+                        products={inventoryProducts}
+                        isLoading={productsQuery.isLoading}
+                        selectedProductId={selectedProductId}
+                        onSelectProduct={setSelectedProductId}
+                        onAddProduct={(product) => {
+                          addInventoryProduct(product);
+                          setSelectedProductId("");
+                        }}
+                      />
                     </div>
                     <div>
                       <label className={fieldLabelCls}>Action</label>
@@ -908,11 +1471,9 @@ export default function SalesPage() {
                           className={inputCls}
                           placeholder="Tax %"
                         />
-                        <input
-                          type="date"
+                        <ValidUntilDatePicker
                           value={form.validUntil}
-                          onChange={(e) => setForm((prev) => ({ ...prev, validUntil: e.target.value }))}
-                          className={inputCls}
+                          onChange={(nextValue) => setForm((prev) => ({ ...prev, validUntil: nextValue }))}
                         />
                       </div>
                     </div>
@@ -1154,7 +1715,7 @@ export default function SalesPage() {
 
           <div className="flex flex-wrap items-center gap-2">
             <button
-              onClick={openBuilder}
+              onClick={() => openBuilder()}
               className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-emerald-700"
             >
               <Plus className="h-4 w-4" />

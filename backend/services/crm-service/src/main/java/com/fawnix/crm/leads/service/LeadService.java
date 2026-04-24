@@ -329,6 +329,7 @@ public class LeadService {
     if (request.assignedTo() != null || request.assignedToUserId() != null) {
       IdentityUser nextAssignee = resolveAssignee(request.assignedToUserId(), request.assignedTo(), false);
       if (nextAssignee != null && !sameUser(lead.getAssignedToUserId(), nextAssignee.id())) {
+        validateLeadReadyForAssignment(lead);
         String previousAssignee = lead.getAssignedToName() != null ? lead.getAssignedToName() : "Unassigned";
         applyAssignee(lead, nextAssignee);
         leadActivityService.addActivity(
@@ -458,6 +459,7 @@ public class LeadService {
     if (assignee == null) {
       throw new BadRequestException("Assignee is required.");
     }
+    validateLeadReadyForAssignment(lead);
 
     Instant now = Instant.now();
     LeadDtos.WhatsappDispatchLog whatsappDispatchLog = null;
@@ -735,6 +737,60 @@ public class LeadService {
 
   private boolean sameUser(String left, String right) {
     return left != null && right != null && left.equals(right);
+  }
+
+  private void validateLeadReadyForAssignment(LeadEntity lead) {
+    if (!hasUserFollowUpRemark(lead)) {
+      throw new BadRequestException(
+          "Add a proper follow-up remark before assigning this lead. Meta lead capture remarks do not count."
+      );
+    }
+    if (!hasMappedProjectLocation(lead)) {
+      throw new BadRequestException(
+          "Edit the project location from the map before assigning this lead."
+      );
+    }
+  }
+
+  private boolean hasUserFollowUpRemark(LeadEntity lead) {
+    if (isMeaningfulRemark(lead.getPresalesRemarks())) {
+      return true;
+    }
+    if (isMeaningfulRemark(lead.getNotes())) {
+      return true;
+    }
+    return lead.getRemarks().stream()
+        .flatMap(remark -> remark.getVersions().stream())
+        .map(version -> version.getContent())
+        .anyMatch(this::isMeaningfulRemark);
+  }
+
+  private boolean isMeaningfulRemark(String value) {
+    String trimmed = trimToNull(value);
+    return trimmed != null && !isMetaCaptureRemark(trimmed);
+  }
+
+  private boolean isMetaCaptureRemark(String value) {
+    String normalized = value.toLowerCase(Locale.ROOT);
+    return normalized.startsWith("meta lead captured.")
+        || normalized.contains("leadgen id:")
+        || normalized.contains("form id:")
+        || normalized.contains("ad id:")
+        || normalized.contains("created:");
+  }
+
+  private boolean hasMappedProjectLocation(LeadEntity lead) {
+    String location = trimToNull(lead.getProjectLocation());
+    String state = trimToNull(lead.getProjectState());
+    String propertyType = trimToNull(lead.getPropertyType());
+    String projectStage = trimToNull(lead.getProjectStage());
+    if (location == null || state == null) {
+      return false;
+    }
+    if (propertyType != null && location.equalsIgnoreCase(propertyType)) {
+      return false;
+    }
+    return projectStage == null || !location.equalsIgnoreCase(projectStage);
   }
 
   private String trimToNull(String value) {

@@ -13,7 +13,6 @@ const DEFAULT_CENTER = {
   lon: 78.4867,
 };
 
-const TILE_SIZE = 256;
 const ZOOM = 15;
 
 function clampLatitude(value: number) {
@@ -69,40 +68,50 @@ function buildTileRows(latitude: number, longitude: number) {
 }
 
 async function searchLocations(query: string): Promise<SearchResult[]> {
-  const response = await fetch(
-    `https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=5&q=${encodeURIComponent(query)}`,
-    {
-      headers: {
-        Accept: "application/json",
-      },
+  const executeSearch = async (searchText: string) => {
+    const response = await fetch(
+      `https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=8&dedupe=1&q=${encodeURIComponent(searchText)}`,
+      {
+        headers: {
+          Accept: "application/json",
+          "Accept-Language": "en",
+        },
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error("Unable to search locations right now.");
     }
-  );
 
-  if (!response.ok) {
-    throw new Error("Unable to search locations right now.");
+    const payload = (await response.json()) as Array<{
+      lat: string;
+      lon: string;
+      display_name: string;
+      address?: {
+        state?: string;
+        state_district?: string;
+        county?: string;
+      };
+    }>;
+
+    return payload.map((result) => ({
+      lat: Number(result.lat),
+      lon: Number(result.lon),
+      label: result.display_name,
+      state:
+        result.address?.state ??
+        result.address?.state_district ??
+        result.address?.county ??
+        null,
+    }));
+  };
+
+  const trimmed = query.trim();
+  const directResults = await executeSearch(trimmed);
+  if (directResults.length > 0 || trimmed.toLowerCase().includes("india")) {
+    return directResults;
   }
-
-  const payload = (await response.json()) as Array<{
-    lat: string;
-    lon: string;
-    display_name: string;
-    address?: {
-      state?: string;
-      state_district?: string;
-      county?: string;
-    };
-  }>;
-
-  return payload.map((result) => ({
-    lat: Number(result.lat),
-    lon: Number(result.lon),
-    label: result.display_name,
-    state:
-      result.address?.state ??
-      result.address?.state_district ??
-      result.address?.county ??
-      null,
-  }));
+  return executeSearch(`${trimmed}, India`);
 }
 
 async function reverseLookup(latitude: number, longitude: number): Promise<SearchResult> {
@@ -277,6 +286,22 @@ export function LeadLocationPickerDialog({
     };
   }, [initialLocation, initialState, open]);
 
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    const query = searchQuery.trim();
+    if (query.length < 3 || query === addressText.trim()) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      void handleSearch();
+    }, 350);
+
+    return () => window.clearTimeout(timer);
+  }, [addressText, open, searchQuery]);
+
   if (!open) {
     return null;
   }
@@ -375,7 +400,67 @@ export function LeadLocationPickerDialog({
         </div>
 
         <div className="overflow-y-auto px-6 py-6">
-          <div className="grid gap-6 lg:grid-cols-[320px_minmax(0,1fr)]">
+          <div className="grid gap-6 lg:grid-cols-[minmax(0,1.2fr)_360px]">
+          <div className="space-y-4">
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div className="mb-3 flex items-center justify-between text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                <span>Map Picker</span>
+                <span>
+                  {center.lat.toFixed(5)}, {center.lon.toFixed(5)}
+                </span>
+              </div>
+              <div className="relative">
+                <MapCanvas
+                  latitude={center.lat}
+                  longitude={center.lon}
+                  onPick={(latitude, longitude) => {
+                    void handleMapPick(latitude, longitude);
+                  }}
+                />
+                {isResolvingMap ? (
+                  <div className="absolute inset-0 flex items-center justify-center rounded-2xl bg-white/75">
+                    <div className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Resolving address...
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+              <p className="mt-3 text-xs text-slate-500">
+                Search a landmark or society first, then click the map to lock the exact project location.
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">Selected location</p>
+                  <p className="text-xs text-slate-500">This address will be saved to the lead.</p>
+                </div>
+                <span className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-semibold text-slate-600">
+                  {stateText || "State pending"}
+                </span>
+              </div>
+              <textarea
+                rows={4}
+                value={addressText}
+                onChange={(event) => setAddressText(event.target.value)}
+                className="mt-3 w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+                placeholder="Selected address will appear here"
+              />
+
+              <label className="mt-4 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                State
+              </label>
+              <input
+                value={stateText}
+                onChange={(event) => setStateText(event.target.value)}
+                className="mt-3 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+                placeholder="State / region"
+              />
+            </div>
+          </div>
+
           <div className="space-y-4">
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
               <label className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
@@ -404,7 +489,10 @@ export function LeadLocationPickerDialog({
                   Search
                 </button>
               </div>
-              <div className="mt-3 max-h-48 space-y-2 overflow-y-auto pr-1">
+              <p className="mt-2 text-xs text-slate-500">
+                Search by apartment, landmark, road, or area name. Results update as you type.
+              </p>
+              <div className="mt-3 max-h-[420px] space-y-2 overflow-y-auto pr-1">
                 {results.map((result) => (
                   <button
                     key={`${result.lat}-${result.lon}-${result.label}`}
@@ -414,12 +502,19 @@ export function LeadLocationPickerDialog({
                       setAddressText(result.label);
                       setStateText(result.state ?? "");
                     }}
-                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-left text-sm text-slate-700 hover:border-sky-300 hover:bg-sky-50"
+                    className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-3 text-left text-sm text-slate-700 transition hover:border-sky-300 hover:bg-sky-50"
                   >
-                    <p className="font-medium text-slate-900">{result.label}</p>
-                    <p className="mt-1 text-xs text-slate-500">
-                      {result.state ?? "State not resolved"}
-                    </p>
+                    <div className="flex items-start gap-3">
+                      <div className="mt-0.5 rounded-full bg-sky-100 p-2 text-sky-700">
+                        <MapPin className="h-3.5 w-3.5" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-medium text-slate-900">{result.label}</p>
+                        <p className="mt-1 text-xs text-slate-500">
+                          {result.state ?? "State not resolved"}
+                        </p>
+                      </div>
+                    </div>
                   </button>
                 ))}
                 {!isSearching && results.length === 0 ? (
@@ -430,65 +525,11 @@ export function LeadLocationPickerDialog({
               </div>
             </div>
 
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <label className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                Selected Address
-              </label>
-              <textarea
-                rows={4}
-                value={addressText}
-                onChange={(event) => setAddressText(event.target.value)}
-                className="mt-3 w-full resize-none rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
-                placeholder="Selected address will appear here"
-              />
-
-              <label className="mt-4 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                State
-              </label>
-              <input
-                value={stateText}
-                onChange={(event) => setStateText(event.target.value)}
-                className="mt-3 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
-                placeholder="State / region"
-              />
-            </div>
-
             {error ? (
               <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
                 {error}
               </div>
             ) : null}
-          </div>
-
-          <div className="space-y-3">
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <div className="mb-3 flex items-center justify-between text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                <span>Map Picker</span>
-                <span>
-                  {center.lat.toFixed(5)}, {center.lon.toFixed(5)}
-                </span>
-              </div>
-              <div className="relative">
-                <MapCanvas
-                  latitude={center.lat}
-                  longitude={center.lon}
-                  onPick={(latitude, longitude) => {
-                    void handleMapPick(latitude, longitude);
-                  }}
-                />
-                {isResolvingMap ? (
-                  <div className="absolute inset-0 flex items-center justify-center rounded-2xl bg-white/75">
-                    <div className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Resolving address...
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-              <p className="mt-3 text-xs text-slate-500">
-                OpenStreetMap tiles are shown here. Search first for a rough area, then click the map to point the exact project spot.
-              </p>
-            </div>
           </div>
         </div>
         </div>

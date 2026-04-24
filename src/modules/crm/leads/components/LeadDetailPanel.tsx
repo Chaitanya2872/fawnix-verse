@@ -45,6 +45,18 @@ const TABS = [
   { id: "activity", label: "Activity" },
 ] as const;
 
+function isMetaCapturedRemark(value: string | null | undefined) {
+  const normalized = value?.trim().toLowerCase();
+  if (!normalized) return false;
+  return (
+    normalized.startsWith("meta lead captured.") ||
+    normalized.includes("leadgen id:") ||
+    normalized.includes("form id:") ||
+    normalized.includes("ad id:") ||
+    normalized.includes("created:")
+  );
+}
+
 type LeadTab = (typeof TABS)[number]["id"];
 
 export function LeadDetailPanel({
@@ -60,12 +72,12 @@ export function LeadDetailPanel({
   onEditRemark,
   onUpdateProjectLocation,
   onBuildQuote,
+  onAssignmentBlocked,
   isUpdating,
   isAssigning,
   isCreatingRemark,
   editingRemarkId,
   isRefreshing,
-  assignError,
   remarkError,
 }: {
   lead: Lead;
@@ -83,12 +95,12 @@ export function LeadDetailPanel({
     projectState: string | null
   ) => Promise<void>;
   onBuildQuote?: () => void;
+  onAssignmentBlocked?: (message: string) => void;
   isUpdating: boolean;
   isAssigning: boolean;
   isCreatingRemark: boolean;
   editingRemarkId: string | null;
   isRefreshing: boolean;
-  assignError?: string | null;
   remarkError?: string | null;
 }) {
   const isConverted = lead.status === LeadStatus.CONVERTED;
@@ -114,6 +126,37 @@ export function LeadDetailPanel({
       })),
     [lead.remarks]
   );
+
+  const hasMeaningfulRemark = useMemo(() => {
+    if (lead.presalesRemarks?.trim() && !isMetaCapturedRemark(lead.presalesRemarks)) {
+      return true;
+    }
+    if (lead.notes?.trim() && !isMetaCapturedRemark(lead.notes)) {
+      return true;
+    }
+    return lead.remarks.some((remark) =>
+      remark.versions.some((version) => version.content?.trim() && !isMetaCapturedRemark(version.content))
+    );
+  }, [lead.notes, lead.presalesRemarks, lead.remarks]);
+
+  const hasMappedLocation = useMemo(() => {
+    const location = lead.projectLocation?.trim();
+    const state = lead.projectState?.trim();
+    if (!location || !state) return false;
+    if (lead.propertyType && location.toLowerCase() === lead.propertyType.trim().toLowerCase()) {
+      return false;
+    }
+    if (lead.projectStage && location.toLowerCase() === lead.projectStage.trim().toLowerCase()) {
+      return false;
+    }
+    return true;
+  }, [lead.projectLocation, lead.projectState, lead.propertyType, lead.projectStage]);
+
+  const assignmentBlockedReason = !hasMeaningfulRemark
+    ? "Add a real follow-up remark before assigning. Meta lead capture remarks do not count."
+    : !hasMappedLocation
+      ? "Edit the project location from the map before assigning this lead."
+      : null;
 
   const historyStages = useMemo(() => {
     const grouped = new Map<
@@ -380,19 +423,26 @@ export function LeadDetailPanel({
                   </select>
                   <button
                     onClick={() => {
+                      if (assignmentBlockedReason) {
+                        onAssignmentBlocked?.(assignmentBlockedReason);
+                        return;
+                      }
                       if (!draftAssigneeValue) return;
                       const assignee = assignees.find((a) => a.name === draftAssigneeValue);
                       if (assignee) {
                         onAssignLead(assignee);
                       }
                     }}
-                    disabled={isAssigning || !draftAssigneeValue || draftAssigneeValue === lead.assignedTo}
+                    disabled={
+                      isAssigning ||
+                      !draftAssigneeValue ||
+                      draftAssigneeValue === lead.assignedTo
+                    }
                     className="inline-flex items-center justify-center gap-2 rounded-lg bg-sky-600 px-3 py-2 text-xs font-semibold text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {isAssigning && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                     Save Assignment
                   </button>
-                  {assignError && <p className="text-xs font-medium text-red-600">{assignError}</p>}
                 </div>
               </div>
 

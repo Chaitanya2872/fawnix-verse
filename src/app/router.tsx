@@ -1,4 +1,5 @@
 import { Navigate, createBrowserRouter, useParams } from "react-router-dom";
+import { RouteErrorFallback } from "@/app/ErrorBoundary";
 import { AppLayout } from "@/components/layout/AppLayout";
 import AuthPage from "@/modules/auth/page";
 import { ProtectedRoute, PublicOnlyRoute, RequirePermission } from "@/modules/auth/guards";
@@ -82,9 +83,11 @@ export const router = createBrowserRouter([
   {
     path: "/apply/:slug",
     element: <PublicApplyPage />,
+    errorElement: <RouteErrorFallback />,
   },
   {
     element: <PublicOnlyRoute />,
+    errorElement: <RouteErrorFallback />,
     children: [
       { path: "/login", element: <AuthPage /> },
       { path: "/auth", element: <Navigate to="/login" replace /> },
@@ -93,10 +96,12 @@ export const router = createBrowserRouter([
   },
   {
     element: <ProtectedRoute />,
+    errorElement: <RouteErrorFallback />,
     children: [
       {
         path: "/",
         element: <AppLayout />,
+        errorElement: <RouteErrorFallback />,
         children: [
           { index: true, element: <Navigate to="/crm/leads" replace /> },
           //   { index: true, element: <DashboardPage /> },

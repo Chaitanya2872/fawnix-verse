@@ -53,7 +53,7 @@ import { LeadsLayout } from "./layout";
 import { useCurrentUser } from "@/modules/auth/hooks";
 import { RowActions } from "./components/RowActions";
 import { LeadDetailPanel } from "./components/LeadDetailPanel";
-import { fmt, fmtDate, PriorityDot, REP_COLORS, StatusBadge, getInitials } from "./lead-ui";
+import { fmt, fmtDate, fmtDateTime, PriorityDot, REP_COLORS, StatusBadge, getInitials } from "./lead-ui";
 
 const PAGE_SIZE = 10;
 
@@ -466,6 +466,18 @@ function FollowUpCalendarDialog({
 }) {
   if (!open) return null;
 
+  const formatFollowUpAt = (value: string | null | undefined) => {
+    if (!value) {
+      return "-";
+    }
+    try {
+      return fmtDateTime(value);
+    } catch {
+      const parsed = new Date(value);
+      return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleString();
+    }
+  };
+
   const monthStart = new Date(month.getFullYear(), month.getMonth(), 1);
   const firstGridDate = new Date(monthStart);
   firstGridDate.setDate(monthStart.getDate() - monthStart.getDay());
@@ -570,32 +582,50 @@ function FollowUpCalendarDialog({
               <p className="text-sm font-semibold text-foreground">Scheduled Follow-ups</p>
               <p className="text-xs text-muted-foreground">Open a lead directly from the selected date.</p>
             </div>
-            <div className="space-y-3 overflow-auto">
+            <div className="overflow-auto rounded-2xl border border-border bg-background">
               {selectedEntries.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-border bg-background px-4 py-6 text-center text-sm text-muted-foreground">
+                <div className="px-4 py-6 text-center text-sm text-muted-foreground">
                   No follow-ups scheduled for this date.
                 </div>
               ) : (
-                selectedEntries.map((lead) => (
-                  <button
-                    key={lead.id}
-                    type="button"
-                    onClick={() => onOpenLead(lead)}
-                    className="w-full rounded-xl border border-border bg-background p-4 text-left transition hover:border-sky-200 hover:bg-sky-50/40"
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-semibold text-foreground">{lead.name}</p>
-                        <p className="text-xs text-muted-foreground">{lead.company}</p>
-                      </div>
-                      <PriorityDot priority={lead.priority} />
-                    </div>
-                    <div className="mt-3 flex flex-wrap gap-2 text-xs text-muted-foreground">
-                      <span className="rounded-full bg-muted px-2 py-1">{lead.followUpAt ? fmtDateTime(lead.followUpAt) : "-"}</span>
-                      <span className="rounded-full bg-muted px-2 py-1">{LEAD_STATUS_LABELS[lead.status]}</span>
-                    </div>
-                  </button>
-                ))
+                <table className="min-w-full divide-y divide-border text-left text-sm">
+                  <thead className="bg-muted/30 text-xs uppercase tracking-wide text-muted-foreground">
+                    <tr>
+                      <th className="px-4 py-3 font-semibold">Lead</th>
+                      <th className="px-4 py-3 font-semibold">Company</th>
+                      <th className="px-4 py-3 font-semibold">Follow-up</th>
+                      <th className="px-4 py-3 font-semibold">Stage</th>
+                      <th className="px-4 py-3 font-semibold">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {selectedEntries.map((lead) => (
+                      <tr key={lead.id} className="transition hover:bg-sky-50/40">
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <PriorityDot priority={lead.priority} />
+                            <div>
+                              <p className="font-semibold text-foreground">{lead.name}</p>
+                              <p className="text-xs text-muted-foreground">{lead.phone || lead.email || "-"}</p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-muted-foreground">{lead.company || "-"}</td>
+                        <td className="px-4 py-3 text-muted-foreground">{formatFollowUpAt(lead.followUpAt)}</td>
+                        <td className="px-4 py-3 text-muted-foreground">{LEAD_STATUS_LABELS[lead.status]}</td>
+                        <td className="px-4 py-3">
+                          <button
+                            type="button"
+                            onClick={() => onOpenLead(lead)}
+                            className="rounded-full bg-sky-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-sky-700"
+                          >
+                            Open Lead
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               )}
             </div>
           </aside>
@@ -692,12 +722,20 @@ export default function LeadsPage() {
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importResult, setImportResult] = useState<LeadImportResult | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
-  const [whatsappToast, setWhatsappToast] = useState<{
-    sent: boolean;
-    reason: string | null;
-    leadName: string;
-    assigneeName: string;
+  const [uiToast, setUiToast] = useState<{
+    tone: "success" | "error" | "info";
+    title: string;
+    message: string;
   } | null>(null);
+
+  const pushToast = useCallback((toast: {
+    tone: "success" | "error" | "info";
+    title: string;
+    message: string;
+  }) => {
+    setUiToast(toast);
+    window.setTimeout(() => setUiToast(null), 5000);
+  }, []);
 
   const assigneesQuery = useLeadAssignees();
   const assignees = assigneesQuery.data ?? [];
@@ -914,13 +952,20 @@ export default function LeadsPage() {
       {
         onSuccess: (updatedLead) => {
           const log = updatedLead.whatsappAssignment ?? null;
-          setWhatsappToast({
-            sent: Boolean(log?.sent),
-            reason: log?.reason ?? null,
-            leadName: updatedLead.name,
-            assigneeName: assignee.name,
+          pushToast({
+            tone: log?.sent ? "success" : "info",
+            title: "Assignment updated",
+            message: log?.sent
+              ? `WhatsApp sent to ${assignee.name} for ${updatedLead.name}.`
+              : `${updatedLead.name} was assigned to ${assignee.name}.`,
           });
-          window.setTimeout(() => setWhatsappToast(null), 6000);
+        },
+        onError: (error) => {
+          pushToast({
+            tone: "error",
+            title: "Assignment failed",
+            message: error instanceof Error ? error.message : "Unable to assign this lead right now.",
+          });
         },
       }
     );
@@ -943,13 +988,27 @@ export default function LeadsPage() {
     projectLocation: string,
     projectState: string | null
   ) {
-    await updateLead.mutateAsync({
-      id,
-      data: {
-        projectLocation,
-        projectState,
-      },
-    });
+    try {
+      await updateLead.mutateAsync({
+        id,
+        data: {
+          projectLocation,
+          projectState,
+        },
+      });
+      pushToast({
+        tone: "success",
+        title: "Location updated",
+        message: "Project location was updated successfully.",
+      });
+    } catch (error) {
+      pushToast({
+        tone: "error",
+        title: "Location update failed",
+        message: error instanceof Error ? error.message : "Unable to save the mapped location.",
+      });
+      throw error;
+    }
   }
 
   function handleLeadRowClick(lead: Lead) {
@@ -1024,7 +1083,6 @@ export default function LeadsPage() {
     formState?.mode === "edit"
       ? updateLead.error instanceof Error ? updateLead.error.message : null
       : createLead.error instanceof Error ? createLead.error.message : null;
-  const assignError = assignLead.error instanceof Error ? assignLead.error.message : null;
   const remarkError = createLeadRemark.error instanceof Error
     ? createLeadRemark.error.message
     : editLeadRemark.error instanceof Error
@@ -1033,14 +1091,18 @@ export default function LeadsPage() {
   const showDetailPanel = Boolean(isDetailView && selectedLead);
   return (
     <>
-      {whatsappToast ? (
-        <div className="fixed bottom-6 right-6 z-50 w-[320px] rounded-2xl border px-4 py-3 shadow-xl border-emerald-200 bg-emerald-50 text-emerald-800">
-          <p className="text-sm font-semibold">WhatsApp Assignment</p>
-          <p className="mt-1 text-xs">
-            {whatsappToast.sent
-              ? `WhatsApp sent to ${whatsappToast.assigneeName} for ${whatsappToast.leadName}.`
-              : "WhatsApp status unavailable. Check CRM service logs."}
-          </p>
+      {uiToast ? (
+        <div
+          className={`fixed bottom-6 right-6 z-50 w-[340px] rounded-2xl border px-4 py-3 shadow-xl ${
+            uiToast.tone === "success"
+              ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+              : uiToast.tone === "error"
+                ? "border-rose-200 bg-rose-50 text-rose-800"
+                : "border-sky-200 bg-sky-50 text-sky-800"
+          }`}
+        >
+          <p className="text-sm font-semibold">{uiToast.title}</p>
+          <p className="mt-1 text-xs">{uiToast.message}</p>
         </div>
       ) : null}
 
@@ -1359,13 +1421,26 @@ export default function LeadsPage() {
               onUpdateProjectLocation={(projectLocation, projectState) =>
                 handleUpdateProjectLocation(selectedLead.id, projectLocation, projectState)
               }
-              onBuildQuote={() => navigate("/sales")}
+              onBuildQuote={() =>
+                navigate("/sales", {
+                  state: {
+                    openBuilder: true,
+                    leadId: selectedLead.status === LeadStatus.QUALIFIED ? selectedLead.id : null,
+                  },
+                })
+              }
+              onAssignmentBlocked={(message) => {
+                pushToast({
+                  tone: "error",
+                  title: "Assignment blocked",
+                  message,
+                });
+              }}
               isUpdating={updateLead.isPending || updateLeadPriority.isPending}
               isAssigning={assignLead.isPending}
               isCreatingRemark={createLeadRemark.isPending}
               editingRemarkId={editLeadRemark.variables?.remarkId ?? null}
               isRefreshing={leadDetail.isFetching}
-              assignError={assignError}
               remarkError={remarkError}
             />
           </div>

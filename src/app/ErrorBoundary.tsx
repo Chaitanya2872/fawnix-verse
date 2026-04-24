@@ -1,4 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
+import { useNavigate, useRouteError } from "react-router-dom";
 
 type ErrorBoundaryProps = {
   children: ReactNode;
@@ -39,5 +40,45 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
       </div>
     );
   }
+}
+
+export function RouteErrorFallback() {
+  const error = useRouteError();
+  const navigate = useNavigate();
+  const message =
+    error instanceof Error
+      ? error.message
+      : "Something unexpected happened while opening this page.";
+
+  return (
+    <div className="min-h-screen bg-slate-100 px-6 py-10 text-slate-900">
+      <div className="mx-auto max-w-2xl rounded-3xl border border-slate-200 bg-white p-8 shadow-xl">
+        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-sky-600">Something Went Wrong</p>
+        <h1 className="mt-3 text-2xl font-semibold text-slate-900">This page hit an unexpected error.</h1>
+        <p className="mt-3 text-sm leading-6 text-slate-600">
+          We kept the app running, but this screen could not finish loading. You can retry the page or go back to the previous screen.
+        </p>
+        <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+          {message}
+        </div>
+        <div className="mt-6 flex flex-wrap gap-3">
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="rounded-xl bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-700"
+          >
+            Retry
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate(-1)}
+            className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+          >
+            Go Back
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
