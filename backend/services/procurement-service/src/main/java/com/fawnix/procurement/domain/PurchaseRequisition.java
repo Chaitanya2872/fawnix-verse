@@ -29,11 +29,24 @@ public class PurchaseRequisition extends AuditableEntity {
   @Column(name = "department", nullable = false, length = 120)
   private String department;
 
+  @Column(name = "title", length = 200)
+  private String title;
+
+  @Column(name = "description", columnDefinition = "text")
+  private String description;
+
   @Column(name = "purpose", columnDefinition = "text")
   private String purpose;
 
   @Column(name = "needed_by_date")
   private LocalDate neededByDate;
+
+  @Enumerated(EnumType.STRING)
+  @Column(name = "priority", nullable = false, length = 20)
+  private PurchaseRequisitionPriority priority;
+
+  @Column(name = "request_category", length = 80)
+  private String requestCategory;
 
   @Enumerated(EnumType.STRING)
   @Column(name = "request_type", nullable = false, length = 40)
@@ -62,6 +75,31 @@ public class PurchaseRequisition extends AuditableEntity {
   @Column(name = "rejection_reason", columnDefinition = "text")
   private String rejectionReason;
 
+  @Column(name = "budget_name", length = 160)
+  private String budgetName;
+
+  @Enumerated(EnumType.STRING)
+  @Column(name = "budget_type", length = 40)
+  private BudgetContextType budgetType;
+
+  @Column(name = "budget_period", length = 40)
+  private String budgetPeriod;
+
+  @Column(name = "allocated_budget", precision = 19, scale = 2)
+  private java.math.BigDecimal allocatedBudget;
+
+  @Column(name = "committed_amount", precision = 19, scale = 2)
+  private java.math.BigDecimal committedAmount;
+
+  @Column(name = "actual_spend", precision = 19, scale = 2)
+  private java.math.BigDecimal actualSpend;
+
+  @Column(name = "budget_validation_notes", columnDefinition = "text")
+  private String budgetValidationNotes;
+
+  @Column(name = "budget_exception_justification", columnDefinition = "text")
+  private String budgetExceptionJustification;
+
   @Column(name = "evaluation_decision", length = 120)
   private String evaluationDecision;
 
@@ -79,6 +117,18 @@ public class PurchaseRequisition extends AuditableEntity {
 
   @Column(name = "negotiation_notes", columnDefinition = "text")
   private String negotiationNotes;
+
+  @Column(name = "negotiation_delivery_timeline", length = 200)
+  private String negotiationDeliveryTimeline;
+
+  @Column(name = "negotiation_payment_terms", columnDefinition = "text")
+  private String negotiationPaymentTerms;
+
+  @Column(name = "negotiation_discount_percent", precision = 8, scale = 2)
+  private java.math.BigDecimal negotiationDiscountPercent;
+
+  @Column(name = "negotiation_discount_amount", precision = 19, scale = 2)
+  private java.math.BigDecimal negotiationDiscountAmount;
 
   @Column(name = "negotiation_updated_at")
   private Instant negotiationUpdatedAt;
@@ -115,6 +165,22 @@ public class PurchaseRequisition extends AuditableEntity {
     this.department = department;
   }
 
+  public String getTitle() {
+    return title;
+  }
+
+  public void setTitle(String title) {
+    this.title = title;
+  }
+
+  public String getDescription() {
+    return description;
+  }
+
+  public void setDescription(String description) {
+    this.description = description;
+  }
+
   public String getPurpose() {
     return purpose;
   }
@@ -129,6 +195,22 @@ public class PurchaseRequisition extends AuditableEntity {
 
   public void setNeededByDate(LocalDate neededByDate) {
     this.neededByDate = neededByDate;
+  }
+
+  public PurchaseRequisitionPriority getPriority() {
+    return priority;
+  }
+
+  public void setPriority(PurchaseRequisitionPriority priority) {
+    this.priority = priority;
+  }
+
+  public String getRequestCategory() {
+    return requestCategory;
+  }
+
+  public void setRequestCategory(String requestCategory) {
+    this.requestCategory = requestCategory;
   }
 
   public PurchaseRequisitionType getRequestType() {
@@ -195,6 +277,70 @@ public class PurchaseRequisition extends AuditableEntity {
     this.rejectionReason = rejectionReason;
   }
 
+  public String getBudgetName() {
+    return budgetName;
+  }
+
+  public void setBudgetName(String budgetName) {
+    this.budgetName = budgetName;
+  }
+
+  public BudgetContextType getBudgetType() {
+    return budgetType;
+  }
+
+  public void setBudgetType(BudgetContextType budgetType) {
+    this.budgetType = budgetType;
+  }
+
+  public String getBudgetPeriod() {
+    return budgetPeriod;
+  }
+
+  public void setBudgetPeriod(String budgetPeriod) {
+    this.budgetPeriod = budgetPeriod;
+  }
+
+  public java.math.BigDecimal getAllocatedBudget() {
+    return allocatedBudget;
+  }
+
+  public void setAllocatedBudget(java.math.BigDecimal allocatedBudget) {
+    this.allocatedBudget = allocatedBudget;
+  }
+
+  public java.math.BigDecimal getCommittedAmount() {
+    return committedAmount;
+  }
+
+  public void setCommittedAmount(java.math.BigDecimal committedAmount) {
+    this.committedAmount = committedAmount;
+  }
+
+  public java.math.BigDecimal getActualSpend() {
+    return actualSpend;
+  }
+
+  public void setActualSpend(java.math.BigDecimal actualSpend) {
+    this.actualSpend = actualSpend;
+  }
+
+  public String getBudgetValidationNotes() {
+    return budgetValidationNotes;
+  }
+
+  public void setBudgetValidationNotes(String budgetValidationNotes) {
+    this.budgetValidationNotes = budgetValidationNotes;
+  }
+
+  public String getBudgetExceptionJustification() {
+    return budgetExceptionJustification;
+  }
+
+  public void setBudgetExceptionJustification(String budgetExceptionJustification) {
+    this.budgetExceptionJustification = budgetExceptionJustification;
+  }
+
   public String getEvaluationDecision() {
     return evaluationDecision;
   }
@@ -241,6 +387,38 @@ public class PurchaseRequisition extends AuditableEntity {
 
   public void setNegotiationNotes(String negotiationNotes) {
     this.negotiationNotes = negotiationNotes;
+  }
+
+  public String getNegotiationDeliveryTimeline() {
+    return negotiationDeliveryTimeline;
+  }
+
+  public void setNegotiationDeliveryTimeline(String negotiationDeliveryTimeline) {
+    this.negotiationDeliveryTimeline = negotiationDeliveryTimeline;
+  }
+
+  public String getNegotiationPaymentTerms() {
+    return negotiationPaymentTerms;
+  }
+
+  public void setNegotiationPaymentTerms(String negotiationPaymentTerms) {
+    this.negotiationPaymentTerms = negotiationPaymentTerms;
+  }
+
+  public java.math.BigDecimal getNegotiationDiscountPercent() {
+    return negotiationDiscountPercent;
+  }
+
+  public void setNegotiationDiscountPercent(java.math.BigDecimal negotiationDiscountPercent) {
+    this.negotiationDiscountPercent = negotiationDiscountPercent;
+  }
+
+  public java.math.BigDecimal getNegotiationDiscountAmount() {
+    return negotiationDiscountAmount;
+  }
+
+  public void setNegotiationDiscountAmount(java.math.BigDecimal negotiationDiscountAmount) {
+    this.negotiationDiscountAmount = negotiationDiscountAmount;
   }
 
   public Instant getNegotiationUpdatedAt() {

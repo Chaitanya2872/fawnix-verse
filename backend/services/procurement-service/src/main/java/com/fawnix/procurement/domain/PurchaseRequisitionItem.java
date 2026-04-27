@@ -42,6 +42,9 @@ public class PurchaseRequisitionItem extends AuditableEntity {
   @Column(name = "estimated_unit_price", nullable = false, precision = 14, scale = 2)
   private BigDecimal estimatedUnitPrice;
 
+  @Column(name = "tax_percent", precision = 6, scale = 2)
+  private BigDecimal taxPercent;
+
   @Column(name = "line_total", nullable = false, precision = 14, scale = 2)
   private BigDecimal lineTotal;
 
@@ -126,6 +129,14 @@ public class PurchaseRequisitionItem extends AuditableEntity {
 
   public void setLineTotal(BigDecimal lineTotal) {
     this.lineTotal = lineTotal;
+  }
+
+  public BigDecimal getTaxPercent() {
+    return taxPercent;
+  }
+
+  public void setTaxPercent(BigDecimal taxPercent) {
+    this.taxPercent = taxPercent;
   }
 
   public String getRemarks() {

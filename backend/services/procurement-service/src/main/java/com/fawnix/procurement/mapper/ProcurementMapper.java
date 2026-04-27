@@ -5,6 +5,7 @@ import com.fawnix.procurement.domain.Invoice;
 import com.fawnix.procurement.domain.Payment;
 import com.fawnix.procurement.domain.PurchaseOrder;
 import com.fawnix.procurement.domain.PurchaseOrderItem;
+import com.fawnix.procurement.domain.PurchaseRequisitionDocument;
 import com.fawnix.procurement.domain.PurchaseRequisition;
 import com.fawnix.procurement.domain.PurchaseRequisitionItem;
 import com.fawnix.procurement.domain.Vendor;
@@ -25,9 +26,14 @@ public class ProcurementMapper {
         .map(this::toPurchaseRequisitionItemResponse)
         .toList();
 
+    BigDecimal subtotalAmount = items.stream()
+        .map(item -> item.getEstimatedUnitPrice().multiply(item.getQuantity()))
+        .reduce(BigDecimal.ZERO, BigDecimal::add);
+
     BigDecimal totalAmount = items.stream()
         .map(PurchaseRequisitionItem::getLineTotal)
         .reduce(BigDecimal.ZERO, BigDecimal::add);
+    BigDecimal taxAmount = totalAmount.subtract(subtotalAmount);
 
     return new ProcurementDtos.PurchaseRequisitionResponse(
         requisition.getId(),
@@ -35,21 +41,39 @@ public class ProcurementMapper {
         requisition.getRequesterId(),
         requisition.getRequestType(),
         requisition.getDepartment(),
+        requisition.getTitle(),
+        requisition.getDescription(),
         requisition.getPurpose(),
         requisition.getNeededByDate(),
+        requisition.getPriority(),
+        requisition.getRequestCategory(),
         requisition.getStatus(),
         requisition.getCurrentStepOrder(),
         requisition.getSubmittedAt(),
         requisition.getApprovedAt(),
         requisition.getRejectedAt(),
         requisition.getRejectionReason(),
+        requisition.getBudgetName(),
+        requisition.getBudgetType(),
+        requisition.getBudgetPeriod(),
+        requisition.getAllocatedBudget(),
+        requisition.getCommittedAmount(),
+        requisition.getActualSpend(),
+        requisition.getBudgetValidationNotes(),
+        requisition.getBudgetExceptionJustification(),
         requisition.getEvaluationDecision(),
         requisition.getEvaluationNotes(),
         requisition.getEvaluationUpdatedAt(),
         requisition.getNegotiationVendorId(),
         requisition.getNegotiatedAmount(),
+        requisition.getNegotiationDeliveryTimeline(),
+        requisition.getNegotiationPaymentTerms(),
+        requisition.getNegotiationDiscountPercent(),
+        requisition.getNegotiationDiscountAmount(),
         requisition.getNegotiationNotes(),
         requisition.getNegotiationUpdatedAt(),
+        subtotalAmount,
+        taxAmount,
         totalAmount,
         itemResponses,
         requisition.getCreatedAt(),
@@ -67,6 +91,7 @@ public class ProcurementMapper {
         item.getUnit(),
         item.getQuantity(),
         item.getEstimatedUnitPrice(),
+        item.getTaxPercent(),
         item.getLineTotal(),
         item.getRemarks(),
         item.getCreatedAt(),
@@ -101,6 +126,20 @@ public class ProcurementMapper {
         vendorDocument.getFileSize(),
         vendorDocument.getCreatedAt(),
         vendorDocument.getUpdatedAt()
+    );
+  }
+
+  public ProcurementDtos.PurchaseRequisitionDocumentResponse toPurchaseRequisitionDocumentResponse(
+      PurchaseRequisitionDocument document
+  ) {
+    return new ProcurementDtos.PurchaseRequisitionDocumentResponse(
+        document.getId(),
+        document.getDocumentType(),
+        document.getFileName(),
+        document.getContentType(),
+        document.getFileSize(),
+        document.getCreatedAt(),
+        document.getUpdatedAt()
     );
   }
 

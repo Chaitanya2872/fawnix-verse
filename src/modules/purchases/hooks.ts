@@ -6,13 +6,16 @@ import {
   createPurchaseOrder,
   createPurchaseRequisition,
   createVendor,
+  deletePurchaseRequisition,
   deleteVendor,
   deleteVendorDocument,
+  deletePurchaseRequisitionDocument,
   fetchGoodsReceipts,
   fetchInvoices,
   fetchPayments,
   fetchProcurementProducts,
   fetchPurchaseOrders,
+  fetchPurchaseRequisitionDocuments,
   fetchPurchaseRequisitions,
   fetchVendorDocuments,
   fetchVendors,
@@ -21,8 +24,11 @@ import {
   reviewPayment,
   submitPurchaseRequisition,
   uploadVendorDocument,
+  updatePurchaseRequisition,
+  updatePurchaseRequisitionBudget,
   updatePurchaseRequisitionEvaluation,
   updatePurchaseRequisitionNegotiation,
+  uploadPurchaseRequisitionDocument,
   updateVendor,
 } from "./api";
 import type {
@@ -33,6 +39,8 @@ import type {
   CreatePurchaseRequisitionPayload,
   CreateVendorPayload,
   ReviewPurchaseRequisitionPayload,
+  UpdatePurchaseRequisitionPayload,
+  UpdatePurchaseRequisitionBudgetPayload,
   UpdatePurchaseRequisitionEvaluationPayload,
   UpdatePurchaseRequisitionNegotiationPayload,
   UpdateVendorPayload,
@@ -42,6 +50,7 @@ export const procurementKeys = {
   all: ["procurement"] as const,
   products: () => [...procurementKeys.all, "products"] as const,
   requisitions: () => [...procurementKeys.all, "requisitions"] as const,
+  requisitionDocuments: (requisitionId: string) => [...procurementKeys.requisitions(), requisitionId, "documents"] as const,
   vendors: () => [...procurementKeys.all, "vendors"] as const,
   vendorDocuments: (vendorId: string) => [...procurementKeys.vendors(), vendorId, "documents"] as const,
   orders: () => [...procurementKeys.all, "orders"] as const,
@@ -70,6 +79,31 @@ export function useCreatePurchaseRequisition() {
   return useMutation({
     mutationFn: (payload: CreatePurchaseRequisitionPayload) => createPurchaseRequisition(payload),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: procurementKeys.requisitions() }),
+  });
+}
+
+export function useUpdatePurchaseRequisition() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: UpdatePurchaseRequisitionPayload }) =>
+      updatePurchaseRequisition(id, payload),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: procurementKeys.requisitions() }),
+  });
+}
+
+export function useDeletePurchaseRequisition() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => deletePurchaseRequisition(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: procurementKeys.requisitions() }),
+  });
+}
+
+export function usePurchaseRequisitionDocuments(requisitionId?: string) {
+  return useQuery({
+    queryKey: procurementKeys.requisitionDocuments(requisitionId ?? "unknown"),
+    queryFn: () => fetchPurchaseRequisitionDocuments(requisitionId!),
+    enabled: !!requisitionId,
   });
 }
 
@@ -104,6 +138,20 @@ export function useUpdatePurchaseRequisitionEvaluation() {
   });
 }
 
+export function useUpdatePurchaseRequisitionBudget() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      payload,
+    }: {
+      id: string;
+      payload: UpdatePurchaseRequisitionBudgetPayload;
+    }) => updatePurchaseRequisitionBudget(id, payload),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: procurementKeys.requisitions() }),
+  });
+}
+
 export function useUpdatePurchaseRequisitionNegotiation() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -115,6 +163,35 @@ export function useUpdatePurchaseRequisitionNegotiation() {
       payload: UpdatePurchaseRequisitionNegotiationPayload;
     }) => updatePurchaseRequisitionNegotiation(id, payload),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: procurementKeys.requisitions() }),
+  });
+}
+
+export function useUploadPurchaseRequisitionDocument() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      requisitionId,
+      type,
+      file,
+    }: {
+      requisitionId: string;
+      type: "DOCUMENT" | "QUOTE";
+      file: File;
+    }) => uploadPurchaseRequisitionDocument(requisitionId, type, file),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: procurementKeys.requisitionDocuments(variables.requisitionId) });
+    },
+  });
+}
+
+export function useDeletePurchaseRequisitionDocument() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ requisitionId, documentId }: { requisitionId: string; documentId: string }) =>
+      deletePurchaseRequisitionDocument(requisitionId, documentId),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: procurementKeys.requisitionDocuments(variables.requisitionId) });
+    },
   });
 }
 

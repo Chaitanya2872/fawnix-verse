@@ -11,6 +11,9 @@ export type PurchaseRequisitionType =
   | "SELF"
   | "DEMO"
   | "OTHER";
+export type PurchaseRequisitionPriority = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+export type BudgetContextType = "DEPARTMENT" | "PROJECT";
+export type PurchaseRequisitionDocumentType = "DOCUMENT" | "QUOTE";
 
 export type PurchaseOrderStatus = "CREATED" | "RECEIVED";
 export type GoodsReceiptStatus = "RECEIVED";
@@ -27,6 +30,7 @@ export interface PurchaseRequisitionItem {
   unit: string;
   quantity: number;
   estimatedUnitPrice: number;
+  taxPercent?: number | null;
   lineTotal: number;
   remarks?: string | null;
   createdAt: string;
@@ -39,23 +43,51 @@ export interface PurchaseRequisition {
   requesterId: string;
   requestType: PurchaseRequisitionType;
   department: string;
+  title: string;
+  description?: string | null;
   purpose?: string | null;
   neededByDate?: string | null;
+  priority: PurchaseRequisitionPriority;
+  requestCategory?: string | null;
   status: PurchaseRequisitionStatus;
   currentStepOrder?: number | null;
   submittedAt?: string | null;
   approvedAt?: string | null;
   rejectedAt?: string | null;
   rejectionReason?: string | null;
+  budgetName?: string | null;
+  budgetType?: BudgetContextType | null;
+  budgetPeriod?: string | null;
+  allocatedBudget?: number | null;
+  committedAmount?: number | null;
+  actualSpend?: number | null;
+  budgetValidationNotes?: string | null;
+  budgetExceptionJustification?: string | null;
   evaluationDecision?: string | null;
   evaluationNotes?: string | null;
   evaluationUpdatedAt?: string | null;
   negotiationVendorId?: string | null;
   negotiatedAmount?: number | null;
+  negotiationDeliveryTimeline?: string | null;
+  negotiationPaymentTerms?: string | null;
+  negotiationDiscountPercent?: number | null;
+  negotiationDiscountAmount?: number | null;
   negotiationNotes?: string | null;
   negotiationUpdatedAt?: string | null;
+  subtotalAmount: number;
+  taxAmount: number;
   totalAmount: number;
   items: PurchaseRequisitionItem[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PurchaseRequisitionDocument {
+  id: string;
+  documentType: PurchaseRequisitionDocumentType;
+  fileName: string;
+  contentType?: string | null;
+  fileSize: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -165,8 +197,18 @@ export interface CreatePurchaseRequisitionPayload {
   requesterId: string;
   requestType: PurchaseRequisitionType;
   department: string;
+  title: string;
+  description?: string;
   purpose?: string;
   neededByDate?: string;
+  priority: PurchaseRequisitionPriority;
+  requestCategory?: string;
+  budgetName?: string;
+  budgetType?: BudgetContextType;
+  budgetPeriod?: string;
+  allocatedBudget?: number;
+  committedAmount?: number;
+  actualSpend?: number;
   items: Array<{
     productId?: string;
     sku?: string;
@@ -175,8 +217,22 @@ export interface CreatePurchaseRequisitionPayload {
     unit?: string;
     quantity: number;
     estimatedUnitPrice: number;
+    taxPercent?: number;
     remarks?: string;
   }>;
+}
+
+export type UpdatePurchaseRequisitionPayload = CreatePurchaseRequisitionPayload;
+
+export interface UpdatePurchaseRequisitionBudgetPayload {
+  budgetName?: string;
+  budgetType?: BudgetContextType;
+  budgetPeriod?: string;
+  allocatedBudget?: number;
+  committedAmount?: number;
+  actualSpend?: number;
+  validationNotes?: string;
+  exceptionJustification?: string;
 }
 
 export interface ReviewPurchaseRequisitionPayload {
@@ -193,6 +249,10 @@ export interface UpdatePurchaseRequisitionEvaluationPayload {
 export interface UpdatePurchaseRequisitionNegotiationPayload {
   vendorId?: string;
   negotiatedAmount?: number;
+  deliveryTimeline?: string;
+  paymentTerms?: string;
+  discountPercent?: number;
+  discountAmount?: number;
   notes?: string;
 }
 

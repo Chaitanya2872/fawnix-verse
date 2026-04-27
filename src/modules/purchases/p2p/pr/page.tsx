@@ -8,6 +8,7 @@ import {
   ClipboardList,
   FileClock,
   Loader2,
+  Pencil,
   Plus,
   Search,
   Send,
@@ -21,15 +22,21 @@ import {
 import { useCurrentUser } from "@/modules/auth/hooks";
 import {
   useCreatePurchaseRequisition,
+  useDeletePurchaseRequisition,
+  useUploadPurchaseRequisitionDocument,
   useProcurementProducts,
   usePurchaseRequisitions,
   useReviewPurchaseRequisition,
   useSubmitPurchaseRequisition,
+  useUpdatePurchaseRequisition,
+  useUpdatePurchaseRequisitionBudget,
   useUpdatePurchaseRequisitionEvaluation,
   useUpdatePurchaseRequisitionNegotiation,
   useVendors,
 } from "@/modules/purchases/hooks";
 import type {
+  BudgetContextType,
+  PurchaseRequisitionPriority,
   PurchaseRequisition,
   PurchaseRequisitionStatus,
   PurchaseRequisitionType,
@@ -79,8 +86,48 @@ function requestTypeLabel(requestType: PurchaseRequisitionType) {
     .join(" ");
 }
 
+const PURCHASE_REQUISITION_TYPE_OPTIONS: PurchaseRequisitionType[] = [
+  "INTERNAL_USE",
+  "FOR_SALE",
+  "CUSTOMER",
+  "SELF",
+  "DEMO",
+  "OTHER",
+];
+
+function formatPercent(value: number) {
+  return `${Math.round(value)}%`;
+}
+
+function diffInDays(value?: string | null) {
+  if (!value) return null;
+  const target = new Date(value);
+  if (Number.isNaN(target.getTime())) return null;
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const end = new Date(target.getFullYear(), target.getMonth(), target.getDate()).getTime();
+  return Math.round((end - start) / 86_400_000);
+}
+
+function deriveBudgetValidationStatus(utilizationPercent: number) {
+  if (utilizationPercent > 100) return "Exceeded";
+  if (utilizationPercent > 85) return "Near Limit";
+  return "Within Budget";
+}
+
+function budgetStatusLabel(status: string) {
+  switch (status) {
+    case "Exceeded":
+      return "❌ Exceeded";
+    case "Near Limit":
+      return "⚠️ Near Limit";
+    default:
+      return "✅ Within Budget";
+  }
+}
+
 function fieldShellClass(disabled = false) {
-  return `w-full rounded-2xl border px-4 py-3 text-sm text-slate-700 transition focus:outline-none ${
+  return `w-full rounded-xl border px-3.5 py-2.5 text-sm text-slate-700 transition focus:outline-none ${
     disabled
       ? "border-slate-200 bg-slate-100 text-slate-400"
       : "border-slate-200 bg-slate-50/80 hover:border-slate-300 focus:border-blue-500 focus:bg-white"
@@ -105,6 +152,7 @@ type DraftItem = {
   category: string;
   unit: string;
   estimatedUnitPrice: number;
+  taxPercent: number;
   quantity: number;
   remarks: string;
 };
@@ -119,54 +167,90 @@ const emptyDraft: DraftItem = {
   category: "",
   unit: "",
   estimatedUnitPrice: 0,
+  taxPercent: 0,
   quantity: 1,
   remarks: "",
 };
 
 function CreateRequisitionPanel({
+  isEditing,
   currentUserName,
   products,
   isProductsLoading,
   requestType,
+  title,
+  description,
   department,
-  purpose,
   neededByDate,
+  priority,
+  requestCategory,
   draftItem,
   items,
-  totalDraftAmount,
-  isCreating,
+  subtotalAmount,
+  taxAmount,
+  grandTotal,
+  documentFiles,
+  quoteFiles,
+  isSavingDraft,
+  isSubmittingForApproval,
   errorMessage,
   onClose,
   onRequestTypeChange,
+  onTitleChange,
+  onDescriptionChange,
   onDepartmentChange,
-  onPurposeChange,
   onNeededByDateChange,
+  onPriorityChange,
+  onRequestCategoryChange,
+  onDocumentFilesChange,
+  onQuoteFilesChange,
   onDraftItemChange,
   onAddItem,
   onRemoveItem,
   onCreate,
 }: {
+  isEditing: boolean;
   currentUserName?: string;
-  products: Array<{ id: string; name: string; sku: string; price: number }>;
+  products: Array<{
+    id: string;
+    name: string;
+    sku: string;
+    price: number;
+    category?: string;
+    unit?: string;
+  }>;
   isProductsLoading: boolean;
   requestType: PurchaseRequisitionType;
+  title: string;
+  description: string;
   department: string;
-  purpose: string;
   neededByDate: string;
+  priority: PurchaseRequisitionPriority;
+  requestCategory: string;
   draftItem: DraftItem;
   items: DraftItem[];
-  totalDraftAmount: number;
-  isCreating: boolean;
+  subtotalAmount: number;
+  taxAmount: number;
+  grandTotal: number;
+  documentFiles: File[];
+  quoteFiles: File[];
+  isSavingDraft: boolean;
+  isSubmittingForApproval: boolean;
   errorMessage?: string;
   onClose: () => void;
   onRequestTypeChange: (value: PurchaseRequisitionType) => void;
+  onTitleChange: (value: string) => void;
+  onDescriptionChange: (value: string) => void;
   onDepartmentChange: (value: string) => void;
-  onPurposeChange: (value: string) => void;
   onNeededByDateChange: (value: string) => void;
+  onPriorityChange: (value: PurchaseRequisitionPriority) => void;
+  onRequestCategoryChange: (value: string) => void;
+  onDocumentFilesChange: (files: File[]) => void;
+  onQuoteFilesChange: (files: File[]) => void;
   onDraftItemChange: (value: DraftItem) => void;
   onAddItem: () => void;
   onRemoveItem: (index: number) => void;
-  onCreate: () => void;
+  onCreate: (mode: "draft" | "submit") => void;
 }) {
   const selectedProduct = products.find((entry) => entry.id === draftItem.productId);
 
@@ -174,14 +258,11 @@ function CreateRequisitionPanel({
     <div className="fixed inset-0 z-40">
       <div className="absolute inset-0 bg-slate-950/30 backdrop-blur-[1px]" onClick={onClose} />
       <div className="absolute inset-y-0 right-0 flex h-full w-full flex-col border-l border-slate-200 bg-white shadow-2xl sm:w-[88vw] lg:w-[52vw] lg:max-w-[840px]">
-        <div className="border-b border-slate-200 px-6 py-5">
+        <div className="border-b border-slate-200 px-4 py-4">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-600">Purchase Request</p>
-              <h2 className="mt-2 text-2xl font-semibold text-slate-900">Create PR</h2>
-              <p className="mt-1 text-sm text-slate-500">
-                Raise a clean internal buying request, add line items, and send it into approvals.
-              </p>
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-600">Purchase Requisition</p>
+              <h2 className="mt-1 text-xl font-semibold text-slate-900">{isEditing ? "Edit PR" : "Create PR"}</h2>
             </div>
             <button
               type="button"
@@ -193,24 +274,37 @@ function CreateRequisitionPanel({
             </button>
           </div>
 
-          <div className="mt-5 flex flex-wrap items-center gap-3">
-            <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3">
+          <div className="mt-4 flex flex-wrap items-center gap-2.5">
+            <div className="rounded-xl border border-blue-100 bg-blue-50 px-3 py-2.5">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-blue-700">Requester</p>
               <p className="mt-1 text-sm font-semibold text-slate-900">{currentUserName ?? "Loading user..."}</p>
             </div>
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Draft Total</p>
-              <p className="mt-1 text-sm font-semibold text-slate-900">{formatCurrency(totalDraftAmount)}</p>
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">PR Number</p>
+              <p className="mt-1 text-sm font-semibold text-slate-900">{isEditing ? "Existing PR" : "Auto on save"}</p>
             </div>
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Line Items</p>
               <p className="mt-1 text-sm font-semibold text-slate-900">{items.length}</p>
             </div>
           </div>
         </div>
 
-        <div className="flex-1 space-y-6 overflow-y-auto px-6 py-6">
-          <section className="grid gap-4 md:grid-cols-2">
+        <div className="flex-1 space-y-4 overflow-y-auto px-4 py-4">
+          <section className="rounded-xl border border-slate-200 bg-white p-3.5">
+            <div className="mb-3">
+              <h3 className="text-base font-semibold text-slate-900">Basic Info</h3>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+            <P2PFormField label="Title" hint="Short business title for this requisition.">
+              <input
+                value={title}
+                onChange={(event) => onTitleChange(event.target.value)}
+                placeholder="Warehouse barcode scanners"
+                className={fieldShellClass()}
+              />
+            </P2PFormField>
+
             <P2PFormField label="Request Type" hint="Classify the business intent behind this purchase.">
               <div className="relative">
                 <select
@@ -218,16 +312,26 @@ function CreateRequisitionPanel({
                   onChange={(event) => onRequestTypeChange(event.target.value as PurchaseRequisitionType)}
                   className={`${fieldShellClass()} appearance-none pr-10`}
                 >
-                  {[
-                    "INTERNAL_USE",
-                    "FOR_SALE",
-                    "CUSTOMER",
-                    "SELF",
-                    "DEMO",
-                    "OTHER",
-                  ].map((type) => (
+                  {PURCHASE_REQUISITION_TYPE_OPTIONS.map((type) => (
                     <option key={type} value={type}>
-                      {requestTypeLabel(type as PurchaseRequisitionType)}
+                      {requestTypeLabel(type)}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              </div>
+            </P2PFormField>
+
+            <P2PFormField label="Priority" hint="Operational urgency of this request.">
+              <div className="relative">
+                <select
+                  value={priority}
+                  onChange={(event) => onPriorityChange(event.target.value as PurchaseRequisitionPriority)}
+                  className={`${fieldShellClass()} appearance-none pr-10`}
+                >
+                  {["LOW", "MEDIUM", "HIGH", "CRITICAL"].map((entry) => (
+                    <option key={entry} value={entry}>
+                      {entry.charAt(0) + entry.slice(1).toLowerCase()}
                     </option>
                   ))}
                 </select>
@@ -247,6 +351,15 @@ function CreateRequisitionPanel({
               </div>
             </P2PFormField>
 
+            <P2PFormField label="Category" hint="Requirement category for this requisition.">
+              <input
+                value={requestCategory}
+                onChange={(event) => onRequestCategoryChange(event.target.value)}
+                placeholder="Hardware / Software / Service"
+                className={fieldShellClass()}
+              />
+            </P2PFormField>
+
             <P2PFormField label="Needed By" hint="Target date for business consumption.">
               <div className="relative">
                 <CalendarDays className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -259,24 +372,29 @@ function CreateRequisitionPanel({
               </div>
             </P2PFormField>
 
-            <div className="md:col-span-2">
-              <P2PFormField label="Purpose" hint="Describe why this purchase is needed.">
-                <textarea
-                  rows={4}
-                  value={purpose}
-                  onChange={(event) => onPurposeChange(event.target.value)}
-                  placeholder="Procure barcode scanners for the new warehouse dispatch lane."
-                  className={fieldShellClass()}
-                />
-              </P2PFormField>
             </div>
           </section>
 
-          <section className="rounded-2xl border border-slate-200 bg-slate-50/70 p-5">
+          <section className="rounded-xl border border-slate-200 bg-white p-3.5">
+            <div className="mb-3">
+              <h3 className="text-base font-semibold text-slate-900">Requirement Details</h3>
+            </div>
+            <P2PFormField label="Description / Justification" hint="Describe why this purchase is needed.">
+              <textarea
+                rows={4}
+                value={description}
+                onChange={(event) => onDescriptionChange(event.target.value)}
+                placeholder="Procure barcode scanners for the new warehouse dispatch lane."
+                className={fieldShellClass()}
+              />
+            </P2PFormField>
+          </section>
+
+          <section className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <h3 className="text-sm font-semibold text-slate-900">Line Items</h3>
-                <p className="text-xs text-slate-500">Use inventory products where possible, or add ad hoc items for customer, demo, self, and special requests.</p>
+                <h3 className="text-sm font-semibold text-slate-900">Items Table</h3>
+                <p className="text-xs text-slate-500">Add item, quantity, tax, and amount.</p>
               </div>
               {isProductsLoading ? (
                 <span className="inline-flex items-center gap-2 text-xs text-slate-500">
@@ -383,27 +501,74 @@ function CreateRequisitionPanel({
                 min={1}
                 value={draftItem.quantity}
                 onChange={(event) => onDraftItemChange({ ...draftItem, quantity: Number(event.target.value) || 1 })}
+                placeholder="Quantity"
+                className={fieldShellClass()}
+              />
+
+              <input
+                type="number"
+                min={0}
+                step="0.01"
+                value={draftItem.taxPercent}
+                onChange={(event) => onDraftItemChange({ ...draftItem, taxPercent: Number(event.target.value) || 0 })}
+                placeholder="Tax %"
                 className={fieldShellClass()}
               />
 
               <input
                 value={draftItem.remarks}
                 onChange={(event) => onDraftItemChange({ ...draftItem, remarks: event.target.value })}
-                placeholder="Optional remarks"
+                placeholder="Item description"
                 className={fieldShellClass()}
               />
 
               <button
                 type="button"
                 onClick={onAddItem}
-                className="inline-flex items-center justify-center gap-1.5 rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-700"
+                className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"
               >
                 <Plus className="h-4 w-4" />
                 Add
               </button>
             </div>
 
-            <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-white">
+            <div className="mt-3 grid gap-3 md:grid-cols-4">
+              <div className="rounded-lg border border-slate-200 bg-white p-3">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Unit Price</p>
+                <p className="mt-1 text-sm font-semibold text-slate-900">
+                  {formatCurrency(
+                    draftItem.source === "INVENTORY"
+                      ? selectedProduct?.price ?? draftItem.estimatedUnitPrice
+                      : draftItem.estimatedUnitPrice
+                  )}
+                </p>
+              </div>
+              <div className="rounded-lg border border-slate-200 bg-white p-3">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Quantity</p>
+                <p className="mt-1 text-sm font-semibold text-slate-900">{draftItem.quantity}</p>
+              </div>
+              <div className="rounded-lg border border-slate-200 bg-white p-3">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Tax</p>
+                <p className="mt-1 text-sm font-semibold text-slate-900">{formatPercent(draftItem.taxPercent)}</p>
+              </div>
+              <div className="rounded-lg border border-blue-100 bg-blue-50 p-3">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-blue-700">Line Total</p>
+                <p className="mt-1 text-sm font-semibold text-slate-900">
+                  {formatCurrency(
+                    (() => {
+                      const unitPrice =
+                        draftItem.source === "INVENTORY"
+                          ? selectedProduct?.price ?? draftItem.estimatedUnitPrice
+                          : draftItem.estimatedUnitPrice;
+                      const baseAmount = unitPrice * draftItem.quantity;
+                      return baseAmount + baseAmount * (draftItem.taxPercent / 100);
+                    })()
+                  )}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white">
               {items.length === 0 ? (
                 <div className="px-4 py-10 text-center text-sm text-slate-500">
                   No items added yet. Start with a product, quantity, and any remarks.
@@ -412,19 +577,26 @@ function CreateRequisitionPanel({
                 <div className="divide-y divide-slate-200">
                   {items.map((item, index) => {
                     const product = products.find((entry) => entry.id === item.productId);
+                    const unitPrice =
+                      item.source === "INVENTORY"
+                        ? product?.price ?? item.estimatedUnitPrice
+                        : item.estimatedUnitPrice;
+                    const lineSubtotal = unitPrice * item.quantity;
+                    const lineTotal = lineSubtotal + lineSubtotal * (item.taxPercent / 100);
                     return (
                       <div key={`${item.productId}-${index}`} className="flex items-center justify-between gap-4 px-4 py-3">
                         <div className="min-w-0">
-                          <p className="truncate text-sm font-semibold text-slate-900">{product?.name ?? item.productId}</p>
+                          <p className="truncate text-sm font-semibold text-slate-900">{product?.name ?? item.productName}</p>
                           <p className="mt-1 text-xs text-slate-500">
                             {product?.sku ?? "Unknown SKU"} · Qty {item.quantity}
                             {item.remarks ? ` · ${item.remarks}` : ""}
                           </p>
+                          <p className="mt-1 text-xs text-slate-500">
+                            Unit Price {formatCurrency(unitPrice)} | Subtotal {formatCurrency(lineSubtotal)}
+                          </p>
                         </div>
                         <div className="flex items-center gap-3">
-                          <p className="text-sm font-semibold text-slate-900">
-                            {formatCurrency((product?.price ?? 0) * item.quantity)}
-                          </p>
+                          <p className="text-sm font-semibold text-slate-900">{formatCurrency(lineTotal)}</p>
                           <button
                             type="button"
                             onClick={() => onRemoveItem(index)}
@@ -441,13 +613,65 @@ function CreateRequisitionPanel({
               )}
             </div>
           </section>
+
+          <section className="grid gap-3 md:grid-cols-3">
+            <div className="rounded-xl border border-slate-200 bg-white p-3.5">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Subtotal</p>
+              <p className="mt-2 text-xl font-semibold text-slate-900">{formatCurrency(subtotalAmount)}</p>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-white p-3.5">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Tax</p>
+              <p className="mt-2 text-xl font-semibold text-slate-900">{formatCurrency(taxAmount)}</p>
+            </div>
+            <div className="rounded-xl border border-blue-100 bg-blue-50 p-3.5">
+              <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">Grand Total</p>
+              <p className="mt-2 text-xl font-semibold text-slate-900">{formatCurrency(grandTotal)}</p>
+            </div>
+          </section>
+
+          <section className="rounded-xl border border-slate-200 bg-white p-3.5">
+            <div className="mb-3">
+              <h3 className="text-base font-semibold text-slate-900">Attachments</h3>
+              <p className="mt-1 text-sm text-slate-500">Documents and optional quotes.</p>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <P2PFormField label="Documents" hint="Requirement documents, approvals, or supporting files.">
+                <input
+                  type="file"
+                  multiple
+                  onChange={(event) => onDocumentFilesChange(Array.from(event.target.files ?? []))}
+                  className={fieldShellClass()}
+                />
+              </P2PFormField>
+              <P2PFormField label="Quotes" hint="Optional vendor or reference quotations.">
+                <input
+                  type="file"
+                  multiple
+                  onChange={(event) => onQuoteFilesChange(Array.from(event.target.files ?? []))}
+                  className={fieldShellClass()}
+                />
+              </P2PFormField>
+            </div>
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Selected Documents</p>
+                <p className="mt-2 text-sm font-semibold text-slate-900">{documentFiles.length}</p>
+                <p className="mt-1 text-xs text-slate-500">{documentFiles.map((file) => file.name).join(", ") || "No documents selected"}</p>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Selected Quotes</p>
+                <p className="mt-2 text-sm font-semibold text-slate-900">{quoteFiles.length}</p>
+                <p className="mt-1 text-xs text-slate-500">{quoteFiles.map((file) => file.name).join(", ") || "No quotes selected"}</p>
+              </div>
+            </div>
+          </section>
         </div>
 
-        <div className="border-t border-slate-200 bg-white px-6 py-4">
+        <div className="border-t border-slate-200 bg-white px-4 py-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Estimated Total</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900">{formatCurrency(totalDraftAmount)}</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Grand Total</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900">{formatCurrency(grandTotal)}</p>
             </div>
             <div className="flex flex-wrap items-center gap-3">
               <button
@@ -459,12 +683,21 @@ function CreateRequisitionPanel({
               </button>
               <button
                 type="button"
-                onClick={onCreate}
-                disabled={!department.trim() || items.length === 0 || isCreating}
-                className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm shadow-blue-600/20 hover:bg-blue-700 disabled:opacity-50"
+                onClick={() => onCreate("draft")}
+                disabled={!title.trim() || !department.trim() || items.length === 0 || isSavingDraft || isSubmittingForApproval}
+                className="inline-flex items-center gap-2 rounded-full border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
               >
-                {isCreating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                Create PR
+                {isSavingDraft ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                {isEditing ? "Save Changes" : "Save Draft"}
+              </button>
+              <button
+                type="button"
+                onClick={() => onCreate("submit")}
+                disabled={!title.trim() || !department.trim() || items.length === 0 || isSavingDraft || isSubmittingForApproval}
+                className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+              >
+                {isSubmittingForApproval ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                Submit for Approval
               </button>
             </div>
           </div>
@@ -483,10 +716,12 @@ function RequisitionDetailPanel({
   onSubmit,
   onApprove,
   onReject,
+  onSaveBudget,
   onSaveEvaluation,
   onSaveNegotiation,
   isSubmitting,
   isReviewing,
+  isSavingBudget,
   isSavingEvaluation,
   isSavingNegotiation,
 }: {
@@ -497,28 +732,73 @@ function RequisitionDetailPanel({
   onSubmit: (id: string, actorId: string) => void;
   onApprove: (id: string, actorId: string, remarks?: string) => void;
   onReject: (id: string, actorId: string, remarks?: string) => void;
+  onSaveBudget: (
+    id: string,
+    payload: {
+      budgetName?: string;
+      budgetType?: BudgetContextType;
+      budgetPeriod?: string;
+      allocatedBudget?: number;
+      committedAmount?: number;
+      actualSpend?: number;
+      validationNotes?: string;
+      exceptionJustification?: string;
+    }
+  ) => void;
   onSaveEvaluation: (id: string, decision?: string, notes?: string) => void;
-  onSaveNegotiation: (id: string, vendorId?: string, negotiatedAmount?: number, notes?: string) => void;
+  onSaveNegotiation: (
+    id: string,
+    vendorId?: string,
+    negotiatedAmount?: number,
+    deliveryTimeline?: string,
+    paymentTerms?: string,
+    discountPercent?: number,
+    discountAmount?: number,
+    notes?: string
+  ) => void;
   isSubmitting: boolean;
   isReviewing: boolean;
+  isSavingBudget: boolean;
   isSavingEvaluation: boolean;
   isSavingNegotiation: boolean;
 }) {
   const [activeTab, setActiveTab] = useState<PanelTab>("overview");
-  const [budgetRemarks, setBudgetRemarks] = useState("");
+  const [budgetName, setBudgetName] = useState("");
+  const [budgetType, setBudgetType] = useState<BudgetContextType>("DEPARTMENT");
+  const [budgetPeriod, setBudgetPeriod] = useState("");
+  const [allocatedBudget, setAllocatedBudget] = useState("");
+  const [committedAmount, setCommittedAmount] = useState("");
+  const [actualSpend, setActualSpend] = useState("");
+  const [budgetValidationNotes, setBudgetValidationNotes] = useState("");
+  const [budgetExceptionJustification, setBudgetExceptionJustification] = useState("");
   const [evaluationRemarks, setEvaluationRemarks] = useState("");
   const [readinessDecision, setReadinessDecision] = useState("Proceed to negotiation");
   const [negotiationVendorId, setNegotiationVendorId] = useState("");
   const [quotedAmount, setQuotedAmount] = useState(requisition.totalAmount.toFixed(2));
+  const [negotiationDeliveryTimeline, setNegotiationDeliveryTimeline] = useState("");
+  const [negotiationPaymentTerms, setNegotiationPaymentTerms] = useState("");
+  const [negotiationDiscountPercent, setNegotiationDiscountPercent] = useState("");
+  const [negotiationDiscountAmount, setNegotiationDiscountAmount] = useState("");
   const [negotiationTerms, setNegotiationTerms] = useState("");
 
   useEffect(() => {
     setActiveTab("overview");
-    setBudgetRemarks(requisition.rejectionReason ?? "");
+    setBudgetName(requisition.budgetName ?? "");
+    setBudgetType(requisition.budgetType ?? "DEPARTMENT");
+    setBudgetPeriod(requisition.budgetPeriod ?? "");
+    setAllocatedBudget(requisition.allocatedBudget?.toFixed(2) ?? "");
+    setCommittedAmount(requisition.committedAmount?.toFixed(2) ?? "");
+    setActualSpend(requisition.actualSpend?.toFixed(2) ?? "");
+    setBudgetValidationNotes(requisition.budgetValidationNotes ?? "");
+    setBudgetExceptionJustification(requisition.budgetExceptionJustification ?? "");
     setEvaluationRemarks(requisition.evaluationNotes ?? "");
     setReadinessDecision(requisition.evaluationDecision ?? "Proceed to negotiation");
     setNegotiationVendorId(requisition.negotiationVendorId ?? "");
     setQuotedAmount((requisition.negotiatedAmount ?? requisition.totalAmount).toFixed(2));
+    setNegotiationDeliveryTimeline(requisition.negotiationDeliveryTimeline ?? "");
+    setNegotiationPaymentTerms(requisition.negotiationPaymentTerms ?? "");
+    setNegotiationDiscountPercent(requisition.negotiationDiscountPercent?.toFixed(2) ?? "");
+    setNegotiationDiscountAmount(requisition.negotiationDiscountAmount?.toFixed(2) ?? "");
     setNegotiationTerms(requisition.negotiationNotes ?? "");
   }, [requisition]);
 
@@ -545,26 +825,125 @@ function RequisitionDetailPanel({
     (!!requisition.negotiationVendorId || !!selectedVendor) &&
     (!!requisition.negotiatedAmount || !!quotedAmount);
 
+  const parsedAllocatedBudget = Number(allocatedBudget) || 0;
+  const parsedCommittedAmount = Number(committedAmount) || 0;
+  const parsedActualSpend = Number(actualSpend) || 0;
+
+  const budgetMetrics = useMemo(() => {
+    const itemCount = requisition.items.length;
+    const allocated = parsedAllocatedBudget;
+    const committed = parsedCommittedAmount;
+    const spent = parsedActualSpend;
+    const totalAmount = requisition.totalAmount;
+    const inventoryItems = requisition.items.filter((item) => !!item.productId).length;
+    const adHocItems = itemCount - inventoryItems;
+    const inventoryShare = itemCount > 0 ? (inventoryItems / itemCount) * 100 : 0;
+    const adHocShare = itemCount > 0 ? (adHocItems / itemCount) * 100 : 0;
+    const availableBudget = allocated - committed - spent;
+    const availableAfterPr = availableBudget - totalAmount;
+    const utilizationPercent = allocated > 0 ? ((committed + spent + totalAmount) / allocated) * 100 : 0;
+    const largestLineItem = requisition.items.reduce((largest, item) => {
+      if (!largest || item.lineTotal > largest.lineTotal) {
+        return item;
+      }
+      return largest;
+    }, requisition.items[0] ?? null);
+    const averageLineValue = itemCount > 0 ? totalAmount / itemCount : 0;
+    const daysToNeed = diffInDays(requisition.neededByDate);
+    const lineConcentrationPercent =
+      totalAmount > 0 && largestLineItem ? (largestLineItem.lineTotal / totalAmount) * 100 : 0;
+    const exceptionSignals: string[] = [];
+
+    if (allocated <= 0) {
+      exceptionSignals.push("Allocated budget is missing. Finance context must be captured before approval.");
+    } else if (availableAfterPr < 0) {
+      exceptionSignals.push("Requested amount exceeds the available budget balance.");
+    } else if (utilizationPercent > 85) {
+      exceptionSignals.push("Requested amount is nearing the allocated budget ceiling.");
+    }
+    if (adHocShare >= 50) {
+      exceptionSignals.push("More than half of the request is ad hoc instead of mapped inventory.");
+    }
+    if (largestLineItem && lineConcentrationPercent >= 45) {
+      exceptionSignals.push(`A single line item drives ${formatPercent(lineConcentrationPercent)} of request value.`);
+    }
+    if (daysToNeed !== null && daysToNeed <= 3) {
+      exceptionSignals.push("Needed-by date is within three days and should be treated as expedited.");
+    }
+    if (itemCount >= 8) {
+      exceptionSignals.push("High line-item count may require deeper budget split validation.");
+    }
+
+    let systemVerdict = "Within policy guardrails";
+    let toneClass = "border-emerald-200 bg-emerald-50 text-emerald-700";
+    if (availableAfterPr < 0 || exceptionSignals.length >= 3) {
+      systemVerdict = "Escalate for exception approval";
+      toneClass = "border-rose-200 bg-rose-50 text-rose-700";
+    } else if (utilizationPercent > 85 || exceptionSignals.length > 0) {
+      systemVerdict = "Needs reviewer attention";
+      toneClass = "border-amber-200 bg-amber-50 text-amber-700";
+    }
+
+    const autoApprovalSummary = [
+      `allocated ${formatCurrency(allocated)}`,
+      `available ${formatCurrency(availableBudget)}`,
+      `utilization ${formatPercent(utilizationPercent)}`,
+      `inventory mix ${formatPercent(inventoryShare)}`,
+      daysToNeed !== null ? `need-by in ${daysToNeed} day(s)` : "need-by date not set",
+    ].join(" | ");
+
+    return {
+      allocated,
+      committed,
+      spent,
+      availableBudget,
+      availableAfterPr,
+      utilizationPercent,
+      inventoryItems,
+      adHocItems,
+      inventoryShare,
+      adHocShare,
+      largestLineItem,
+      averageLineValue,
+      lineConcentrationPercent,
+      daysToNeed,
+      exceptionSignals,
+      systemVerdict,
+      toneClass,
+      autoApprovalSummary,
+    };
+  }, [parsedAllocatedBudget, parsedCommittedAmount, parsedActualSpend, requisition]);
+  const budgetValidationStatus = deriveBudgetValidationStatus(budgetMetrics.utilizationPercent);
+
   const tabs: Array<{ key: PanelTab; label: string }> = [
-    { key: "overview", label: "Overview" },
+    { key: "overview", label: "PR Form" },
     { key: "budget", label: "Budget Check" },
-    { key: "evaluation", label: "Evaluation" },
+    { key: "evaluation", label: "Vendor Evaluation" },
     { key: "negotiation", label: "Negotiation" },
   ];
+
+  const approvalRemarks = [budgetMetrics.autoApprovalSummary, budgetValidationNotes.trim(), budgetExceptionJustification.trim()]
+    .filter(Boolean)
+    .join(" | ");
+
+  const rejectionRemarks =
+    budgetExceptionJustification.trim() ||
+    budgetValidationNotes.trim() ||
+    `Rejected during financial validation. ${budgetMetrics.autoApprovalSummary}`;
 
   return (
     <div className="fixed inset-0 z-40">
       <div className="absolute inset-0 bg-black/30 backdrop-blur-[1px]" onClick={onClose} />
       <div className="absolute inset-y-0 right-0 flex h-full w-full flex-col border-l border-slate-200 bg-white shadow-2xl sm:w-[86vw] lg:w-[58vw] lg:max-w-[960px]">
-        <div className="border-b border-slate-200 px-6 py-5">
+        <div className="border-b border-slate-200 px-4 py-4">
           <div className="flex items-start justify-between gap-4">
             <div className="flex items-start gap-4">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-sm font-semibold text-slate-700">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-slate-100 text-sm font-semibold text-slate-700">
                 {requisition.department.slice(0, 2).toUpperCase()}
               </div>
               <div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <h2 className="text-2xl font-semibold text-slate-900">{requisition.prNumber}</h2>
+                  <h2 className="text-xl font-semibold text-slate-900">{requisition.prNumber}</h2>
                   <P2PStatusBadge
                     label={requisition.status.replace("_", " ")}
                     tone={toneForStatus(requisition.status)}
@@ -593,7 +972,7 @@ function RequisitionDetailPanel({
             </button>
           </div>
 
-          <div className="mt-5 flex flex-wrap gap-3">
+          <div className="mt-4 flex flex-wrap gap-2.5">
             {tabs.map((tab) => (
               <button
                 key={tab.key}
@@ -611,62 +990,89 @@ function RequisitionDetailPanel({
           </div>
         </div>
 
-        <div className="flex-1 space-y-6 overflow-y-auto px-6 py-6">
+        <div className="flex-1 space-y-4 overflow-y-auto px-4 py-4">
           {activeTab === "overview" ? (
             <>
-              <div className="rounded-2xl border border-slate-200 bg-slate-900 p-5 text-white shadow-sm">
-                <div className="flex flex-wrap items-start justify-between gap-4">
+              <section className="rounded-xl border border-slate-200 bg-white p-3.5">
+                <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-200">Workflow Position</p>
-                    <h3 className="mt-2 text-lg font-semibold">{workflowStage(requisition)}</h3>
-                    <p className="mt-2 text-sm text-slate-300">
+                    <h3 className="text-base font-semibold text-slate-900">Current Action</h3>
+                    <p className="mt-1 text-sm text-slate-500">
                       {requisition.status === "DRAFT"
-                        ? "Complete budget review and submit this PR into the approval chain."
+                        ? "This PR is still a draft. Submit it to start approval."
                         : requisition.status === "SUBMITTED"
-                          ? "Finish evaluation, validate commercial direction, and move the request toward PO readiness."
+                          ? "This PR is waiting for approval action."
                           : requisition.status === "APPROVED"
-                            ? "Buyer handoff is complete. Shortlist vendor and convert the approved request into a purchase order."
-                            : requisition.status === "PO_CREATED"
-                              ? "This requisition has already been handed off into purchase order execution."
-                              : "This requisition is closed or rejected and needs a new cycle for re-entry."}
+                            ? "This PR is approved and ready for downstream procurement steps."
+                            : requisition.status === "REJECTED"
+                              ? "This PR has been rejected."
+                              : "This PR has already moved to PO stage."}
                     </p>
                   </div>
-                  <div className="rounded-2xl border border-white/15 bg-white/10 px-4 py-3">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-300">Ready For PO</p>
-                    <p className="mt-2 text-lg font-semibold">
-                      {isReadyForPo ? "Yes" : requisition.status === "PO_CREATED" ? "Done" : "Not Yet"}
-                    </p>
+                  <div className="flex flex-wrap gap-2">
+                    {requisition.status === "DRAFT" ? (
+                      <button
+                        type="button"
+                        onClick={() => currentUserId && onSubmit(requisition.id, currentUserId)}
+                        disabled={!currentUserId || isSubmitting}
+                        className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                      >
+                        {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                        Submit for Approval
+                      </button>
+                    ) : null}
+                    {canReview ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => currentUserId && onApprove(requisition.id, currentUserId, approvalRemarks)}
+                          disabled={isReviewing || budgetValidationStatus === "Exceeded"}
+                          className="inline-flex items-center gap-2 rounded-full bg-emerald-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                        >
+                          {isReviewing ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                          Approve
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => currentUserId && onReject(requisition.id, currentUserId, rejectionRemarks)}
+                          disabled={isReviewing}
+                          className="inline-flex items-center gap-2 rounded-full bg-rose-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                        >
+                          <XCircle className="h-4 w-4" />
+                          Reject
+                        </button>
+                      </>
+                    ) : null}
                   </div>
                 </div>
-              </div>
+              </section>
 
               <div className="grid gap-4 md:grid-cols-3">
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Status</p>
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Priority</p>
+                  <p className="mt-3 text-sm font-semibold text-slate-900">{requisition.priority}</p>
+                  <p className="mt-2 text-xs text-slate-500">Needed by {formatDate(requisition.neededByDate)}</p>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Requirement Category</p>
+                  <p className="mt-3 text-sm font-semibold text-slate-900">{requisition.requestCategory || "Unclassified"}</p>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Current Status</p>
                   <div className="mt-3">
                     <P2PStatusBadge
                       label={requisition.status.replace("_", " ")}
                       tone={toneForStatus(requisition.status)}
                     />
                   </div>
-                  <p className="mt-3 text-xs text-slate-500">Needed by {formatDate(requisition.neededByDate)}</p>
-                </div>
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Budget Check</p>
-                  <p className="mt-3 text-sm font-semibold text-slate-900">Step {requisition.currentStepOrder ?? 0}</p>
-                  <p className="mt-2 text-xs leading-5 text-slate-500">{budgetState}</p>
-                </div>
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">PO Readiness</p>
-                  <p className="mt-3 text-sm font-semibold text-slate-900">{canNegotiate ? "Ready" : "Locked"}</p>
-                  <p className="mt-2 text-xs leading-5 text-slate-500">{negotiationState}</p>
+                  <p className="mt-2 text-xs leading-5 text-slate-500">{workflowStage(requisition)}</p>
                 </div>
               </div>
 
-              <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-                <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                  <h3 className="text-base font-semibold text-slate-900">Request Details</h3>
-                  <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+                <section className="rounded-xl border border-slate-200 bg-white p-3.5">
+                  <h3 className="text-base font-semibold text-slate-900">Basic Info</h3>
+                  <div className="mt-3 grid gap-3 md:grid-cols-2">
                     <div>
                       <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Requester ID</p>
                       <p className="mt-1 text-sm text-slate-700">{requisition.requesterId}</p>
@@ -680,6 +1086,10 @@ function RequisitionDetailPanel({
                       <p className="mt-1 text-sm text-slate-700">{requisition.department}</p>
                     </div>
                     <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Required Date</p>
+                      <p className="mt-1 text-sm text-slate-700">{formatDate(requisition.neededByDate)}</p>
+                    </div>
+                    <div>
                       <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Created</p>
                       <p className="mt-1 text-sm text-slate-700">{formatDate(requisition.createdAt)}</p>
                     </div>
@@ -688,22 +1098,18 @@ function RequisitionDetailPanel({
                       <p className="mt-1 text-sm text-slate-700">{formatDate(requisition.updatedAt)}</p>
                     </div>
                     <div className="md:col-span-2">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Purpose</p>
-                      <p className="mt-1 text-sm text-slate-700">{requisition.purpose || "No purpose entered."}</p>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Description / Justification</p>
+                      <p className="mt-1 text-sm text-slate-700">{requisition.description || "No description entered."}</p>
                     </div>
                   </div>
                 </section>
 
-                <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                  <h3 className="text-base font-semibold text-slate-900">Approval Snapshot</h3>
-                  <div className="mt-4 space-y-4">
-                    <div className="rounded-xl border border-blue-100 bg-blue-50 p-4">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">Current assessment</p>
-                      <p className="mt-2 text-sm text-slate-700">{budgetState}</p>
-                    </div>
-                    <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-4">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Commercial track</p>
-                      <p className="mt-2 text-sm text-slate-700">{negotiationState}</p>
+                <section className="rounded-xl border border-slate-200 bg-white p-3.5">
+                  <h3 className="text-base font-semibold text-slate-900">Requirement Details</h3>
+                  <div className="mt-3 space-y-3">
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Title</p>
+                      <p className="mt-2 text-sm text-slate-700">{requisition.title}</p>
                     </div>
                     {requisition.rejectionReason ? (
                       <div className="rounded-xl border border-rose-100 bg-rose-50 p-4">
@@ -724,9 +1130,9 @@ function RequisitionDetailPanel({
                 </section>
               </div>
 
-              <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                <h3 className="text-base font-semibold text-slate-900">Requested Items</h3>
-                <div className="mt-4 space-y-3">
+              <section className="rounded-xl border border-slate-200 bg-white p-3.5">
+                <h3 className="text-base font-semibold text-slate-900">Items Table</h3>
+                <div className="mt-3 space-y-2.5">
                   {requisition.items.map((item) => (
                     <div key={item.id} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
                       <div className="flex items-start justify-between gap-3">
@@ -750,41 +1156,152 @@ function RequisitionDetailPanel({
           ) : null}
 
           {activeTab === "budget" ? (
-            <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
-              <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                <h3 className="text-base font-semibold text-slate-900">Validation Context</h3>
-                <div className="mt-4 space-y-4">
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Current Step</p>
-                    <p className="mt-2 text-lg font-semibold text-slate-900">{requisition.currentStepOrder ?? "-"}</p>
-                  </div>
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Total Amount</p>
-                    <p className="mt-2 text-lg font-semibold text-slate-900">{formatCurrency(requisition.totalAmount)}</p>
-                  </div>
-                  <div className="rounded-xl border border-blue-100 bg-blue-50 p-4">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">Workflow note</p>
-                    <p className="mt-2 text-sm text-slate-700">{budgetState}</p>
+            <div className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
+              <section className="rounded-xl border border-slate-200 bg-white p-3.5">
+                <h3 className="text-base font-semibold text-slate-900">Budget Context</h3>
+                <div className="mt-1 text-xs text-slate-500">Capture the budget reference details for this requisition.</div>
+                <div className="mt-3">
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <P2PFormField label="Budget Name">
+                      <input
+                        value={budgetName}
+                        onChange={(event) => setBudgetName(event.target.value)}
+                        placeholder="Enter budget name"
+                        className={fieldShellClass()}
+                      />
+                    </P2PFormField>
+                    <P2PFormField label="Budget Type">
+                      <div className="relative">
+                        <select
+                          value={budgetType}
+                          onChange={(event) => setBudgetType(event.target.value as BudgetContextType)}
+                          className={`${fieldShellClass()} appearance-none pr-10`}
+                        >
+                          <option value="DEPARTMENT">Department</option>
+                          <option value="PROJECT">Project</option>
+                        </select>
+                        <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                      </div>
+                    </P2PFormField>
+                    <div className="md:col-span-2">
+                      <P2PFormField label="Period">
+                        <input
+                          value={budgetPeriod}
+                          onChange={(event) => setBudgetPeriod(event.target.value)}
+                          placeholder="Apr 2026 / FY 2026-27"
+                          className={fieldShellClass()}
+                        />
+                      </P2PFormField>
+                    </div>
+                    <P2PFormField label="Allocated Budget">
+                      <input
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        value={allocatedBudget}
+                        onChange={(event) => setAllocatedBudget(event.target.value)}
+                        placeholder="0.00"
+                        className={fieldShellClass()}
+                      />
+                    </P2PFormField>
+                    <P2PFormField label="Committed Amount">
+                      <input
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        value={committedAmount}
+                        onChange={(event) => setCommittedAmount(event.target.value)}
+                        placeholder="0.00"
+                        className={fieldShellClass()}
+                      />
+                    </P2PFormField>
+                    <div className="md:col-span-2">
+                      <P2PFormField label="Actual Spend">
+                        <input
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          value={actualSpend}
+                          onChange={(event) => setActualSpend(event.target.value)}
+                          placeholder="0.00"
+                          className={fieldShellClass()}
+                        />
+                      </P2PFormField>
+                    </div>
                   </div>
                 </div>
               </section>
 
-              <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <section className="rounded-xl border border-slate-200 bg-white p-3.5">
                 <h3 className="text-base font-semibold text-slate-900">Budget Check Form</h3>
-                <p className="mt-2 text-sm text-slate-500">
-                  Use this desk to capture remarks and move the requisition through the approval workflow.
-                </p>
+                <div className="mt-1 text-xs text-slate-500">Enter finance values on the left. Review calculated impact on the right.</div>
 
-                <div className="mt-5 space-y-4">
-                  <P2PFormField label="Validation Remarks" hint="Capture exceptions, thresholds, or approval rationale.">
+                <div className="mt-3 space-y-3">
+                  <div className="grid gap-3">
+                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3.5">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Available Budget</p>
+                      <p className="mt-3 text-2xl font-semibold text-slate-900">{formatCurrency(budgetMetrics.availableBudget)}</p>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-3 md:grid-cols-3">
+                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3.5 min-h-[96px]">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">PR Amount</p>
+                      <p className="mt-3 text-lg font-semibold text-slate-900">{formatCurrency(requisition.totalAmount)}</p>
+                    </div>
+                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3.5 min-h-[96px]">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Available After PR</p>
+                      <p className={`mt-3 text-lg font-semibold ${budgetMetrics.availableAfterPr >= 0 ? "text-slate-900" : "text-rose-600"}`}>
+                        {formatCurrency(budgetMetrics.availableAfterPr)}
+                      </p>
+                    </div>
+                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3.5 min-h-[96px]">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Validation Result</p>
+                      <p className="mt-3 text-lg font-semibold text-slate-900">{budgetStatusLabel(budgetValidationStatus)}</p>
+                      <p className="mt-2 text-xs text-slate-500">{budgetState}</p>
+                    </div>
+                  </div>
+
+                  <P2PFormField label="Validation Notes" hint="Reviewer context or approval rationale.">
                     <textarea
-                      rows={6}
-                      value={budgetRemarks}
-                      onChange={(event) => setBudgetRemarks(event.target.value)}
-                      placeholder="Record budget check notes, policy exceptions, or approval rationale."
+                      rows={4}
+                      value={budgetValidationNotes}
+                      onChange={(event) => setBudgetValidationNotes(event.target.value)}
+                      placeholder="Capture reviewer validation notes."
                       className={fieldShellClass()}
                     />
                   </P2PFormField>
+
+                  <P2PFormField label="Exception Justification" hint="Required when the requisition exceeds or nears budget.">
+                    <textarea
+                      rows={4}
+                      value={budgetExceptionJustification}
+                      onChange={(event) => setBudgetExceptionJustification(event.target.value)}
+                      placeholder="Capture exception justification when needed."
+                      className={fieldShellClass()}
+                    />
+                  </P2PFormField>
+
+                  <button
+                    type="button"
+                      onClick={() =>
+                      onSaveBudget(requisition.id, {
+                        budgetName: budgetName.trim() || undefined,
+                        budgetType: budgetType || undefined,
+                        budgetPeriod: budgetPeriod.trim() || undefined,
+                        allocatedBudget: allocatedBudget ? Number(allocatedBudget) : undefined,
+                        committedAmount: committedAmount ? Number(committedAmount) : undefined,
+                        actualSpend: actualSpend ? Number(actualSpend) : undefined,
+                        validationNotes: budgetValidationNotes.trim() || undefined,
+                        exceptionJustification: budgetExceptionJustification.trim() || undefined,
+                      })
+                    }
+                    disabled={isSavingBudget}
+                    className="inline-flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50"
+                  >
+                    {isSavingBudget ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                    Save Remarks
+                  </button>
 
                   {requisition.status === "DRAFT" ? (
                     <button
@@ -794,7 +1311,7 @@ function RequisitionDetailPanel({
                       className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
                     >
                       {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                      Submit for Validation
+                      Submit for Approval
                     </button>
                   ) : null}
 
@@ -802,21 +1319,46 @@ function RequisitionDetailPanel({
                     <div className="flex flex-wrap gap-3">
                       <button
                         type="button"
-                        onClick={() => currentUserId && onApprove(requisition.id, currentUserId, budgetRemarks.trim() || undefined)}
-                        disabled={isReviewing}
+                        onClick={() =>
+                          currentUserId &&
+                          onApprove(requisition.id, currentUserId, approvalRemarks)
+                        }
+                        disabled={isReviewing || budgetValidationStatus === "Exceeded"}
                         className="inline-flex items-center gap-2 rounded-full bg-emerald-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
                       >
                         {isReviewing ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-                        Approve Budget
+                        Approve
                       </button>
                       <button
                         type="button"
-                        onClick={() => currentUserId && onReject(requisition.id, currentUserId, budgetRemarks.trim() || "Rejected from PR validation panel")}
+                        onClick={() =>
+                          onSaveBudget(requisition.id, {
+                            budgetName: budgetName.trim() || undefined,
+                            budgetType: budgetType || undefined,
+                            budgetPeriod: budgetPeriod.trim() || undefined,
+                            allocatedBudget: allocatedBudget ? Number(allocatedBudget) : undefined,
+                            committedAmount: committedAmount ? Number(committedAmount) : undefined,
+                            actualSpend: actualSpend ? Number(actualSpend) : undefined,
+                            validationNotes: budgetValidationNotes.trim() || undefined,
+                            exceptionJustification: budgetExceptionJustification.trim() || undefined,
+                          })
+                        }
+                        disabled={budgetValidationStatus !== "Exceeded" || isSavingBudget}
+                        className="inline-flex items-center gap-2 rounded-full border border-amber-200 px-4 py-2 text-sm font-semibold text-amber-600 disabled:opacity-50"
+                      >
+                        Escalate
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          currentUserId &&
+                          onReject(requisition.id, currentUserId, rejectionRemarks)
+                        }
                         disabled={isReviewing}
                         className="inline-flex items-center gap-2 rounded-full bg-rose-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
                       >
                         <XCircle className="h-4 w-4" />
-                        Reject Request
+                        Reject
                       </button>
                     </div>
                   ) : (
@@ -834,34 +1376,26 @@ function RequisitionDetailPanel({
           ) : null}
 
           {activeTab === "evaluation" ? (
-            <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
-              <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                <h3 className="text-base font-semibold text-slate-900">Evaluation Summary</h3>
-                <div className="mt-4 space-y-4">
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Request Value</p>
-                    <p className="mt-2 text-lg font-semibold text-slate-900">{formatCurrency(requisition.totalAmount)}</p>
-                  </div>
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Line Items</p>
-                    <p className="mt-2 text-lg font-semibold text-slate-900">{requisition.items.length}</p>
-                  </div>
-                  <div className="rounded-xl border border-blue-100 bg-blue-50 p-4">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">Stage intent</p>
-                    <p className="mt-2 text-sm text-slate-700">
-                      Evaluate technical fit, urgency, and sourcing path before entering vendor negotiation.
-                    </p>
-                  </div>
-                </div>
-              </section>
+            <div className="grid gap-4">
+              <section className="rounded-xl border border-slate-200 bg-white p-3.5">
+                <h3 className="text-base font-semibold text-slate-900">Vendor Evaluation Form</h3>
 
-              <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                <h3 className="text-base font-semibold text-slate-900">Evaluation Desk</h3>
-                <p className="mt-2 text-sm text-slate-500">
-                  Capture the internal review outcome that decides whether this PR is ready for commercial negotiation.
-                </p>
+                <div className="mt-3 space-y-3">
+                  <div className="grid gap-3 md:grid-cols-3">
+                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3.5">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">PR Number</p>
+                      <p className="mt-2 text-sm font-semibold text-slate-900">{requisition.prNumber}</p>
+                    </div>
+                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3.5">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Items Summary</p>
+                      <p className="mt-2 text-sm font-semibold text-slate-900">{requisition.items.length} item(s)</p>
+                    </div>
+                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3.5">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Request Value</p>
+                      <p className="mt-2 text-sm font-semibold text-slate-900">{formatCurrency(requisition.totalAmount)}</p>
+                    </div>
+                  </div>
 
-                <div className="mt-5 space-y-4">
                   <P2PFormField label="Evaluation Decision" hint="Choose the sourcing direction for the next stage.">
                     <div className="relative">
                       <select
@@ -902,31 +1436,28 @@ function RequisitionDetailPanel({
                       className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
                     >
                       {isSavingEvaluation ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-                      Save Evaluation
+                      Submit for Negotiation
                     </button>
                     <span className="text-xs text-slate-500">
                       Last saved {formatDate(requisition.evaluationUpdatedAt)}
                     </span>
                   </div>
 
-                  <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-4 text-sm text-emerald-900">
-                    Evaluation is now saved on the purchase requisition, so the sourcing team sees the same decision and notes when the PR is reopened.
-                  </div>
                 </div>
               </section>
             </div>
           ) : null}
 
           {activeTab === "negotiation" ? (
-            <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
-              <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
+              <section className="rounded-xl border border-slate-200 bg-white p-3.5">
                 <h3 className="text-base font-semibold text-slate-900">Negotiation Readiness</h3>
-                <div className="mt-4 space-y-4">
-                  <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-4">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Commercial track</p>
+                <div className="mt-3 space-y-3">
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-3.5">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Commercial Track</p>
                     <p className="mt-2 text-sm text-slate-700">{negotiationState}</p>
                   </div>
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-3.5">
                     <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Evaluation Decision</p>
                     <p className="mt-2 text-sm font-semibold text-slate-900">
                       {requisition.evaluationDecision || "No saved decision"}
@@ -935,25 +1466,22 @@ function RequisitionDetailPanel({
                       {requisition.evaluationNotes || "No evaluation notes captured yet."}
                     </p>
                   </div>
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-3.5">
                     <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Available Vendors</p>
                     <p className="mt-2 text-lg font-semibold text-slate-900">{vendors.length}</p>
                   </div>
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-3.5">
                     <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Target Spend</p>
                     <p className="mt-2 text-lg font-semibold text-slate-900">{formatCurrency(requisition.totalAmount)}</p>
                   </div>
                 </div>
               </section>
 
-              <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                <h3 className="text-base font-semibold text-slate-900">Negotiation Workspace</h3>
-                <p className="mt-2 text-sm text-slate-500">
-                  Capture vendor shortlist and commercial notes here before converting the approved PR into a PO.
-                </p>
+              <section className="rounded-xl border border-slate-200 bg-white p-3.5">
+                <h3 className="text-base font-semibold text-slate-900">Negotiation Form</h3>
 
-                <div className="mt-5 space-y-4">
-                  <P2PFormField label="Shortlisted Vendor" hint="Lock the preferred supplier for PO preparation.">
+                <div className="mt-3 space-y-3">
+                  <P2PFormField label="Selected Vendor Info" hint="Lock the preferred supplier for PO preparation.">
                     <div className="relative">
                       <select
                         value={negotiationVendorId}
@@ -972,7 +1500,7 @@ function RequisitionDetailPanel({
                     </div>
                   </P2PFormField>
 
-                  <P2PFormField label="Quoted / Negotiated Amount" hint="Use the commercial amount that should carry into the PO handoff.">
+                  <P2PFormField label="Negotiated Price" hint="Use the commercial amount that should carry into the PO handoff.">
                     <input
                       type="number"
                       min={0}
@@ -983,6 +1511,47 @@ function RequisitionDetailPanel({
                       className={fieldShellClass(!canNegotiate)}
                     />
                   </P2PFormField>
+
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <P2PFormField label="Delivery Timeline" hint="Committed delivery timeline from the vendor.">
+                      <input
+                        value={negotiationDeliveryTimeline}
+                        onChange={(event) => setNegotiationDeliveryTimeline(event.target.value)}
+                        disabled={!canNegotiate}
+                        className={fieldShellClass(!canNegotiate)}
+                      />
+                    </P2PFormField>
+                    <P2PFormField label="Payment Terms" hint="Final agreed payment terms.">
+                      <input
+                        value={negotiationPaymentTerms}
+                        onChange={(event) => setNegotiationPaymentTerms(event.target.value)}
+                        disabled={!canNegotiate}
+                        className={fieldShellClass(!canNegotiate)}
+                      />
+                    </P2PFormField>
+                    <P2PFormField label="Discount %" hint="Negotiated percentage discount if any.">
+                      <input
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        value={negotiationDiscountPercent}
+                        onChange={(event) => setNegotiationDiscountPercent(event.target.value)}
+                        disabled={!canNegotiate}
+                        className={fieldShellClass(!canNegotiate)}
+                      />
+                    </P2PFormField>
+                    <P2PFormField label="Discount Amount" hint="Negotiated flat discount if any.">
+                      <input
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        value={negotiationDiscountAmount}
+                        onChange={(event) => setNegotiationDiscountAmount(event.target.value)}
+                        disabled={!canNegotiate}
+                        className={fieldShellClass(!canNegotiate)}
+                      />
+                    </P2PFormField>
+                  </div>
 
                   <P2PFormField label="Negotiation Notes" hint="Capture commitments, concessions, lead times, and payment terms.">
                     <textarea
@@ -1016,6 +1585,10 @@ function RequisitionDetailPanel({
                           requisition.id,
                           negotiationVendorId || undefined,
                           quotedAmount ? Number(quotedAmount) : undefined,
+                          negotiationDeliveryTimeline.trim() || undefined,
+                          negotiationPaymentTerms.trim() || undefined,
+                          negotiationDiscountPercent ? Number(negotiationDiscountPercent) : undefined,
+                          negotiationDiscountAmount ? Number(negotiationDiscountAmount) : undefined,
                           negotiationTerms.trim() || undefined
                         )
                       }
@@ -1023,18 +1596,14 @@ function RequisitionDetailPanel({
                       className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
                     >
                       {isSavingNegotiation ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-                      Save Negotiation
+                      Approve for PO
                     </button>
                     <span className="text-xs text-slate-500">
                       Last saved {formatDate(requisition.negotiationUpdatedAt)}
                     </span>
                   </div>
 
-                  <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-4 text-sm text-emerald-900">
-                    Negotiation now persists on the requisition, so buyer handoff into PO creation keeps the shortlisted vendor and commercial notes visible.
-                  </div>
-
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-3.5">
                     <div className="flex items-start justify-between gap-4">
                       <div>
                         <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Ready For PO</p>
@@ -1049,6 +1618,19 @@ function RequisitionDetailPanel({
                       </div>
                       <ArrowRightCircle className="mt-1 h-6 w-6 text-slate-400" />
                     </div>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <a
+                      href="/p2p/po"
+                      className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold ${
+                        isReadyForPo || requisition.status === "PO_CREATED"
+                          ? "bg-slate-900 text-white"
+                          : "pointer-events-none bg-slate-200 text-slate-400"
+                      }`}
+                    >
+                      <ArrowRightCircle className="h-4 w-4" />
+                      Open PO Desk
+                    </a>
                   </div>
                 </div>
               </section>
@@ -1066,23 +1648,34 @@ export default function P2PPrManagementPage() {
   const { data: requisitions = [], isLoading, isError, error } = usePurchaseRequisitions();
   const { data: vendors = [] } = useVendors();
   const createRequisition = useCreatePurchaseRequisition();
+  const updateRequisition = useUpdatePurchaseRequisition();
+  const deleteRequisition = useDeletePurchaseRequisition();
+  const uploadPurchaseRequisitionDocument = useUploadPurchaseRequisitionDocument();
   const submitRequisition = useSubmitPurchaseRequisition();
   const reviewRequisition = useReviewPurchaseRequisition();
+  const updateBudget = useUpdatePurchaseRequisitionBudget();
   const updateEvaluation = useUpdatePurchaseRequisitionEvaluation();
   const updateNegotiation = useUpdatePurchaseRequisitionNegotiation();
 
   const [department, setDepartment] = useState("");
   const [requestType, setRequestType] = useState<PurchaseRequisitionType>("INTERNAL_USE");
-  const [purpose, setPurpose] = useState("");
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
   const [neededByDate, setNeededByDate] = useState("");
+  const [priority, setPriority] = useState<PurchaseRequisitionPriority>("MEDIUM");
+  const [requestCategory, setRequestCategory] = useState("");
   const [draftItem, setDraftItem] = useState<DraftItem>(emptyDraft);
   const [items, setItems] = useState<DraftItem[]>([]);
+  const [documentFiles, setDocumentFiles] = useState<File[]>([]);
+  const [quoteFiles, setQuoteFiles] = useState<File[]>([]);
+  const [createAction, setCreateAction] = useState<"draft" | "submit" | null>(null);
   const [isCreatePanelOpen, setIsCreatePanelOpen] = useState(false);
+  const [editingRequisitionId, setEditingRequisitionId] = useState<string | null>(null);
   const [selectedRequisitionId, setSelectedRequisitionId] = useState<string | null>(null);
   const [queueFilter, setQueueFilter] = useState<"ALL" | "ACTION" | "APPROVED" | "REJECTED">("ALL");
   const [queueSearch, setQueueSearch] = useState("");
 
-  const totalDraftAmount = useMemo(
+  const subtotalAmount = useMemo(
     () =>
       items.reduce((total, item) => {
         const product = products.find((entry) => entry.id === item.productId);
@@ -1091,6 +1684,19 @@ export default function P2PPrManagementPage() {
       }, 0),
     [items, products]
   );
+
+  const taxAmount = useMemo(
+    () =>
+      items.reduce((total, item) => {
+        const product = products.find((entry) => entry.id === item.productId);
+        const unitPrice = item.source === "INVENTORY" ? product?.price ?? item.estimatedUnitPrice : item.estimatedUnitPrice;
+        const lineSubtotal = unitPrice * item.quantity;
+        return total + lineSubtotal * (item.taxPercent / 100);
+      }, 0),
+    [items, products]
+  );
+
+  const grandTotal = subtotalAmount + taxAmount;
 
   const selectedRequisition =
     requisitions.find((requisition) => requisition.id === selectedRequisitionId) ?? null;
@@ -1133,10 +1739,45 @@ export default function P2PPrManagementPage() {
   function resetForm() {
     setDepartment("");
     setRequestType("INTERNAL_USE");
-    setPurpose("");
+    setTitle("");
+    setDescription("");
     setNeededByDate("");
+    setPriority("MEDIUM");
+    setRequestCategory("");
     setDraftItem(emptyDraft);
     setItems([]);
+    setDocumentFiles([]);
+    setQuoteFiles([]);
+    setEditingRequisitionId(null);
+  }
+
+  function hydrateFormFromRequisition(requisition: PurchaseRequisition) {
+    setDepartment(requisition.department);
+    setRequestType(requisition.requestType);
+    setTitle(requisition.title);
+    setDescription(requisition.description ?? "");
+    setNeededByDate(requisition.neededByDate ?? "");
+    setPriority(requisition.priority);
+    setRequestCategory(requisition.requestCategory ?? "");
+    setDraftItem(emptyDraft);
+    setItems(
+      requisition.items.map((item) => ({
+        source: item.productId ? "INVENTORY" : "ADHOC",
+        productId: item.productId ?? "",
+        sku: item.sku ?? "",
+        productName: item.productName,
+        category: item.category ?? "",
+        unit: item.unit,
+        estimatedUnitPrice: item.estimatedUnitPrice,
+        taxPercent: item.taxPercent ?? 0,
+        quantity: item.quantity,
+        remarks: item.remarks ?? "",
+      }))
+    );
+    setDocumentFiles([]);
+    setQuoteFiles([]);
+    setEditingRequisitionId(requisition.id);
+    setIsCreatePanelOpen(true);
   }
 
   function handleAddItem() {
@@ -1147,15 +1788,20 @@ export default function P2PPrManagementPage() {
     setDraftItem(emptyDraft);
   }
 
-  function handleCreateRequisition() {
-    if (!currentUser?.id || !department.trim() || items.length === 0) return;
-    createRequisition.mutate(
-      {
+  async function handleCreateRequisition(mode: "draft" | "submit") {
+    if (!currentUser?.id || !department.trim() || !title.trim() || items.length === 0) return;
+    try {
+      setCreateAction(mode);
+      const payload = {
         requesterId: currentUser.id,
         requestType,
         department: department.trim(),
-        purpose: purpose.trim() || undefined,
+        title: title.trim(),
+        description: description.trim() || undefined,
+        purpose: description.trim() || undefined,
         neededByDate: neededByDate || undefined,
+        priority,
+        requestCategory: requestCategory.trim() || undefined,
         items: items.map((item) => ({
           productId: item.productId || undefined,
           sku: item.sku.trim() || undefined,
@@ -1167,16 +1813,49 @@ export default function P2PPrManagementPage() {
             item.source === "INVENTORY"
               ? products.find((entry) => entry.id === item.productId)?.price ?? item.estimatedUnitPrice
               : item.estimatedUnitPrice,
+          taxPercent: item.taxPercent,
           remarks: item.remarks.trim() || undefined,
         })),
-      },
-      {
-        onSuccess: () => {
-          resetForm();
-          setIsCreatePanelOpen(false);
-        },
+      };
+      const created = editingRequisitionId
+        ? await updateRequisition.mutateAsync({ id: editingRequisitionId, payload })
+        : await createRequisition.mutateAsync(payload);
+
+      for (const file of documentFiles) {
+        await uploadPurchaseRequisitionDocument.mutateAsync({
+          requisitionId: created.id,
+          type: "DOCUMENT",
+          file,
+        });
       }
-    );
+      for (const file of quoteFiles) {
+        await uploadPurchaseRequisitionDocument.mutateAsync({
+          requisitionId: created.id,
+          type: "QUOTE",
+          file,
+        });
+      }
+
+      if (mode === "submit" && created.status === "DRAFT") {
+        await submitRequisition.mutateAsync({ id: created.id, actorId: currentUser.id });
+      }
+
+      resetForm();
+      setIsCreatePanelOpen(false);
+    } catch {
+      return;
+    } finally {
+      setCreateAction(null);
+    }
+  }
+
+  async function handleDeleteRequisition(requisitionId: string) {
+    const confirmed = window.confirm("Delete this draft PR?");
+    if (!confirmed) return;
+    await deleteRequisition.mutateAsync(requisitionId);
+    if (selectedRequisitionId === requisitionId) {
+      setSelectedRequisitionId(null);
+    }
   }
 
   const columns = [
@@ -1185,6 +1864,7 @@ export default function P2PPrManagementPage() {
     { key: "neededBy", label: "Needed By" },
     { key: "amount", label: "Amount" },
     { key: "status", label: "Status" },
+    { key: "actions", label: "Actions", className: "w-[170px]" },
   ];
 
   const rows = filteredRequisitions.map((requisition) => ({
@@ -1203,6 +1883,29 @@ export default function P2PPrManagementPage() {
     status: (
       <P2PStatusBadge label={requisition.status.replace("_", " ")} tone={toneForStatus(requisition.status)} />
     ),
+    actions:
+      requisition.status === "DRAFT" ? (
+        <div className="flex items-center gap-2" onClick={(event) => event.stopPropagation()}>
+          <button
+            type="button"
+            onClick={() => hydrateFormFromRequisition(requisition)}
+            className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+          >
+            <Pencil className="h-3.5 w-3.5" />
+            Edit
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleDeleteRequisition(requisition.id)}
+            className="inline-flex items-center gap-1.5 rounded-full border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+            Delete
+          </button>
+        </div>
+      ) : (
+        <span className="text-xs text-slate-400">Locked</span>
+      ),
   }));
 
   return (
@@ -1219,7 +1922,10 @@ export default function P2PPrManagementPage() {
               </div>
               <button
                 type="button"
-                onClick={() => setIsCreatePanelOpen(true)}
+                onClick={() => {
+                  resetForm();
+                  setIsCreatePanelOpen(true);
+                }}
                 className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm shadow-blue-600/20 hover:bg-blue-700"
               >
                 <Plus className="h-4 w-4" />
@@ -1360,20 +2066,44 @@ export default function P2PPrManagementPage() {
               payload: { action: "REJECTED", actorId, remarks },
             })
           }
+          onSaveBudget={(id, payload) =>
+            updateBudget.mutate({
+              id,
+              payload,
+            })
+          }
           onSaveEvaluation={(id, decision, notes) =>
             updateEvaluation.mutate({
               id,
               payload: { decision, notes },
             })
           }
-          onSaveNegotiation={(id, vendorId, negotiatedAmount, notes) =>
+          onSaveNegotiation={(
+            id,
+            vendorId,
+            negotiatedAmount,
+            deliveryTimeline,
+            paymentTerms,
+            discountPercent,
+            discountAmount,
+            notes
+          ) =>
             updateNegotiation.mutate({
               id,
-              payload: { vendorId, negotiatedAmount, notes },
+              payload: {
+                vendorId,
+                negotiatedAmount,
+                deliveryTimeline,
+                paymentTerms,
+                discountPercent,
+                discountAmount,
+                notes,
+              },
             })
           }
           isSubmitting={submitRequisition.isPending}
           isReviewing={reviewRequisition.isPending}
+          isSavingBudget={updateBudget.isPending}
           isSavingEvaluation={updateEvaluation.isPending}
           isSavingNegotiation={updateNegotiation.isPending}
         />
@@ -1381,28 +2111,58 @@ export default function P2PPrManagementPage() {
 
       {isCreatePanelOpen ? (
         <CreateRequisitionPanel
+          isEditing={!!editingRequisitionId}
           currentUserName={currentUser?.name}
           products={products}
           isProductsLoading={isProductsLoading}
           requestType={requestType}
+          title={title}
+          description={description}
           department={department}
-          purpose={purpose}
           neededByDate={neededByDate}
+          priority={priority}
+          requestCategory={requestCategory}
           draftItem={draftItem}
           items={items}
-          totalDraftAmount={totalDraftAmount}
-          isCreating={createRequisition.isPending}
-          errorMessage={createRequisition.error instanceof Error ? createRequisition.error.message : undefined}
+          subtotalAmount={subtotalAmount}
+          taxAmount={taxAmount}
+          grandTotal={grandTotal}
+          documentFiles={documentFiles}
+          quoteFiles={quoteFiles}
+          isSavingDraft={
+            createAction === "draft" && (createRequisition.isPending || updateRequisition.isPending)
+          }
+          isSubmittingForApproval={
+            (createAction === "submit" && (createRequisition.isPending || updateRequisition.isPending)) ||
+            submitRequisition.isPending
+          }
+          errorMessage={
+            (createRequisition.error instanceof Error && createRequisition.error.message) ||
+            (updateRequisition.error instanceof Error && updateRequisition.error.message) ||
+            (uploadPurchaseRequisitionDocument.error instanceof Error && uploadPurchaseRequisitionDocument.error.message) ||
+            (submitRequisition.error instanceof Error && submitRequisition.error.message) ||
+            undefined
+          }
           onClose={() => {
             setIsCreatePanelOpen(false);
-            if (!createRequisition.isPending) {
+            if (
+              !createRequisition.isPending &&
+              !updateRequisition.isPending &&
+              !submitRequisition.isPending &&
+              !uploadPurchaseRequisitionDocument.isPending
+            ) {
               resetForm();
             }
           }}
           onRequestTypeChange={setRequestType}
+          onTitleChange={setTitle}
+          onDescriptionChange={setDescription}
           onDepartmentChange={setDepartment}
-          onPurposeChange={setPurpose}
           onNeededByDateChange={setNeededByDate}
+          onPriorityChange={setPriority}
+          onRequestCategoryChange={setRequestCategory}
+          onDocumentFilesChange={setDocumentFiles}
+          onQuoteFilesChange={setQuoteFiles}
           onDraftItemChange={setDraftItem}
           onAddItem={handleAddItem}
           onRemoveItem={(index) => setItems((current) => current.filter((_, currentIndex) => currentIndex !== index))}

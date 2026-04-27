@@ -13,9 +13,12 @@ import type {
   Payment,
   PurchaseOrder,
   PurchaseRequisition,
+  PurchaseRequisitionDocument,
   ReviewPurchaseRequisitionPayload,
+  UpdatePurchaseRequisitionBudgetPayload,
   UpdatePurchaseRequisitionEvaluationPayload,
   UpdatePurchaseRequisitionNegotiationPayload,
+  UpdatePurchaseRequisitionPayload,
   UpdateVendorPayload,
   Vendor,
   VendorDocument,
@@ -52,6 +55,16 @@ export async function fetchPurchaseRequisitions(): Promise<PurchaseRequisition[]
   }
 }
 
+export async function fetchPurchaseRequisitionDocuments(requisitionId: string): Promise<PurchaseRequisitionDocument[]> {
+  try {
+    await ensureApiSession();
+    const response = await api.get<PurchaseRequisitionDocument[]>(`/procurement/requisitions/${requisitionId}/documents`);
+    return response.data;
+  } catch (error) {
+    rethrow(error, "Failed to load purchase requisition documents.");
+  }
+}
+
 export async function createPurchaseRequisition(
   payload: CreatePurchaseRequisitionPayload
 ): Promise<PurchaseRequisition> {
@@ -61,6 +74,28 @@ export async function createPurchaseRequisition(
     return response.data;
   } catch (error) {
     rethrow(error, "Failed to create purchase requisition.");
+  }
+}
+
+export async function updatePurchaseRequisition(
+  id: string,
+  payload: UpdatePurchaseRequisitionPayload
+): Promise<PurchaseRequisition> {
+  try {
+    await ensureApiSession();
+    const response = await api.put<PurchaseRequisition>(`/procurement/requisitions/${id}`, payload);
+    return response.data;
+  } catch (error) {
+    rethrow(error, "Failed to update purchase requisition.");
+  }
+}
+
+export async function deletePurchaseRequisition(id: string): Promise<void> {
+  try {
+    await ensureApiSession();
+    await api.delete(`/procurement/requisitions/${id}`);
+  } catch (error) {
+    rethrow(error, "Failed to delete purchase requisition.");
   }
 }
 
@@ -113,6 +148,22 @@ export async function updatePurchaseRequisitionEvaluation(
   }
 }
 
+export async function updatePurchaseRequisitionBudget(
+  id: string,
+  payload: UpdatePurchaseRequisitionBudgetPayload
+): Promise<PurchaseRequisition> {
+  try {
+    await ensureApiSession();
+    const response = await api.post<PurchaseRequisition>(
+      `/procurement/requisitions/${id}/budget`,
+      payload
+    );
+    return response.data;
+  } catch (error) {
+    rethrow(error, "Failed to save requisition budget context.");
+  }
+}
+
 export async function updatePurchaseRequisitionNegotiation(
   id: string,
   payload: UpdatePurchaseRequisitionNegotiationPayload
@@ -126,6 +177,38 @@ export async function updatePurchaseRequisitionNegotiation(
     return response.data;
   } catch (error) {
     rethrow(error, "Failed to save requisition negotiation.");
+  }
+}
+
+export async function uploadPurchaseRequisitionDocument(
+  requisitionId: string,
+  type: "DOCUMENT" | "QUOTE",
+  file: File
+): Promise<PurchaseRequisitionDocument> {
+  try {
+    await ensureApiSession();
+    const formData = new FormData();
+    formData.append("file", file);
+    const response = await api.post<PurchaseRequisitionDocument>(
+      `/procurement/requisitions/${requisitionId}/documents`,
+      formData,
+      {
+        params: { type },
+        headers: { "Content-Type": "multipart/form-data" },
+      }
+    );
+    return response.data;
+  } catch (error) {
+    rethrow(error, "Failed to upload purchase requisition document.");
+  }
+}
+
+export async function deletePurchaseRequisitionDocument(requisitionId: string, documentId: string): Promise<void> {
+  try {
+    await ensureApiSession();
+    await api.delete(`/procurement/requisitions/${requisitionId}/documents/${documentId}`);
+  } catch (error) {
+    rethrow(error, "Failed to delete purchase requisition document.");
   }
 }
 

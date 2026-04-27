@@ -10,6 +10,8 @@ import com.fawnix.procurement.domain.ApprovalLog;
 import com.fawnix.procurement.domain.ApprovalStep;
 import com.fawnix.procurement.domain.ApprovalWorkflow;
 import com.fawnix.procurement.domain.PurchaseRequisition;
+import com.fawnix.procurement.domain.PurchaseRequisitionDocument;
+import com.fawnix.procurement.domain.PurchaseRequisitionDocumentType;
 import com.fawnix.procurement.domain.PurchaseRequisitionItem;
 import com.fawnix.procurement.domain.PurchaseRequisitionStatus;
 import com.fawnix.procurement.domain.PurchaseRequisitionType;
@@ -18,9 +20,11 @@ import com.fawnix.procurement.mapper.ProcurementMapper;
 import com.fawnix.procurement.repository.ApprovalLogRepository;
 import com.fawnix.procurement.repository.ApprovalStepRepository;
 import com.fawnix.procurement.repository.ApprovalWorkflowRepository;
+import com.fawnix.procurement.repository.PurchaseRequisitionDocumentRepository;
 import com.fawnix.procurement.repository.PurchaseRequisitionItemRepository;
 import com.fawnix.procurement.repository.PurchaseRequisitionRepository;
 import feign.FeignException;
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
@@ -28,16 +32,21 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.UUID;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
+import org.springframework.web.multipart.MultipartFile;
 
 @Service
 public class PurchaseRequisitionService {
 
   private static final String PROCUREMENT_MODULE = "PROCUREMENT";
   private static final String ENTITY_TYPE_PURCHASE_REQUISITION = "PURCHASE_REQUISITION";
+  private static final long MAX_PR_DOCUMENT_BYTES = 10L * 1024L * 1024L;
 
   private final PurchaseRequisitionRepository purchaseRequisitionRepository;
+  private final PurchaseRequisitionDocumentRepository purchaseRequisitionDocumentRepository;
   private final PurchaseRequisitionItemRepository purchaseRequisitionItemRepository;
   private final ApprovalWorkflowRepository approvalWorkflowRepository;
   private final ApprovalStepRepository approvalStepRepository;
@@ -47,6 +56,7 @@ public class PurchaseRequisitionService {
 
   public PurchaseRequisitionService(
       PurchaseRequisitionRepository purchaseRequisitionRepository,
+      PurchaseRequisitionDocumentRepository purchaseRequisitionDocumentRepository,
       PurchaseRequisitionItemRepository purchaseRequisitionItemRepository,
       ApprovalWorkflowRepository approvalWorkflowRepository,
       ApprovalStepRepository approvalStepRepository,
@@ -55,6 +65,7 @@ public class PurchaseRequisitionService {
       ProcurementMapper procurementMapper
   ) {
     this.purchaseRequisitionRepository = purchaseRequisitionRepository;
+    this.purchaseRequisitionDocumentRepository = purchaseRequisitionDocumentRepository;
     this.purchaseRequisitionItemRepository = purchaseRequisitionItemRepository;
     this.approvalWorkflowRepository = approvalWorkflowRepository;
     this.approvalStepRepository = approvalStepRepository;
@@ -68,11 +79,24 @@ public class PurchaseRequisitionService {
     PurchaseRequisition requisition = new PurchaseRequisition();
     requisition.setId(UUID.randomUUID());
     requisition.setPrNumber(generateDocumentNumber("PR"));
-    requisition.setRequesterId(request.requesterId());
-    requisition.setRequestType(request.requestType() == null ? PurchaseRequisitionType.INTERNAL_USE : request.requestType());
-    requisition.setDepartment(request.department().trim());
-    requisition.setPurpose(trimToNull(request.purpose()));
-    requisition.setNeededByDate(request.neededByDate());
+    applyPurchaseRequisitionFields(
+        requisition,
+        request.requesterId(),
+        request.requestType(),
+        request.department(),
+        request.title(),
+        request.description(),
+        request.purpose(),
+        request.neededByDate(),
+        request.priority(),
+        request.requestCategory(),
+        request.budgetName(),
+        request.budgetType(),
+        request.budgetPeriod(),
+        request.allocatedBudget(),
+        request.committedAmount(),
+        request.actualSpend()
+    );
     requisition.setStatus(PurchaseRequisitionStatus.DRAFT);
 
     PurchaseRequisition saved = purchaseRequisitionRepository.save(requisition);
@@ -81,6 +105,42 @@ public class PurchaseRequisitionService {
         .toList();
     purchaseRequisitionItemRepository.saveAll(items);
     return procurementMapper.toPurchaseRequisitionResponse(saved, items);
+  }
+
+  @Transactional
+  public ProcurementDtos.PurchaseRequisitionResponse updatePurchaseRequisition(
+      UUID id,
+      ProcurementDtos.UpdatePurchaseRequisitionRequest request
+  ) {
+    PurchaseRequisition requisition = requirePurchaseRequisition(id);
+    validateEditableRequisition(requisition);
+
+    applyPurchaseRequisitionFields(
+        requisition,
+        request.requesterId(),
+        request.requestType(),
+        request.department(),
+        request.title(),
+        request.description(),
+        request.purpose(),
+        request.neededByDate(),
+        request.priority(),
+        request.requestCategory(),
+        request.budgetName(),
+        request.budgetType(),
+        request.budgetPeriod(),
+        request.allocatedBudget(),
+        request.committedAmount(),
+        request.actualSpend()
+    );
+    purchaseRequisitionRepository.save(requisition);
+
+    purchaseRequisitionItemRepository.deleteByPurchaseRequisitionId(id);
+    List<PurchaseRequisitionItem> items = request.items().stream()
+        .map(itemRequest -> createRequisitionItem(requisition, itemRequest))
+        .toList();
+    purchaseRequisitionItemRepository.saveAll(items);
+    return procurementMapper.toPurchaseRequisitionResponse(requisition, items);
   }
 
   @Transactional(readOnly = true)
@@ -93,6 +153,92 @@ public class PurchaseRequisitionService {
   @Transactional(readOnly = true)
   public ProcurementDtos.PurchaseRequisitionResponse getPurchaseRequisition(UUID id) {
     PurchaseRequisition requisition = requirePurchaseRequisition(id);
+    return procurementMapper.toPurchaseRequisitionResponse(requisition, getItems(requisition.getId()));
+  }
+
+  @Transactional
+  public void deletePurchaseRequisition(UUID id) {
+    PurchaseRequisition requisition = requirePurchaseRequisition(id);
+    validateEditableRequisition(requisition);
+    approvalLogRepository.deleteByEntityTypeAndEntityId(ENTITY_TYPE_PURCHASE_REQUISITION, id);
+    purchaseRequisitionDocumentRepository.deleteByPurchaseRequisitionId(id);
+    purchaseRequisitionItemRepository.deleteByPurchaseRequisitionId(id);
+    purchaseRequisitionRepository.delete(requisition);
+  }
+
+  @Transactional(readOnly = true)
+  public List<ProcurementDtos.PurchaseRequisitionDocumentResponse> getPurchaseRequisitionDocuments(UUID id) {
+    requirePurchaseRequisition(id);
+    return purchaseRequisitionDocumentRepository.findAllByPurchaseRequisitionIdOrderByCreatedAtDesc(id).stream()
+        .map(procurementMapper::toPurchaseRequisitionDocumentResponse)
+        .toList();
+  }
+
+  @Transactional
+  public ProcurementDtos.PurchaseRequisitionDocumentResponse uploadPurchaseRequisitionDocument(
+      UUID id,
+      PurchaseRequisitionDocumentType documentType,
+      MultipartFile file
+  ) {
+    PurchaseRequisition requisition = requirePurchaseRequisition(id);
+    validatePurchaseRequisitionDocument(documentType, file);
+
+    PurchaseRequisitionDocument document = new PurchaseRequisitionDocument();
+    document.setId(UUID.randomUUID());
+    document.setPurchaseRequisition(requisition);
+    document.setDocumentType(documentType);
+    document.setFileName(StringUtils.cleanPath(file.getOriginalFilename()));
+    document.setContentType(trimToNull(file.getContentType()));
+    document.setFileSize(file.getSize());
+    try {
+      document.setFileData(file.getBytes());
+    } catch (IOException exception) {
+      throw new BadRequestException("Failed to read uploaded requisition document.");
+    }
+
+    return procurementMapper.toPurchaseRequisitionDocumentResponse(
+        purchaseRequisitionDocumentRepository.save(document)
+    );
+  }
+
+  @Transactional(readOnly = true)
+  public PurchaseRequisitionDocumentContent getPurchaseRequisitionDocumentContent(UUID id, UUID documentId) {
+    PurchaseRequisitionDocument document = requirePurchaseRequisitionDocument(id, documentId);
+    MediaType mediaType;
+    try {
+      mediaType = document.getContentType() != null
+          ? MediaType.parseMediaType(document.getContentType())
+          : MediaType.APPLICATION_OCTET_STREAM;
+    } catch (IllegalArgumentException exception) {
+      mediaType = MediaType.APPLICATION_OCTET_STREAM;
+    }
+    return new PurchaseRequisitionDocumentContent(document.getFileName(), mediaType, document.getFileData());
+  }
+
+  @Transactional
+  public void deletePurchaseRequisitionDocument(UUID id, UUID documentId) {
+    purchaseRequisitionDocumentRepository.delete(requirePurchaseRequisitionDocument(id, documentId));
+  }
+
+  @Transactional
+  public ProcurementDtos.PurchaseRequisitionResponse updatePurchaseRequisitionBudget(
+      UUID id,
+      ProcurementDtos.UpdatePurchaseRequisitionBudgetRequest request
+  ) {
+    PurchaseRequisition requisition = requirePurchaseRequisition(id);
+    if (requisition.getStatus() == PurchaseRequisitionStatus.PO_CREATED) {
+      throw new BadRequestException("Budget validation cannot be changed after a purchase order is created.");
+    }
+
+    requisition.setBudgetName(trimToNull(request.budgetName()));
+    requisition.setBudgetType(request.budgetType());
+    requisition.setBudgetPeriod(trimToNull(request.budgetPeriod()));
+    requisition.setAllocatedBudget(request.allocatedBudget() == null ? BigDecimal.ZERO : scale(request.allocatedBudget()));
+    requisition.setCommittedAmount(request.committedAmount() == null ? BigDecimal.ZERO : scale(request.committedAmount()));
+    requisition.setActualSpend(request.actualSpend() == null ? BigDecimal.ZERO : scale(request.actualSpend()));
+    requisition.setBudgetValidationNotes(trimToNull(request.validationNotes()));
+    requisition.setBudgetExceptionJustification(trimToNull(request.exceptionJustification()));
+    purchaseRequisitionRepository.save(requisition);
     return procurementMapper.toPurchaseRequisitionResponse(requisition, getItems(requisition.getId()));
   }
 
@@ -128,6 +274,10 @@ public class PurchaseRequisitionService {
 
     requisition.setNegotiationVendorId(request.vendorId());
     requisition.setNegotiatedAmount(request.negotiatedAmount() == null ? null : scale(request.negotiatedAmount()));
+    requisition.setNegotiationDeliveryTimeline(trimToNull(request.deliveryTimeline()));
+    requisition.setNegotiationPaymentTerms(trimToNull(request.paymentTerms()));
+    requisition.setNegotiationDiscountPercent(request.discountPercent() == null ? null : scale(request.discountPercent()));
+    requisition.setNegotiationDiscountAmount(request.discountAmount() == null ? null : scale(request.discountAmount()));
     requisition.setNegotiationNotes(trimToNull(request.notes()));
     requisition.setNegotiationUpdatedAt(Instant.now());
     purchaseRequisitionRepository.save(requisition);
@@ -240,6 +390,12 @@ public class PurchaseRequisitionService {
         .orElseThrow(() -> new ResourceNotFoundException("Purchase requisition not found."));
   }
 
+  private PurchaseRequisitionDocument requirePurchaseRequisitionDocument(UUID requisitionId, UUID documentId) {
+    requirePurchaseRequisition(requisitionId);
+    return purchaseRequisitionDocumentRepository.findByIdAndPurchaseRequisitionId(documentId, requisitionId)
+        .orElseThrow(() -> new ResourceNotFoundException("Purchase requisition document not found."));
+  }
+
   private PurchaseRequisitionItem createRequisitionItem(
       PurchaseRequisition requisition,
       ProcurementDtos.PurchaseRequisitionItemRequest request
@@ -266,7 +422,11 @@ public class PurchaseRequisitionService {
     }
 
     item.setQuantity(scale(request.quantity()));
-    item.setLineTotal(scale(item.getQuantity().multiply(item.getEstimatedUnitPrice())));
+    BigDecimal taxPercent = request.taxPercent() == null ? BigDecimal.ZERO : scale(request.taxPercent());
+    item.setTaxPercent(taxPercent);
+    BigDecimal baseAmount = item.getQuantity().multiply(item.getEstimatedUnitPrice());
+    BigDecimal taxAmount = baseAmount.multiply(taxPercent).divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
+    item.setLineTotal(scale(baseAmount.add(taxAmount)));
     item.setRemarks(trimToNull(request.remarks()));
     return item;
   }
@@ -305,10 +465,66 @@ public class PurchaseRequisitionService {
         .reduce(BigDecimal.ZERO, BigDecimal::add));
   }
 
+  private void validatePurchaseRequisitionDocument(PurchaseRequisitionDocumentType documentType, MultipartFile file) {
+    if (documentType == null) {
+      throw new BadRequestException("Requisition document type is required.");
+    }
+    if (file == null || file.isEmpty()) {
+      throw new BadRequestException("Requisition document file is required.");
+    }
+    if (!StringUtils.hasText(file.getOriginalFilename())) {
+      throw new BadRequestException("Requisition document name is required.");
+    }
+    if (file.getSize() > MAX_PR_DOCUMENT_BYTES) {
+      throw new BadRequestException("Requisition document exceeds the 10 MB upload limit.");
+    }
+  }
+
   private void validateApprover(ApprovalStep step, UUID actorId) {
     if (step.getApproverUserId() != null && !step.getApproverUserId().equals(actorId)) {
       throw new ForbiddenOperationException("This requisition is assigned to a different approver.");
     }
+  }
+
+  private void validateEditableRequisition(PurchaseRequisition requisition) {
+    if (requisition.getStatus() != PurchaseRequisitionStatus.DRAFT) {
+      throw new BadRequestException("Only draft purchase requisitions can be edited or deleted.");
+    }
+  }
+
+  private void applyPurchaseRequisitionFields(
+      PurchaseRequisition requisition,
+      UUID requesterId,
+      PurchaseRequisitionType requestType,
+      String department,
+      String title,
+      String description,
+      String purpose,
+      LocalDate neededByDate,
+      com.fawnix.procurement.domain.PurchaseRequisitionPriority priority,
+      String requestCategory,
+      String budgetName,
+      com.fawnix.procurement.domain.BudgetContextType budgetType,
+      String budgetPeriod,
+      BigDecimal allocatedBudget,
+      BigDecimal committedAmount,
+      BigDecimal actualSpend
+  ) {
+    requisition.setRequesterId(requesterId);
+    requisition.setRequestType(requestType == null ? PurchaseRequisitionType.INTERNAL_USE : requestType);
+    requisition.setDepartment(requireNonBlank(department, "Department is required."));
+    requisition.setTitle(requireNonBlank(title, "Title is required."));
+    requisition.setDescription(trimToNull(description));
+    requisition.setPurpose(firstNonBlank(trimToNull(purpose), trimToNull(description)));
+    requisition.setNeededByDate(neededByDate);
+    requisition.setPriority(priority);
+    requisition.setRequestCategory(trimToNull(requestCategory));
+    requisition.setBudgetName(trimToNull(budgetName));
+    requisition.setBudgetType(budgetType);
+    requisition.setBudgetPeriod(trimToNull(budgetPeriod));
+    requisition.setAllocatedBudget(allocatedBudget == null ? BigDecimal.ZERO : scale(allocatedBudget));
+    requisition.setCommittedAmount(committedAmount == null ? BigDecimal.ZERO : scale(committedAmount));
+    requisition.setActualSpend(actualSpend == null ? BigDecimal.ZERO : scale(actualSpend));
   }
 
   private void validateTransition(PurchaseRequisitionStatus currentStatus, PurchaseRequisitionStatus targetStatus) {
@@ -384,5 +600,12 @@ public class PurchaseRequisitionService {
 
   private String firstNonBlank(String first, String second) {
     return first != null ? first : second;
+  }
+
+  public record PurchaseRequisitionDocumentContent(
+      String fileName,
+      MediaType mediaType,
+      byte[] content
+  ) {
   }
 }
