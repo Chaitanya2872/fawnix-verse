@@ -83,11 +83,10 @@ public class FawnixOtpAuthService {
           now,
           now
       );
-      RoleEntity role = roleRepository.findByName(defaultRoleName)
-          .orElseThrow(() -> new ResourceNotFoundException("Role not found: " + defaultRoleName));
+      RoleEntity role = requireDefaultRole();
       created.setRoles(Set.of(role));
       created.setPermissions(UserPermissionCatalog.defaultsForRoleName(role.getName()));
-      return created;
+      return userRepository.save(created);
     });
 
     boolean updated = false;
@@ -106,8 +105,7 @@ public class FawnixOtpAuthService {
       updated = true;
     }
     if (user.getRoles() == null || user.getRoles().isEmpty()) {
-      RoleEntity role = roleRepository.findByName(defaultRoleName)
-          .orElseThrow(() -> new ResourceNotFoundException("Role not found: " + defaultRoleName));
+      RoleEntity role = requireDefaultRole();
       user.setRoles(Set.of(role));
       user.setPermissions(UserPermissionCatalog.defaultsForRoleName(role.getName()));
       updated = true;
@@ -118,6 +116,11 @@ public class FawnixOtpAuthService {
       return userRepository.save(user);
     }
     return user;
+  }
+
+  private RoleEntity requireDefaultRole() {
+    return roleRepository.findByName(defaultRoleName)
+        .orElseThrow(() -> new ResourceNotFoundException("Role not found: " + defaultRoleName));
   }
 
   private String normalizeEmail(String email) {
