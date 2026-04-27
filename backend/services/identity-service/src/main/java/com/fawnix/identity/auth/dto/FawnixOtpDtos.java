@@ -65,6 +65,8 @@ public final class FawnixOtpDtos {
       String empFullName,
       @JsonProperty("emp_contact")
       String empContact,
+      @JsonProperty("emp_designation")
+      String empDesignation,
       String role,
       @JsonProperty("user_id")
       Integer userId,

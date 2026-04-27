@@ -3,6 +3,7 @@ package com.fawnix.identity.auth.service;
 import com.fawnix.identity.auth.dto.AuthDtos;
 import com.fawnix.identity.auth.dto.FawnixOtpDtos;
 import com.fawnix.identity.auth.entity.RoleEntity;
+import com.fawnix.identity.auth.entity.RoleName;
 import com.fawnix.identity.auth.repository.RoleRepository;
 import com.fawnix.identity.common.exception.BadRequestException;
 import com.fawnix.identity.common.exception.ResourceNotFoundException;
@@ -83,7 +84,7 @@ public class FawnixOtpAuthService {
           now,
           now
       );
-      RoleEntity role = requireDefaultRole();
+      RoleEntity role = requireRole(resolveRoleName(profile));
       created.setRoles(Set.of(role));
       created.setPermissions(UserPermissionCatalog.defaultsForRoleName(role.getName()));
       return userRepository.save(created);
@@ -104,10 +105,13 @@ public class FawnixOtpAuthService {
       user.setActive(true);
       updated = true;
     }
-    if (user.getRoles() == null || user.getRoles().isEmpty()) {
-      RoleEntity role = requireDefaultRole();
-      user.setRoles(Set.of(role));
-      user.setPermissions(UserPermissionCatalog.defaultsForRoleName(role.getName()));
+    RoleEntity effectiveRole = requireRole(resolveRoleName(profile));
+    boolean shouldPromoteToEffectiveRole = user.getRoles() == null
+        || user.getRoles().isEmpty()
+        || user.getRoles().stream().noneMatch(role -> role.getName().equals(effectiveRole.getName()));
+    if (shouldPromoteToEffectiveRole) {
+      user.setRoles(Set.of(effectiveRole));
+      user.setPermissions(UserPermissionCatalog.defaultsForRoleName(effectiveRole.getName()));
       updated = true;
     }
 
@@ -118,9 +122,17 @@ public class FawnixOtpAuthService {
     return user;
   }
 
-  private RoleEntity requireDefaultRole() {
-    return roleRepository.findByName(defaultRoleName)
-        .orElseThrow(() -> new ResourceNotFoundException("Role not found: " + defaultRoleName));
+  private String resolveRoleName(FawnixOtpDtos.FawnixUser profile) {
+    String designation = profile.empDesignation();
+    if (designation != null && designation.trim().equalsIgnoreCase("devtester")) {
+      return RoleName.ROLE_ADMIN.name();
+    }
+    return defaultRoleName;
+  }
+
+  private RoleEntity requireRole(String roleName) {
+    return roleRepository.findByName(roleName)
+        .orElseThrow(() -> new ResourceNotFoundException("Role not found: " + roleName));
   }
 
   private String normalizeEmail(String email) {
