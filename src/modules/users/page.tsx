@@ -19,6 +19,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useCurrentUser } from "@/modules/auth/hooks";
+import { PERMISSIONS, hasPermission } from "@/modules/auth/permissions";
 import { hasStoredSession } from "@/services/api-client";
 import {
   useCreateUser,
@@ -211,7 +212,7 @@ function UserFormFields({
           ))}
         </div>
         <p className="text-xs text-slate-500">
-          Admins and reporting managers always have full access even if permissions are unset.
+          Master has full access. Other roles follow the selected module and page permissions.
         </p>
       </div>
     </div>
@@ -220,9 +221,7 @@ function UserFormFields({
 
 export default function UsersPage() {
   const { data: currentUser } = useCurrentUser({ enabled: hasStoredSession() });
-  const isAdmin =
-    currentUser?.roles?.includes("ROLE_ADMIN") ||
-    currentUser?.roles?.includes("ROLE_REPORTING_MANAGER");
+  const isAdmin = hasPermission(currentUser, PERMISSIONS.PAGE_ADMIN_USERS);
 
   const usersQuery = useUsers({ enabled: Boolean(isAdmin) });
   const createUserMutation = useCreateUser();

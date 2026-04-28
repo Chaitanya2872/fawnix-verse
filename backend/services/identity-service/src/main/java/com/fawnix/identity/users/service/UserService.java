@@ -233,6 +233,7 @@ public class UserService {
     }
     String normalized = roleInput.trim().toUpperCase(Locale.ROOT);
     RoleName roleName = switch (normalized) {
+      case "MASTER", "ROLE_MASTER" -> RoleName.ROLE_MASTER;
       case "ADMIN", "ROLE_ADMIN" -> RoleName.ROLE_ADMIN;
       case "REPORTING_MANAGER", "ROLE_REPORTING_MANAGER" -> RoleName.ROLE_REPORTING_MANAGER;
       case "MANAGER", "ROLE_MANAGER", "ROLE_SALES_MANAGER" -> RoleName.ROLE_SALES_MANAGER;

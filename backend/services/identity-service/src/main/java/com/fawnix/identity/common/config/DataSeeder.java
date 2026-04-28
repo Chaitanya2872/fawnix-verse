@@ -77,7 +77,7 @@ public class DataSeeder implements ApplicationRunner {
   }
 
   private void ensureUsers(Map<String, RoleEntity> roles) {
-    ensureUser(ADMIN_ID, "Admin User", devAdminEmail, devAdminPassword, Set.of(roles.get(RoleName.ROLE_ADMIN.name())));
+    ensureUser(ADMIN_ID, "Admin User", devAdminEmail, devAdminPassword, Set.of(roles.get(RoleName.ROLE_MASTER.name())));
     if (!seedSampleUsers) {
       return;
     }
@@ -115,6 +115,7 @@ public class DataSeeder implements ApplicationRunner {
 
   private String roleId(RoleName roleName) {
     return switch (roleName) {
+      case ROLE_MASTER -> "00000000-0000-0000-0000-000000000011";
       case ROLE_ADMIN -> "00000000-0000-0000-0000-000000000001";
       case ROLE_REPORTING_MANAGER -> "00000000-0000-0000-0000-000000000010";
       case ROLE_SALES_MANAGER -> "00000000-0000-0000-0000-000000000002";

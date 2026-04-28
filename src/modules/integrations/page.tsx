@@ -11,6 +11,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useCurrentUser } from "@/modules/auth/hooks";
+import { PERMISSIONS, hasPermission } from "@/modules/auth/permissions";
 import { hasStoredSession } from "@/services/api-client";
 import {
   useMetaIntegrationSettings,
@@ -50,10 +51,7 @@ const EMPTY_WHATSAPP_FORM: WhatsappIntegrationSettings = {
 
 export default function IntegrationsPage() {
   const { data: currentUser } = useCurrentUser({ enabled: hasStoredSession() });
-  const isAdmin =
-    currentUser?.roles?.includes("ROLE_ADMIN") ||
-    currentUser?.roles?.includes("ROLE_REPORTING_MANAGER") ||
-    currentUser?.roles?.includes("ROLE_SALES_MANAGER");
+  const isAdmin = hasPermission(currentUser, PERMISSIONS.PAGE_ADMIN_SETTINGS);
 
   const metaSettingsQuery = useMetaIntegrationSettings({ enabled: Boolean(isAdmin) });
   const whatsappSettingsQuery = useWhatsappIntegrationSettings({ enabled: Boolean(isAdmin) });

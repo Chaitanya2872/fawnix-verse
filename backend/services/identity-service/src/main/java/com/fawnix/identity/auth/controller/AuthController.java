@@ -6,6 +6,7 @@ import com.fawnix.identity.auth.service.AuthService;
 import com.fawnix.identity.security.service.AppUserDetails;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -36,6 +37,12 @@ public class AuthController {
   @PostMapping("/register-admin")
   public AuthDtos.TokenResponse registerAdmin(@Valid @RequestBody AuthDtos.RegisterRequest request) {
     return authService.registerWithRole(request, RoleName.ROLE_ADMIN);
+  }
+
+  @PostMapping("/register-master")
+  @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_REPORTING_MANAGER','ROLE_MASTER')")
+  public AuthDtos.TokenResponse registerMaster(@Valid @RequestBody AuthDtos.RegisterRequest request) {
+    return authService.registerWithRole(request, RoleName.ROLE_MASTER);
   }
 
   @PostMapping("/refresh")

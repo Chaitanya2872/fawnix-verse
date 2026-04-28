@@ -37,6 +37,15 @@ public class InternalAdminAuthController {
     return authService.registerWithRole(request, RoleName.ROLE_ADMIN);
   }
 
+  @PostMapping("/register-master")
+  public AuthDtos.TokenResponse registerMaster(
+      @Valid @RequestBody AuthDtos.RegisterRequest request,
+      @RequestHeader("X-Internal-Service-Secret") String providedSecret
+  ) {
+    verifySecret(providedSecret);
+    return authService.registerWithRole(request, RoleName.ROLE_MASTER);
+  }
+
   private void verifySecret(String providedSecret) {
     if (!Objects.equals(internalServiceSecret, providedSecret)) {
       throw new ForbiddenOperationException("Internal access denied.");

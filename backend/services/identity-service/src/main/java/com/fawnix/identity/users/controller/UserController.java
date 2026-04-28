@@ -33,25 +33,25 @@ public class UserController {
   }
 
   @GetMapping
-  @PreAuthorize("hasRole('ADMIN')")
+  @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_REPORTING_MANAGER','ROLE_MASTER')")
   public List<UserDtos.UserResponse> getUsers() {
     return userService.getUsers();
   }
 
   @GetMapping("/{id}")
-  @PreAuthorize("hasRole('ADMIN')")
+  @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_REPORTING_MANAGER','ROLE_MASTER')")
   public UserDtos.UserResponse getUserById(@PathVariable String id) {
     return userService.getUserById(id);
   }
 
   @PostMapping
-  @PreAuthorize("hasRole('ADMIN')")
+  @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_REPORTING_MANAGER','ROLE_MASTER')")
   public UserDtos.UserResponse createUser(@Valid @RequestBody UserDtos.CreateUserRequest request) {
     return userService.createUser(request);
   }
 
   @PatchMapping("/{id}")
-  @PreAuthorize("hasRole('ADMIN')")
+  @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_REPORTING_MANAGER','ROLE_MASTER')")
   public UserDtos.UserResponse updateUser(
       @PathVariable String id,
       @Valid @RequestBody UserDtos.UpdateUserRequest request
@@ -60,7 +60,7 @@ public class UserController {
   }
 
   @PatchMapping("/{id}/role")
-  @PreAuthorize("hasRole('ADMIN')")
+  @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_REPORTING_MANAGER','ROLE_MASTER')")
   public UserDtos.UserResponse updateUserRole(
       @PathVariable String id,
       @Valid @RequestBody UserDtos.UpdateUserRoleRequest request
@@ -69,7 +69,7 @@ public class UserController {
   }
 
   @PatchMapping("/{id}/status")
-  @PreAuthorize("hasRole('ADMIN')")
+  @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_REPORTING_MANAGER','ROLE_MASTER')")
   public UserDtos.UserResponse updateUserStatus(
       @PathVariable String id,
       @Valid @RequestBody UserDtos.UpdateUserStatusRequest request
@@ -78,7 +78,7 @@ public class UserController {
   }
 
   @DeleteMapping("/{id}")
-  @PreAuthorize("hasRole('ADMIN')")
+  @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_REPORTING_MANAGER','ROLE_MASTER')")
   public ResponseEntity<Void> deleteUser(@PathVariable String id) {
     userService.deleteUser(id);
     return ResponseEntity.noContent().build();

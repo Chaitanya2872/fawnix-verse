@@ -1,6 +1,7 @@
 package com.fawnix.identity.auth.entity;
 
 public enum RoleName {
+  ROLE_MASTER,
   ROLE_ADMIN,
   ROLE_REPORTING_MANAGER,
   ROLE_SALES_MANAGER,

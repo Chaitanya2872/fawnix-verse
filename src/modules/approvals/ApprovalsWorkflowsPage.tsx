@@ -4,6 +4,7 @@ import { Edit3, Plus, Trash2 } from 'lucide-react'
 import { approvalFlowsApi, usersApi } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { useCurrentUser } from '@/modules/auth/hooks'
+import { PERMISSIONS, hasPermission } from '@/modules/auth/permissions'
 
 const ROLE_OPTIONS = [
   { value: 'hr_manager', label: 'HR Manager' },
@@ -29,10 +30,7 @@ const EMPTY_STAGE: Stage = { order: 1, type: 'role', role: 'hr_manager', action_
 export default function ApprovalsWorkflowsPage() {
   const qc = useQueryClient()
   const { data: currentUser } = useCurrentUser()
-  const canManage =
-    currentUser?.roles?.includes('ROLE_ADMIN') ||
-    currentUser?.roles?.includes('ROLE_REPORTING_MANAGER') ||
-    currentUser?.roles?.includes('ROLE_HR_MANAGER')
+  const canManage = hasPermission(currentUser, PERMISSIONS.MODULE_APPROVALS)
 
   const [editingId, setEditingId] = useState<string | null>(null)
   const [name, setName] = useState('')
