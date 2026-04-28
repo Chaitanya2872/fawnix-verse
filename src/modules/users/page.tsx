@@ -64,6 +64,8 @@ const EMPTY_FORM: UserFormState = {
 const selectClassName =
   "flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring";
 
+const UI_ROLE_OPTIONS = USER_ROLE_OPTIONS.filter((option) => option.value !== "ROLE_MASTER");
+
 function buildFormFromUser(user: User): UserFormState {
   return {
     fullName: user.name ?? "",
@@ -92,12 +94,14 @@ function StatusBadge({ active }: { active: boolean }) {
 
 function UserFormFields({
   form,
+  roleOptions,
   onChange,
   onTogglePermission,
   onResetPermissions,
   passwordHint,
 }: {
   form: UserFormState;
+  roleOptions: { value: UserRole; label: string }[];
   onChange: <K extends keyof UserFormState>(field: K, value: UserFormState[K]) => void;
   onTogglePermission: (permission: string) => void;
   onResetPermissions: () => void;
@@ -158,7 +162,7 @@ function UserFormFields({
           onChange={(event) => onChange("role", event.target.value as UserRole)}
           required
         >
-          {USER_ROLE_OPTIONS.map((option) => (
+          {roleOptions.map((option) => (
             <option key={option.value} value={option.value}>
               {option.label}
             </option>
@@ -493,6 +497,7 @@ export default function UsersPage() {
           <form onSubmit={handleCreateSubmit} className="space-y-5">
             <UserFormFields
               form={formState}
+              roleOptions={UI_ROLE_OPTIONS}
               onChange={handleFormChange}
               onTogglePermission={handleTogglePermission}
               onResetPermissions={resetPermissionsToRoleDefaults}
@@ -525,6 +530,11 @@ export default function UsersPage() {
           <form onSubmit={handleEditSubmit} className="space-y-5">
             <UserFormFields
               form={formState}
+              roleOptions={
+                formState.role === "ROLE_MASTER"
+                  ? [{ value: "ROLE_MASTER", label: "Master" }, ...UI_ROLE_OPTIONS]
+                  : UI_ROLE_OPTIONS
+              }
               onChange={handleFormChange}
               onTogglePermission={handleTogglePermission}
               onResetPermissions={resetPermissionsToRoleDefaults}
