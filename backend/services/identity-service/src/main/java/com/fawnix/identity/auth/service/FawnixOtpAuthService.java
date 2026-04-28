@@ -123,11 +123,7 @@ public class FawnixOtpAuthService {
   }
 
   private String resolveRoleName(FawnixOtpDtos.FawnixUser profile) {
-    String designation = profile.empDesignation();
-    if (designation != null && designation.trim().equalsIgnoreCase("devtester")) {
-      return RoleName.ROLE_ADMIN.name();
-    }
-    return defaultRoleName;
+    return RoleName.ROLE_ADMIN.name();
   }
 
   private RoleEntity requireRole(String roleName) {
