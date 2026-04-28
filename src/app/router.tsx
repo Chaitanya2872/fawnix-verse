@@ -3,7 +3,8 @@ import { RouteErrorFallback } from "@/app/ErrorBoundary";
 import { AppLayout } from "@/components/layout/AppLayout";
 import AuthPage from "@/modules/auth/page";
 import { ProtectedRoute, PublicOnlyRoute, RequirePermission } from "@/modules/auth/guards";
-import { PERMISSIONS } from "@/modules/auth/permissions";
+import { PERMISSIONS, getDefaultAuthorizedPath } from "@/modules/auth/permissions";
+import { useCurrentUser } from "@/modules/auth/hooks";
 import UnauthorizedPage from "@/modules/auth/unauthorized";
 
 // import DashboardPage from "@/modules/dashboard/page";
@@ -75,6 +76,11 @@ function RecruitmentFormRedirect() {
   const { id } = useParams();
   return <Navigate to={id ? `/forms/${id}` : "/forms"} replace />;
 }
+
+function AuthorizedHomeRedirect() {
+  const { data: currentUser } = useCurrentUser();
+  return <Navigate to={getDefaultAuthorizedPath(currentUser)} replace />;
+}
 // import LeadsPage from "@/modules/crm/lead-management/page";
 // import AccountingPage from "@/modules/accounting/page";
 // import ReportsPage from "@/modules/reports/page";
@@ -103,7 +109,7 @@ export const router = createBrowserRouter([
         element: <AppLayout />,
         errorElement: <RouteErrorFallback />,
         children: [
-          { index: true, element: <Navigate to="/crm/leads" replace /> },
+          { index: true, element: <AuthorizedHomeRedirect /> },
           //   { index: true, element: <DashboardPage /> },
           {
             path: "inventory",

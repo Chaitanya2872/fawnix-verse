@@ -2,7 +2,7 @@ import { useEffect, type ReactNode } from "react";
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 
 import { clearAuthTokens, hasStoredSession } from "@/services/api-client";
-import { hasPermission, type Permission } from "@/modules/auth/permissions";
+import { getDefaultAuthorizedPath, hasPermission, type Permission } from "@/modules/auth/permissions";
 import { useCurrentUser } from "./hooks";
 
 type AuthStatusScreenProps = {
@@ -22,7 +22,7 @@ function AuthStatusScreen({ title, description }: AuthStatusScreenProps) {
   );
 }
 
-function getRedirectPath(state: unknown) {
+function getRedirectPath(state: unknown, fallbackPath: string) {
   const redirectState = state as
     | {
         from?: {
@@ -35,7 +35,7 @@ function getRedirectPath(state: unknown) {
   const from = redirectState?.from;
 
   if (!from?.pathname) {
-    return "/crm/leads";
+    return fallbackPath;
   }
 
   return `${from.pathname}${from.search ?? ""}${from.hash ?? ""}`;
@@ -62,7 +62,12 @@ export function PublicOnlyRoute() {
   }
 
   if (currentUserQuery.data) {
-    return <Navigate to={getRedirectPath(location.state)} replace />;
+    return (
+      <Navigate
+        to={getRedirectPath(location.state, getDefaultAuthorizedPath(currentUserQuery.data))}
+        replace
+      />
+    );
   }
 
   return <Outlet />;

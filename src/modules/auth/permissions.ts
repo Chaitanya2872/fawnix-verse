@@ -76,6 +76,34 @@ export function hasAnyPermission(
   return permissions.some((permission) => hasPermission(user, permission));
 }
 
+export function getDefaultAuthorizedPath(
+  user: CurrentUser | null | undefined
+): string {
+  if (!user) {
+    return "/unauthorized";
+  }
+
+  const candidates: Array<{ path: string; permission: Permission }> = [
+    { path: "/inventory", permission: PERMISSIONS.PAGE_INVENTORY },
+    { path: "/sales", permission: PERMISSIONS.PAGE_SALES },
+    { path: "/p2p/pr", permission: PERMISSIONS.PAGE_PURCHASES },
+    { path: "/crm/leads", permission: PERMISSIONS.PAGE_CRM_LEADS },
+    { path: "/crm/accounts", permission: PERMISSIONS.PAGE_CRM_ACCOUNTS },
+    { path: "/crm/presales", permission: PERMISSIONS.PAGE_CRM_PRESALES },
+    { path: "/crm/opportunities", permission: PERMISSIONS.PAGE_CRM_OPPORTUNITIES },
+    { path: "/recruitment/hiring-requests", permission: PERMISSIONS.MODULE_RECRUITMENT },
+    { path: "/forms", permission: PERMISSIONS.MODULE_FORMS },
+    { path: "/approvals", permission: PERMISSIONS.MODULE_APPROVALS },
+    { path: "/setup", permission: PERMISSIONS.MODULE_ORG },
+    { path: "/settings", permission: PERMISSIONS.PAGE_ADMIN_SETTINGS },
+    { path: "/reports", permission: PERMISSIONS.PAGE_REPORTS },
+    { path: "/users", permission: PERMISSIONS.PAGE_ADMIN_USERS },
+  ];
+
+  const match = candidates.find((candidate) => hasPermission(user, candidate.permission));
+  return match?.path ?? "/unauthorized";
+}
+
 function resolveModulePermission(permission: Permission): Permission | null {
   if (permission.startsWith("page.crm.")) return PERMISSIONS.MODULE_CRM;
   if (permission.startsWith("page.inventory")) return PERMISSIONS.MODULE_INVENTORY;
