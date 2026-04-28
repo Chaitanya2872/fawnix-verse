@@ -111,6 +111,7 @@ export function RequirePermission({
   permission: Permission;
   children: ReactNode;
 }) {
+  const location = useLocation();
   const sessionPresent = hasStoredSession();
   const currentUserQuery = useCurrentUser({ enabled: sessionPresent });
 
@@ -124,7 +125,7 @@ export function RequirePermission({
   }
 
   if (!currentUserQuery.data || !hasPermission(currentUserQuery.data, permission)) {
-    return <Navigate to="/unauthorized" replace />;
+    return <Navigate to="/access/request" replace state={{ from: location }} />;
   }
 
   return children;
