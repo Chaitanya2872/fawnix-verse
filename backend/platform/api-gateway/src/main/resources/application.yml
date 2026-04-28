@@ -18,6 +18,10 @@ spring:
           uri: lb://IDENTITY-SERVICE
           predicates:
             - Path=/api/users/**
+        - id: identity-access-requests
+          uri: lb://IDENTITY-SERVICE
+          predicates:
+            - Path=/api/access-requests,/api/access-requests/**
         - id: crm-leads
           uri: lb://CRM-SERVICE
           predicates:
