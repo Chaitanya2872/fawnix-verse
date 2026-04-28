@@ -12,6 +12,7 @@ import {
   Calculator,
   FileCheck2,
   FileText,
+  KeyRound,
   LayoutDashboard,
   Network,
   Settings,
@@ -66,6 +67,12 @@ const ERP_NAV_SECTIONS: readonly SidebarNavSection[] = [
       { label: "Material Receipt", to: "/p2p/receipt", icon: Truck, permission: PERMISSIONS.PAGE_PURCHASES },
       { label: "Invoice", to: "/p2p/invoice", icon: FileText, permission: PERMISSIONS.PAGE_PURCHASES },
       { label: "Payment", to: "/p2p/payment", icon: CreditCard, permission: PERMISSIONS.PAGE_PURCHASES },
+    ],
+  },
+  {
+    heading: "Access",
+    items: [
+      { label: "Request Access", to: "/access/request", icon: KeyRound },
     ],
   },
   {

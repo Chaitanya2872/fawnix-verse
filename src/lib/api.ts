@@ -141,6 +141,56 @@ export const usersApi = {
   },
 };
 
+const mapAccessRequest = (request: any) => ({
+  id: request?.id ?? "",
+  requester: {
+    id: request?.requester?.id ?? "",
+    fullName: request?.requester?.fullName ?? "",
+    email: request?.requester?.email ?? "",
+    roles: request?.requester?.roles ?? [],
+  },
+  permissions: Array.isArray(request?.permissions) ? request.permissions : [],
+  status: request?.status ?? "PENDING",
+  requestNote: request?.requestNote ?? "",
+  reviewNote: request?.reviewNote ?? "",
+  reviewedBy: request?.reviewedBy
+    ? {
+        id: request.reviewedBy.id ?? "",
+        fullName: request.reviewedBy.fullName ?? "",
+        email: request.reviewedBy.email ?? "",
+      }
+    : null,
+  reviewedAt: request?.reviewedAt ?? null,
+  createdAt: request?.createdAt ?? null,
+  updatedAt: request?.updatedAt ?? null,
+});
+
+export const accessRequestsApi = {
+  listMine: async () => {
+    const response = await api.get("/access-requests/me");
+    const data = Array.isArray(response.data) ? response.data : response.data?.data ?? [];
+    return { data: data.map(mapAccessRequest) };
+  },
+  listAll: async (status?: string) => {
+    const response = await api.get("/access-requests", {
+      params: status ? { status } : undefined,
+    });
+    const data = Array.isArray(response.data) ? response.data : response.data?.data ?? [];
+    return { data: data.map(mapAccessRequest) };
+  },
+  submit: async (payload: { permissions: string[]; requestNote?: string }) => {
+    const response = await api.post("/access-requests", payload);
+    return { data: mapAccessRequest(response.data?.data ?? response.data) };
+  },
+  review: async (
+    id: string,
+    payload: { decision: "APPROVE" | "REJECT"; reviewNote?: string }
+  ) => {
+    const response = await api.patch(`/access-requests/${id}/review`, payload);
+    return { data: mapAccessRequest(response.data?.data ?? response.data) };
+  },
+};
+
 export const portalCredentialsApi = {
   list: () => api.get("/settings/portal-credentials"),
   upsert: (data: object) => api.post("/settings/portal-credentials", data),

@@ -101,7 +101,7 @@ export function getDefaultAuthorizedPath(
   ];
 
   const match = candidates.find((candidate) => hasPermission(user, candidate.permission));
-  return match?.path ?? "/unauthorized";
+  return match?.path ?? "/access/request";
 }
 
 function resolveModulePermission(permission: Permission): Permission | null {

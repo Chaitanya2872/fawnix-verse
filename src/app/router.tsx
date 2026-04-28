@@ -16,6 +16,7 @@ import OpportunitiesPage from "@/modules/crm/opportunities/page";
 import IntegrationsPage from "@/modules/integrations/page";
 import ReportsPage from "@/modules/reports/page";
 import UsersPage from "@/modules/users/page";
+import AccessRequestsPage from "@/modules/access/page";
 import SalesPage from "@/modules/sales/page";
 import HiringRequestsPage from "@/modules/recruitment/HiringRequestsPage";
 import HiringRequestDetailPage from "@/modules/recruitment/HiringRequestDetailPage";
@@ -126,6 +127,10 @@ export const router = createBrowserRouter([
                 <SalesPage />
               </RequirePermission>
             ),
+          },
+          {
+            path: "access/request",
+            element: <AccessRequestsPage />,
           },
           {
             path: "p2p",
