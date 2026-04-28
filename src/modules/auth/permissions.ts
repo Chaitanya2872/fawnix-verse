@@ -4,6 +4,7 @@ export const PERMISSIONS = {
   MODULE_CRM: "module.crm",
   MODULE_INVENTORY: "module.inventory",
   MODULE_SALES: "module.sales",
+  MODULE_PURCHASES: "module.purchases",
   MODULE_HRMS: "module.hrms",
   MODULE_REPORTS: "module.reports",
   MODULE_ADMIN: "module.admin",
@@ -36,6 +37,7 @@ export const MODULE_PERMISSION_MAP: Record<string, Permission> = {
   crm: PERMISSIONS.MODULE_CRM,
   inventory: PERMISSIONS.MODULE_INVENTORY,
   sales: PERMISSIONS.MODULE_SALES,
+  purchases: PERMISSIONS.MODULE_PURCHASES,
   hrms: PERMISSIONS.MODULE_HRMS,
   reports: PERMISSIONS.MODULE_REPORTS,
   admin: PERMISSIONS.MODULE_ADMIN,
@@ -77,9 +79,8 @@ export function hasAnyPermission(
 function resolveModulePermission(permission: Permission): Permission | null {
   if (permission.startsWith("page.crm.")) return PERMISSIONS.MODULE_CRM;
   if (permission.startsWith("page.inventory")) return PERMISSIONS.MODULE_INVENTORY;
-  if (permission.startsWith("page.sales") || permission.startsWith("page.purchases")) {
-    return PERMISSIONS.MODULE_SALES;
-  }
+  if (permission.startsWith("page.sales")) return PERMISSIONS.MODULE_SALES;
+  if (permission.startsWith("page.purchases")) return PERMISSIONS.MODULE_PURCHASES;
   if (permission.startsWith("page.hrms")) return PERMISSIONS.MODULE_HRMS;
   if (permission.startsWith("page.reports") || permission.startsWith("page.accounting")) {
     return PERMISSIONS.MODULE_REPORTS;

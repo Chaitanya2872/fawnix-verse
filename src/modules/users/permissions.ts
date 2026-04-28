@@ -19,6 +19,7 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
       { value: PERMISSIONS.MODULE_CRM, label: "CRM Module" },
       { value: PERMISSIONS.MODULE_INVENTORY, label: "Inventory Module" },
       { value: PERMISSIONS.MODULE_SALES, label: "Sales Module" },
+      { value: PERMISSIONS.MODULE_PURCHASES, label: "Purchases Module" },
       { value: PERMISSIONS.MODULE_HRMS, label: "HRMS Module" },
       { value: PERMISSIONS.MODULE_REPORTS, label: "Reports Module" },
       { value: PERMISSIONS.MODULE_ADMIN, label: "Administration Module" },

@@ -13,6 +13,7 @@ public final class UserPermissionCatalog {
   public static final String MODULE_CRM = "module.crm";
   public static final String MODULE_INVENTORY = "module.inventory";
   public static final String MODULE_SALES = "module.sales";
+  public static final String MODULE_PURCHASES = "module.purchases";
   public static final String MODULE_HRMS = "module.hrms";
   public static final String MODULE_REPORTS = "module.reports";
   public static final String MODULE_ADMIN = "module.admin";
@@ -43,6 +44,7 @@ public final class UserPermissionCatalog {
       MODULE_CRM,
       MODULE_INVENTORY,
       MODULE_SALES,
+      MODULE_PURCHASES,
       MODULE_HRMS,
       MODULE_REPORTS,
       MODULE_ADMIN,
