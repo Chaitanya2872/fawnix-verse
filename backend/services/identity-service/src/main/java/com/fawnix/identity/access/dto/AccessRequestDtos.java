@@ -19,6 +19,7 @@ public final class AccessRequestDtos {
 
   public record ReviewAccessRequest(
       @NotBlank String decision,
+      List<String> permissions,
       @Size(max = 1000) String reviewNote
   ) {
   }

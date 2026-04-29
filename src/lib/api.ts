@@ -184,7 +184,7 @@ export const accessRequestsApi = {
   },
   review: async (
     id: string,
-    payload: { decision: "APPROVE" | "REJECT"; reviewNote?: string }
+    payload: { decision: "APPROVE" | "REJECT"; permissions?: string[]; reviewNote?: string }
   ) => {
     const response = await api.patch(`/access-requests/${id}/review`, payload);
     return { data: mapAccessRequest(response.data?.data ?? response.data) };

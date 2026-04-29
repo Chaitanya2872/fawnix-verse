@@ -74,11 +74,7 @@ public final class UserPermissionCatalog {
   public static Set<String> defaultsForRole(RoleName roleName) {
     return switch (roleName) {
       case ROLE_MASTER -> new LinkedHashSet<>(ALL_PERMISSIONS);
-      case ROLE_ADMIN -> new LinkedHashSet<>(List.of(
-          MODULE_ADMIN,
-          PAGE_ADMIN_USERS,
-          PAGE_ADMIN_SETTINGS
-      ));
+      case ROLE_ADMIN -> new LinkedHashSet<>();
       case ROLE_REPORTING_MANAGER -> new LinkedHashSet<>(List.of(
           MODULE_REPORTS,
           PAGE_REPORTS

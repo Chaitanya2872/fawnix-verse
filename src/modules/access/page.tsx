@@ -63,6 +63,7 @@ export default function AccessRequestsPage() {
   const [requestNote, setRequestNote] = useState("");
   const [submitMessage, setSubmitMessage] = useState<string | null>(null);
   const [reviewNotes, setReviewNotes] = useState<Record<string, string>>({});
+  const [reviewPermissions, setReviewPermissions] = useState<Record<string, string[]>>({});
 
   const myRequestsQuery = useQuery({
     queryKey: ["access-requests", "me"],
@@ -104,10 +105,13 @@ export default function AccessRequestsPage() {
     }) =>
       accessRequestsApi.review(id, {
         decision,
+        permissions: decision === "APPROVE" ? (reviewPermissions[id] ?? []) : undefined,
         reviewNote: reviewNotes[id] ?? "",
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["access-requests", "all"] });
+      queryClient.invalidateQueries({ queryKey: ["access-requests", "me"] });
+      queryClient.invalidateQueries({ queryKey: ["auth", "me"] });
     },
   });
 
@@ -126,6 +130,23 @@ export default function AccessRequestsPage() {
         ? previous.filter((item) => item !== permission)
         : [...previous, permission]
     );
+  };
+
+  const toggleReviewPermission = (
+    requestId: string,
+    permission: string,
+    fallbackPermissions: string[]
+  ) => {
+    setReviewPermissions((previous) => {
+      const current = previous[requestId] ?? fallbackPermissions;
+      const next = current.includes(permission)
+        ? current.filter((item) => item !== permission)
+        : [...current, permission];
+      return {
+        ...previous,
+        [requestId]: next,
+      };
+    });
   };
 
   return (
@@ -269,6 +290,39 @@ export default function AccessRequestsPage() {
 
                   {request.status === "PENDING" ? (
                     <div className="mt-4 space-y-3">
+                      <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-4">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                          Approved Permissions
+                        </p>
+                        {PERMISSION_GROUPS.map((group) => (
+                          <div key={`${request.id}-${group.heading}`} className="space-y-2">
+                            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                              {group.heading}
+                            </p>
+                            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                              {group.options.map((option) => {
+                                const selected = reviewPermissions[request.id] ?? request.permissions;
+                                return (
+                                  <label
+                                    key={`${request.id}-${option.value}`}
+                                    className="flex items-start gap-2 rounded-md border border-slate-200 bg-white p-3 text-sm"
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      className="mt-1 h-4 w-4 rounded border-slate-300"
+                                      checked={selected.includes(option.value)}
+                                      onChange={() =>
+                                        toggleReviewPermission(request.id, option.value, request.permissions)
+                                      }
+                                    />
+                                    <span>{option.label}</span>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                       <textarea
                         value={reviewNotes[request.id] ?? ""}
                         onChange={(event) =>
@@ -284,7 +338,7 @@ export default function AccessRequestsPage() {
                       <div className="flex gap-2">
                         <Button
                           onClick={() => reviewMutation.mutate({ id: request.id, decision: "APPROVE" })}
-                          disabled={reviewMutation.isPending}
+                          disabled={reviewMutation.isPending || (reviewPermissions[request.id] ?? request.permissions).length === 0}
                         >
                           Approve
                         </Button>

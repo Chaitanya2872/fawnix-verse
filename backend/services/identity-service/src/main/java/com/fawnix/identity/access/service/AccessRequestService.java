@@ -114,9 +114,14 @@ public class AccessRequestService {
     entity.setUpdatedAt(now);
 
     if (decision.equals("APPROVE")) {
+      Set<String> approvedPermissions = request.permissions() == null
+          ? new LinkedHashSet<>(entity.getPermissions())
+          : normalizePermissions(request.permissions());
+      entity.setPermissions(approvedPermissions);
+
       UserEntity requester = entity.getRequester();
       Set<String> nextPermissions = new LinkedHashSet<>(requester.getPermissions());
-      nextPermissions.addAll(entity.getPermissions());
+      nextPermissions.addAll(approvedPermissions);
       requester.setPermissions(nextPermissions);
       requester.setUpdatedAt(now);
       userRepository.save(requester);
