@@ -165,7 +165,7 @@ public class UserEntity {
   }
 
   public void setRoles(Set<RoleEntity> roles) {
-    this.roles = roles;
+    this.roles = roles == null ? new LinkedHashSet<>() : new LinkedHashSet<>(roles);
   }
 
   public Set<String> getPermissions() {
@@ -173,6 +173,6 @@ public class UserEntity {
   }
 
   public void setPermissions(Set<String> permissions) {
-    this.permissions = permissions;
+    this.permissions = permissions == null ? new LinkedHashSet<>() : new LinkedHashSet<>(permissions);
   }
 }
