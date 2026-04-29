@@ -70,7 +70,10 @@ import P2PInvoicePage from "@/modules/purchases/p2p/invoice/page";
 import P2PPaymentPage from "@/modules/purchases/p2p/payment/page";
 import P2PAlertsPage from "@/modules/purchases/p2p/alerts/page";
 import P2PReportsPage from "@/modules/purchases/p2p/reports/page";
+import ProjectsPage from "@/modules/project-management/page";
+import CreateProjectPage from "@/modules/project-management/CreateProjectPage";
 
+// eslint-disable-next-line react-refresh/only-export-components
 function RecruitmentFormRedirect() {
   const { id } = useParams();
   return <Navigate to={id ? `/forms/${id}` : "/forms"} replace />;
@@ -104,6 +107,7 @@ export const router = createBrowserRouter([
         errorElement: <RouteErrorFallback />,
         children: [
           { index: true, element: <Navigate to="/crm/leads" replace /> },
+          
           //   { index: true, element: <DashboardPage /> },
           {
             path: "inventory",
@@ -120,6 +124,22 @@ export const router = createBrowserRouter([
                 <SalesPage />
               </RequirePermission>
             ),
+          },
+            {
+            path: "project-management",
+            element: <Navigate to="/project-management/projects" replace />,
+          },
+          {
+            path: "project-management/projects",
+            element: <ProjectsPage />,
+          },
+          {
+            path: "project-management/projects/new",
+            element: <CreateProjectPage />,
+          },
+          {
+            path: "project-management/projects/:id",
+            element: <ProjectsPage />,
           },
           {
             path: "p2p",

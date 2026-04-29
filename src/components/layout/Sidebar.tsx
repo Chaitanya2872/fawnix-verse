@@ -16,6 +16,7 @@ import {
   Network,
   Settings,
   Settings2,
+  ShoppingBag,
   ShoppingCart,
   Truck,
   Target,
@@ -53,9 +54,13 @@ const ERP_NAV_SECTIONS: readonly SidebarNavSection[] = [
   {
     heading: "Operations",
     items: [
+          { label: "Order to Cash", to: "/orders", icon: FileText },
       { label: "Inventory", to: "/inventory", icon: Boxes, permission: PERMISSIONS.PAGE_INVENTORY },
-      { label: "Quotations", to: "/sales", icon: FileText, permission: PERMISSIONS.PAGE_SALES },
-    ],
+      { label: "Sales", to: "/sales", icon: ShoppingCart, permission: PERMISSIONS.PAGE_SALES },
+      { label: "Project Management", to: "/project-management/projects", icon: Briefcase },
+        { label: "Purchases", to: "/purchases", icon: ShoppingBag, permission: PERMISSIONS.PAGE_PURCHASES },
+   
+     ],
   },
   {
     heading: "P2P",
@@ -66,6 +71,7 @@ const ERP_NAV_SECTIONS: readonly SidebarNavSection[] = [
       { label: "Material Receipt", to: "/p2p/receipt", icon: Truck, permission: PERMISSIONS.PAGE_PURCHASES },
       { label: "Invoice", to: "/p2p/invoice", icon: FileText, permission: PERMISSIONS.PAGE_PURCHASES },
       { label: "Payment", to: "/p2p/payment", icon: CreditCard, permission: PERMISSIONS.PAGE_PURCHASES },
+
     ],
   },
   {
