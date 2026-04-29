@@ -5,7 +5,6 @@ import {
   Search,
   Plus,
   Download,
-  MoreHorizontal,
   Pencil,
   Trash2,
   ChevronLeft,
@@ -23,10 +22,10 @@ import {
   type Product,
   type ProductFilter,
   type ProductFormData,
-  INVENTORY_PRICE_LABELS,
   PRODUCT_CATEGORY_GROUPS,
   ProductStatus,
   PRODUCT_CATEGORIES,
+  type InventoryConsumptionItem,
 } from "./types";
 import {
   useInventoryOverview,
@@ -45,10 +44,6 @@ function formatCurrency(value: number) {
   return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(value);
 }
 
-function formatOptionalCurrency(value?: number | null) {
-  return value != null ? formatCurrency(value) : "-";
-}
-
 function formatDate(value?: string | null) {
   if (!value) return "-";
   return new Intl.DateTimeFormat("en-IN", {
@@ -62,7 +57,24 @@ function toNumber(value: number | string | null | undefined) {
   return typeof value === "number" ? value : Number(value ?? 0);
 }
 
-function exportCSV(products: Product[]) {
+function buildConsumptionMap(consumption: InventoryConsumptionItem[] | undefined) {
+  return (consumption ?? []).reduce<Record<string, { consumed: number; transactions: number; lastTxnDate?: string | null }>>(
+    (accumulator, item) => {
+      const existing = accumulator[item.sku] ?? { consumed: 0, transactions: 0, lastTxnDate: null };
+      existing.consumed += toNumber(item.quantity);
+      existing.transactions += 1;
+      existing.lastTxnDate = item.txnDate;
+      accumulator[item.sku] = existing;
+      return accumulator;
+    },
+    {}
+  );
+}
+
+function exportCSV(
+  products: Product[],
+  consumptionMap: Record<string, { consumed: number; transactions: number; lastTxnDate?: string | null }>
+) {
   const headers = [
     "Name",
     "SKU",
@@ -71,11 +83,10 @@ function exportCSV(products: Product[]) {
     "Brand",
     "Unit",
     "Reorder Level",
-    "Stock Qty",
-    "Default Price",
-    "Price 1",
-    "Price 2",
-    "Price 3",
+    "Current Stock",
+    "Received Stock",
+    "Consumed Stock",
+    "Unit Price",
     "Status",
   ];
   const rows = products.map((p) => [
@@ -87,10 +98,9 @@ function exportCSV(products: Product[]) {
     p.unit ?? "",
     p.reorderLevel ?? "",
     p.stockQty,
+    p.stockQty + (consumptionMap[p.sku]?.consumed ?? 0),
+    consumptionMap[p.sku]?.consumed ?? 0,
     p.price,
-    p.priceTier1 ?? "",
-    p.priceTier2 ?? "",
-    p.priceTier3 ?? "",
     p.status,
   ]);
   const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
@@ -384,7 +394,7 @@ function ProductDialog({ open, onClose, product, onSave, isLoading }: ProductDia
               </div>
               <div>
                 <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
-                  Default Price (INR)
+                  Unit Price (INR)
                 </label>
                 <input
                   type="number"
@@ -392,57 +402,6 @@ function ProductDialog({ open, onClose, product, onSave, isLoading }: ProductDia
                   step={0.01}
                   value={form.price}
                   onChange={(e) => handleChange("price", parseFloat(e.target.value) || 0)}
-                  className={inputCls}
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-3 gap-3">
-              <div>
-                <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
-                  {INVENTORY_PRICE_LABELS.priceTier1}
-                </label>
-                <input
-                  type="number"
-                  min={0}
-                  step={0.01}
-                  value={form.priceTier1 ?? ""}
-                  onChange={(e) =>
-                    handleChange("priceTier1", e.target.value === "" ? null : parseFloat(e.target.value) || 0)
-                  }
-                  placeholder="Sheet price column 1"
-                  className={inputCls}
-                />
-              </div>
-              <div>
-                <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
-                  {INVENTORY_PRICE_LABELS.priceTier2}
-                </label>
-                <input
-                  type="number"
-                  min={0}
-                  step={0.01}
-                  value={form.priceTier2 ?? ""}
-                  onChange={(e) =>
-                    handleChange("priceTier2", e.target.value === "" ? null : parseFloat(e.target.value) || 0)
-                  }
-                  placeholder="Sheet price column 2"
-                  className={inputCls}
-                />
-              </div>
-              <div>
-                <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
-                  {INVENTORY_PRICE_LABELS.priceTier3}
-                </label>
-                <input
-                  type="number"
-                  min={0}
-                  step={0.01}
-                  value={form.priceTier3 ?? ""}
-                  onChange={(e) =>
-                    handleChange("priceTier3", e.target.value === "" ? null : parseFloat(e.target.value) || 0)
-                  }
-                  placeholder="Sheet price column 3"
                   className={inputCls}
                 />
               </div>
@@ -568,45 +527,22 @@ function DeleteDialog({ open, product, onClose, onConfirm, isLoading }: DeleteDi
 // ---------------------------------------------------------------------------
 
 function RowActions({ product, onEdit, onDelete }: { product: Product; onEdit: (p: Product) => void; onDelete: (p: Product) => void }) {
-  const [open, setOpen] = useState(false);
-  const ref = React.useRef<HTMLDivElement>(null);
-
-  React.useEffect(() => {
-    function handler(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    }
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
-
   return (
-    <div ref={ref} className="relative flex justify-end">
+    <div className="flex items-center justify-end gap-2">
       <button
-        onClick={() => setOpen((o) => !o)}
-        className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+        onClick={() => onEdit(product)}
+        className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-accent"
       >
-        <MoreHorizontal className="h-4 w-4" />
+        <Pencil className="h-3.5 w-3.5" />
+        Edit
       </button>
-
-      {open && (
-        <div className="absolute right-0 top-8 z-20 w-36 overflow-hidden rounded-xl border border-border bg-popover shadow-xl">
-          <button
-            onClick={() => { setOpen(false); onEdit(product); }}
-            className="flex w-full items-center gap-2.5 px-3 py-2.5 text-sm text-popover-foreground transition-colors hover:bg-accent"
-          >
-            <Pencil className="h-3.5 w-3.5" />
-            Edit
-          </button>
-          <div className="mx-2 border-t border-border" />
-          <button
-            onClick={() => { setOpen(false); onDelete(product); }}
-            className="flex w-full items-center gap-2.5 px-3 py-2.5 text-sm text-red-500 transition-colors hover:bg-red-500/10"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-            Delete
-          </button>
-        </div>
-      )}
+      <button
+        onClick={() => onDelete(product)}
+        className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-2.5 py-1.5 text-xs font-medium text-red-600 transition-colors hover:bg-red-100"
+      >
+        <Trash2 className="h-3.5 w-3.5" />
+        Delete
+      </button>
     </div>
   );
 }
@@ -637,7 +573,7 @@ function ModuleTabs({
     { id: "items", label: "Manage Items", icon: Package },
     { id: "categories", label: "Manage Categories", icon: Layers3 },
     { id: "brands", label: "By Brand", icon: Factory },
-    { id: "usage", label: "Usage Consumption", icon: ChartColumnIncreasing },
+    { id: "usage", label: "Transactions", icon: ChartColumnIncreasing },
   ];
 
   return (
@@ -732,6 +668,10 @@ export default function InventoryPage() {
   const lowStock = data?.data.filter((p) => p.status === ProductStatus.LOW_STOCK).length ?? 0;
   const outOfStock = data?.data.filter((p) => p.status === ProductStatus.OUT_OF_STOCK).length ?? 0;
   const overview = overviewQuery.data;
+  const consumptionMap = React.useMemo(
+    () => buildConsumptionMap(overview?.recentConsumption),
+    [overview?.recentConsumption]
+  );
   const fallbackCategories = PRODUCT_CATEGORIES.map((category) => {
     const matchingProducts = data?.data.filter((product) => product.category === category) ?? [];
     const brandCount = new Set(
@@ -789,17 +729,42 @@ export default function InventoryPage() {
   return (
     <>
       <InventoryLayout addProductButton={AddButton}>
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
-          <StatCard label="Total Products" value={overview?.totalProducts ?? data?.total ?? "-"} />
-          <StatCard label="Categories" value={overview?.totalCategories ?? "-"} />
-          <StatCard label="Brands" value={overview?.totalBrands ?? "-"} />
-          <StatCard label="Low Stock" value={lowStock} valueClass="text-amber-500" />
-          <StatCard label="Out of Stock" value={outOfStock} valueClass="text-red-500" />
-        </div>
+        <div className="grid gap-4 xl:grid-cols-[1.4fr_1fr]">
+          <div className="rounded-[28px] border border-border bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.16),_transparent_36%),linear-gradient(135deg,rgba(255,255,255,0.98),rgba(248,250,252,0.96))] p-6 shadow-sm">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div className="max-w-2xl">
+                <p className="text-xs font-semibold uppercase tracking-[0.28em] text-sky-700/80">
+                  Stock Control
+                </p>
+                <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-900">
+                  One place for items, stock movement, and replenishment decisions.
+                </h2>
+                <p className="mt-3 text-sm leading-6 text-slate-600">
+                  Keep the catalog clean with a single price, watch received versus consumed stock per item,
+                  and review transactions without jumping between screens.
+                </p>
+              </div>
+              <div className="grid min-w-[240px] gap-3 sm:grid-cols-2">
+                <div className="rounded-2xl border border-white/70 bg-white/80 px-4 py-3">
+                  <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500">Tracked Units</p>
+                  <p className="mt-2 text-2xl font-semibold text-slate-900">{overview?.totalStockQty ?? "-"}</p>
+                </div>
+                <div className="rounded-2xl border border-white/70 bg-white/80 px-4 py-3">
+                  <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500">Transactions</p>
+                  <p className="mt-2 text-2xl font-semibold text-slate-900">
+                    {overview?.consumption.outwardTransactionCount ?? 0}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
 
-        <div className="rounded-2xl border border-amber-200 bg-amber-50/70 px-4 py-3 text-sm text-amber-900">
-          Inventory is now structured as its own module with item management, category views, brand views,
-          and usage consumption tracking from stock-outward transactions.
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-2">
+            <StatCard label="Total Products" value={overview?.totalProducts ?? data?.total ?? "-"} />
+            <StatCard label="Categories" value={overview?.totalCategories ?? "-"} />
+            <StatCard label="Low Stock" value={lowStock} valueClass="text-amber-500" />
+            <StatCard label="Out of Stock" value={outOfStock} valueClass="text-red-500" />
+          </div>
         </div>
 
         <ModuleTabs value={view} onChange={setView} />
@@ -855,7 +820,7 @@ export default function InventoryPage() {
 
           {/* Export */}
           <button
-            onClick={() => data?.data && exportCSV(data.data)}
+            onClick={() => data?.data && exportCSV(data.data, consumptionMap)}
             className="inline-flex items-center gap-2 rounded-xl border border-border bg-background px-4 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
           >
             <Download className="h-3.5 w-3.5" />
@@ -866,14 +831,39 @@ export default function InventoryPage() {
         <div className="rounded-2xl border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
           {view === "categories" && "Manage categories from the live item catalog and stock positions."}
           {view === "brands" && "Review brand coverage across categories and current inventory depth."}
-          {view === "usage" && "Track consumption through outward stock transactions and recent issue activity."}
+          {view === "usage" && "Review inventory movements and latest outward stock transactions."}
         </div>
         )}
 
         {view === "items" ? (
+        <div className="space-y-4">
+          <SectionCard
+            title="Item Movement Snapshot"
+            subtitle="Received stock is estimated from current stock plus recorded outward consumption in the latest transaction feed."
+          >
+            <div className="grid gap-4 md:grid-cols-3">
+              <div className="rounded-2xl border border-border bg-background px-4 py-4">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Current Stock</p>
+                <p className="mt-2 text-2xl font-semibold text-foreground">{overview?.totalStockQty ?? 0}</p>
+              </div>
+              <div className="rounded-2xl border border-border bg-background px-4 py-4">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Consumed Stock</p>
+                <p className="mt-2 text-2xl font-semibold text-amber-600">
+                  {overview?.consumption.consumedQuantity ?? 0}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-border bg-background px-4 py-4">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Received Stock</p>
+                <p className="mt-2 text-2xl font-semibold text-emerald-600">
+                  {(overview?.totalStockQty ?? 0) + (overview?.consumption.consumedQuantity ?? 0)}
+                </p>
+              </div>
+            </div>
+          </SectionCard>
+
         <div className="overflow-hidden rounded-2xl border border-border bg-card">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1560px] text-sm">
+            <table className="w-full min-w-[1420px] text-sm">
             <thead>
               <tr className="border-b border-border bg-muted/50">
                 {[
@@ -884,11 +874,10 @@ export default function InventoryPage() {
                   "Brand",
                   "Unit",
                   "Reorder Level",
-                  "Stock Qty",
-                  INVENTORY_PRICE_LABELS.defaultPrice,
-                  INVENTORY_PRICE_LABELS.priceTier1,
-                  INVENTORY_PRICE_LABELS.priceTier2,
-                  INVENTORY_PRICE_LABELS.priceTier3,
+                  "Received",
+                  "Consumed",
+                  "Current Stock",
+                  "Price",
                   "Status",
                   "",
                 ].map((h) => (
@@ -904,20 +893,20 @@ export default function InventoryPage() {
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td colSpan={14} className="py-16 text-center">
+                  <td colSpan={12} className="py-16 text-center">
                     <Loader2 className="mx-auto h-6 w-6 animate-spin text-primary" />
                     <p className="mt-3 text-sm text-muted-foreground">Loading products...</p>
                   </td>
                 </tr>
               ) : isError ? (
                 <tr>
-                  <td colSpan={14} className="py-16 text-center text-sm text-red-500">
+                  <td colSpan={12} className="py-16 text-center text-sm text-red-500">
                     Failed to load products. Please try again.
                   </td>
                 </tr>
               ) : data?.data.length === 0 ? (
                 <tr>
-                  <td colSpan={14} className="py-16 text-center">
+                  <td colSpan={12} className="py-16 text-center">
                     <Package className="mx-auto h-8 w-8 text-muted-foreground/30" />
                     <p className="mt-3 text-sm text-muted-foreground">No products found</p>
                   </td>
@@ -948,6 +937,12 @@ export default function InventoryPage() {
                     <td className="px-5 py-4 tabular-nums text-muted-foreground">
                       {product.reorderLevel?.toLocaleString("en-IN") ?? "-"}
                     </td>
+                    <td className="px-5 py-4 tabular-nums text-emerald-700">
+                      {(product.stockQty + (consumptionMap[product.sku]?.consumed ?? 0)).toLocaleString("en-IN")}
+                    </td>
+                    <td className="px-5 py-4 tabular-nums text-amber-600">
+                      {(consumptionMap[product.sku]?.consumed ?? 0).toLocaleString("en-IN")}
+                    </td>
                     <td className="px-5 py-4">
                       <span
                         className={`tabular-nums font-semibold ${
@@ -963,15 +958,6 @@ export default function InventoryPage() {
                     </td>
                     <td className="px-5 py-4 tabular-nums text-muted-foreground">
                       {formatCurrency(product.price)}
-                    </td>
-                    <td className="px-5 py-4 tabular-nums text-muted-foreground">
-                      {formatOptionalCurrency(product.priceTier1)}
-                    </td>
-                    <td className="px-5 py-4 tabular-nums text-muted-foreground">
-                      {formatOptionalCurrency(product.priceTier2)}
-                    </td>
-                    <td className="px-5 py-4 tabular-nums text-muted-foreground">
-                      {formatOptionalCurrency(product.priceTier3)}
                     </td>
                     <td className="px-5 py-4">
                       <StatusBadge status={product.status} />
@@ -1030,6 +1016,7 @@ export default function InventoryPage() {
               </div>
             </div>
           )}
+        </div>
         </div>
         ) : null}
 
@@ -1220,8 +1207,8 @@ export default function InventoryPage() {
         {view === "usage" ? (
           <div className="grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
             <SectionCard
-              title="Consumption Summary"
-              subtitle="Usage is calculated from outward stock transactions in the inventory service."
+            title="Consumption Summary"
+            subtitle="Transactions are calculated from outward stock movements recorded in the inventory service."
             >
               {overviewQuery.isLoading ? (
                 <div className="py-12 text-center">
@@ -1252,15 +1239,54 @@ export default function InventoryPage() {
             </SectionCard>
 
             <SectionCard
-              title="Recent Usage Consumption"
-              subtitle="Recent outward movements by item, category, and issuing context."
+              title="Recent Transactions"
+              subtitle="Latest outward stock issues by item, category, and issuing context."
             >
               {overviewQuery.isLoading ? (
                 <div className="py-12 text-center">
                   <Loader2 className="mx-auto h-6 w-6 animate-spin text-primary" />
                 </div>
               ) : overview?.recentConsumption.length ? (
-                <div className="overflow-x-auto">
+                <div className="space-y-4">
+                  <div className="grid gap-4 md:grid-cols-2">
+                    {Object.entries(consumptionMap).slice(0, 6).map(([sku, movement]) => {
+                      const product = data?.data.find((item) => item.sku === sku);
+                      if (!product) return null;
+                      return (
+                        <div key={sku} className="rounded-2xl border border-border bg-background px-4 py-4">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <p className="text-sm font-semibold text-foreground">{product.name}</p>
+                              <p className="mt-1 text-xs text-muted-foreground">{sku}</p>
+                            </div>
+                            <StatusBadge status={product.status} />
+                          </div>
+                          <div className="mt-4 grid grid-cols-3 gap-3">
+                            <div className="rounded-xl bg-muted/50 px-3 py-2">
+                              <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Received</p>
+                              <p className="mt-1 text-base font-semibold text-emerald-700">
+                                {(product.stockQty + movement.consumed).toLocaleString("en-IN")}
+                              </p>
+                            </div>
+                            <div className="rounded-xl bg-muted/50 px-3 py-2">
+                              <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Consumed</p>
+                              <p className="mt-1 text-base font-semibold text-amber-600">
+                                {movement.consumed.toLocaleString("en-IN")}
+                              </p>
+                            </div>
+                            <div className="rounded-xl bg-muted/50 px-3 py-2">
+                              <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Current</p>
+                              <p className="mt-1 text-base font-semibold text-foreground">
+                                {product.stockQty.toLocaleString("en-IN")}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div className="overflow-x-auto">
                   <table className="w-full min-w-[920px] text-sm">
                     <thead>
                       <tr className="border-b border-border bg-muted/50">
@@ -1291,6 +1317,7 @@ export default function InventoryPage() {
                       ))}
                     </tbody>
                   </table>
+                  </div>
                 </div>
               ) : (
                 <p className="text-sm text-muted-foreground">No outward usage transactions recorded yet.</p>
