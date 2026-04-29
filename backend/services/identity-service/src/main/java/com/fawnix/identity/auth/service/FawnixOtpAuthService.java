@@ -11,6 +11,7 @@ import com.fawnix.identity.users.entity.UserEntity;
 import com.fawnix.identity.users.permission.UserPermissionCatalog;
 import com.fawnix.identity.users.repository.UserRepository;
 import java.time.Instant;
+import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
@@ -71,7 +72,10 @@ public class FawnixOtpAuthService {
       throw new BadRequestException("Employee email is missing.");
     }
 
-    UserEntity user = userRepository.findByEmailIgnoreCase(email).orElseGet(() -> {
+    UserEntity existingUser = userRepository.findByEmailIgnoreCase(email).orElse(null);
+    boolean isExistingUser = existingUser != null;
+
+    UserEntity user = existingUser != null ? existingUser : userRepository.findByEmailIgnoreCase(email).orElseGet(() -> {
       Instant now = Instant.now();
       UserEntity created = new UserEntity(
           UUID.randomUUID().toString(),
@@ -112,6 +116,11 @@ public class FawnixOtpAuthService {
     if (shouldPromoteToEffectiveRole) {
       user.setRoles(Set.of(effectiveRole));
       user.setPermissions(UserPermissionCatalog.defaultsForRoleName(effectiveRole.getName()));
+      updated = true;
+    }
+    if (isExistingUser && (user.getPermissions() == null || user.getPermissions().isEmpty())) {
+      // Preserve legacy access for existing Fawnix accounts that predate module-level permissions.
+      user.setPermissions(new LinkedHashSet<>(UserPermissionCatalog.ALL_PERMISSIONS));
       updated = true;
     }
 
