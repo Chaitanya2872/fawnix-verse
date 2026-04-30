@@ -4,6 +4,7 @@ import React, { useMemo, useState } from "react";
 import { NavLink } from "react-router-dom";
 import {
   AlertTriangle,
+  Bookmark,
   ChevronLeft,
   ChevronRight,
   Loader2,
@@ -46,6 +47,7 @@ type ExpandedActionState = {
 
 type AdjustmentFormState = {
   quantity: string;
+  txnDate: string;
   notes: string;
 };
 
@@ -92,6 +94,13 @@ function formatDate(value?: string | null) {
 
 function toNumber(value: unknown) {
   return typeof value === "number" ? value : Number(value ?? 0);
+}
+
+function getTodayDateValue() {
+  const now = new Date();
+  const offset = now.getTimezoneOffset();
+  const localDate = new Date(now.getTime() - offset * 60_000);
+  return localDate.toISOString().slice(0, 10);
 }
 
 function StatusBadge({ status }: { status: ProductStatus }) {
@@ -429,7 +438,11 @@ export default function InventoryPage() {
   const [editProduct, setEditProduct] = useState<Product | null>(null);
   const [deleteProduct, setDeleteProduct] = useState<Product | null>(null);
   const [expandedAction, setExpandedAction] = useState<ExpandedActionState | null>(null);
-  const [adjustmentForm, setAdjustmentForm] = useState<AdjustmentFormState>({ quantity: "", notes: "" });
+  const [adjustmentForm, setAdjustmentForm] = useState<AdjustmentFormState>({
+    quantity: "",
+    txnDate: getTodayDateValue(),
+    notes: "",
+  });
 
   const productsQuery = useProducts(filter);
   const overviewQuery = useInventoryOverview();
@@ -462,7 +475,7 @@ export default function InventoryPage() {
   }, [pageData?.total, products]);
 
   function resetAdjustmentForm() {
-    setAdjustmentForm({ quantity: "", notes: "" });
+    setAdjustmentForm({ quantity: "", txnDate: getTodayDateValue(), notes: "" });
   }
 
   function openAction(productId: string, mode: StockActionMode) {
@@ -515,14 +528,24 @@ export default function InventoryPage() {
 
   function submitAdjustment(product: Product) {
     const quantity = Number(adjustmentForm.quantity);
+    const txnDate = adjustmentForm.txnDate.trim();
     if (!expandedAction) return;
     if (!Number.isFinite(quantity) || quantity <= 0) {
       toast.error("Enter a valid quantity greater than zero.");
       return;
     }
+    if (!txnDate) {
+      toast.error("Select a transaction date.");
+      return;
+    }
+    if (expandedAction.mode === "consume" && quantity > toNumber(product.stockQty)) {
+      toast.error("Consumed quantity cannot exceed available stock.");
+      return;
+    }
 
     const payload = {
       quantity,
+      txnDate,
       notes: adjustmentForm.notes.trim() || undefined,
     };
 
@@ -663,7 +686,7 @@ export default function InventoryPage() {
                     <table className="w-full min-w-[980px] text-sm">
                       <thead>
                         <tr className="border-b border-slate-200 bg-slate-50/80">
-                          {["Item", "Category", "Stock", "Consumed", "Received", "Unit Price", "Status", "Actions"].map((heading) => (
+                          {["Item", "Category", "Stock", "Unit Price", "Status", "Actions"].map((heading) => (
                             <th
                               key={heading}
                               className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500"
@@ -700,8 +723,6 @@ export default function InventoryPage() {
                                     <p className="mt-1 text-xs text-slate-400">{product.subCategory ?? product.brand ?? "-"}</p>
                                   </td>
                                   <td className="px-5 py-4 font-semibold text-slate-900">{currentStock.toLocaleString("en-IN")}</td>
-                                  <td className="px-5 py-4 text-slate-600">Updated in Transactions</td>
-                                  <td className="px-5 py-4 text-slate-600">Updated in Transactions</td>
                                   <td className="px-5 py-4 font-semibold text-slate-900">{formatCurrency(toNumber(product.price))}</td>
                                   <td className="px-5 py-4">
                                     <StatusBadge status={product.status} />
@@ -728,20 +749,37 @@ export default function InventoryPage() {
                                   </td>
                                 </tr>
                                 <tr className={isExpanded ? "border-b border-slate-100" : "hidden"}>
-                                  <td colSpan={8} className="px-5 pb-4 pt-0">
+                                  <td colSpan={6} className="px-5 pb-4 pt-0">
                                     <div
                                       className={`overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 transition-all duration-300 ${
-                                        isExpanded ? "max-h-[240px] opacity-100" : "max-h-0 opacity-0"
+                                        isExpanded ? "max-h-[420px] opacity-100" : "max-h-0 opacity-0"
                                       }`}
                                     >
                                       <div className="grid gap-4 p-4 lg:grid-cols-[1.2fr,0.8fr]">
                                         <div>
-                                          <h4 className="text-sm font-semibold text-slate-900">{inlineTitle}</h4>
-                                          <p className="mt-1 text-sm text-slate-500">
-                                            {isConsuming
-                                              ? "Record consumed quantity and reduce current stock immediately."
-                                              : "Record received quantity and add it to current stock immediately."}
-                                          </p>
+                                          <div className="flex flex-wrap items-start justify-between gap-3">
+                                            <div>
+                                              <h4 className="text-sm font-semibold text-slate-900">{inlineTitle}</h4>
+                                              <p className="mt-1 text-sm text-slate-500">
+                                                {isConsuming
+                                                  ? "Record consumed quantity and reduce current stock immediately."
+                                                  : "Record received quantity and add it to current stock immediately."}
+                                              </p>
+                                            </div>
+                                            <button
+                                              type="button"
+                                              onClick={() => submitAdjustment(product)}
+                                              disabled={activeAdjustmentMutation.isPending}
+                                              aria-label={isConsuming ? "Save consumption" : "Save received stock"}
+                                              className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-brand-200 bg-brand-50 text-brand-700 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-brand-100 hover:text-brand-800 active:translate-y-0 active:bg-brand-200 disabled:cursor-not-allowed disabled:opacity-50"
+                                            >
+                                              {activeAdjustmentMutation.isPending ? (
+                                                <Loader2 className="h-5 w-5 animate-spin" />
+                                              ) : (
+                                                <Bookmark className="h-5 w-5" />
+                                              )}
+                                            </button>
+                                          </div>
                                           <div className="mt-4 grid gap-3 sm:grid-cols-2">
                                             <div>
                                               <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -757,6 +795,20 @@ export default function InventoryPage() {
                                                 }
                                                 className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition-colors focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
                                                 placeholder={isConsuming ? "Consumed quantity" : "Received quantity"}
+                                              />
+                                            </div>
+                                            <div>
+                                              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                                Date
+                                              </label>
+                                              <input
+                                                type="date"
+                                                required
+                                                value={adjustmentForm.txnDate}
+                                                onChange={(e) =>
+                                                  setAdjustmentForm((prev) => ({ ...prev, txnDate: e.target.value }))
+                                                }
+                                                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition-colors focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
                                               />
                                             </div>
                                             <div>
@@ -810,15 +862,6 @@ export default function InventoryPage() {
                                             >
                                               Cancel
                                             </button>
-                                            <button
-                                              type="button"
-                                              disabled={activeAdjustmentMutation.isPending}
-                                              onClick={() => submitAdjustment(product)}
-                                              className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50"
-                                            >
-                                              {activeAdjustmentMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                                              {isConsuming ? "Save Consumption" : "Save Receipt"}
-                                            </button>
                                           </div>
                                         </div>
                                       </div>
@@ -830,7 +873,7 @@ export default function InventoryPage() {
                           })
                         ) : (
                           <tr>
-                            <td colSpan={8} className="px-5 py-16 text-center text-sm text-slate-500">
+                            <td colSpan={6} className="px-5 py-16 text-center text-sm text-slate-500">
                               No inventory items matched your filters.
                             </td>
                           </tr>

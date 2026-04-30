@@ -87,7 +87,7 @@ public class StockTransactionService {
     StockTransactionEntity entity = buildTransaction(
         product,
         "RCV-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase(),
-        request.txnDate() != null ? request.txnDate() : java.time.LocalDate.now(),
+        request.txnDate(),
         TransactionType.RECEIVED,
         String.valueOf(trimToDefault(request.vendorName(), "Manual Receipt")),
         request.quantity(),
@@ -109,7 +109,7 @@ public class StockTransactionService {
     StockTransactionEntity entity = buildTransaction(
         product,
         "CON-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase(),
-        request.txnDate() != null ? request.txnDate() : java.time.LocalDate.now(),
+        request.txnDate(),
         TransactionType.CONSUMED,
         "Internal Consumption",
         request.quantity(),

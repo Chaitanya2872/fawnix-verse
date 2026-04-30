@@ -6,7 +6,10 @@ import {
 } from "@tanstack/react-query";
 import {
   type ProductFilter,
+  ProductStatus,
+  type Product,
   type ProductFormData,
+  type InventoryTransaction,
   type StockAdjustmentPayload,
 } from "./types";
 import {
@@ -31,6 +34,52 @@ export const inventoryKeys = {
   overview: () => [...inventoryKeys.all, "overview"] as const,
   transactions: () => [...inventoryKeys.all, "transactions"] as const,
 };
+
+function getStatusFromStock(product: Product, stockQty: number) {
+  const reorderLevel = Number(product.reorderLevel ?? 0);
+  if (stockQty <= 0) return ProductStatus.OUT_OF_STOCK;
+  if (reorderLevel > 0 && stockQty <= reorderLevel) return ProductStatus.LOW_STOCK;
+  return ProductStatus.IN_STOCK;
+}
+
+function patchProductStock(
+  queryClient: ReturnType<typeof useQueryClient>,
+  productId: string,
+  quantity: number,
+  mode: "consume" | "receive"
+) {
+  queryClient.setQueriesData({ queryKey: inventoryKeys.lists() }, (current: any) => {
+    if (!current?.data || !Array.isArray(current.data)) return current;
+    return {
+      ...current,
+      data: current.data.map((product: Product) => {
+        if (product.id !== productId) return product;
+        const currentStock = Number(product.stockQty ?? 0);
+        const nextStock = mode === "consume" ? currentStock - quantity : currentStock + quantity;
+        return {
+          ...product,
+          stockQty: nextStock,
+          status: getStatusFromStock(product, nextStock),
+        };
+      }),
+    };
+  });
+}
+
+function prependTransaction(
+  queryClient: ReturnType<typeof useQueryClient>,
+  transaction: InventoryTransaction
+) {
+  queryClient.setQueryData(inventoryKeys.transactions(), (current: any) => {
+    if (!current?.data || !Array.isArray(current.data)) {
+      return { data: [transaction] };
+    }
+    return {
+      ...current,
+      data: [transaction, ...current.data],
+    };
+  });
+}
 
 // ---------------------------------------------------------------------------
 // Hooks
@@ -103,7 +152,9 @@ export function useReceiveStock() {
   return useMutation({
     mutationFn: ({ productId, data }: { productId: string; data: StockAdjustmentPayload }) =>
       receiveStock(productId, data),
-    onSuccess: () => {
+    onSuccess: (transaction, variables) => {
+      patchProductStock(queryClient, variables.productId, variables.data.quantity, "receive");
+      prependTransaction(queryClient, transaction);
       queryClient.invalidateQueries({ queryKey: inventoryKeys.lists() });
       queryClient.invalidateQueries({ queryKey: inventoryKeys.overview() });
       queryClient.invalidateQueries({ queryKey: inventoryKeys.transactions() });
@@ -116,7 +167,9 @@ export function useConsumeStock() {
   return useMutation({
     mutationFn: ({ productId, data }: { productId: string; data: StockAdjustmentPayload }) =>
       consumeStock(productId, data),
-    onSuccess: () => {
+    onSuccess: (transaction, variables) => {
+      patchProductStock(queryClient, variables.productId, variables.data.quantity, "consume");
+      prependTransaction(queryClient, transaction);
       queryClient.invalidateQueries({ queryKey: inventoryKeys.lists() });
       queryClient.invalidateQueries({ queryKey: inventoryKeys.overview() });
       queryClient.invalidateQueries({ queryKey: inventoryKeys.transactions() });

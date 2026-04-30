@@ -154,6 +154,7 @@ export interface InventoryTransactionListResponse {
 
 export interface StockAdjustmentPayload {
   quantity: number;
+  txnDate: string;
   notes?: string;
   projectRef?: string;
   issuedBy?: string;

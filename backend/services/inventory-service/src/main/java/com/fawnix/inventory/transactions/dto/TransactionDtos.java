@@ -63,6 +63,7 @@ public final class TransactionDtos {
       @NotNull(message = "Quantity is required.")
       @DecimalMin(value = "0.01", message = "Quantity must be greater than 0.")
       BigDecimal quantity,
+      @NotNull(message = "Transaction date is required.")
       LocalDate txnDate,
       String notes,
       String projectRef,
