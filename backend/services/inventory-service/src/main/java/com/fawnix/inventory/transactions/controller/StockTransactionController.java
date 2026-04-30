@@ -4,6 +4,7 @@ import com.fawnix.inventory.transactions.dto.TransactionDtos;
 import com.fawnix.inventory.transactions.service.StockTransactionService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -35,5 +36,23 @@ public class StockTransactionController {
       @Valid @RequestBody TransactionDtos.CreateTransactionRequest request
   ) {
     return transactionService.createTransaction(request);
+  }
+
+  @PostMapping("/products/{productId}/receive")
+  @ResponseStatus(HttpStatus.CREATED)
+  public TransactionDtos.TransactionResponse receiveStock(
+      @PathVariable String productId,
+      @Valid @RequestBody TransactionDtos.StockAdjustmentRequest request
+  ) {
+    return transactionService.receiveStock(productId, request);
+  }
+
+  @PostMapping("/products/{productId}/consume")
+  @ResponseStatus(HttpStatus.CREATED)
+  public TransactionDtos.TransactionResponse consumeStock(
+      @PathVariable String productId,
+      @Valid @RequestBody TransactionDtos.StockAdjustmentRequest request
+  ) {
+    return transactionService.consumeStock(productId, request);
   }
 }

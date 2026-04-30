@@ -7,12 +7,16 @@ import {
 import {
   type ProductFilter,
   type ProductFormData,
+  type StockAdjustmentPayload,
 } from "./types";
 import {
+  consumeStock,
   createProduct,
   deleteProduct,
   fetchInventoryOverview,
   fetchProducts,
+  fetchTransactions,
+  receiveStock,
   updateProduct,
 } from "./api";
 
@@ -25,6 +29,7 @@ export const inventoryKeys = {
   lists: () => [...inventoryKeys.all, "list"] as const,
   list: (filter: ProductFilter) => [...inventoryKeys.lists(), filter] as const,
   overview: () => [...inventoryKeys.all, "overview"] as const,
+  transactions: () => [...inventoryKeys.all, "transactions"] as const,
 };
 
 // ---------------------------------------------------------------------------
@@ -48,6 +53,14 @@ export function useInventoryOverview() {
   });
 }
 
+export function useTransactions() {
+  return useQuery({
+    queryKey: inventoryKeys.transactions(),
+    queryFn: fetchTransactions,
+    staleTime: 15_000,
+  });
+}
+
 export function useCreateProduct() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -55,6 +68,7 @@ export function useCreateProduct() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: inventoryKeys.lists() });
       queryClient.invalidateQueries({ queryKey: inventoryKeys.overview() });
+      queryClient.invalidateQueries({ queryKey: inventoryKeys.transactions() });
     },
   });
 }
@@ -67,6 +81,7 @@ export function useUpdateProduct() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: inventoryKeys.lists() });
       queryClient.invalidateQueries({ queryKey: inventoryKeys.overview() });
+      queryClient.invalidateQueries({ queryKey: inventoryKeys.transactions() });
     },
   });
 }
@@ -78,6 +93,33 @@ export function useDeleteProduct() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: inventoryKeys.lists() });
       queryClient.invalidateQueries({ queryKey: inventoryKeys.overview() });
+      queryClient.invalidateQueries({ queryKey: inventoryKeys.transactions() });
+    },
+  });
+}
+
+export function useReceiveStock() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ productId, data }: { productId: string; data: StockAdjustmentPayload }) =>
+      receiveStock(productId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: inventoryKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: inventoryKeys.overview() });
+      queryClient.invalidateQueries({ queryKey: inventoryKeys.transactions() });
+    },
+  });
+}
+
+export function useConsumeStock() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ productId, data }: { productId: string; data: StockAdjustmentPayload }) =>
+      consumeStock(productId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: inventoryKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: inventoryKeys.overview() });
+      queryClient.invalidateQueries({ queryKey: inventoryKeys.transactions() });
     },
   });
 }

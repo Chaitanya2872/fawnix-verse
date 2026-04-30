@@ -120,3 +120,42 @@ export const INVENTORY_PRICE_LABELS = {
 } as const;
 
 export type ProductCategory = (typeof PRODUCT_CATEGORIES)[number];
+
+export const INVENTORY_TRANSACTION_TYPES = [
+  "RECEIVED",
+  "CONSUMED",
+  "INWARD",
+  "OUTWARD",
+  "OPENING",
+] as const;
+
+export type InventoryTransactionType = (typeof INVENTORY_TRANSACTION_TYPES)[number];
+
+export interface InventoryTransaction {
+  id: string;
+  sku: string;
+  productName: string;
+  txnRef: string;
+  txnDate: string;
+  txnType: InventoryTransactionType;
+  vendorName?: string | null;
+  quantity: number;
+  unitPrice?: number | null;
+  lineTotal?: number | null;
+  projectRef?: string | null;
+  issuedBy?: string | null;
+  notes?: string | null;
+  createdAt: string;
+}
+
+export interface InventoryTransactionListResponse {
+  data: InventoryTransaction[];
+}
+
+export interface StockAdjustmentPayload {
+  quantity: number;
+  notes?: string;
+  projectRef?: string;
+  issuedBy?: string;
+  vendorName?: string;
+}

@@ -58,4 +58,16 @@ public final class TransactionDtos {
       List<TransactionResponse> data
   ) {
   }
+
+  public record StockAdjustmentRequest(
+      @NotNull(message = "Quantity is required.")
+      @DecimalMin(value = "0.01", message = "Quantity must be greater than 0.")
+      BigDecimal quantity,
+      LocalDate txnDate,
+      String notes,
+      String projectRef,
+      String issuedBy,
+      String vendorName
+  ) {
+  }
 }

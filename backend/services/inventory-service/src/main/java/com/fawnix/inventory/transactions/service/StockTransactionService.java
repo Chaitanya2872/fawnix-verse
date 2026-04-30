@@ -38,11 +38,11 @@ public class StockTransactionService {
   public TransactionDtos.TransactionListResponse listTransactions(String sku) {
     List<StockTransactionEntity> transactions;
     if (sku == null || sku.isBlank()) {
-      transactions = transactionRepository.findAll();
+      transactions = transactionRepository.findAllByOrderByTxnDateDescCreatedAtDesc();
     } else {
       ProductEntity product = productRepository.findBySku(sku.trim())
           .orElseThrow(() -> new ResourceNotFoundException("Product not found."));
-      transactions = transactionRepository.findByProduct_Id(product.getId());
+      transactions = transactionRepository.findByProduct_IdOrderByTxnDateDescCreatedAtDesc(product.getId());
     }
 
     List<TransactionDtos.TransactionResponse> data = transactions.stream()
@@ -57,30 +57,69 @@ public class StockTransactionService {
     ProductEntity product = productRepository.findBySku(request.sku().trim())
         .orElseThrow(() -> new ResourceNotFoundException("Product not found."));
 
-    StockTransactionEntity entity = new StockTransactionEntity();
-    entity.setId(UUID.randomUUID().toString());
-    entity.setProduct(product);
-    entity.setTxnRef(request.txnRef().trim());
-    entity.setTxnDate(request.txnDate());
-    entity.setTxnType(request.txnType());
-    entity.setVendorName(request.vendorName().trim());
-    entity.setQuantity(scale(request.quantity()));
-    entity.setUnitPrice(scaleOrNull(request.unitPrice()));
-    entity.setLineTotal(calculateLineTotal(entity.getQuantity(), entity.getUnitPrice()));
-    entity.setProjectRef(trimToNull(request.projectRef()));
-    entity.setIssuedBy(trimToNull(request.issuedBy()));
-    entity.setNotes(trimToNull(request.notes()));
-    entity.setCreatedAt(Instant.now());
+    StockTransactionEntity entity = buildTransaction(
+        product,
+        request.txnRef().trim(),
+        request.txnDate(),
+        request.txnType(),
+        request.vendorName().trim(),
+        request.quantity(),
+        request.unitPrice(),
+        request.projectRef(),
+        request.issuedBy(),
+        request.notes()
+    );
 
-    BigDecimal delta = switch (request.txnType()) {
-      case INWARD, OPENING -> entity.getQuantity();
-      case OUTWARD -> entity.getQuantity().negate();
-    };
+    BigDecimal delta = resolveDelta(request.txnType(), entity.getQuantity());
     if (delta.compareTo(BigDecimal.ZERO) == 0) {
       throw new BadRequestException("Quantity must be greater than zero.");
     }
 
     productService.applyStockAdjustment(product, delta);
+    return toResponse(transactionRepository.save(entity));
+  }
+
+  @Transactional
+  public TransactionDtos.TransactionResponse receiveStock(String productId, TransactionDtos.StockAdjustmentRequest request) {
+    ProductEntity product = productRepository.findById(productId)
+        .orElseThrow(() -> new ResourceNotFoundException("Product not found."));
+
+    StockTransactionEntity entity = buildTransaction(
+        product,
+        "RCV-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase(),
+        request.txnDate() != null ? request.txnDate() : java.time.LocalDate.now(),
+        TransactionType.RECEIVED,
+        String.valueOf(trimToDefault(request.vendorName(), "Manual Receipt")),
+        request.quantity(),
+        product.getPrice(),
+        request.projectRef(),
+        request.issuedBy(),
+        request.notes()
+    );
+
+    productService.applyStockAdjustment(product, resolveDelta(entity.getTxnType(), entity.getQuantity()));
+    return toResponse(transactionRepository.save(entity));
+  }
+
+  @Transactional
+  public TransactionDtos.TransactionResponse consumeStock(String productId, TransactionDtos.StockAdjustmentRequest request) {
+    ProductEntity product = productRepository.findById(productId)
+        .orElseThrow(() -> new ResourceNotFoundException("Product not found."));
+
+    StockTransactionEntity entity = buildTransaction(
+        product,
+        "CON-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase(),
+        request.txnDate() != null ? request.txnDate() : java.time.LocalDate.now(),
+        TransactionType.CONSUMED,
+        "Internal Consumption",
+        request.quantity(),
+        product.getPrice(),
+        request.projectRef(),
+        request.issuedBy(),
+        request.notes()
+    );
+
+    productService.applyStockAdjustment(product, resolveDelta(entity.getTxnType(), entity.getQuantity()));
     return toResponse(transactionRepository.save(entity));
   }
 
@@ -127,5 +166,46 @@ public class StockTransactionService {
     }
     String trimmed = value.trim();
     return trimmed.isEmpty() ? null : trimmed;
+  }
+
+  private String trimToDefault(String value, String fallback) {
+    String trimmed = trimToNull(value);
+    return trimmed != null ? trimmed : fallback;
+  }
+
+  private BigDecimal resolveDelta(TransactionType txnType, BigDecimal quantity) {
+    return switch (txnType) {
+      case INWARD, OPENING, RECEIVED -> quantity;
+      case OUTWARD, CONSUMED -> quantity.negate();
+    };
+  }
+
+  private StockTransactionEntity buildTransaction(
+      ProductEntity product,
+      String txnRef,
+      java.time.LocalDate txnDate,
+      TransactionType txnType,
+      String vendorName,
+      BigDecimal quantity,
+      BigDecimal unitPrice,
+      String projectRef,
+      String issuedBy,
+      String notes
+  ) {
+    StockTransactionEntity entity = new StockTransactionEntity();
+    entity.setId(UUID.randomUUID().toString());
+    entity.setProduct(product);
+    entity.setTxnRef(txnRef);
+    entity.setTxnDate(txnDate);
+    entity.setTxnType(txnType);
+    entity.setVendorName(vendorName);
+    entity.setQuantity(scale(quantity));
+    entity.setUnitPrice(scaleOrNull(unitPrice));
+    entity.setLineTotal(calculateLineTotal(entity.getQuantity(), entity.getUnitPrice()));
+    entity.setProjectRef(trimToNull(projectRef));
+    entity.setIssuedBy(trimToNull(issuedBy));
+    entity.setNotes(trimToNull(notes));
+    entity.setCreatedAt(Instant.now());
+    return entity;
   }
 }

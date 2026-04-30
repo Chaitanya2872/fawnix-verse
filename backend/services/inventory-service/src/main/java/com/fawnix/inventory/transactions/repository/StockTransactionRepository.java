@@ -6,5 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface StockTransactionRepository extends JpaRepository<StockTransactionEntity, String> {
 
-  List<StockTransactionEntity> findByProduct_Id(String productId);
+  List<StockTransactionEntity> findAllByOrderByTxnDateDescCreatedAtDesc();
+
+  List<StockTransactionEntity> findByProduct_IdOrderByTxnDateDescCreatedAtDesc(String productId);
 }
