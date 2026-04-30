@@ -752,10 +752,10 @@ export default function InventoryPage() {
                                   <td colSpan={6} className="px-5 pb-4 pt-0">
                                     <div
                                       className={`overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 transition-all duration-300 ${
-                                        isExpanded ? "max-h-[420px] opacity-100" : "max-h-0 opacity-0"
+                                        isExpanded ? "max-h-[320px] opacity-100" : "max-h-0 opacity-0"
                                       }`}
                                     >
-                                      <div className="grid gap-4 p-4 lg:grid-cols-[1.2fr,0.8fr]">
+                                      <div className="grid gap-3 p-3 lg:grid-cols-[1.35fr,0.65fr]">
                                         <div>
                                           <div className="flex flex-wrap items-start justify-between gap-3">
                                             <div>
@@ -771,16 +771,16 @@ export default function InventoryPage() {
                                               onClick={() => submitAdjustment(product)}
                                               disabled={activeAdjustmentMutation.isPending}
                                               aria-label={isConsuming ? "Save consumption" : "Save received stock"}
-                                              className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-brand-200 bg-brand-50 text-brand-700 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-brand-100 hover:text-brand-800 active:translate-y-0 active:bg-brand-200 disabled:cursor-not-allowed disabled:opacity-50"
+                                              className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-brand-200 bg-brand-50 text-brand-700 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-brand-100 hover:text-brand-800 active:translate-y-0 active:bg-brand-200 disabled:cursor-not-allowed disabled:opacity-50"
                                             >
                                               {activeAdjustmentMutation.isPending ? (
-                                                <Loader2 className="h-5 w-5 animate-spin" />
+                                                <Loader2 className="h-4 w-4 animate-spin" />
                                               ) : (
-                                                <Bookmark className="h-5 w-5" />
+                                                <Bookmark className="h-4 w-4" />
                                               )}
                                             </button>
                                           </div>
-                                          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                                          <div className="mt-3 grid gap-3 sm:grid-cols-3">
                                             <div>
                                               <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
                                                 Quantity
@@ -825,7 +825,7 @@ export default function InventoryPage() {
                                               Notes
                                             </label>
                                             <textarea
-                                              rows={3}
+                                              rows={2}
                                               value={adjustmentForm.notes}
                                               onChange={(e) =>
                                                 setAdjustmentForm((prev) => ({ ...prev, notes: e.target.value }))
@@ -835,23 +835,23 @@ export default function InventoryPage() {
                                             />
                                           </div>
                                         </div>
-                                        <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                                        <div className="rounded-2xl border border-slate-200 bg-white p-3">
                                           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Stock Preview</p>
-                                          <p className="mt-2 text-sm text-slate-500">
+                                          <p className="mt-1.5 text-sm text-slate-500">
                                             {isConsuming
                                               ? "Submitting this form reduces available stock."
                                               : "Submitting this form increases available stock."}
                                           </p>
-                                          <div className="mt-4 rounded-2xl bg-slate-50 p-4">
+                                          <div className="mt-3 rounded-2xl bg-slate-50 p-3">
                                             <p className="text-xs uppercase tracking-wide text-slate-500">Projected Stock</p>
-                                            <p className="mt-2 text-3xl font-bold text-slate-900">
+                                            <p className="mt-1 text-2xl font-bold text-slate-900">
                                               {(
                                                 currentStock +
                                                 (Number(adjustmentForm.quantity || 0) * (isConsuming ? -1 : 1))
                                               ).toLocaleString("en-IN")}
                                             </p>
                                           </div>
-                                          <div className="mt-4 flex justify-end gap-3">
+                                          <div className="mt-3 flex justify-end gap-3">
                                             <button
                                               type="button"
                                               onClick={() => {
