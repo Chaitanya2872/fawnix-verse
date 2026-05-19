@@ -240,6 +240,25 @@ public class TaskService {
     return getTask(id, user);
   }
 
+  public TaskDtos.TaskDetailResponse updateTaskStatus(String id, TaskDtos.TaskStatusUpdateRequest request, AppUserDetails user) {
+    TaskEntity task = requireTask(id);
+    ensureExecutionAccess(user, task);
+
+    TaskStatus nextStatus = request.status();
+    TaskStatus previousStatus = task.getStatus();
+    if (previousStatus == nextStatus) {
+      return getTask(id, user);
+    }
+
+    task.setStatus(nextStatus);
+    task.setCompletionDate(resolveCompletionDate(nextStatus, task.getCompletionDate()));
+    task.setUpdatedAt(Instant.now());
+    taskRepository.save(task);
+
+    logActivity(task, TaskActivityType.STATUS_CHANGED, user, "Status changed to " + readable(nextStatus.name()) + ".");
+    return getTask(id, user);
+  }
+
   public TaskDtos.TaskDetailResponse reorderHierarchy(String id, TaskDtos.ReorderHierarchyRequest request, AppUserDetails user) {
     TaskEntity task = requireTask(id);
     ensureEditAccess(user, task);
@@ -920,6 +939,16 @@ public class TaskService {
       return;
     }
     throw new ForbiddenOperationException("You do not have permission to modify this task.");
+  }
+
+  private void ensureExecutionAccess(AppUserDetails user, TaskEntity task) {
+    if (hasPrivilegedRole(user)
+        || equalsNullable(user.getUserId(), task.getCreatedById())
+        || equalsNullable(user.getUserId(), task.getAssignedById())
+        || equalsNullable(user.getUserId(), task.getAssignedToId())) {
+      return;
+    }
+    throw new ForbiddenOperationException("You do not have permission to update this task status.");
   }
 
   private boolean hasPrivilegedRole(AppUserDetails user) {

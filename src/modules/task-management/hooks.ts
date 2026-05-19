@@ -18,6 +18,7 @@ import {
   stopTaskTimer,
   updateChecklistItem,
   updateTask,
+  updateTaskStatus,
 } from "./api";
 import type { TaskFilter, TaskRequest } from "./types";
 
@@ -94,6 +95,14 @@ export function useUpdateTask() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ id, payload }: { id: string; payload: TaskRequest }) => updateTask(id, payload),
+    onSuccess: (_, variables) => invalidateTasks(queryClient, variables.id),
+  });
+}
+
+export function useUpdateTaskStatus() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, status }: { id: string; status: string }) => updateTaskStatus(id, status),
     onSuccess: (_, variables) => invalidateTasks(queryClient, variables.id),
   });
 }

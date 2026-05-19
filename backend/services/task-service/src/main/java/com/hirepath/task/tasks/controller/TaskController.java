@@ -97,6 +97,15 @@ public class TaskController {
     return taskService.updateTask(id, request, user);
   }
 
+  @PutMapping("/{id}/status")
+  public TaskDtos.TaskDetailResponse updateTaskStatus(
+      @PathVariable String id,
+      @Valid @RequestBody TaskDtos.TaskStatusUpdateRequest request,
+      @AuthenticationPrincipal AppUserDetails user
+  ) {
+    return taskService.updateTaskStatus(id, request, user);
+  }
+
   @PutMapping("/{id}/hierarchy")
   public TaskDtos.TaskDetailResponse reorderHierarchy(
       @PathVariable String id,

@@ -4,8 +4,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
-  Blocks,
-  BriefcaseBusiness,
   CalendarDays,
   CheckCircle2,
   CheckCheck,
@@ -15,19 +13,14 @@ import {
   Clock3,
   Filter,
   FolderKanban,
-  FolderTree,
   GripVertical,
   LayoutList,
   Loader2,
   MessageSquareText,
-  PanelLeft,
-  PanelRightClose,
-  PanelRightOpen,
   PencilLine,
   Plus,
   Search,
   Settings2,
-  Sparkles,
   SquareKanban,
   Timer,
   TrendingUp,
@@ -37,6 +30,9 @@ import {
 } from "lucide-react";
 import { format, formatDistanceToNowStrict, parseISO } from "date-fns";
 import { toast } from "sonner";
+import { useCurrentUser } from "@/modules/auth/hooks";
+import { hasPermission, PERMISSIONS } from "@/modules/auth/permissions";
+import type { CurrentUser } from "@/modules/auth/types";
 import {
   useAddChecklistItem,
   useAddTaskComment,
@@ -51,6 +47,7 @@ import {
   useTaskUsers,
   useUpdateChecklistItem,
   useUpdateTask,
+  useUpdateTaskStatus,
 } from "./hooks";
 import {
   TASK_PRIORITIES,
@@ -84,17 +81,6 @@ type TaskFormState = {
   assignedToId: string;
   estimatedHours: string;
   tags: string;
-};
-
-type WorkspaceModule = {
-  name: string;
-  count: number;
-};
-
-type WorkspaceProject = {
-  name: string;
-  count: number;
-  modules: WorkspaceModule[];
 };
 
 type GroupSection = {
@@ -256,33 +242,6 @@ function collectVisibleTasks(tasks: TaskSummary[], expanded: Set<string>) {
   return collector;
 }
 
-function summarizeWorkspace(tasks: TaskSummary[]) {
-  const projectMap = new Map<string, WorkspaceProject>();
-  for (const task of tasks) {
-    const projectName = task.projectRef || "General";
-    const moduleName = task.moduleRef || "Unsorted";
-    const existingProject = projectMap.get(projectName) ?? {
-      name: projectName,
-      count: 0,
-      modules: [],
-    };
-    existingProject.count += 1;
-    const existingModule = existingProject.modules.find((module) => module.name === moduleName);
-    if (existingModule) {
-      existingModule.count += 1;
-    } else {
-      existingProject.modules.push({ name: moduleName, count: 1 });
-    }
-    projectMap.set(projectName, existingProject);
-  }
-  return [...projectMap.values()]
-    .map((project) => ({
-      ...project,
-      modules: [...project.modules].sort((left, right) => right.count - left.count || left.name.localeCompare(right.name)),
-    }))
-    .sort((left, right) => right.count - left.count || left.name.localeCompare(right.name));
-}
-
 function groupTasks(tasks: TaskSummary[], grouping: TaskGrouping): GroupSection[] {
   const grouped = new Map<string, GroupSection>();
   const getGroup = (task: TaskSummary) => {
@@ -336,6 +295,18 @@ function initials(name?: string | null) {
     .toUpperCase();
 }
 
+function canManageExecution(user: CurrentUser | null | undefined, task: TaskSummary) {
+  if (!user) return false;
+  if (user.id === task.assignedToId) return true;
+  return hasPermission(user, PERMISSIONS.PAGE_TASKS) || hasPermission(user, PERMISSIONS.MODULE_TASKS);
+}
+
+function canOpenFullTaskEditor(user: CurrentUser | null | undefined, task: TaskSummary) {
+  if (!user) return false;
+  void task;
+  return hasPermission(user, PERMISSIONS.PAGE_TASKS) || hasPermission(user, PERMISSIONS.MODULE_TASKS);
+}
+
 export default function TaskManagementPage() {
   const [view, setView] = useState<TaskView>("list");
   const [scope, setScope] = useState<TaskScope>("all");
@@ -343,7 +314,6 @@ export default function TaskManagementPage() {
   const [filter, setFilter] = useState<TaskFilter>(defaultFilter);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
-  const [collapsedSidebarSections, setCollapsedSidebarSections] = useState<Set<string>>(new Set(["modules"]));
   const [detailTaskId, setDetailTaskId] = useState<string | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<TaskSummary | null>(null);
@@ -353,9 +323,8 @@ export default function TaskManagementPage() {
   const [checklistDraft, setChecklistDraft] = useState("");
   const [dragTaskId, setDragTaskId] = useState<string | null>(null);
   const [form, setForm] = useState<TaskFormState>(defaultForm);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [showDetailPanel, setShowDetailPanel] = useState(true);
 
+  const { data: currentUser } = useCurrentUser();
   const dashboardQuery = useTaskDashboard();
   const treeQuery = useTaskTree(filter);
   const detailQuery = useTask(detailTaskId);
@@ -364,6 +333,7 @@ export default function TaskManagementPage() {
   const createTaskMutation = useCreateTask();
   const createSubtaskMutation = useCreateSubtask();
   const updateTaskMutation = useUpdateTask();
+  const updateTaskStatusMutation = useUpdateTaskStatus();
   const deleteTaskMutation = useDeleteTask();
   const reorderMutation = useReorderTaskHierarchy();
   const assignMutation = useAssignTask();
@@ -410,7 +380,6 @@ export default function TaskManagementPage() {
 
   const visibleTreeRows = useMemo(() => collectVisibleTasks(taskTree, expandedIds), [taskTree, expandedIds]);
   const allFlatTasks = useMemo(() => collectVisibleTasks(taskTree, new Set(taskTree.map((task) => task.id))), [taskTree]);
-  const workspaceProjects = useMemo(() => summarizeWorkspace(allFlatTasks), [allFlatTasks]);
   const groupedSections = useMemo(() => groupTasks(visibleTreeRows, grouping), [grouping, visibleTreeRows]);
   const boardColumns = useMemo(
     () =>
@@ -436,15 +405,6 @@ export default function TaskManagementPage() {
         .slice(0, 24),
     [allFlatTasks]
   );
-
-  function toggleSidebarSection(section: string) {
-    setCollapsedSidebarSections((prev) => {
-      const next = new Set(prev);
-      if (next.has(section)) next.delete(section);
-      else next.add(section);
-      return next;
-    });
-  }
 
   function toggleGroup(groupKey: string) {
     setCollapsedGroups((prev) => {
@@ -570,6 +530,16 @@ export default function TaskManagementPage() {
     );
   }
 
+  function handleStatusUpdate(task: TaskSummary, status: TaskStatus, message: string) {
+    updateTaskStatusMutation.mutate(
+      { id: task.id, status },
+      {
+        onSuccess: () => toast.success(message),
+        onError: (error) => toast.error(error.message),
+      }
+    );
+  }
+
   function handleDropOnTask(target: TaskSummary) {
     if (!dragTaskId || dragTaskId === target.id) return;
     reorderMutation.mutate(
@@ -679,137 +649,16 @@ export default function TaskManagementPage() {
     );
   }
 
-  const workspaceSidebar = (
-    <aside className="flex h-full flex-col rounded-[28px] border border-slate-200/80 bg-white/90 p-3 shadow-[0_16px_60px_rgba(15,23,42,0.08)] backdrop-blur">
-      <div className="flex items-center justify-between rounded-2xl bg-[linear-gradient(135deg,#0f172a,#1d4ed8)] px-3 py-3 text-white">
-        <div>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-white/70">Workspace</p>
-          <p className="mt-1 text-sm font-semibold">Execution OS</p>
-        </div>
-        <div className="rounded-xl bg-white/15 p-2">
-          <Sparkles className="h-4 w-4" />
-        </div>
-      </div>
-
-      <div className="mt-3 space-y-2">
-        <SidebarSection
-          title="Spaces"
-          icon={<BriefcaseBusiness className="h-4 w-4" />}
-          collapsed={collapsedSidebarSections.has("spaces")}
-          onToggle={() => toggleSidebarSection("spaces")}
-        >
-          <SidebarItem
-            label="All Execution"
-            count={allFlatTasks.length}
-            active={!filter.projectRef && !filter.moduleRef}
-            onClick={() => {
-              setFilter((prev) => ({ ...prev, projectRef: "", moduleRef: "" }));
-              setSidebarOpen(false);
-            }}
-          />
-          {workspaceProjects.map((project) => (
-            <div key={project.name} className="space-y-1">
-              <SidebarItem
-                label={project.name}
-                count={project.count}
-                active={filter.projectRef === project.name && !filter.moduleRef}
-                depth={0}
-                onClick={() => {
-                  setFilter((prev) => ({ ...prev, projectRef: project.name, moduleRef: "" }));
-                  setSidebarOpen(false);
-                }}
-              />
-              {project.modules.map((module) => (
-                <SidebarItem
-                  key={`${project.name}-${module.name}`}
-                  label={module.name}
-                  count={module.count}
-                  active={filter.projectRef === project.name && filter.moduleRef === module.name}
-                  depth={1}
-                  onClick={() => {
-                    setFilter((prev) => ({ ...prev, projectRef: project.name, moduleRef: module.name }));
-                    setSidebarOpen(false);
-                  }}
-                />
-              ))}
-            </div>
-          ))}
-        </SidebarSection>
-
-        <SidebarSection
-          title="Modules"
-          icon={<Blocks className="h-4 w-4" />}
-          collapsed={collapsedSidebarSections.has("modules")}
-          onToggle={() => toggleSidebarSection("modules")}
-        >
-          {workspaceProjects.flatMap((project) =>
-            project.modules.slice(0, 5).map((module) => (
-              <SidebarItem
-                key={`${project.name}-summary-${module.name}`}
-                label={`${project.name} / ${module.name}`}
-                count={module.count}
-                active={filter.projectRef === project.name && filter.moduleRef === module.name}
-                onClick={() => {
-                  setFilter((prev) => ({ ...prev, projectRef: project.name, moduleRef: module.name }));
-                  setSidebarOpen(false);
-                }}
-              />
-            ))
-          )}
-        </SidebarSection>
-
-        <SidebarSection
-          title="Task Groups"
-          icon={<FolderTree className="h-4 w-4" />}
-          collapsed={collapsedSidebarSections.has("groups")}
-          onToggle={() => toggleSidebarSection("groups")}
-        >
-          {PRIMARY_STATUSES.map((status) => (
-            <SidebarItem
-              key={status}
-              label={toLabel(status)}
-              count={allFlatTasks.filter((task) => task.status === status).length}
-              active={filter.status === status}
-              icon={<span className={`h-2.5 w-2.5 rounded-full ${statusDot(status)}`} />}
-              onClick={() => {
-                setFilter((prev) => ({ ...prev, status: prev.status === status ? "" : status }));
-                setSidebarOpen(false);
-              }}
-            />
-          ))}
-        </SidebarSection>
-      </div>
-
-      <div className="mt-auto rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3">
-        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-          <MessageSquareText className="h-3.5 w-3.5" />
-          Team Pulse
-        </div>
-        <p className="mt-2 text-sm font-semibold text-slate-900">{dashboard?.recentActivity.length ?? 0} fresh activity items</p>
-        <p className="mt-1 text-xs text-slate-500">Comments, approvals, and status transitions stay attached to the work stream.</p>
-      </div>
-    </aside>
-  );
-
   return (
     <>
       <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.15),_transparent_28%),linear-gradient(180deg,#f8fafc_0%,#eef2ff_100%)]">
         <div className="mx-auto max-w-[1760px] px-3 py-3 sm:px-4 lg:px-5">
-          <div className="flex h-full min-h-[calc(100vh-24px)] flex-col gap-3 xl:grid xl:grid-cols-[280px,minmax(0,1fr)] xl:gap-4 2xl:grid-cols-[280px,minmax(0,1fr),400px]">
-            <div className="hidden xl:block">{workspaceSidebar}</div>
-
+          <div className="flex h-full min-h-[calc(100vh-24px)] flex-col gap-3">
             <main className="flex min-h-0 flex-col rounded-[30px] border border-slate-200/80 bg-white/80 shadow-[0_20px_80px_rgba(15,23,42,0.08)] backdrop-blur">
               <div className="border-b border-slate-200/80 px-4 py-4 sm:px-5">
                 <div className="flex flex-col gap-4">
                   <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                     <div className="flex items-start gap-3">
-                      <button
-                        type="button"
-                        onClick={() => setSidebarOpen(true)}
-                        className="rounded-2xl border border-slate-200 bg-white p-2 text-slate-600 xl:hidden"
-                      >
-                        <PanelLeft className="h-4 w-4" />
-                      </button>
                       <div>
                         <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.28em] text-sky-700">
                           <FolderKanban className="h-3.5 w-3.5" />
@@ -821,18 +670,17 @@ export default function TaskManagementPage() {
                         <p className="mt-1 max-w-3xl text-sm text-slate-500">
                           Workspaces, grouped task streams, inline execution controls, and a persistent task context panel for shipping work faster.
                         </p>
+                        <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-slate-500">
+                          <span className="font-medium text-slate-700">Execution OS</span>
+                          <span>/</span>
+                          <span>{filter.projectRef || detail?.task.projectRef || "All Execution"}</span>
+                          <span>/</span>
+                          <span>{filter.moduleRef || detail?.task.moduleRef || "All Modules"}</span>
+                        </div>
                       </div>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
                       <ViewSwitch value={view} onChange={setView} />
-                      <button
-                        type="button"
-                        onClick={() => setShowDetailPanel((prev) => !prev)}
-                        className="hidden rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 2xl:inline-flex 2xl:items-center 2xl:gap-2"
-                      >
-                        {showDetailPanel ? <PanelRightClose className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}
-                        {showDetailPanel ? "Hide Context" : "Show Context"}
-                      </button>
                       <button
                         type="button"
                         onClick={() => openEditor(null)}
@@ -1052,6 +900,7 @@ export default function TaskManagementPage() {
                                   <TaskRow
                                     key={task.id}
                                     task={task}
+                                    currentUser={currentUser}
                                     users={users}
                                     expandedIds={expandedIds}
                                     dragTaskId={dragTaskId}
@@ -1059,6 +908,7 @@ export default function TaskManagementPage() {
                                     onOpen={() => setDetailTaskId(task.id)}
                                     onToggleExpand={toggleExpand}
                                     onAssign={handleAssign}
+                                    onStatusUpdate={handleStatusUpdate}
                                     onInlineUpdate={handleInlineUpdate}
                                     onPromote={handlePromote}
                                     onDelete={handleDelete}
@@ -1173,71 +1023,20 @@ export default function TaskManagementPage() {
                 )}
               </div>
             </main>
-
-            <div className={`hidden 2xl:block ${showDetailPanel ? "" : "pointer-events-none opacity-0"}`}>
-              <aside className="sticky top-3 h-[calc(100vh-24px)] overflow-hidden rounded-[30px] border border-slate-200/80 bg-white/90 shadow-[0_20px_80px_rgba(15,23,42,0.08)] backdrop-blur">
-                {detailTaskId ? (
-                  <DetailPanel
-                    detail={detail}
-                    loading={detailQuery.isLoading}
-                    users={users}
-                    commentDraft={commentDraft}
-                    checklistDraft={checklistDraft}
-                    setCommentDraft={setCommentDraft}
-                    setChecklistDraft={setChecklistDraft}
-                    onAddComment={handleAddComment}
-                    onAddChecklistItem={handleAddChecklistItem}
-                    onChecklistToggle={handleChecklistToggle}
-                    onQuickSubtask={(task, title) => {
-                      const payload = buildPayload({ ...defaultForm, title }, users, task.id, null);
-                      createSubtaskMutation.mutate(
-                        { parentId: task.id, payload },
-                        {
-                          onSuccess: () => toast.success("Nested subtask created."),
-                          onError: (error) => toast.error(error.message),
-                        }
-                      );
-                    }}
-                    onQuickCompleteSubtask={(task) =>
-                      handleInlineUpdate(
-                        task,
-                        { status: task.status === "COMPLETED" ? "IN_PROGRESS" : "COMPLETED" },
-                        task.status === "COMPLETED" ? "Subtask reopened." : "Subtask completed."
-                      )
-                    }
-                    onPromote={handlePromote}
-                    onOpenEdit={openEditor}
-                    onAssign={handleAssign}
-                    onInlineUpdate={handleInlineUpdate}
-                    onClose={() => setDetailTaskId(null)}
-                  />
-                ) : (
-                  <PanelState
-                    icon={<PanelRightOpen className="h-5 w-5 text-slate-400" />}
-                    title="Select a task"
-                    body="Keep the workspace open in the center while reviewing the execution context, checklist, and comments here."
-                    padded
-                  />
-                )}
-              </aside>
-            </div>
           </div>
         </div>
       </div>
-
-      <Drawer open={sidebarOpen} title="Workspace" onClose={() => setSidebarOpen(false)} maxWidth="max-w-sm">
-        {workspaceSidebar}
-      </Drawer>
 
       <Drawer open={editorOpen} title={editingTask ? "Edit Task" : "Create Task"} onClose={() => setEditorOpen(false)} maxWidth="max-w-xl">
         <TaskEditor form={form} setForm={setForm} users={users} onSubmit={handleSaveTask} onClose={() => setEditorOpen(false)} />
       </Drawer>
 
-      <Drawer open={Boolean(detailTaskId)} title={detail?.task.title ?? "Task"} onClose={() => setDetailTaskId(null)} maxWidth="max-w-xl" desktopHidden>
+      <Drawer open={Boolean(detailTaskId)} title={detail?.task.title ?? "Task"} onClose={() => setDetailTaskId(null)} maxWidth="max-w-full md:max-w-[72vw] xl:max-w-[42vw]">
         <DetailPanel
           detail={detail}
           loading={detailQuery.isLoading}
           users={users}
+          currentUser={currentUser}
           commentDraft={commentDraft}
           checklistDraft={checklistDraft}
           setCommentDraft={setCommentDraft}
@@ -1265,6 +1064,7 @@ export default function TaskManagementPage() {
           onPromote={handlePromote}
           onOpenEdit={openEditor}
           onAssign={handleAssign}
+          onStatusUpdate={handleStatusUpdate}
           onInlineUpdate={handleInlineUpdate}
           onClose={() => setDetailTaskId(null)}
         />
@@ -1302,68 +1102,6 @@ function Drawer({
         <div className="px-4 py-4">{children}</div>
       </div>
     </div>
-  );
-}
-
-function SidebarSection({
-  title,
-  icon,
-  collapsed,
-  onToggle,
-  children,
-}: {
-  title: string;
-  icon: React.ReactNode;
-  collapsed: boolean;
-  onToggle: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="rounded-2xl border border-slate-200 bg-slate-50/80">
-      <button type="button" onClick={onToggle} className="flex w-full items-center justify-between px-3 py-2.5 text-left">
-        <span className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-          {icon}
-          {title}
-        </span>
-        {collapsed ? <ChevronRight className="h-4 w-4 text-slate-400" /> : <ChevronDown className="h-4 w-4 text-slate-400" />}
-      </button>
-      {!collapsed ? <div className="space-y-1 px-2 pb-2">{children}</div> : null}
-    </section>
-  );
-}
-
-function SidebarItem({
-  label,
-  count,
-  active,
-  onClick,
-  depth = 0,
-  icon,
-}: {
-  label: string;
-  count: number;
-  active: boolean;
-  onClick: () => void;
-  depth?: number;
-  icon?: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm transition ${
-        active ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-white hover:text-slate-900"
-      }`}
-      style={{ paddingLeft: `${12 + depth * 18}px` }}
-    >
-      <span className="flex min-w-0 items-center gap-2">
-        {icon}
-        <span className="truncate">{label}</span>
-      </span>
-      <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${active ? "bg-white/15 text-white" : "bg-slate-200 text-slate-600"}`}>
-        {count}
-      </span>
-    </button>
   );
 }
 
@@ -1430,6 +1168,7 @@ function MetricStrip({
 
 function TaskRow({
   task,
+  currentUser,
   users,
   expandedIds,
   dragTaskId,
@@ -1437,6 +1176,7 @@ function TaskRow({
   onOpen,
   onToggleExpand,
   onAssign,
+  onStatusUpdate,
   onInlineUpdate,
   onPromote,
   onDelete,
@@ -1445,6 +1185,7 @@ function TaskRow({
   onDragStart,
 }: {
   task: TaskSummary;
+  currentUser: CurrentUser | null | undefined;
   users: Array<{ id: string; name: string; email: string }>;
   expandedIds: Set<string>;
   dragTaskId: string | null;
@@ -1452,6 +1193,7 @@ function TaskRow({
   onOpen: () => void;
   onToggleExpand: (taskId: string) => void;
   onAssign: (task: TaskSummary, userId: string) => void;
+  onStatusUpdate: (task: TaskSummary, status: TaskStatus, message: string) => void;
   onInlineUpdate: (task: TaskSummary, patch: Partial<TaskRequest>, message: string) => void;
   onPromote: (task: TaskSummary) => void;
   onDelete: (taskId: string) => void;
@@ -1460,6 +1202,8 @@ function TaskRow({
   onDragStart: (taskId: string | null) => void;
 }) {
   const expanded = expandedIds.has(task.id);
+  const canUpdateExecution = canManageExecution(currentUser, task);
+  const canEditTask = canOpenFullTaskEditor(currentUser, task);
 
   return (
     <div
@@ -1518,17 +1262,23 @@ function TaskRow({
           </button>
         </div>
 
-        <select
-          value={task.status}
-          onChange={(event) => onInlineUpdate(task, { status: event.target.value as TaskStatus }, "Status updated.")}
-          className="rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-xs font-medium text-slate-700"
-        >
-          {TASK_STATUSES.map((status) => (
-            <option key={status} value={status}>
-              {toLabel(status)}
-            </option>
-          ))}
-        </select>
+        {canUpdateExecution ? (
+          <select
+            value={task.status}
+            onChange={(event) => onStatusUpdate(task, event.target.value as TaskStatus, "Status updated.")}
+            className="rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-xs font-medium text-slate-700"
+          >
+            {TASK_STATUSES.map((status) => (
+              <option key={status} value={status}>
+                {toLabel(status)}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <div className="text-xs font-medium text-slate-600">
+            <span className={`rounded-full border px-2 py-1 ${statusTone(task.status)}`}>{toLabel(task.status)}</span>
+          </div>
+        )}
 
         <div className="flex items-center gap-2">
           <Avatar name={task.assignedToName} />
@@ -1589,17 +1339,21 @@ function TaskRow({
           ) : null}
         </div>
         <div className="flex flex-wrap items-center gap-2 opacity-100 transition lg:opacity-0 lg:group-hover:opacity-100">
-          <button type="button" onClick={() => onEdit(task)} className="rounded-xl border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-700">
-            Edit
-          </button>
+          {canEditTask ? (
+            <button type="button" onClick={() => onEdit(task)} className="rounded-xl border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-700">
+              Edit
+            </button>
+          ) : null}
           {task.parentTaskId ? (
             <button type="button" onClick={() => onPromote(task)} className="rounded-xl border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-700">
               Promote
             </button>
           ) : null}
-          <button type="button" onClick={() => onDelete(task.id)} className="rounded-xl border border-rose-200 px-2.5 py-1.5 text-xs font-semibold text-rose-700">
-            Delete
-          </button>
+          {canEditTask ? (
+            <button type="button" onClick={() => onDelete(task.id)} className="rounded-xl border border-rose-200 px-2.5 py-1.5 text-xs font-semibold text-rose-700">
+              Delete
+            </button>
+          ) : null}
         </div>
       </div>
     </div>
@@ -1610,6 +1364,7 @@ function DetailPanel({
   detail,
   loading,
   users,
+  currentUser,
   commentDraft,
   checklistDraft,
   setCommentDraft,
@@ -1622,12 +1377,14 @@ function DetailPanel({
   onPromote,
   onOpenEdit,
   onAssign,
+  onStatusUpdate,
   onInlineUpdate,
   onClose,
 }: {
   detail: TaskDetail | null;
   loading: boolean;
   users: Array<{ id: string; name: string; email: string }>;
+  currentUser: CurrentUser | null | undefined;
   commentDraft: string;
   checklistDraft: string;
   setCommentDraft: React.Dispatch<React.SetStateAction<string>>;
@@ -1640,6 +1397,7 @@ function DetailPanel({
   onPromote: (task: TaskSummary) => void;
   onOpenEdit: (task: TaskSummary) => void;
   onAssign: (task: TaskSummary, userId: string) => void;
+  onStatusUpdate: (task: TaskSummary, status: TaskStatus, message: string) => void;
   onInlineUpdate: (task: TaskSummary, patch: Partial<TaskRequest>, message: string) => void;
   onClose: () => void;
 }) {
@@ -1657,6 +1415,10 @@ function DetailPanel({
   if (!detail) {
     return <PanelState icon={<AlertTriangle className="h-5 w-5 text-rose-500" />} title="Task unavailable" body="The selected task could not be loaded." padded />;
   }
+
+  const canUpdateExecution = canManageExecution(currentUser, detail.task);
+  const canEditTask = canOpenFullTaskEditor(currentUser, detail.task);
+  const canPostRemark = canUpdateExecution || canEditTask;
 
   return (
     <div className="flex h-full flex-col">

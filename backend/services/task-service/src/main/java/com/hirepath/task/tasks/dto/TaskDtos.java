@@ -89,6 +89,12 @@ public final class TaskDtos {
   ) {
   }
 
+  public record TaskStatusUpdateRequest(
+      @NotNull(message = "Task status is required.")
+      TaskStatus status
+  ) {
+  }
+
   public record CommentCreateRequest(
       @NotBlank(message = "Comment is required.")
       String message

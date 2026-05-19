@@ -115,6 +115,16 @@ export async function updateTask(id: string, payload: TaskRequest): Promise<Task
   }
 }
 
+export async function updateTaskStatus(id: string, status: string): Promise<TaskDetail> {
+  try {
+    await ensureApiSession();
+    const response = await api.put<TaskDetail>(`/tasks/${id}/status`, { status });
+    return response.data;
+  } catch (error) {
+    rethrow(error, "Failed to update task status.");
+  }
+}
+
 export async function deleteTask(id: string): Promise<void> {
   try {
     await ensureApiSession();
