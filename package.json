@@ -13,6 +13,7 @@
     "dev:inventory": "mvn -pl services/inventory-service spring-boot:run -f backend/pom.xml",
     "dev:hrms": "mvn -pl services/hrms-service spring-boot:run -f backend/pom.xml",
     "dev:sales": "mvn -pl services/sales-service spring-boot:run -f backend/pom.xml",
+    "dev:tasks": "mvn -pl services/task-service spring-boot:run -f backend/pom.xml",
     "docker:up": "docker compose up --build",
     "docker:down": "docker compose down",
     "docker:logs": "docker compose logs -f",

@@ -62,6 +62,10 @@ spring:
           uri: lb://NOTIFICATIONS-SERVICE
           predicates:
             - Path=/api/notifications/**
+        - id: task-service
+          uri: lb://TASK-SERVICE
+          predicates:
+            - Path=/api/tasks,/api/tasks/**
         - id: inventory
           uri: lb://INVENTORY-SERVICE
           predicates:

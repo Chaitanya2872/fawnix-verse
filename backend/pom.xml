@@ -33,6 +33,7 @@
     <module>services/analytics-service</module>
     <module>services/notifications-service</module>
     <module>services/procurement-service</module>
+    <module>services/task-service</module>
   </modules>
 
   <properties>

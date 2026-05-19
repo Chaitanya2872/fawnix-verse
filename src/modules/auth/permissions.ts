@@ -15,6 +15,7 @@ export const PERMISSIONS = {
   MODULE_INTEGRATIONS: "module.integrations",
   MODULE_ANALYTICS: "module.analytics",
   MODULE_NOTIFICATIONS: "module.notifications",
+  MODULE_TASKS: "module.tasks",
   PAGE_DASHBOARD: "page.dashboard",
   PAGE_CRM_LEADS: "page.crm.leads",
   PAGE_CRM_CONTACTS: "page.crm.contacts",
@@ -29,6 +30,7 @@ export const PERMISSIONS = {
   PAGE_REPORTS: "page.reports",
   PAGE_ADMIN_USERS: "page.admin.users",
   PAGE_ADMIN_SETTINGS: "page.admin.settings",
+  PAGE_TASKS: "page.tasks",
 } as const;
 
 export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -48,6 +50,7 @@ export const MODULE_PERMISSION_MAP: Record<string, Permission> = {
   integrations: PERMISSIONS.MODULE_INTEGRATIONS,
   analytics: PERMISSIONS.MODULE_ANALYTICS,
   notifications: PERMISSIONS.MODULE_NOTIFICATIONS,
+  tasks: PERMISSIONS.MODULE_TASKS,
 };
 
 export function hasPermission(
@@ -94,6 +97,7 @@ export function getDefaultAuthorizedPath(
     { path: "/recruitment/hiring-requests", permission: PERMISSIONS.MODULE_RECRUITMENT },
     { path: "/forms", permission: PERMISSIONS.MODULE_FORMS },
     { path: "/approvals", permission: PERMISSIONS.MODULE_APPROVALS },
+    { path: "/tasks", permission: PERMISSIONS.PAGE_TASKS },
     { path: "/setup", permission: PERMISSIONS.MODULE_ORG },
     { path: "/settings", permission: PERMISSIONS.PAGE_ADMIN_SETTINGS },
     { path: "/reports", permission: PERMISSIONS.PAGE_REPORTS },
@@ -126,6 +130,7 @@ function resolveModulePermission(permission: Permission): Permission | null {
   }
   if (permission.startsWith("page.analytics")) return PERMISSIONS.MODULE_ANALYTICS;
   if (permission.startsWith("page.notifications")) return PERMISSIONS.MODULE_NOTIFICATIONS;
+  if (permission.startsWith("page.tasks")) return PERMISSIONS.MODULE_TASKS;
   if (permission.startsWith("page.admin.")) return PERMISSIONS.MODULE_ADMIN;
   if (permission.startsWith("page.dashboard")) return null;
   return null;

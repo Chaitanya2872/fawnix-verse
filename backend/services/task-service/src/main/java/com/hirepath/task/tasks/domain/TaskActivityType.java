@@ -1,0 +1,18 @@
+package com.hirepath.task.tasks.domain;
+
+public enum TaskActivityType {
+  CREATED,
+  UPDATED,
+  STATUS_CHANGED,
+  PRIORITY_CHANGED,
+  ASSIGNED,
+  REASSIGNED,
+  COMMENTED,
+  CHECKLIST_UPDATED,
+  ATTACHMENT_ADDED,
+  APPROVED,
+  REJECTED,
+  TIMER_STARTED,
+  TIMER_STOPPED,
+  TIME_LOGGED
+}

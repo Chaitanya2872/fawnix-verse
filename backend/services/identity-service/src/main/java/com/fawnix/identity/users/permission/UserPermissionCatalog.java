@@ -24,6 +24,7 @@ public final class UserPermissionCatalog {
   public static final String MODULE_INTEGRATIONS = "module.integrations";
   public static final String MODULE_ANALYTICS = "module.analytics";
   public static final String MODULE_NOTIFICATIONS = "module.notifications";
+  public static final String MODULE_TASKS = "module.tasks";
 
   public static final String PAGE_DASHBOARD = "page.dashboard";
   public static final String PAGE_CRM_LEADS = "page.crm.leads";
@@ -39,6 +40,7 @@ public final class UserPermissionCatalog {
   public static final String PAGE_REPORTS = "page.reports";
   public static final String PAGE_ADMIN_USERS = "page.admin.users";
   public static final String PAGE_ADMIN_SETTINGS = "page.admin.settings";
+  public static final String PAGE_TASKS = "page.tasks";
 
   public static final Set<String> ALL_PERMISSIONS = Set.of(
       MODULE_CRM,
@@ -55,6 +57,7 @@ public final class UserPermissionCatalog {
       MODULE_INTEGRATIONS,
       MODULE_ANALYTICS,
       MODULE_NOTIFICATIONS,
+      MODULE_TASKS,
       PAGE_DASHBOARD,
       PAGE_CRM_LEADS,
       PAGE_CRM_CONTACTS,
@@ -69,15 +72,21 @@ public final class UserPermissionCatalog {
       PAGE_REPORTS,
       PAGE_ADMIN_USERS,
       PAGE_ADMIN_SETTINGS
+      ,PAGE_TASKS
   );
 
   public static Set<String> defaultsForRole(RoleName roleName) {
     return switch (roleName) {
       case ROLE_MASTER -> new LinkedHashSet<>(ALL_PERMISSIONS);
-      case ROLE_ADMIN -> new LinkedHashSet<>();
+      case ROLE_ADMIN -> new LinkedHashSet<>(List.of(
+          MODULE_TASKS,
+          PAGE_TASKS
+      ));
       case ROLE_REPORTING_MANAGER -> new LinkedHashSet<>(List.of(
           MODULE_REPORTS,
-          PAGE_REPORTS
+          PAGE_REPORTS,
+          MODULE_TASKS,
+          PAGE_TASKS
       ));
       case ROLE_SALES_MANAGER -> new LinkedHashSet<>(List.of(
           MODULE_CRM,
@@ -89,7 +98,9 @@ public final class UserPermissionCatalog {
           PAGE_CRM_ACCOUNTS,
           PAGE_CRM_PRESALES,
           PAGE_SALES,
-          PAGE_REPORTS
+          PAGE_REPORTS,
+          MODULE_TASKS,
+          PAGE_TASKS
       ));
       case ROLE_SALES_REP -> new LinkedHashSet<>(List.of(
           MODULE_CRM,
@@ -99,7 +110,9 @@ public final class UserPermissionCatalog {
           PAGE_CRM_CONTACTS,
           PAGE_CRM_ACCOUNTS,
           PAGE_CRM_PRESALES,
-          PAGE_SALES
+          PAGE_SALES,
+          MODULE_TASKS,
+          PAGE_TASKS
       ));
       case ROLE_VIEWER -> new LinkedHashSet<>(List.of(
           MODULE_REPORTS,
@@ -114,7 +127,9 @@ public final class UserPermissionCatalog {
           MODULE_INTEGRATIONS,
           MODULE_ANALYTICS,
           MODULE_NOTIFICATIONS,
-          PAGE_DASHBOARD
+          PAGE_DASHBOARD,
+          MODULE_TASKS,
+          PAGE_TASKS
       ));
       case ROLE_RECRUITER -> new LinkedHashSet<>(List.of(
           MODULE_RECRUITMENT,
@@ -134,7 +149,9 @@ public final class UserPermissionCatalog {
       ));
       case ROLE_EMPLOYEE -> new LinkedHashSet<>(List.of(
           MODULE_RECRUITMENT,
-          PAGE_DASHBOARD
+          PAGE_DASHBOARD,
+          MODULE_TASKS,
+          PAGE_TASKS
       ));
     };
   }
