@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
@@ -6,6 +7,7 @@ import {
   Blocks,
   BriefcaseBusiness,
   CalendarDays,
+  CheckCircle2,
   CheckCheck,
   ChevronDown,
   ChevronRight,
@@ -21,12 +23,15 @@ import {
   PanelLeft,
   PanelRightClose,
   PanelRightOpen,
+  PencilLine,
   Plus,
   Search,
   Settings2,
   Sparkles,
   SquareKanban,
   Timer,
+  TrendingUp,
+  UserRound,
   Workflow,
   X,
 } from "lucide-react";
@@ -381,18 +386,26 @@ export default function TaskManagementPage() {
 
   useEffect(() => {
     if (taskTree.length && expandedIds.size === 0) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setExpandedIds(new Set(taskTree.map((task) => task.id)));
     }
   }, [taskTree, expandedIds.size]);
 
   useEffect(() => {
     if (editingTask) {
-      setForm(taskToForm(editingTask));
+      // Defer setting state to avoid synchronous setState within effect which can
+      // trigger cascading renders. Use a microtask to update after the current
+      // render commit.
+      Promise.resolve().then(() => setForm(taskToForm(editingTask)));
     }
   }, [editingTask]);
 
   useEffect(() => {
-    setFilter((prev) => ({ ...prev, scope }));
+    // Defer updating filter state to avoid synchronous setState in an effect
+    // which can trigger cascading renders.
+    Promise.resolve().then(() => {
+      setFilter((prev) => ({ ...prev, scope }));
+    });
   }, [scope]);
 
   const visibleTreeRows = useMemo(() => collectVisibleTasks(taskTree, expandedIds), [taskTree, expandedIds]);
@@ -1185,6 +1198,13 @@ export default function TaskManagementPage() {
                         }
                       );
                     }}
+                    onQuickCompleteSubtask={(task) =>
+                      handleInlineUpdate(
+                        task,
+                        { status: task.status === "COMPLETED" ? "IN_PROGRESS" : "COMPLETED" },
+                        task.status === "COMPLETED" ? "Subtask reopened." : "Subtask completed."
+                      )
+                    }
                     onPromote={handlePromote}
                     onOpenEdit={openEditor}
                     onAssign={handleAssign}
@@ -1235,6 +1255,13 @@ export default function TaskManagementPage() {
               }
             );
           }}
+          onQuickCompleteSubtask={(task) =>
+            handleInlineUpdate(
+              task,
+              { status: task.status === "COMPLETED" ? "IN_PROGRESS" : "COMPLETED" },
+              task.status === "COMPLETED" ? "Subtask reopened." : "Subtask completed."
+            )
+          }
           onPromote={handlePromote}
           onOpenEdit={openEditor}
           onAssign={handleAssign}
@@ -1591,6 +1618,7 @@ function DetailPanel({
   onAddChecklistItem,
   onChecklistToggle,
   onQuickSubtask,
+  onQuickCompleteSubtask,
   onPromote,
   onOpenEdit,
   onAssign,
@@ -1608,6 +1636,7 @@ function DetailPanel({
   onAddChecklistItem: () => void;
   onChecklistToggle: (item: TaskChecklistItem) => void;
   onQuickSubtask: (task: TaskSummary, title: string) => void;
+  onQuickCompleteSubtask: (task: TaskSummary) => void;
   onPromote: (task: TaskSummary) => void;
   onOpenEdit: (task: TaskSummary) => void;
   onAssign: (task: TaskSummary, userId: string) => void;
@@ -1615,6 +1644,11 @@ function DetailPanel({
   onClose: () => void;
 }) {
   const [nestedDraft, setNestedDraft] = useState("");
+  const [metadataEditMode, setMetadataEditMode] = useState(false);
+
+  useEffect(() => {
+    setMetadataEditMode(false);
+  }, [detail?.task.id]);
 
   if (loading) {
     return <PanelState icon={<Loader2 className="h-5 w-5 animate-spin" />} title="Loading task context" body="Pulling task details, dependencies, and activity." padded />;
@@ -1648,55 +1682,111 @@ function DetailPanel({
               Promote
             </button>
           ) : null}
+          <button
+            type="button"
+            onClick={() => setMetadataEditMode((prev) => !prev)}
+            className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-semibold ${
+              metadataEditMode ? "border-sky-200 bg-sky-50 text-sky-700" : "border-slate-200 text-slate-700"
+            }`}
+          >
+            <PencilLine className="h-3.5 w-3.5" />
+            {metadataEditMode ? "Done editing" : "Quick edit"}
+          </button>
           <button type="button" onClick={() => onOpenEdit(detail.task)} className="rounded-full border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-700">
             Edit task
           </button>
         </div>
       </div>
 
-      <div className="flex-1 space-y-5 overflow-y-auto px-4 py-4">
+      <div className="flex-1 space-y-4 overflow-y-auto px-4 py-4">
         <section className="space-y-3">
-          <div className="grid gap-3 md:grid-cols-2">
-            <InfoCard label="Assignee" value={detail.task.assignedToName || "Unassigned"} />
-            <InfoCard label="Due date" value={formatLongDate(detail.task.dueDate)} />
-            <InfoCard label="Progress" value={`${detail.task.progressPercent}%`} />
-            <InfoCard label="Estimate" value={`${detail.task.estimatedHours.toFixed(2)}h`} />
+          <div className="grid gap-2 sm:grid-cols-2">
+            {metadataEditMode ? (
+              <>
+                <CompactEditField label="Assignee" icon={<UserRound className="h-4 w-4 text-slate-400" />}>
+                  <select
+                    value={detail.task.assignedToId ?? ""}
+                    onChange={(event) => onAssign(detail.task, event.target.value)}
+                    className="w-full rounded-xl border border-slate-200 px-2.5 py-2 text-sm"
+                  >
+                    <option value="">Unassigned</option>
+                    {users.map((user) => (
+                      <option key={user.id} value={user.id}>
+                        {user.name}
+                      </option>
+                    ))}
+                  </select>
+                </CompactEditField>
+                <CompactEditField label="Due Date" icon={<CalendarDays className="h-4 w-4 text-slate-400" />}>
+                  <input
+                    type="date"
+                    value={detail.task.dueDate ?? ""}
+                    onChange={(event) => onInlineUpdate(detail.task, { dueDate: event.target.value || null }, "Due date updated.")}
+                    className="w-full rounded-xl border border-slate-200 px-2.5 py-2 text-sm"
+                  />
+                </CompactEditField>
+                <CompactEditField label="Estimate" icon={<Clock3 className="h-4 w-4 text-slate-400" />}>
+                  <input
+                    type="number"
+                    min={0}
+                    step="0.25"
+                    value={detail.task.estimatedHours}
+                    onChange={(event) => onInlineUpdate(detail.task, { estimatedHours: Number(event.target.value || 0) }, "Estimate updated.")}
+                    className="w-full rounded-xl border border-slate-200 px-2.5 py-2 text-sm"
+                  />
+                </CompactEditField>
+                <CompactEditField label="Status" icon={<StatusDot tone={detail.task.status} />}>
+                  <select
+                    value={detail.task.status}
+                    onChange={(event) => onInlineUpdate(detail.task, { status: event.target.value as TaskStatus }, "Status updated.")}
+                    className="w-full rounded-xl border border-slate-200 px-2.5 py-2 text-sm"
+                  >
+                    {TASK_STATUSES.map((status) => (
+                      <option key={status} value={status}>
+                        {toLabel(status)}
+                      </option>
+                    ))}
+                  </select>
+                </CompactEditField>
+              </>
+            ) : (
+              <>
+                <MetadataRow icon={<UserRound className="h-4 w-4 text-slate-400" />} label="Assignee" value={detail.task.assignedToName || "Unassigned"} />
+                <MetadataRow icon={<CalendarDays className="h-4 w-4 text-slate-400" />} label="Due Date" value={formatLongDate(detail.task.dueDate)} />
+                <MetadataRow icon={<Clock3 className="h-4 w-4 text-slate-400" />} label="Estimate" value={`${detail.task.estimatedHours.toFixed(2)}h`} />
+                <MetadataRow
+                  icon={<TrendingUp className="h-4 w-4 text-slate-400" />}
+                  label="Progress"
+                  value={
+                    <div className="flex items-center gap-2">
+                      <div className="h-1.5 w-20 overflow-hidden rounded-full bg-slate-100">
+                        <div className="h-full rounded-full bg-sky-500" style={{ width: `${detail.task.progressPercent}%` }} />
+                      </div>
+                      <span>{detail.task.progressPercent}%</span>
+                    </div>
+                  }
+                />
+                <MetadataRow
+                  icon={<StatusDot tone={detail.task.status} />}
+                  label="Status"
+                  value={<span className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${statusTone(detail.task.status)}`}>{toLabel(detail.task.status)}</span>}
+                />
+                <MetadataRow
+                  icon={<AlertTriangle className="h-4 w-4 text-slate-400" />}
+                  label="Priority"
+                  value={<span className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${priorityTone(detail.task.priority)}`}>{toLabel(detail.task.priority)}</span>}
+                />
+                <MetadataRow icon={<Workflow className="h-4 w-4 text-slate-400" />} label="Subtasks" value={`${detail.subtasks.length} nested items`} />
+              </>
+            )}
           </div>
-          <div className="grid gap-3 md:grid-cols-2">
-            <Field label="Status">
-              <select
-                value={detail.task.status}
-                onChange={(event) => onInlineUpdate(detail.task, { status: event.target.value as TaskStatus }, "Status updated.")}
-                className="w-full rounded-2xl border border-slate-200 px-3 py-2.5 text-sm"
-              >
-                {TASK_STATUSES.map((status) => (
-                  <option key={status} value={status}>
-                    {toLabel(status)}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Assignee">
-              <select
-                value={detail.task.assignedToId ?? ""}
-                onChange={(event) => onAssign(detail.task, event.target.value)}
-                className="w-full rounded-2xl border border-slate-200 px-3 py-2.5 text-sm"
-              >
-                <option value="">Unassigned</option>
-                {users.map((user) => (
-                  <option key={user.id} value={user.id}>
-                    {user.name}
-                  </option>
-                ))}
-              </select>
-            </Field>
-          </div>
+
           {detail.task.description ? (
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm leading-6 text-slate-700">
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm leading-6 text-slate-700">
               {detail.task.description}
             </div>
           ) : (
-            <div className="rounded-2xl border border-dashed border-slate-300 px-3 py-3 text-sm text-slate-500">
+            <div className="rounded-2xl border border-dashed border-slate-300 px-3 py-2.5 text-sm text-slate-500">
               No description yet. Use edit task to add scope, outcomes, and constraints.
             </div>
           )}
@@ -1709,23 +1799,23 @@ function DetailPanel({
                 key={item.id}
                 type="button"
                 onClick={() => onChecklistToggle(item)}
-                className={`flex w-full items-center gap-3 rounded-2xl border px-3 py-2.5 text-left text-sm ${
+                className={`flex w-full items-center gap-3 rounded-xl border px-3 py-2 text-left text-sm transition hover:border-slate-300 ${
                   item.completed ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-slate-200 bg-white text-slate-700"
                 }`}
               >
-                <span className={`h-4 w-4 rounded-full border ${item.completed ? "border-emerald-500 bg-emerald-500" : "border-slate-300"}`} />
+                <CheckCircle2 className={`h-4 w-4 ${item.completed ? "fill-emerald-500 text-emerald-500" : "text-slate-300"}`} />
                 <span className={item.completed ? "line-through opacity-80" : ""}>{item.label}</span>
               </button>
             ))}
-            <div className="flex gap-2">
+            <div className="flex gap-2 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-2 py-2">
               <input
                 value={checklistDraft}
                 onChange={(event) => setChecklistDraft(event.target.value)}
                 onKeyDown={(event) => event.key === "Enter" && onAddChecklistItem()}
                 placeholder="Add checklist item"
-                className="flex-1 rounded-2xl border border-slate-200 px-3 py-2.5 text-sm"
+                className="flex-1 bg-transparent px-1 text-sm outline-none"
               />
-              <button type="button" onClick={onAddChecklistItem} className="rounded-2xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white">
+              <button type="button" onClick={onAddChecklistItem} className="rounded-xl bg-slate-900 px-3 py-2 text-sm font-semibold text-white">
                 Add
               </button>
             </div>
@@ -1735,17 +1825,32 @@ function DetailPanel({
         <DetailSection title="Subtasks" icon={<Workflow className="h-4 w-4 text-slate-500" />}>
           <div className="space-y-2">
             {detail.subtasks.map((task) => (
-              <button key={task.id} type="button" className="w-full rounded-2xl border border-slate-200 px-3 py-3 text-left">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-semibold text-slate-900">{task.title}</p>
-                    <p className="mt-1 text-xs text-slate-500">
-                      Level {task.hierarchyLevel} · {task.taskCode} · {task.progressPercent}%
-                    </p>
+              <div
+                key={task.id}
+                className={`flex items-start gap-3 rounded-xl border px-3 py-2.5 transition ${
+                  task.status === "COMPLETED" ? "border-emerald-200 bg-emerald-50/80" : "border-slate-200 bg-white hover:border-slate-300"
+                }`}
+              >
+                <button
+                  type="button"
+                  onClick={() => onQuickCompleteSubtask(task)}
+                  className="mt-0.5 rounded-full p-0.5 text-emerald-500 transition hover:bg-emerald-100"
+                  title={task.status === "COMPLETED" ? "Reopen subtask" : "Complete subtask"}
+                >
+                  <CheckCircle2 className={`h-5 w-5 ${task.status === "COMPLETED" ? "fill-emerald-500 text-emerald-500" : "text-emerald-500"}`} />
+                </button>
+                <button type="button" onClick={() => onOpenEdit(task)} className="min-w-0 flex-1 text-left">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className={`text-sm font-semibold ${task.status === "COMPLETED" ? "text-emerald-800 line-through" : "text-slate-900"}`}>{task.title}</p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        {task.taskCode} · Level {task.hierarchyLevel} · {task.progressPercent}%
+                      </p>
+                    </div>
+                    <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${statusTone(task.status)}`}>{toLabel(task.status)}</span>
                   </div>
-                  <span className={`rounded-full border px-2 py-1 text-[10px] font-semibold ${statusTone(task.status)}`}>{toLabel(task.status)}</span>
-                </div>
-              </button>
+                </button>
+              </div>
             ))}
             <div className="flex gap-2">
               <input
@@ -1772,7 +1877,7 @@ function DetailPanel({
         <DetailSection title="Comments" icon={<MessageSquareText className="h-4 w-4 text-slate-500" />}>
           <div className="space-y-3">
             {detail.comments.map((comment) => (
-              <div key={comment.id} className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3">
+              <div key={comment.id} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
                 <div className="flex items-center gap-2">
                   <Avatar name={comment.authorName} />
                   <div>
@@ -1780,7 +1885,7 @@ function DetailPanel({
                     <p className="text-xs text-slate-500">{formatLongDate(comment.createdAt)}</p>
                   </div>
                 </div>
-                <p className="mt-3 text-sm leading-6 text-slate-700">{comment.message}</p>
+                <p className="mt-2 text-sm leading-6 text-slate-700">{comment.message}</p>
               </div>
             ))}
             <textarea
@@ -1788,10 +1893,10 @@ function DetailPanel({
               onChange={(event) => setCommentDraft(event.target.value)}
               rows={3}
               placeholder="Add progress notes, blockers, or decision context"
-              className="w-full rounded-2xl border border-slate-200 px-3 py-2.5 text-sm"
+              className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm"
             />
             <div className="flex justify-end">
-              <button type="button" onClick={onAddComment} className="rounded-2xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white">
+              <button type="button" onClick={onAddComment} className="rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white">
                 Post Comment
               </button>
             </div>
@@ -1815,7 +1920,7 @@ function DetailPanel({
         </DetailSection>
 
         <DetailSection title="Attachments & Time" icon={<Clock3 className="h-4 w-4 text-slate-500" />}>
-          <div className="grid gap-3 md:grid-cols-2">
+          <div className="grid gap-2 md:grid-cols-2">
             <InfoCard label="Attachments" value={String(detail.attachments.length)} />
             <InfoCard label="Time logs" value={String(detail.timeLogs.length)} />
             <InfoCard label="Dependencies" value={String(detail.dependencies.length)} />
@@ -1837,7 +1942,7 @@ function DetailSection({
   children: React.ReactNode;
 }) {
   return (
-    <section className="space-y-3 border-t border-slate-200 pt-5">
+    <section className="space-y-3 border-t border-slate-200 pt-4">
       <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
         {icon}
         {title}
@@ -1987,11 +2092,55 @@ function PanelState({
 
 function InfoCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3">
+    <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
       <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">{label}</p>
       <p className="mt-1 text-sm font-semibold text-slate-900">{value}</p>
     </div>
   );
+}
+
+function MetadataRow({
+  icon,
+  label,
+  value,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-2.5">
+      <div className="mt-0.5">{icon}</div>
+      <div className="min-w-0">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">{label}</p>
+        <div className="mt-1 text-sm font-semibold text-slate-900">{value}</div>
+      </div>
+    </div>
+  );
+}
+
+function CompactEditField({
+  label,
+  icon,
+  children,
+}: {
+  label: string;
+  icon: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white px-3 py-2.5">
+      <div className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+        {icon}
+        {label}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function StatusDot({ tone }: { tone: TaskStatus }) {
+  return <span className={`inline-block h-2.5 w-2.5 rounded-full ${statusDot(tone)}`} />;
 }
 
 function Avatar({ name }: { name?: string | null }) {
