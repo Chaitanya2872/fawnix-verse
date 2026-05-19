@@ -30,6 +30,7 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
       { value: PERMISSIONS.MODULE_INTEGRATIONS, label: "Integrations Module" },
       { value: PERMISSIONS.MODULE_ANALYTICS, label: "Analytics Module" },
       { value: PERMISSIONS.MODULE_NOTIFICATIONS, label: "Notifications Module" },
+      { value: PERMISSIONS.MODULE_TASKS, label: "Task Management Module" },
     ],
   },
   {
@@ -46,6 +47,7 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
       { value: PERMISSIONS.PAGE_ACCOUNTING, label: "Accounting" },
       { value: PERMISSIONS.PAGE_HRMS, label: "HRMS" },
       { value: PERMISSIONS.PAGE_REPORTS, label: "Reports" },
+      { value: PERMISSIONS.PAGE_TASKS, label: "Task Management" },
       { value: PERMISSIONS.PAGE_ADMIN_USERS, label: "Users" },
       { value: PERMISSIONS.PAGE_ADMIN_SETTINGS, label: "Settings / Integrations" },
     ],
@@ -54,24 +56,33 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
 
 export const ROLE_DEFAULT_PERMISSIONS: Record<UserRole, Permission[]> = {
   ROLE_MASTER: Object.values(PERMISSIONS),
-  ROLE_ADMIN: [],
+  ROLE_ADMIN: [
+    PERMISSIONS.MODULE_TASKS,
+    PERMISSIONS.PAGE_TASKS,
+  ],
   ROLE_REPORTING_MANAGER: [
     PERMISSIONS.MODULE_REPORTS,
     PERMISSIONS.PAGE_REPORTS,
+    PERMISSIONS.MODULE_TASKS,
+    PERMISSIONS.PAGE_TASKS,
   ],
   ROLE_SALES_MANAGER: [
     PERMISSIONS.MODULE_CRM,
     PERMISSIONS.MODULE_REPORTS,
+    PERMISSIONS.MODULE_TASKS,
     PERMISSIONS.PAGE_DASHBOARD,
     PERMISSIONS.PAGE_CRM_LEADS,
     PERMISSIONS.PAGE_CRM_PRESALES,
     PERMISSIONS.PAGE_REPORTS,
+    PERMISSIONS.PAGE_TASKS,
   ],
   ROLE_SALES_REP: [
     PERMISSIONS.MODULE_CRM,
+    PERMISSIONS.MODULE_TASKS,
     PERMISSIONS.PAGE_DASHBOARD,
     PERMISSIONS.PAGE_CRM_LEADS,
     PERMISSIONS.PAGE_CRM_PRESALES,
+    PERMISSIONS.PAGE_TASKS,
   ],
   ROLE_VIEWER: [
     PERMISSIONS.MODULE_REPORTS,

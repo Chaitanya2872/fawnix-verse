@@ -55,8 +55,13 @@ const ERP_NAV_SECTIONS: readonly SidebarNavSection[] = [
     heading: "Operations",
     items: [
       { label: "Inventory", to: "/inventory", icon: Boxes, permission: PERMISSIONS.PAGE_INVENTORY },
-      { label: "Tasks", to: "/tasks", icon: CheckSquare, permission: PERMISSIONS.PAGE_TASKS },
       { label: "Quotations", to: "/sales", icon: FileText, permission: PERMISSIONS.PAGE_SALES },
+    ],
+  },
+  {
+    heading: "Task Management",
+    items: [
+      { label: "Task Management", to: "/tasks", icon: CheckSquare, permission: PERMISSIONS.PAGE_TASKS },
     ],
   },
   {
