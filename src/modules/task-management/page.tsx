@@ -1,7 +1,7 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   CalendarDays,
@@ -29,6 +29,7 @@ import {
   X,
 } from "lucide-react";
 import { format, formatDistanceToNowStrict, parseISO } from "date-fns";
+import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import { useCurrentUser } from "@/modules/auth/hooks";
 import { hasPermission, PERMISSIONS } from "@/modules/auth/permissions";
@@ -652,9 +653,9 @@ export default function TaskManagementPage() {
   return (
     <>
       <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.15),_transparent_28%),linear-gradient(180deg,#f8fafc_0%,#eef2ff_100%)]">
-        <div className="mx-auto max-w-[1760px] px-3 py-3 sm:px-4 lg:px-5">
-          <div className="flex h-full min-h-[calc(100vh-24px)] flex-col gap-3">
-            <main className="flex min-h-0 flex-col rounded-[30px] border border-slate-200/80 bg-white/80 shadow-[0_20px_80px_rgba(15,23,42,0.08)] backdrop-blur">
+        <div className="mx-auto max-w-[1760px] px-4 py-4 sm:px-5 lg:px-6">
+          <div className="flex min-h-screen flex-col gap-4">
+            <main className="flex min-h-0 flex-col">
               <div className="border-b border-slate-200/80 px-4 py-4 sm:px-5">
                 <div className="flex flex-col gap-4">
                   <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
@@ -736,30 +737,24 @@ export default function TaskManagementPage() {
                           className="w-full rounded-2xl border border-slate-200 bg-white px-10 py-2.5 text-sm text-slate-700 outline-none transition focus:border-sky-400"
                         />
                       </label>
-                      <select
+                      <FloatingSelect
                         value={filter.status}
-                        onChange={(event) => setFilter((prev) => ({ ...prev, status: event.target.value }))}
-                        className="rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700"
-                      >
-                        <option value="">All statuses</option>
-                        {TASK_STATUSES.map((status) => (
-                          <option key={status} value={status}>
-                            {toLabel(status)}
-                          </option>
-                        ))}
-                      </select>
-                      <select
+                        onChange={(value) => setFilter((prev) => ({ ...prev, status: value }))}
+                        options={[
+                          { value: "", label: "All statuses" },
+                          ...TASK_STATUSES.map((status) => ({ value: status, label: toLabel(status) })),
+                        ]}
+                        className="min-w-[180px]"
+                      />
+                      <FloatingSelect
                         value={filter.priority}
-                        onChange={(event) => setFilter((prev) => ({ ...prev, priority: event.target.value }))}
-                        className="rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700"
-                      >
-                        <option value="">All priorities</option>
-                        {TASK_PRIORITIES.map((priority) => (
-                          <option key={priority} value={priority}>
-                            {toLabel(priority)}
-                          </option>
-                        ))}
-                      </select>
+                        onChange={(value) => setFilter((prev) => ({ ...prev, priority: value }))}
+                        options={[
+                          { value: "", label: "All priorities" },
+                          ...TASK_PRIORITIES.map((priority) => ({ value: priority, label: toLabel(priority) })),
+                        ]}
+                        className="min-w-[180px]"
+                      />
                       <button
                         type="button"
                         onClick={() =>
@@ -791,16 +786,17 @@ export default function TaskManagementPage() {
                           </button>
                         ))}
                       </div>
-                      <select
+                      <FloatingSelect
                         value={grouping}
-                        onChange={(event) => setGrouping(event.target.value as TaskGrouping)}
-                        className="rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700"
-                      >
-                        <option value="status">Group by status</option>
-                        <option value="priority">Group by priority</option>
-                        <option value="project">Group by project</option>
-                        <option value="module">Group by module</option>
-                      </select>
+                        onChange={(value) => setGrouping(value as TaskGrouping)}
+                        options={[
+                          { value: "status", label: "Group by status" },
+                          { value: "priority", label: "Group by priority" },
+                          { value: "project", label: "Group by project" },
+                          { value: "module", label: "Group by module" },
+                        ]}
+                        className="min-w-[210px]"
+                      />
                     </div>
                   </div>
 
@@ -1105,6 +1101,165 @@ function Drawer({
   );
 }
 
+type FloatingOption = {
+  value: string;
+  label: string;
+};
+
+function FloatingSelect({
+  value,
+  onChange,
+  options,
+  className = "",
+  triggerClassName = "",
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  options: FloatingOption[];
+  className?: string;
+  triggerClassName?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [highlightedIndex, setHighlightedIndex] = useState(0);
+  const [panelStyle, setPanelStyle] = useState<React.CSSProperties>({});
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const panelRef = useRef<HTMLDivElement | null>(null);
+
+  const selectedIndex = Math.max(
+    0,
+    options.findIndex((option) => option.value === value)
+  );
+  const selectedOption = options[selectedIndex] ?? options[0];
+
+  const updatePosition = React.useCallback(() => {
+    if (!triggerRef.current || typeof window === "undefined") return;
+    const rect = triggerRef.current.getBoundingClientRect();
+    const width = Math.max(rect.width, 176);
+    const left = Math.min(Math.max(16, rect.left), window.innerWidth - width - 16);
+    const top = Math.min(rect.bottom + 8, window.innerHeight - 24);
+    setPanelStyle({
+      position: "fixed",
+      top,
+      left,
+      width,
+      zIndex: 80,
+    });
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    updatePosition();
+    const handleViewport = () => updatePosition();
+    window.addEventListener("resize", handleViewport);
+    window.addEventListener("scroll", handleViewport, true);
+    return () => {
+      window.removeEventListener("resize", handleViewport);
+      window.removeEventListener("scroll", handleViewport, true);
+    };
+  }, [open, updatePosition]);
+
+  useEffect(() => {
+    if (!open) return;
+    setHighlightedIndex(selectedIndex);
+
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (triggerRef.current?.contains(target) || panelRef.current?.contains(target)) {
+        return;
+      }
+      setOpen(false);
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setOpen(false);
+        triggerRef.current?.focus();
+        return;
+      }
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        setHighlightedIndex((prev) => (prev + 1) % options.length);
+      }
+      if (event.key === "ArrowUp") {
+        event.preventDefault();
+        setHighlightedIndex((prev) => (prev - 1 + options.length) % options.length);
+      }
+      if (event.key === "Enter" && open) {
+        event.preventDefault();
+        const option = options[highlightedIndex];
+        if (option) {
+          onChange(option.value);
+          setOpen(false);
+        }
+      }
+    };
+
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [highlightedIndex, onChange, open, options, selectedIndex]);
+
+  return (
+    <div className={className}>
+      <button
+        ref={triggerRef}
+        type="button"
+        onClick={() => setOpen((prev) => !prev)}
+        className={`inline-flex w-full items-center justify-between gap-2 rounded-2xl border border-white/60 bg-white/75 px-3 py-2.5 text-left text-sm text-slate-700 shadow-[0_10px_24px_rgba(15,23,42,0.08)] backdrop-blur-md transition hover:border-slate-200 hover:bg-white/90 ${triggerClassName}`}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+      >
+        <span className="truncate">{selectedOption?.label ?? ""}</span>
+        <ChevronDown className={`h-4 w-4 flex-shrink-0 text-slate-400 transition ${open ? "rotate-180" : ""}`} />
+      </button>
+
+      {open && typeof document !== "undefined"
+        ? createPortal(
+            <div
+              ref={panelRef}
+              style={panelStyle}
+              className="overflow-hidden rounded-2xl border border-white/60 bg-white/78 shadow-[0_24px_60px_rgba(15,23,42,0.18)] backdrop-blur-xl ring-1 ring-slate-200/60"
+            >
+              <div className="max-h-72 overflow-y-auto p-1.5">
+                {options.map((option, index) => {
+                  const selected = option.value === value;
+                  const highlighted = index === highlightedIndex;
+                  return (
+                    <button
+                      key={`${option.value}-${option.label}`}
+                      type="button"
+                      onMouseEnter={() => setHighlightedIndex(index)}
+                      onClick={() => {
+                        onChange(option.value);
+                        setOpen(false);
+                      }}
+                      className={`flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-sm transition ${
+                        selected
+                          ? "bg-sky-500 text-white shadow-sm"
+                          : highlighted
+                            ? "bg-slate-100 text-slate-900"
+                            : "text-slate-700 hover:bg-slate-100"
+                      }`}
+                      role="option"
+                      aria-selected={selected}
+                    >
+                      <span className="truncate">{option.label}</span>
+                      {selected ? <CheckCircle2 className="h-4 w-4 flex-shrink-0" /> : null}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>,
+            document.body
+          )
+        : null}
+    </div>
+  );
+}
+
 function ViewSwitch({
   value,
   onChange,
@@ -1263,17 +1418,13 @@ function TaskRow({
         </div>
 
         {canUpdateExecution ? (
-          <select
+          <FloatingSelect
             value={task.status}
-            onChange={(event) => onStatusUpdate(task, event.target.value as TaskStatus, "Status updated.")}
-            className="rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-xs font-medium text-slate-700"
-          >
-            {TASK_STATUSES.map((status) => (
-              <option key={status} value={status}>
-                {toLabel(status)}
-              </option>
-            ))}
-          </select>
+            onChange={(value) => onStatusUpdate(task, value as TaskStatus, "Status updated.")}
+            options={TASK_STATUSES.map((status) => ({ value: status, label: toLabel(status) }))}
+            className="w-full min-w-[140px]"
+            triggerClassName="text-xs font-medium"
+          />
         ) : (
           <div className="text-xs font-medium text-slate-600">
             <span className={`rounded-full border px-2 py-1 ${statusTone(task.status)}`}>{toLabel(task.status)}</span>
@@ -1282,38 +1433,46 @@ function TaskRow({
 
         <div className="flex items-center gap-2">
           <Avatar name={task.assignedToName} />
-          <select
-            value={task.assignedToId ?? ""}
-            onChange={(event) => onAssign(task, event.target.value)}
-            className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-xs font-medium text-slate-700"
-          >
-            <option value="">Unassigned</option>
-            {users.map((user) => (
-              <option key={user.id} value={user.id}>
-                {user.name}
-              </option>
-            ))}
-          </select>
+          {canEditTask ? (
+            <FloatingSelect
+              value={task.assignedToId ?? ""}
+              onChange={(value) => onAssign(task, value)}
+              options={[
+                { value: "", label: "Unassigned" },
+                ...users.map((user) => ({ value: user.id, label: user.name })),
+              ]}
+              className="min-w-0 flex-1"
+              triggerClassName="text-xs font-medium"
+            />
+          ) : (
+            <span className="text-xs font-medium text-slate-700">{task.assignedToName || "Unassigned"}</span>
+          )}
         </div>
 
-        <input
-          type="date"
-          value={task.dueDate ?? ""}
-          onChange={(event) => onInlineUpdate(task, { dueDate: event.target.value || null }, "Due date updated.")}
-          className="rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-xs font-medium text-slate-700"
-        />
+        {canEditTask ? (
+          <input
+            type="date"
+            value={task.dueDate ?? ""}
+            onChange={(event) => onInlineUpdate(task, { dueDate: event.target.value || null }, "Due date updated.")}
+            className="rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-xs font-medium text-slate-700"
+          />
+        ) : (
+          <div className="text-xs font-medium text-slate-700">{formatDate(task.dueDate)}</div>
+        )}
 
-        <select
-          value={task.priority}
-          onChange={(event) => onInlineUpdate(task, { priority: event.target.value as TaskPriority }, "Priority updated.")}
-          className="rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-xs font-medium text-slate-700"
-        >
-          {TASK_PRIORITIES.map((priority) => (
-            <option key={priority} value={priority}>
-              {toLabel(priority)}
-            </option>
-          ))}
-        </select>
+        {canEditTask ? (
+          <FloatingSelect
+            value={task.priority}
+            onChange={(value) => onInlineUpdate(task, { priority: value as TaskPriority }, "Priority updated.")}
+            options={TASK_PRIORITIES.map((priority) => ({ value: priority, label: toLabel(priority) }))}
+            className="w-full min-w-[130px]"
+            triggerClassName="text-xs font-medium"
+          />
+        ) : (
+          <div className="text-xs font-medium text-slate-600">
+            <span className={`rounded-full border px-2 py-1 ${priorityTone(task.priority)}`}>{toLabel(task.priority)}</span>
+          </div>
+        )}
 
         <div className="text-xs text-slate-500">
           <p className="font-medium text-slate-700">{task.projectRef || "General"}</p>
@@ -1436,49 +1595,66 @@ function DetailPanel({
           </button>
         </div>
 
+        <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-slate-600">
+          <InlineMeta icon={<UserRound className="h-4 w-4 text-slate-400" />} value={detail.task.assignedToName || "Unassigned"} />
+          <InlineMeta icon={<CalendarDays className="h-4 w-4 text-slate-400" />} value={formatLongDate(detail.task.dueDate)} />
+          <InlineMeta icon={<Clock3 className="h-4 w-4 text-slate-400" />} value={`${detail.task.estimatedHours.toFixed(2)}h`} />
+          <InlineMeta icon={<TrendingUp className="h-4 w-4 text-slate-400" />} value={`${detail.task.progressPercent}%`} />
+          <InlineMeta
+            icon={<StatusDot tone={detail.task.status} />}
+            value={<span className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${statusTone(detail.task.status)}`}>{toLabel(detail.task.status)}</span>}
+          />
+          <InlineMeta
+            icon={<AlertTriangle className="h-4 w-4 text-slate-400" />}
+            value={<span className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${priorityTone(detail.task.priority)}`}>{toLabel(detail.task.priority)}</span>}
+          />
+          <InlineMeta icon={<Workflow className="h-4 w-4 text-slate-400" />} value={`${detail.subtasks.length} subtasks`} />
+        </div>
+
         <div className="mt-4 flex flex-wrap items-center gap-2">
-          <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${priorityTone(detail.task.priority)}`}>{toLabel(detail.task.priority)}</span>
-          <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${statusTone(detail.task.status)}`}>{toLabel(detail.task.status)}</span>
           {detail.task.parentTaskId ? (
             <button type="button" onClick={() => onPromote(detail.task)} className="rounded-full border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-700">
               Promote
             </button>
           ) : null}
-          <button
-            type="button"
-            onClick={() => setMetadataEditMode((prev) => !prev)}
-            className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-semibold ${
-              metadataEditMode ? "border-sky-200 bg-sky-50 text-sky-700" : "border-slate-200 text-slate-700"
-            }`}
-          >
-            <PencilLine className="h-3.5 w-3.5" />
-            {metadataEditMode ? "Done editing" : "Quick edit"}
-          </button>
-          <button type="button" onClick={() => onOpenEdit(detail.task)} className="rounded-full border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-700">
-            Edit task
-          </button>
+          {canUpdateExecution ? (
+            <button
+              type="button"
+              onClick={() => setMetadataEditMode((prev) => !prev)}
+              className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-semibold ${
+                metadataEditMode ? "border-sky-200 bg-sky-50 text-sky-700" : "border-slate-200 text-slate-700"
+              }`}
+            >
+              <PencilLine className="h-3.5 w-3.5" />
+              {metadataEditMode ? "Done editing" : "Quick edit"}
+            </button>
+          ) : null}
+          {canEditTask ? (
+            <button type="button" onClick={() => onOpenEdit(detail.task)} className="rounded-full border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-700">
+              Edit task
+            </button>
+          ) : null}
         </div>
       </div>
 
       <div className="flex-1 space-y-4 overflow-y-auto px-4 py-4">
         <section className="space-y-3">
-          <div className="grid gap-2 sm:grid-cols-2">
-            {metadataEditMode ? (
-              <>
+          {metadataEditMode ? (
+            <div className="flex flex-wrap gap-2 rounded-2xl border border-slate-200 bg-slate-50/80 p-2.5">
+              {canEditTask ? (
                 <CompactEditField label="Assignee" icon={<UserRound className="h-4 w-4 text-slate-400" />}>
-                  <select
+                  <FloatingSelect
                     value={detail.task.assignedToId ?? ""}
-                    onChange={(event) => onAssign(detail.task, event.target.value)}
-                    className="w-full rounded-xl border border-slate-200 px-2.5 py-2 text-sm"
-                  >
-                    <option value="">Unassigned</option>
-                    {users.map((user) => (
-                      <option key={user.id} value={user.id}>
-                        {user.name}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(value) => onAssign(detail.task, value)}
+                    options={[
+                      { value: "", label: "Unassigned" },
+                      ...users.map((user) => ({ value: user.id, label: user.name })),
+                    ]}
+                    className="w-full"
+                  />
                 </CompactEditField>
+              ) : null}
+              {canEditTask ? (
                 <CompactEditField label="Due Date" icon={<CalendarDays className="h-4 w-4 text-slate-400" />}>
                   <input
                     type="date"
@@ -1487,6 +1663,8 @@ function DetailPanel({
                     className="w-full rounded-xl border border-slate-200 px-2.5 py-2 text-sm"
                   />
                 </CompactEditField>
+              ) : null}
+              {canEditTask ? (
                 <CompactEditField label="Estimate" icon={<Clock3 className="h-4 w-4 text-slate-400" />}>
                   <input
                     type="number"
@@ -1497,54 +1675,22 @@ function DetailPanel({
                     className="w-full rounded-xl border border-slate-200 px-2.5 py-2 text-sm"
                   />
                 </CompactEditField>
+              ) : null}
+              {canUpdateExecution ? (
                 <CompactEditField label="Status" icon={<StatusDot tone={detail.task.status} />}>
-                  <select
+                  <FloatingSelect
                     value={detail.task.status}
-                    onChange={(event) => onInlineUpdate(detail.task, { status: event.target.value as TaskStatus }, "Status updated.")}
-                    className="w-full rounded-xl border border-slate-200 px-2.5 py-2 text-sm"
-                  >
-                    {TASK_STATUSES.map((status) => (
-                      <option key={status} value={status}>
-                        {toLabel(status)}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(value) => onStatusUpdate(detail.task, value as TaskStatus, "Status updated.")}
+                    options={TASK_STATUSES.map((status) => ({ value: status, label: toLabel(status) }))}
+                    className="w-full"
+                  />
                 </CompactEditField>
-              </>
-            ) : (
-              <>
-                <MetadataRow icon={<UserRound className="h-4 w-4 text-slate-400" />} label="Assignee" value={detail.task.assignedToName || "Unassigned"} />
-                <MetadataRow icon={<CalendarDays className="h-4 w-4 text-slate-400" />} label="Due Date" value={formatLongDate(detail.task.dueDate)} />
-                <MetadataRow icon={<Clock3 className="h-4 w-4 text-slate-400" />} label="Estimate" value={`${detail.task.estimatedHours.toFixed(2)}h`} />
-                <MetadataRow
-                  icon={<TrendingUp className="h-4 w-4 text-slate-400" />}
-                  label="Progress"
-                  value={
-                    <div className="flex items-center gap-2">
-                      <div className="h-1.5 w-20 overflow-hidden rounded-full bg-slate-100">
-                        <div className="h-full rounded-full bg-sky-500" style={{ width: `${detail.task.progressPercent}%` }} />
-                      </div>
-                      <span>{detail.task.progressPercent}%</span>
-                    </div>
-                  }
-                />
-                <MetadataRow
-                  icon={<StatusDot tone={detail.task.status} />}
-                  label="Status"
-                  value={<span className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${statusTone(detail.task.status)}`}>{toLabel(detail.task.status)}</span>}
-                />
-                <MetadataRow
-                  icon={<AlertTriangle className="h-4 w-4 text-slate-400" />}
-                  label="Priority"
-                  value={<span className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${priorityTone(detail.task.priority)}`}>{toLabel(detail.task.priority)}</span>}
-                />
-                <MetadataRow icon={<Workflow className="h-4 w-4 text-slate-400" />} label="Subtasks" value={`${detail.subtasks.length} nested items`} />
-              </>
-            )}
-          </div>
+              ) : null}
+            </div>
+          ) : null}
 
           {detail.task.description ? (
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm leading-6 text-slate-700">
+            <div className="rounded-2xl border border-slate-200 bg-slate-50/80 px-3 py-2.5 text-sm leading-6 text-slate-700">
               {detail.task.description}
             </div>
           ) : (
@@ -1560,27 +1706,30 @@ function DetailPanel({
               <button
                 key={item.id}
                 type="button"
-                onClick={() => onChecklistToggle(item)}
-                className={`flex w-full items-center gap-3 rounded-xl border px-3 py-2 text-left text-sm transition hover:border-slate-300 ${
+                onClick={() => canEditTask && onChecklistToggle(item)}
+                disabled={!canEditTask}
+                className={`flex w-full items-center gap-3 rounded-xl border px-3 py-2 text-left text-sm transition ${
                   item.completed ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-slate-200 bg-white text-slate-700"
-                }`}
+                } ${canEditTask ? "hover:border-slate-300" : "cursor-not-allowed opacity-70"}`}
               >
                 <CheckCircle2 className={`h-4 w-4 ${item.completed ? "fill-emerald-500 text-emerald-500" : "text-slate-300"}`} />
                 <span className={item.completed ? "line-through opacity-80" : ""}>{item.label}</span>
               </button>
             ))}
-            <div className="flex gap-2 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-2 py-2">
-              <input
-                value={checklistDraft}
-                onChange={(event) => setChecklistDraft(event.target.value)}
-                onKeyDown={(event) => event.key === "Enter" && onAddChecklistItem()}
-                placeholder="Add checklist item"
-                className="flex-1 bg-transparent px-1 text-sm outline-none"
-              />
-              <button type="button" onClick={onAddChecklistItem} className="rounded-xl bg-slate-900 px-3 py-2 text-sm font-semibold text-white">
-                Add
-              </button>
-            </div>
+            {canEditTask ? (
+              <div className="flex gap-2 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-2 py-2">
+                <input
+                  value={checklistDraft}
+                  onChange={(event) => setChecklistDraft(event.target.value)}
+                  onKeyDown={(event) => event.key === "Enter" && onAddChecklistItem()}
+                  placeholder="Add checklist item"
+                  className="flex-1 bg-transparent px-1 text-sm outline-none"
+                />
+                <button type="button" onClick={onAddChecklistItem} className="rounded-xl bg-slate-900 px-3 py-2 text-sm font-semibold text-white">
+                  Add
+                </button>
+              </div>
+            ) : null}
           </div>
         </DetailSection>
 
@@ -1595,48 +1744,59 @@ function DetailPanel({
               >
                 <button
                   type="button"
-                  onClick={() => onQuickCompleteSubtask(task)}
-                  className="mt-0.5 rounded-full p-0.5 text-emerald-500 transition hover:bg-emerald-100"
+                  onClick={() => canManageExecution(currentUser, task) && onQuickCompleteSubtask(task)}
+                  disabled={!canManageExecution(currentUser, task)}
+                  className={`mt-0.5 rounded-full p-0.5 transition ${
+                    canManageExecution(currentUser, task) ? "text-emerald-500 hover:bg-emerald-100" : "cursor-not-allowed text-slate-300"
+                  }`}
                   title={task.status === "COMPLETED" ? "Reopen subtask" : "Complete subtask"}
                 >
-                  <CheckCircle2 className={`h-5 w-5 ${task.status === "COMPLETED" ? "fill-emerald-500 text-emerald-500" : "text-emerald-500"}`} />
+                  <CheckCircle2 className={`h-5 w-5 ${task.status === "COMPLETED" ? "fill-emerald-500 text-emerald-500" : "text-current"}`} />
                 </button>
-                <button type="button" onClick={() => onOpenEdit(task)} className="min-w-0 flex-1 text-left">
+                <div className="min-w-0 flex-1">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className={`text-sm font-semibold ${task.status === "COMPLETED" ? "text-emerald-800 line-through" : "text-slate-900"}`}>{task.title}</p>
+                      {canOpenFullTaskEditor(currentUser, task) ? (
+                        <button type="button" onClick={() => onOpenEdit(task)} className="text-left">
+                          <p className={`text-sm font-semibold ${task.status === "COMPLETED" ? "text-emerald-800 line-through" : "text-slate-900"}`}>{task.title}</p>
+                        </button>
+                      ) : (
+                        <p className={`text-sm font-semibold ${task.status === "COMPLETED" ? "text-emerald-800 line-through" : "text-slate-900"}`}>{task.title}</p>
+                      )}
                       <p className="mt-1 text-xs text-slate-500">
                         {task.taskCode} · Level {task.hierarchyLevel} · {task.progressPercent}%
                       </p>
                     </div>
                     <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${statusTone(task.status)}`}>{toLabel(task.status)}</span>
                   </div>
-                </button>
+                </div>
               </div>
             ))}
-            <div className="flex gap-2">
-              <input
-                value={nestedDraft}
-                onChange={(event) => setNestedDraft(event.target.value)}
-                onKeyDown={(event) => event.key === "Enter" && onQuickSubtask(detail.task, nestedDraft)}
-                placeholder="Create nested subtask"
-                className="flex-1 rounded-2xl border border-slate-200 px-3 py-2.5 text-sm"
-              />
-              <button
-                type="button"
-                onClick={() => {
-                  onQuickSubtask(detail.task, nestedDraft);
-                  setNestedDraft("");
-                }}
-                className="rounded-2xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white"
-              >
-                Add
-              </button>
-            </div>
+            {canEditTask ? (
+              <div className="flex gap-2">
+                <input
+                  value={nestedDraft}
+                  onChange={(event) => setNestedDraft(event.target.value)}
+                  onKeyDown={(event) => event.key === "Enter" && onQuickSubtask(detail.task, nestedDraft)}
+                  placeholder="Create nested subtask"
+                  className="flex-1 rounded-2xl border border-slate-200 px-3 py-2.5 text-sm"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    onQuickSubtask(detail.task, nestedDraft);
+                    setNestedDraft("");
+                  }}
+                  className="rounded-2xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white"
+                >
+                  Add
+                </button>
+              </div>
+            ) : null}
           </div>
         </DetailSection>
 
-        <DetailSection title="Comments" icon={<MessageSquareText className="h-4 w-4 text-slate-500" />}>
+        <DetailSection title="Remarks" icon={<MessageSquareText className="h-4 w-4 text-slate-500" />}>
           <div className="space-y-3">
             {detail.comments.map((comment) => (
               <div key={comment.id} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
@@ -1650,18 +1810,22 @@ function DetailPanel({
                 <p className="mt-2 text-sm leading-6 text-slate-700">{comment.message}</p>
               </div>
             ))}
-            <textarea
-              value={commentDraft}
-              onChange={(event) => setCommentDraft(event.target.value)}
-              rows={3}
-              placeholder="Add progress notes, blockers, or decision context"
-              className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm"
-            />
-            <div className="flex justify-end">
-              <button type="button" onClick={onAddComment} className="rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white">
-                Post Comment
-              </button>
-            </div>
+            {canPostRemark ? (
+              <>
+                <textarea
+                  value={commentDraft}
+                  onChange={(event) => setCommentDraft(event.target.value)}
+                  rows={3}
+                  placeholder="Add progress notes, blockers, or handoff context"
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm"
+                />
+                <div className="flex justify-end">
+                  <button type="button" onClick={onAddComment} className="rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white">
+                    Add remark
+                  </button>
+                </div>
+              </>
+            ) : null}
           </div>
         </DetailSection>
 
@@ -1682,11 +1846,11 @@ function DetailPanel({
         </DetailSection>
 
         <DetailSection title="Attachments & Time" icon={<Clock3 className="h-4 w-4 text-slate-500" />}>
-          <div className="grid gap-2 md:grid-cols-2">
-            <InfoCard label="Attachments" value={String(detail.attachments.length)} />
-            <InfoCard label="Time logs" value={String(detail.timeLogs.length)} />
-            <InfoCard label="Dependencies" value={String(detail.dependencies.length)} />
-            <InfoCard label="Approval" value={toLabel(detail.task.approvalStatus)} />
+          <div className="flex flex-wrap gap-2 text-sm text-slate-600">
+            <InlineMeta icon={<FolderKanban className="h-4 w-4 text-slate-400" />} value={`${detail.attachments.length} attachments`} />
+            <InlineMeta icon={<Timer className="h-4 w-4 text-slate-400" />} value={`${detail.timeLogs.length} time logs`} />
+            <InlineMeta icon={<Workflow className="h-4 w-4 text-slate-400" />} value={`${detail.dependencies.length} dependencies`} />
+            <InlineMeta icon={<CheckCheck className="h-4 w-4 text-slate-400" />} value={toLabel(detail.task.approvalStatus)} />
           </div>
         </DetailSection>
       </div>
@@ -1750,18 +1914,15 @@ function TaskEditor({
         <SelectField label="Priority" value={form.priority} onChange={(value) => setForm((prev) => ({ ...prev, priority: value as TaskPriority }))} options={TASK_PRIORITIES} />
         <SelectField label="Visibility" value={form.visibility} onChange={(value) => setForm((prev) => ({ ...prev, visibility: value as TaskVisibility }))} options={TASK_VISIBILITIES} />
         <Field label="Assignee">
-          <select
+          <FloatingSelect
             value={form.assignedToId}
-            onChange={(event) => setForm((prev) => ({ ...prev, assignedToId: event.target.value }))}
-            className="w-full rounded-2xl border border-slate-200 px-3 py-2.5 text-sm"
-          >
-            <option value="">Unassigned</option>
-            {users.map((user) => (
-              <option key={user.id} value={user.id}>
-                {user.name}
-              </option>
-            ))}
-          </select>
+            onChange={(value) => setForm((prev) => ({ ...prev, assignedToId: value }))}
+            options={[
+              { value: "", label: "Unassigned" },
+              ...users.map((user) => ({ value: user.id, label: user.name })),
+            ]}
+            className="w-full"
+          />
         </Field>
         <Field label="Start date">
           <input type="date" value={form.startDate} onChange={(event) => setForm((prev) => ({ ...prev, startDate: event.target.value }))} className="w-full rounded-2xl border border-slate-200 px-3 py-2.5 text-sm" />
@@ -1819,13 +1980,12 @@ function SelectField({
 }) {
   return (
     <Field label={label}>
-      <select value={value} onChange={(event) => onChange(event.target.value)} className="w-full rounded-2xl border border-slate-200 px-3 py-2.5 text-sm">
-        {options.map((option) => (
-          <option key={option} value={option}>
-            {toLabel(option)}
-          </option>
-        ))}
-      </select>
+      <FloatingSelect
+        value={value}
+        onChange={onChange}
+        options={options.map((option) => ({ value: option, label: toLabel(option) }))}
+        className="w-full"
+      />
     </Field>
   );
 }
@@ -1861,22 +2021,11 @@ function InfoCard({ label, value }: { label: string; value: string }) {
   );
 }
 
-function MetadataRow({
-  icon,
-  label,
-  value,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: React.ReactNode;
-}) {
+function InlineMeta({ icon, value }: { icon: React.ReactNode; value: React.ReactNode }) {
   return (
-    <div className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-2.5">
-      <div className="mt-0.5">{icon}</div>
-      <div className="min-w-0">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">{label}</p>
-        <div className="mt-1 text-sm font-semibold text-slate-900">{value}</div>
-      </div>
+    <div className="inline-flex items-center gap-2">
+      <span className="flex-shrink-0">{icon}</span>
+      <span className="text-sm font-medium text-slate-700">{value}</span>
     </div>
   );
 }

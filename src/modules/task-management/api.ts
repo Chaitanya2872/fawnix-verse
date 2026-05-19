@@ -6,6 +6,7 @@ import type {
   TaskFilter,
   TaskListResponse,
   TaskRequest,
+  TaskStatus,
   TaskComment,
   TaskChecklistItem,
   TaskTimeLog,
@@ -115,7 +116,7 @@ export async function updateTask(id: string, payload: TaskRequest): Promise<Task
   }
 }
 
-export async function updateTaskStatus(id: string, status: string): Promise<TaskDetail> {
+export async function updateTaskStatus(id: string, status: TaskStatus): Promise<TaskDetail> {
   try {
     await ensureApiSession();
     const response = await api.put<TaskDetail>(`/tasks/${id}/status`, { status });

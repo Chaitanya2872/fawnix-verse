@@ -20,7 +20,7 @@ import {
   updateTask,
   updateTaskStatus,
 } from "./api";
-import type { TaskFilter, TaskRequest } from "./types";
+import type { TaskFilter, TaskRequest, TaskStatus } from "./types";
 
 export const taskKeys = {
   all: ["tasks"] as const,
@@ -102,7 +102,7 @@ export function useUpdateTask() {
 export function useUpdateTaskStatus() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, status }: { id: string; status: string }) => updateTaskStatus(id, status),
+    mutationFn: ({ id, status }: { id: string; status: TaskStatus }) => updateTaskStatus(id, status),
     onSuccess: (_, variables) => invalidateTasks(queryClient, variables.id),
   });
 }
