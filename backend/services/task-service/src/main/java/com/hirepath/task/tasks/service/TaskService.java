@@ -164,6 +164,7 @@ public class TaskService {
     TaskEntity task = requireTask(id);
     ensureEditAccess(user, task);
     validateTaskDates(request.startDate(), request.dueDate());
+    validateAssignee(request.assignedToId(), request.assignedToName());
 
     TaskStatus previousStatus = task.getStatus();
     TaskPriority previousPriority = task.getPriority();
@@ -182,10 +183,19 @@ public class TaskService {
     if (request.workflowName() != null) task.setWorkflowName(trimToNull(request.workflowName()));
     if (request.projectRef() != null) task.setProjectRef(trimToNull(request.projectRef()));
     if (request.moduleRef() != null) task.setModuleRef(trimToNull(request.moduleRef()));
-    if (request.assignedToId() != null) task.setAssignedToId(trimToNull(request.assignedToId()));
-    if (request.assignedToName() != null) task.setAssignedToName(trimToNull(request.assignedToName()));
-    if (request.assignedToEmail() != null) task.setAssignedToEmail(trimToNull(request.assignedToEmail()));
-    if (request.assignedTeamName() != null) task.setAssignedTeamName(trimToNull(request.assignedTeamName()));
+    if (request.assignedToId() != null || request.assignedToName() != null) {
+      if (StringUtils.hasText(request.assignedToId())) {
+        task.setAssignedToId(request.assignedToId().trim());
+        task.setAssignedToName(request.assignedToName().trim());
+        if (request.assignedToEmail() != null) task.setAssignedToEmail(trimToNull(request.assignedToEmail()));
+        if (request.assignedTeamName() != null) task.setAssignedTeamName(trimToNull(request.assignedTeamName()));
+      } else {
+        clearAssignee(task);
+      }
+    } else {
+      if (request.assignedToEmail() != null) task.setAssignedToEmail(trimToNull(request.assignedToEmail()));
+      if (request.assignedTeamName() != null) task.setAssignedTeamName(trimToNull(request.assignedTeamName()));
+    }
     if (request.approverId() != null) task.setApproverId(trimToNull(request.approverId()));
     if (request.approverName() != null) task.setApproverName(trimToNull(request.approverName()));
     if (request.estimatedHours() != null) task.setEstimatedHours(defaultBigDecimal(request.estimatedHours()));
@@ -442,6 +452,7 @@ public class TaskService {
 
   private TaskDtos.TaskDetailResponse createTaskInternal(TaskDtos.TaskRequest request, AppUserDetails user, String parentTaskId) {
     validateTaskDates(request.startDate(), request.dueDate());
+    validateAssignee(request.assignedToId(), request.assignedToName());
     Instant now = Instant.now();
     TaskEntity parent = parentTaskId == null ? null : requireTask(parentTaskId);
     if (parent != null) {
@@ -725,6 +736,7 @@ public class TaskService {
   }
 
   private void reassignInternal(TaskEntity task, AppUserDetails user, TaskDtos.AssignmentRequest request, boolean reassign) {
+    validateAssignee(request.assignedToId(), request.assignedToName());
     Instant now = Instant.now();
     if (Boolean.TRUE.equals(request.preventDuplicateActiveAssignments())) {
       assignmentRepository.findFirstByTask_IdAndActiveTrueOrderByAssignedAtDesc(task.getId())
@@ -777,6 +789,21 @@ public class TaskService {
     assignment.setActive(active);
     assignment.setAssignedAt(when);
     assignmentRepository.save(assignment);
+  }
+
+  private void validateAssignee(String assignedToId, String assignedToName) {
+    boolean hasId = StringUtils.hasText(assignedToId);
+    boolean hasName = StringUtils.hasText(assignedToName);
+    if (hasId != hasName) {
+      throw new BadRequestException("Assigned user id and name must be provided together.");
+    }
+  }
+
+  private void clearAssignee(TaskEntity task) {
+    task.setAssignedToId(null);
+    task.setAssignedToName(null);
+    task.setAssignedToEmail(null);
+    task.setAssignedTeamName(null);
   }
 
   private void syncChildCollections(TaskEntity task, TaskDtos.TaskRequest request, AppUserDetails user, Instant now) {
