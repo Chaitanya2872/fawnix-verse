@@ -7,4 +7,7 @@ import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 
 public interface TaskRepository extends JpaRepository<TaskEntity, String>, JpaSpecificationExecutor<TaskEntity> {
   Optional<TaskEntity> findTopByOrderByCreatedAtDesc();
+  java.util.List<TaskEntity> findByParentTaskIdOrderByOrderIndexAscCreatedAtAsc(String parentTaskId);
+  java.util.List<TaskEntity> findByParentTaskIdIsNullOrderByOrderIndexAscCreatedAtAsc();
+  boolean existsByParentTaskId(String parentTaskId);
 }

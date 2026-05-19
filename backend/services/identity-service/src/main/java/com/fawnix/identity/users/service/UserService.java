@@ -251,6 +251,10 @@ public class UserService {
   }
 
   private Set<String> normalizePermissions(List<String> requested, RoleName roleName) {
+    if (roleName == RoleName.ROLE_MASTER) {
+      return new LinkedHashSet<>(UserPermissionCatalog.ALL_PERMISSIONS);
+    }
+
     if (requested == null) {
       return UserPermissionCatalog.defaultsForRole(roleName);
     }

@@ -41,13 +41,20 @@ export type TaskSummary = {
   assignedToId: string | null;
   assignedToName: string | null;
   assignedTeamName: string | null;
+  parentTaskId: string | null;
+  hierarchyLevel: number;
+  taskPath: string;
+  orderIndex: number;
   estimatedHours: number;
   actualHours: number;
   tags: string[];
   checklistCompleted: number;
   checklistTotal: number;
+  childCount: number;
+  progressPercent: number;
   overdue: boolean;
   updatedAt: string;
+  subtasks: TaskSummary[];
 };
 
 export type TaskComment = {
@@ -127,6 +134,7 @@ export type TaskDetail = {
   assignments: TaskAssignmentHistory[];
   activity: TaskActivity[];
   timeLogs: TaskTimeLog[];
+  subtasks: TaskSummary[];
 };
 
 export type TaskDashboard = {
@@ -162,6 +170,10 @@ export type TaskListResponse = {
   page: number;
   pageSize: number;
   totalPages: number;
+};
+
+export type TaskTreeResponse = {
+  data: TaskSummary[];
 };
 
 export type TaskFilter = {
@@ -200,6 +212,8 @@ export type TaskRequest = {
   assignedTeamName?: string | null;
   approverId?: string | null;
   approverName?: string | null;
+  parentTaskId?: string | null;
+  orderIndex?: number | null;
   tags?: Array<{ name: string }>;
   attachments?: Array<{
     fileName: string;
@@ -211,6 +225,7 @@ export type TaskRequest = {
     taskId: string;
     taskCode?: string | null;
     title?: string | null;
+    relationshipType?: "DEPENDS_ON" | "RELATED_TO" | "BLOCKED_BY" | "WAITING_ON";
   }>;
   checklistItems?: Array<{ label: string }>;
 };

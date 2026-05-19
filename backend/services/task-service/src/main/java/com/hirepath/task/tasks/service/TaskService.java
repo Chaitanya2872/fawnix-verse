@@ -14,6 +14,7 @@ import com.hirepath.task.tasks.domain.TaskCommentEntity;
 import com.hirepath.task.tasks.domain.TaskDependencyEntity;
 import com.hirepath.task.tasks.domain.TaskEntity;
 import com.hirepath.task.tasks.domain.TaskPriority;
+import com.hirepath.task.tasks.domain.TaskRelationshipType;
 import com.hirepath.task.tasks.domain.TaskStatus;
 import com.hirepath.task.tasks.domain.TaskTagEntity;
 import com.hirepath.task.tasks.domain.TaskTimeLogEntity;
@@ -31,13 +32,20 @@ import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -57,6 +65,8 @@ public class TaskService {
       "ROLE_HIRING_MANAGER",
       "ROLE_TEAM_LEAD"
   );
+
+  private static final long ORDER_INCREMENT = 1024L;
 
   private final TaskRepository taskRepository;
   private final TaskCommentRepository commentRepository;
@@ -82,48 +92,13 @@ public class TaskService {
   }
 
   public TaskDtos.TaskDetailResponse createTask(TaskDtos.TaskRequest request, AppUserDetails user) {
-    validateTaskDates(request.startDate(), request.dueDate());
-    Instant now = Instant.now();
+    return createTaskInternal(request, user, request.parentTaskId());
+  }
 
-    TaskEntity task = new TaskEntity();
-    task.setId(UUID.randomUUID().toString());
-    task.setTaskCode(nextTaskCode());
-    task.setTitle(request.title().trim());
-    task.setDescription(trimToNull(request.description()));
-    task.setPriority(request.priority() == null ? TaskPriority.MEDIUM : request.priority());
-    task.setStatus(request.status() == null ? TaskStatus.PENDING : request.status());
-    task.setApprovalRequired(Boolean.TRUE.equals(request.approvalRequired()));
-    task.setApprovalStatus(resolveApprovalStatus(request, false, TaskApprovalStatus.NOT_REQUIRED));
-    task.setVisibility(request.visibility() == null ? TaskVisibility.TEAM : request.visibility());
-    task.setWorkflowName(trimToNull(request.workflowName()));
-    task.setProjectRef(trimToNull(request.projectRef()));
-    task.setModuleRef(trimToNull(request.moduleRef()));
-    task.setAssignedById(user.getUserId());
-    task.setAssignedByName(user.getFullName());
-    task.setAssignedToId(trimToNull(request.assignedToId()));
-    task.setAssignedToName(trimToNull(request.assignedToName()));
-    task.setAssignedToEmail(trimToNull(request.assignedToEmail()));
-    task.setAssignedTeamName(trimToNull(request.assignedTeamName()));
-    task.setApproverId(trimToNull(request.approverId()));
-    task.setApproverName(trimToNull(request.approverName()));
-    task.setCreatedById(user.getUserId());
-    task.setCreatedByName(user.getFullName());
-    task.setEstimatedHours(defaultBigDecimal(request.estimatedHours()));
-    task.setActualHours(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP));
-    task.setReminderMinutesBefore(request.reminderMinutesBefore());
-    task.setStartDate(request.startDate());
-    task.setDueDate(request.dueDate());
-    task.setCompletionDate(resolveCompletionDate(task.getStatus(), null));
-    task.setCreatedAt(now);
-    task.setUpdatedAt(now);
-    syncChildCollections(task, request, user, now);
-
-    taskRepository.save(task);
-    if (StringUtils.hasText(task.getAssignedToId())) {
-      saveAssignment(task, user, task.getAssignedToId(), task.getAssignedToName(), task.getAssignedToEmail(), task.getAssignedTeamName(), true, now);
-    }
-    logActivity(task, TaskActivityType.CREATED, user, "Task created.");
-    return getTask(task.getId(), user);
+  public TaskDtos.TaskDetailResponse addSubtask(String taskId, TaskDtos.TaskRequest request, AppUserDetails user) {
+    TaskEntity parent = requireTask(taskId);
+    ensureViewAccess(user, parent);
+    return createTaskInternal(request, user, parent.getId());
   }
 
   public TaskDtos.TaskListResponse listTasks(
@@ -141,30 +116,48 @@ public class TaskService {
       int pageSize,
       AppUserDetails user
   ) {
+    List<TaskEntity> visible = filteredVisibleTasks(search, status, priority, scope, assigneeId, projectRef, moduleRef, approvalStatus, overdue, dueToday, user);
+    TreeContext context = buildTreeContext(visible);
+    List<TaskDtos.TaskSummaryResponse> flattened = flattenSummaries(context, null);
+
     int normalizedPage = Math.max(page, 1);
     int normalizedSize = Math.max(1, Math.min(pageSize, 100));
+    int fromIndex = Math.min((normalizedPage - 1) * normalizedSize, flattened.size());
+    int toIndex = Math.min(fromIndex + normalizedSize, flattened.size());
+    int totalPages = flattened.isEmpty() ? 1 : (int) Math.ceil((double) flattened.size() / normalizedSize);
+    return new TaskDtos.TaskListResponse(flattened.subList(fromIndex, toIndex), flattened.size(), normalizedPage, normalizedSize, totalPages);
+  }
 
-    Predicate<TaskEntity> predicate = buildPredicate(search, status, priority, scope, assigneeId, projectRef, moduleRef, approvalStatus, overdue, dueToday, user);
-    List<TaskEntity> visible = taskRepository.findAll().stream()
-        .filter(task -> canView(user, task))
-        .filter(predicate)
-        .sorted(Comparator.comparing(TaskEntity::getUpdatedAt).reversed())
-        .toList();
+  public TaskDtos.TaskTreeResponse treeTasks(
+      String search,
+      String status,
+      String priority,
+      String scope,
+      String assigneeId,
+      String projectRef,
+      String moduleRef,
+      String approvalStatus,
+      Boolean overdue,
+      Boolean dueToday,
+      AppUserDetails user
+  ) {
+    List<TaskEntity> visible = filteredVisibleTasks(search, status, priority, scope, assigneeId, projectRef, moduleRef, approvalStatus, overdue, dueToday, user);
+    TreeContext context = buildTreeContext(visible);
+    return new TaskDtos.TaskTreeResponse(buildSummaries(context, null));
+  }
 
-    int fromIndex = Math.min((normalizedPage - 1) * normalizedSize, visible.size());
-    int toIndex = Math.min(fromIndex + normalizedSize, visible.size());
-    List<TaskDtos.TaskSummaryResponse> data = visible.subList(fromIndex, toIndex).stream()
-        .map(this::toSummary)
-        .toList();
-
-    int totalPages = visible.isEmpty() ? 1 : (int) Math.ceil((double) visible.size() / normalizedSize);
-    return new TaskDtos.TaskListResponse(data, visible.size(), normalizedPage, normalizedSize, totalPages);
+  public TaskDtos.TaskTreeResponse getSubtasks(String id, AppUserDetails user) {
+    TaskEntity task = requireTask(id);
+    ensureViewAccess(user, task);
+    List<TaskEntity> visible = visibleTasks(user);
+    TreeContext context = buildTreeContext(visible);
+    return new TaskDtos.TaskTreeResponse(buildSummaries(context, id));
   }
 
   public TaskDtos.TaskDetailResponse getTask(String id, AppUserDetails user) {
     TaskEntity task = requireTask(id);
     ensureViewAccess(user, task);
-    return toDetail(task);
+    return toDetail(task, buildTreeContext(visibleTasks(user)));
   }
 
   public TaskDtos.TaskDetailResponse updateTask(String id, TaskDtos.TaskRequest request, AppUserDetails user) {
@@ -175,6 +168,7 @@ public class TaskService {
     TaskStatus previousStatus = task.getStatus();
     TaskPriority previousPriority = task.getPriority();
     String previousAssignee = task.getAssignedToId();
+    String previousParent = task.getParentTaskId();
 
     task.setTitle(request.title().trim());
     if (request.description() != null) task.setDescription(trimToNull(request.description()));
@@ -201,13 +195,25 @@ public class TaskService {
     task.setCompletionDate(resolveCompletionDate(task.getStatus(), task.getCompletionDate()));
     task.setUpdatedAt(Instant.now());
     syncChildCollections(task, request, user, Instant.now());
+
+    if (request.parentTaskId() != null && !Objects.equals(previousParent, trimToNull(request.parentTaskId()))) {
+      reparent(task, trimToNull(request.parentTaskId()));
+    }
+    if (request.orderIndex() != null) {
+      task.setOrderIndex(request.orderIndex());
+    }
+
     taskRepository.save(task);
+    refreshHierarchyMetadata(task);
 
     if (previousStatus != task.getStatus()) {
       logActivity(task, TaskActivityType.STATUS_CHANGED, user, "Status changed to " + readable(task.getStatus().name()) + ".");
     }
     if (previousPriority != task.getPriority()) {
       logActivity(task, TaskActivityType.PRIORITY_CHANGED, user, "Priority changed to " + readable(task.getPriority().name()) + ".");
+    }
+    if (!Objects.equals(previousParent, task.getParentTaskId())) {
+      logActivity(task, TaskActivityType.UPDATED, user, task.getParentTaskId() == null ? "Converted item to top-level task." : "Converted item into nested subtask.");
     }
     if (!equalsNullable(previousAssignee, task.getAssignedToId()) && StringUtils.hasText(task.getAssignedToId())) {
       reassignInternal(task, user, new TaskDtos.AssignmentRequest(
@@ -221,6 +227,18 @@ public class TaskService {
       logActivity(task, TaskActivityType.UPDATED, user, "Task updated.");
     }
 
+    return getTask(id, user);
+  }
+
+  public TaskDtos.TaskDetailResponse reorderHierarchy(String id, TaskDtos.ReorderHierarchyRequest request, AppUserDetails user) {
+    TaskEntity task = requireTask(id);
+    ensureEditAccess(user, task);
+    reparent(task, trimToNull(request.parentTaskId()));
+    task.setOrderIndex(request.orderIndex() == null ? nextOrderIndex(task.getParentTaskId()) : request.orderIndex());
+    task.setUpdatedAt(Instant.now());
+    taskRepository.save(task);
+    refreshHierarchyMetadata(task);
+    logActivity(task, TaskActivityType.UPDATED, user, "Hierarchy reordered.");
     return getTask(id, user);
   }
 
@@ -353,7 +371,7 @@ public class TaskService {
 
   public TaskDtos.DashboardResponse dashboard(AppUserDetails user) {
     LocalDate today = LocalDate.now();
-    List<TaskEntity> tasks = taskRepository.findAll().stream().filter(task -> canView(user, task)).toList();
+    List<TaskEntity> tasks = visibleTasks(user);
 
     Map<String, Long> kpis = new LinkedHashMap<>();
     kpis.put("totalTasks", (long) tasks.size());
@@ -374,6 +392,7 @@ public class TaskService {
         .map(this::toActivity)
         .toList();
 
+    TreeContext context = buildTreeContext(tasks);
     List<TaskDtos.UpcomingDeadlineResponse> upcomingDeadlines = tasks.stream()
         .filter(task -> task.getDueDate() != null && task.getStatus() != TaskStatus.COMPLETED && task.getStatus() != TaskStatus.CANCELLED)
         .sorted(Comparator.comparing(TaskEntity::getDueDate))
@@ -415,10 +434,280 @@ public class TaskService {
 
     TaskDtos.AssignedCompletedMetricsResponse metrics = new TaskDtos.AssignedCompletedMetricsResponse(
         tasks.stream().filter(task -> StringUtils.hasText(task.getAssignedToId())).count(),
-        tasks.stream().filter(task -> task.getStatus() == TaskStatus.COMPLETED).count()
+        tasks.stream().filter(task -> progressPercent(task, context) == 100).count()
     );
 
     return new TaskDtos.DashboardResponse(kpis, distribution, recentActivity, upcomingDeadlines, workload, metrics);
+  }
+
+  private TaskDtos.TaskDetailResponse createTaskInternal(TaskDtos.TaskRequest request, AppUserDetails user, String parentTaskId) {
+    validateTaskDates(request.startDate(), request.dueDate());
+    Instant now = Instant.now();
+    TaskEntity parent = parentTaskId == null ? null : requireTask(parentTaskId);
+    if (parent != null) {
+      ensureViewAccess(user, parent);
+    }
+
+    TaskEntity task = new TaskEntity();
+    task.setId(UUID.randomUUID().toString());
+    task.setTaskCode(nextTaskCode());
+    task.setTitle(request.title().trim());
+    task.setDescription(trimToNull(request.description()));
+    task.setPriority(request.priority() == null ? TaskPriority.MEDIUM : request.priority());
+    task.setStatus(request.status() == null ? TaskStatus.PENDING : request.status());
+    task.setApprovalRequired(Boolean.TRUE.equals(request.approvalRequired()));
+    task.setApprovalStatus(resolveApprovalStatus(request, false, TaskApprovalStatus.NOT_REQUIRED));
+    task.setVisibility(request.visibility() == null ? (parent == null ? TaskVisibility.TEAM : parent.getVisibility()) : request.visibility());
+    task.setWorkflowName(trimToNull(firstNonBlank(request.workflowName(), parent == null ? null : parent.getWorkflowName())));
+    task.setProjectRef(trimToNull(firstNonBlank(request.projectRef(), parent == null ? null : parent.getProjectRef())));
+    task.setModuleRef(trimToNull(firstNonBlank(request.moduleRef(), parent == null ? null : parent.getModuleRef())));
+    task.setParentTaskId(parent == null ? null : parent.getId());
+    task.setAssignedById(user.getUserId());
+    task.setAssignedByName(user.getFullName());
+    task.setAssignedToId(trimToNull(request.assignedToId()));
+    task.setAssignedToName(trimToNull(request.assignedToName()));
+    task.setAssignedToEmail(trimToNull(request.assignedToEmail()));
+    task.setAssignedTeamName(trimToNull(request.assignedTeamName()));
+    task.setApproverId(trimToNull(request.approverId()));
+    task.setApproverName(trimToNull(request.approverName()));
+    task.setCreatedById(user.getUserId());
+    task.setCreatedByName(user.getFullName());
+    task.setEstimatedHours(defaultBigDecimal(request.estimatedHours()));
+    task.setActualHours(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP));
+    task.setReminderMinutesBefore(request.reminderMinutesBefore());
+    task.setStartDate(request.startDate());
+    task.setDueDate(request.dueDate());
+    task.setCompletionDate(resolveCompletionDate(task.getStatus(), null));
+    task.setHierarchyLevel(parent == null ? 0 : parent.getHierarchyLevel() + 1);
+    task.setTaskPath(parent == null ? task.getId() : parent.getTaskPath() + "/" + task.getId());
+    task.setOrderIndex(request.orderIndex() == null ? nextOrderIndex(task.getParentTaskId()) : request.orderIndex());
+    task.setCreatedAt(now);
+    task.setUpdatedAt(now);
+    syncChildCollections(task, request, user, now);
+
+    taskRepository.save(task);
+    if (StringUtils.hasText(task.getAssignedToId())) {
+      saveAssignment(task, user, task.getAssignedToId(), task.getAssignedToName(), task.getAssignedToEmail(), task.getAssignedTeamName(), true, now);
+    }
+    logActivity(task, TaskActivityType.CREATED, user, parent == null ? "Task created." : "Subtask created.");
+    refreshHierarchyMetadata(task);
+    return getTask(task.getId(), user);
+  }
+
+  private List<TaskEntity> visibleTasks(AppUserDetails user) {
+    return taskRepository.findAll().stream()
+        .filter(task -> canView(user, task))
+        .toList();
+  }
+
+  private List<TaskEntity> filteredVisibleTasks(
+      String search,
+      String status,
+      String priority,
+      String scope,
+      String assigneeId,
+      String projectRef,
+      String moduleRef,
+      String approvalStatus,
+      Boolean overdue,
+      Boolean dueToday,
+      AppUserDetails user
+  ) {
+    List<TaskEntity> visible = visibleTasks(user);
+    if (!StringUtils.hasText(search)
+        && !StringUtils.hasText(status)
+        && !StringUtils.hasText(priority)
+        && !StringUtils.hasText(scope)
+        && !StringUtils.hasText(assigneeId)
+        && !StringUtils.hasText(projectRef)
+        && !StringUtils.hasText(moduleRef)
+        && !StringUtils.hasText(approvalStatus)
+        && !Boolean.TRUE.equals(overdue)
+        && !Boolean.TRUE.equals(dueToday)) {
+      return sortHierarchically(visible);
+    }
+
+    Predicate<TaskEntity> predicate = buildPredicate(search, status, priority, scope, assigneeId, projectRef, moduleRef, approvalStatus, overdue, dueToday, user);
+    Set<String> includedIds = new LinkedHashSet<>();
+    Map<String, TaskEntity> byId = visible.stream().collect(Collectors.toMap(TaskEntity::getId, task -> task));
+    for (TaskEntity task : visible) {
+      if (!predicate.test(task)) {
+        continue;
+      }
+      TaskEntity cursor = task;
+      while (cursor != null) {
+        includedIds.add(cursor.getId());
+        cursor = cursor.getParentTaskId() == null ? null : byId.get(cursor.getParentTaskId());
+      }
+    }
+    return sortHierarchically(visible.stream().filter(task -> includedIds.contains(task.getId())).toList());
+  }
+
+  private List<TaskEntity> sortHierarchically(Collection<TaskEntity> tasks) {
+    TreeContext context = buildTreeContext(tasks);
+    List<TaskEntity> flattened = new ArrayList<>();
+    flattenEntities(context, null, flattened);
+    return flattened;
+  }
+
+  private void flattenEntities(TreeContext context, String parentTaskId, List<TaskEntity> collector) {
+    for (TaskEntity task : context.childrenByParent().getOrDefault(parentTaskId, List.of())) {
+      collector.add(task);
+      flattenEntities(context, task.getId(), collector);
+    }
+  }
+
+  private TreeContext buildTreeContext(Collection<TaskEntity> tasks) {
+    Map<String, TaskEntity> byId = tasks.stream().collect(Collectors.toMap(TaskEntity::getId, task -> task));
+    Map<String, List<TaskEntity>> childrenByParent = new LinkedHashMap<>();
+    for (TaskEntity task : tasks) {
+      String parentId = byId.containsKey(task.getParentTaskId()) ? task.getParentTaskId() : null;
+      childrenByParent.computeIfAbsent(parentId, key -> new ArrayList<>()).add(task);
+    }
+    childrenByParent.values().forEach(list -> list.sort(Comparator
+        .comparingLong(TaskEntity::getOrderIndex)
+        .thenComparing(TaskEntity::getCreatedAt)));
+    return new TreeContext(byId, childrenByParent, new HashMap<>());
+  }
+
+  private List<TaskDtos.TaskSummaryResponse> flattenSummaries(TreeContext context, String parentTaskId) {
+    List<TaskDtos.TaskSummaryResponse> flattened = new ArrayList<>();
+    for (TaskDtos.TaskSummaryResponse summary : buildSummaries(context, parentTaskId)) {
+      flattened.add(summary);
+      flattened.addAll(flattenSummaryChildren(summary.subtasks()));
+    }
+    return flattened;
+  }
+
+  private List<TaskDtos.TaskSummaryResponse> flattenSummaryChildren(List<TaskDtos.TaskSummaryResponse> subtasks) {
+    List<TaskDtos.TaskSummaryResponse> flattened = new ArrayList<>();
+    for (TaskDtos.TaskSummaryResponse summary : subtasks) {
+      flattened.add(summary);
+      flattened.addAll(flattenSummaryChildren(summary.subtasks()));
+    }
+    return flattened;
+  }
+
+  private List<TaskDtos.TaskSummaryResponse> buildSummaries(TreeContext context, String parentTaskId) {
+    return context.childrenByParent().getOrDefault(parentTaskId, List.of()).stream()
+        .map(task -> toSummary(task, context))
+        .toList();
+  }
+
+  private TaskDtos.TaskDetailResponse toDetail(TaskEntity task, TreeContext context) {
+    List<TaskDtos.CommentResponse> comments = commentRepository.findByTask_IdOrderByCreatedAtAsc(task.getId()).stream().map(this::toComment).toList();
+    List<TaskDtos.ChecklistItemResponse> checklist = checklistRepository.findByTask_IdOrderByCreatedAtAsc(task.getId()).stream().map(this::toChecklist).toList();
+    List<TaskDtos.AssignmentHistoryResponse> assignments = assignmentRepository.findByTask_IdOrderByAssignedAtDesc(task.getId()).stream().map(this::toAssignment).toList();
+    List<TaskDtos.ActivityResponse> activity = activityRepository.findByTask_IdOrderByCreatedAtAsc(task.getId()).stream().map(this::toActivity).toList();
+    List<TaskDtos.TimeLogResponse> timeLogs = timeLogRepository.findByTask_IdOrderByStartedAtDesc(task.getId()).stream().map(this::toTimeLog).toList();
+    return new TaskDtos.TaskDetailResponse(
+        toSummary(task, context),
+        comments,
+        checklist,
+        task.getAttachments().stream().map(this::toAttachment).toList(),
+        task.getDependencies().stream().map(this::toDependency).toList(),
+        assignments,
+        activity,
+        timeLogs,
+        buildSummaries(context, task.getId())
+    );
+  }
+
+  private TaskDtos.TaskSummaryResponse toSummary(TaskEntity task, TreeContext context) {
+    int checklistTotal = task.getChecklistItems().size();
+    int checklistCompleted = (int) task.getChecklistItems().stream().filter(TaskChecklistItemEntity::isCompleted).count();
+    List<TaskDtos.TaskSummaryResponse> subtasks = buildSummaries(context, task.getId());
+    return new TaskDtos.TaskSummaryResponse(
+        task.getId(),
+        task.getTaskCode(),
+        task.getTitle(),
+        task.getDescription(),
+        task.getPriority(),
+        task.getStatus(),
+        task.getApprovalStatus(),
+        task.getVisibility(),
+        task.getStartDate(),
+        task.getDueDate(),
+        task.getCompletionDate(),
+        task.getProjectRef(),
+        task.getModuleRef(),
+        task.getAssignedToId(),
+        task.getAssignedToName(),
+        task.getAssignedTeamName(),
+        task.getParentTaskId(),
+        task.getHierarchyLevel(),
+        task.getTaskPath(),
+        task.getOrderIndex(),
+        task.getEstimatedHours(),
+        task.getActualHours(),
+        task.getTags().stream().map(TaskTagEntity::getName).toList(),
+        checklistCompleted,
+        checklistTotal,
+        subtasks.size(),
+        progressPercent(task, context),
+        isOverdue(task),
+        task.getUpdatedAt(),
+        subtasks
+    );
+  }
+
+  private int progressPercent(TaskEntity task, TreeContext context) {
+    Integer cached = context.progressMemo().get(task.getId());
+    if (cached != null) {
+      return cached;
+    }
+    List<TaskEntity> children = context.childrenByParent().getOrDefault(task.getId(), List.of());
+    int progress;
+    if (!children.isEmpty()) {
+      int total = children.stream().mapToInt(child -> progressPercent(child, context)).sum();
+      progress = Math.round((float) total / children.size());
+    } else if (!task.getChecklistItems().isEmpty()) {
+      long completed = task.getChecklistItems().stream().filter(TaskChecklistItemEntity::isCompleted).count();
+      progress = (int) Math.round((completed * 100.0) / task.getChecklistItems().size());
+    } else {
+      progress = task.getStatus() == TaskStatus.COMPLETED ? 100 : task.getStatus() == TaskStatus.IN_PROGRESS ? 60 : task.getStatus() == TaskStatus.UNDER_REVIEW ? 85 : 0;
+    }
+    context.progressMemo().put(task.getId(), progress);
+    return progress;
+  }
+
+  private TaskDtos.CommentResponse toComment(TaskCommentEntity comment) {
+    return new TaskDtos.CommentResponse(comment.getId(), comment.getAuthorId(), comment.getAuthorName(), comment.getMessage(), comment.getCreatedAt());
+  }
+
+  private TaskDtos.ChecklistItemResponse toChecklist(TaskChecklistItemEntity item) {
+    return new TaskDtos.ChecklistItemResponse(item.getId(), item.getLabel(), item.isCompleted(), item.getCompletedById(), item.getCompletedByName(), item.getCreatedAt(), item.getUpdatedAt());
+  }
+
+  private TaskDtos.AttachmentResponse toAttachment(TaskAttachmentEntity attachment) {
+    return new TaskDtos.AttachmentResponse(attachment.getId(), attachment.getFileName(), attachment.getFileUrl(), attachment.getContentType(), attachment.getFileSize(), attachment.getUploadedByName(), attachment.getCreatedAt());
+  }
+
+  private TaskDtos.DependencyResponse toDependency(TaskDependencyEntity dependency) {
+    return new TaskDtos.DependencyResponse(dependency.getId(), dependency.getDependsOnTaskId(), dependency.getDependsOnTaskCode(), dependency.getDependsOnTitle(), dependency.getRelationshipType());
+  }
+
+  private TaskDtos.AssignmentHistoryResponse toAssignment(TaskAssignmentEntity assignment) {
+    return new TaskDtos.AssignmentHistoryResponse(
+        assignment.getId(),
+        assignment.getAssignedById(),
+        assignment.getAssignedByName(),
+        assignment.getAssignedToId(),
+        assignment.getAssignedToName(),
+        assignment.getAssignedToEmail(),
+        assignment.getAssignedTeamName(),
+        assignment.isActive(),
+        assignment.getAssignedAt(),
+        assignment.getEndedAt()
+    );
+  }
+
+  private TaskDtos.ActivityResponse toActivity(TaskActivityLogEntity activity) {
+    return new TaskDtos.ActivityResponse(activity.getId(), activity.getActivityType(), activity.getActorId(), activity.getActorName(), activity.getMessage(), activity.getCreatedAt());
+  }
+
+  private TaskDtos.TimeLogResponse toTimeLog(TaskTimeLogEntity log) {
+    return new TaskDtos.TimeLogResponse(log.getId(), log.getUserId(), log.getUserName(), log.getStartedAt(), log.getEndedAt(), log.getDurationHours(), log.getNote(), log.getCreatedAt());
   }
 
   private TaskTimeLogEntity createManualTimeLog(TaskEntity task, TaskDtos.StopTimerRequest request, AppUserDetails user) {
@@ -533,6 +822,7 @@ public class TaskService {
             entity.setDependsOnTaskId(dep.taskId().trim());
             entity.setDependsOnTaskCode(trimToNull(dep.taskCode()));
             entity.setDependsOnTitle(trimToNull(dep.title()));
+            entity.setRelationshipType(dep.relationshipType() == null ? TaskRelationshipType.DEPENDS_ON : dep.relationshipType());
             entity.setCreatedAt(now);
             task.getDependencies().add(entity);
           });
@@ -555,97 +845,10 @@ public class TaskService {
     }
   }
 
-  private TaskDtos.TaskDetailResponse toDetail(TaskEntity task) {
-    List<TaskDtos.CommentResponse> comments = commentRepository.findByTask_IdOrderByCreatedAtAsc(task.getId()).stream().map(this::toComment).toList();
-    List<TaskDtos.ChecklistItemResponse> checklist = checklistRepository.findByTask_IdOrderByCreatedAtAsc(task.getId()).stream().map(this::toChecklist).toList();
-    List<TaskDtos.AssignmentHistoryResponse> assignments = assignmentRepository.findByTask_IdOrderByAssignedAtDesc(task.getId()).stream().map(this::toAssignment).toList();
-    List<TaskDtos.ActivityResponse> activity = activityRepository.findByTask_IdOrderByCreatedAtAsc(task.getId()).stream().map(this::toActivity).toList();
-    List<TaskDtos.TimeLogResponse> timeLogs = timeLogRepository.findByTask_IdOrderByStartedAtDesc(task.getId()).stream().map(this::toTimeLog).toList();
-    return new TaskDtos.TaskDetailResponse(
-        toSummary(task),
-        comments,
-        checklist,
-        task.getAttachments().stream().map(this::toAttachment).toList(),
-        task.getDependencies().stream().map(this::toDependency).toList(),
-        assignments,
-        activity,
-        timeLogs
-    );
-  }
-
-  private TaskDtos.TaskSummaryResponse toSummary(TaskEntity task) {
-    int checklistTotal = task.getChecklistItems().size();
-    int checklistCompleted = (int) task.getChecklistItems().stream().filter(TaskChecklistItemEntity::isCompleted).count();
-    return new TaskDtos.TaskSummaryResponse(
-        task.getId(),
-        task.getTaskCode(),
-        task.getTitle(),
-        task.getDescription(),
-        task.getPriority(),
-        task.getStatus(),
-        task.getApprovalStatus(),
-        task.getVisibility(),
-        task.getStartDate(),
-        task.getDueDate(),
-        task.getCompletionDate(),
-        task.getProjectRef(),
-        task.getModuleRef(),
-        task.getAssignedToId(),
-        task.getAssignedToName(),
-        task.getAssignedTeamName(),
-        task.getEstimatedHours(),
-        task.getActualHours(),
-        task.getTags().stream().map(TaskTagEntity::getName).toList(),
-        checklistCompleted,
-        checklistTotal,
-        isOverdue(task),
-        task.getUpdatedAt()
-    );
-  }
-
-  private TaskDtos.CommentResponse toComment(TaskCommentEntity comment) {
-    return new TaskDtos.CommentResponse(comment.getId(), comment.getAuthorId(), comment.getAuthorName(), comment.getMessage(), comment.getCreatedAt());
-  }
-
-  private TaskDtos.ChecklistItemResponse toChecklist(TaskChecklistItemEntity item) {
-    return new TaskDtos.ChecklistItemResponse(item.getId(), item.getLabel(), item.isCompleted(), item.getCompletedById(), item.getCompletedByName(), item.getCreatedAt(), item.getUpdatedAt());
-  }
-
-  private TaskDtos.AttachmentResponse toAttachment(TaskAttachmentEntity attachment) {
-    return new TaskDtos.AttachmentResponse(attachment.getId(), attachment.getFileName(), attachment.getFileUrl(), attachment.getContentType(), attachment.getFileSize(), attachment.getUploadedByName(), attachment.getCreatedAt());
-  }
-
-  private TaskDtos.DependencyResponse toDependency(TaskDependencyEntity dependency) {
-    return new TaskDtos.DependencyResponse(dependency.getId(), dependency.getDependsOnTaskId(), dependency.getDependsOnTaskCode(), dependency.getDependsOnTitle());
-  }
-
-  private TaskDtos.AssignmentHistoryResponse toAssignment(TaskAssignmentEntity assignment) {
-    return new TaskDtos.AssignmentHistoryResponse(
-        assignment.getId(),
-        assignment.getAssignedById(),
-        assignment.getAssignedByName(),
-        assignment.getAssignedToId(),
-        assignment.getAssignedToName(),
-        assignment.getAssignedToEmail(),
-        assignment.getAssignedTeamName(),
-        assignment.isActive(),
-        assignment.getAssignedAt(),
-        assignment.getEndedAt()
-    );
-  }
-
-  private TaskDtos.ActivityResponse toActivity(TaskActivityLogEntity activity) {
-    return new TaskDtos.ActivityResponse(activity.getId(), activity.getActivityType(), activity.getActorId(), activity.getActorName(), activity.getMessage(), activity.getCreatedAt());
-  }
-
-  private TaskDtos.TimeLogResponse toTimeLog(TaskTimeLogEntity log) {
-    return new TaskDtos.TimeLogResponse(log.getId(), log.getUserId(), log.getUserName(), log.getStartedAt(), log.getEndedAt(), log.getDurationHours(), log.getNote(), log.getCreatedAt());
-  }
-
   private void refreshActualHours(TaskEntity task) {
     BigDecimal total = timeLogRepository.findByTask_IdOrderByStartedAtDesc(task.getId()).stream()
         .map(TaskTimeLogEntity::getDurationHours)
-        .filter(value -> value != null)
+        .filter(Objects::nonNull)
         .reduce(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP), BigDecimal::add);
     task.setActualHours(total);
     task.setUpdatedAt(Instant.now());
@@ -750,6 +953,59 @@ public class TaskService {
     return predicates.stream().reduce(task -> true, Predicate::and);
   }
 
+  private void reparent(TaskEntity task, String newParentTaskId) {
+    if (Objects.equals(task.getParentTaskId(), newParentTaskId)) {
+      return;
+    }
+    if (Objects.equals(task.getId(), newParentTaskId)) {
+      throw new BadRequestException("A task cannot be its own parent.");
+    }
+    if (newParentTaskId != null) {
+      TaskEntity newParent = requireTask(newParentTaskId);
+      if (newParent.getTaskPath() != null && newParent.getTaskPath().startsWith(task.getTaskPath() + "/")) {
+        throw new BadRequestException("A task cannot be moved under one of its descendants.");
+      }
+      task.setParentTaskId(newParentTaskId);
+      task.setHierarchyLevel(newParent.getHierarchyLevel() + 1);
+      task.setTaskPath(newParent.getTaskPath() + "/" + task.getId());
+      if (task.getOrderIndex() <= 0) {
+        task.setOrderIndex(nextOrderIndex(newParentTaskId));
+      }
+    } else {
+      task.setParentTaskId(null);
+      task.setHierarchyLevel(0);
+      task.setTaskPath(task.getId());
+      if (task.getOrderIndex() <= 0) {
+        task.setOrderIndex(nextOrderIndex(null));
+      }
+    }
+  }
+
+  private void refreshHierarchyMetadata(TaskEntity rootTask) {
+    Map<String, TaskEntity> allTasks = taskRepository.findAll().stream().collect(Collectors.toMap(TaskEntity::getId, task -> task));
+    updateDescendantPaths(rootTask, allTasks);
+  }
+
+  private void updateDescendantPaths(TaskEntity task, Map<String, TaskEntity> allTasks) {
+    List<TaskEntity> children = allTasks.values().stream()
+        .filter(candidate -> Objects.equals(task.getId(), candidate.getParentTaskId()))
+        .sorted(Comparator.comparingLong(TaskEntity::getOrderIndex).thenComparing(TaskEntity::getCreatedAt))
+        .toList();
+    for (TaskEntity child : children) {
+      child.setHierarchyLevel(task.getHierarchyLevel() + 1);
+      child.setTaskPath(task.getTaskPath() + "/" + child.getId());
+      taskRepository.save(child);
+      updateDescendantPaths(child, allTasks);
+    }
+  }
+
+  private long nextOrderIndex(String parentTaskId) {
+    List<TaskEntity> siblings = parentTaskId == null
+        ? taskRepository.findByParentTaskIdIsNullOrderByOrderIndexAscCreatedAtAsc()
+        : taskRepository.findByParentTaskIdOrderByOrderIndexAscCreatedAtAsc(parentTaskId);
+    return siblings.isEmpty() ? ORDER_INCREMENT : siblings.get(siblings.size() - 1).getOrderIndex() + ORDER_INCREMENT;
+  }
+
   private TaskApprovalStatus resolveApprovalStatus(
       TaskDtos.TaskRequest request,
       boolean currentApprovalRequired,
@@ -821,7 +1077,18 @@ public class TaskService {
     return value.trim();
   }
 
+  private String firstNonBlank(String preferred, String fallback) {
+    return StringUtils.hasText(preferred) ? preferred : fallback;
+  }
+
   private String readable(String value) {
     return value.toLowerCase(Locale.ROOT).replace('_', ' ');
+  }
+
+  private record TreeContext(
+      Map<String, TaskEntity> byId,
+      Map<String, List<TaskEntity>> childrenByParent,
+      Map<String, Integer> progressMemo
+  ) {
   }
 }

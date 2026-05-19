@@ -5,12 +5,15 @@ import {
   approveTask,
   assignTask,
   createTask,
+  createSubtask,
   deleteTask,
   fetchTask,
   fetchTaskDashboard,
+  fetchTaskTree,
   fetchTasks,
   fetchTaskUsers,
   rejectTask,
+  reorderTaskHierarchy,
   startTaskTimer,
   stopTaskTimer,
   updateChecklistItem,
@@ -23,6 +26,7 @@ export const taskKeys = {
   dashboard: () => [...taskKeys.all, "dashboard"] as const,
   lists: () => [...taskKeys.all, "list"] as const,
   list: (filter: TaskFilter) => [...taskKeys.lists(), filter] as const,
+  tree: (filter: TaskFilter) => [...taskKeys.all, "tree", filter] as const,
   detail: (id: string) => [...taskKeys.all, "detail", id] as const,
   users: () => [...taskKeys.all, "users"] as const,
 };
@@ -39,6 +43,15 @@ export function useTasks(filter: TaskFilter) {
   return useQuery({
     queryKey: taskKeys.list(filter),
     queryFn: () => fetchTasks(filter),
+    placeholderData: keepPreviousData,
+    staleTime: 15_000,
+  });
+}
+
+export function useTaskTree(filter: TaskFilter) {
+  return useQuery({
+    queryKey: taskKeys.tree(filter),
+    queryFn: () => fetchTaskTree(filter),
     placeholderData: keepPreviousData,
     staleTime: 15_000,
   });
@@ -63,6 +76,7 @@ export function useTaskUsers() {
 function invalidateTasks(queryClient: ReturnType<typeof useQueryClient>, taskId?: string) {
   queryClient.invalidateQueries({ queryKey: taskKeys.dashboard() });
   queryClient.invalidateQueries({ queryKey: taskKeys.lists() });
+  queryClient.invalidateQueries({ queryKey: taskKeys.all });
   if (taskId) {
     queryClient.invalidateQueries({ queryKey: taskKeys.detail(taskId) });
   }
@@ -84,11 +98,28 @@ export function useUpdateTask() {
   });
 }
 
+export function useCreateSubtask() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ parentId, payload }: { parentId: string; payload: TaskRequest }) => createSubtask(parentId, payload),
+    onSuccess: (_, variables) => invalidateTasks(queryClient, variables.parentId),
+  });
+}
+
 export function useDeleteTask() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => deleteTask(id),
     onSuccess: () => invalidateTasks(queryClient),
+  });
+}
+
+export function useReorderTaskHierarchy() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: { parentTaskId?: string | null; orderIndex?: number | null } }) =>
+      reorderTaskHierarchy(id, payload),
+    onSuccess: (_, variables) => invalidateTasks(queryClient, variables.id),
   });
 }
 

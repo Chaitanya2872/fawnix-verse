@@ -109,18 +109,19 @@ public class FawnixOtpAuthService {
       user.setActive(true);
       updated = true;
     }
-    RoleEntity effectiveRole = requireRole(resolveRoleName(profile));
-    boolean shouldPromoteToEffectiveRole = user.getRoles() == null
-        || user.getRoles().isEmpty()
-        || user.getRoles().stream().noneMatch(role -> role.getName().equals(effectiveRole.getName()));
-    if (shouldPromoteToEffectiveRole) {
+    if (user.getRoles() == null || user.getRoles().isEmpty()) {
+      RoleEntity effectiveRole = requireRole(resolveRoleName(profile));
       user.setRoles(Set.of(effectiveRole));
       user.setPermissions(UserPermissionCatalog.defaultsForRoleName(effectiveRole.getName()));
       updated = true;
     }
     if (isExistingUser && (user.getPermissions() == null || user.getPermissions().isEmpty())) {
-      // Preserve legacy access for existing Fawnix accounts that predate module-level permissions.
-      user.setPermissions(new LinkedHashSet<>(UserPermissionCatalog.ALL_PERMISSIONS));
+      // Backfill permissions without changing the user's existing role assignment.
+      String currentRoleName = user.getRoles().stream()
+          .findFirst()
+          .map(RoleEntity::getName)
+          .orElseGet(() -> resolveRoleName(profile));
+      user.setPermissions(new LinkedHashSet<>(UserPermissionCatalog.defaultsForRoleName(currentRoleName)));
       updated = true;
     }
 
@@ -132,7 +133,24 @@ public class FawnixOtpAuthService {
   }
 
   private String resolveRoleName(FawnixOtpDtos.FawnixUser profile) {
-    return RoleName.ROLE_ADMIN.name();
+    String configured = defaultRoleName == null ? "" : defaultRoleName.trim().toUpperCase(Locale.ROOT);
+    if (configured.isEmpty()) {
+      return RoleName.ROLE_VIEWER.name();
+    }
+    return switch (configured) {
+      case "MASTER", "ROLE_MASTER" -> RoleName.ROLE_MASTER.name();
+      case "ADMIN", "ROLE_ADMIN" -> RoleName.ROLE_ADMIN.name();
+      case "REPORTING_MANAGER", "ROLE_REPORTING_MANAGER" -> RoleName.ROLE_REPORTING_MANAGER.name();
+      case "MANAGER", "ROLE_MANAGER", "ROLE_SALES_MANAGER" -> RoleName.ROLE_SALES_MANAGER.name();
+      case "SALES_REP", "ROLE_SALES_REP" -> RoleName.ROLE_SALES_REP.name();
+      case "EMPLOYEE", "ROLE_EMPLOYEE" -> RoleName.ROLE_EMPLOYEE.name();
+      case "HR_MANAGER", "ROLE_HR_MANAGER" -> RoleName.ROLE_HR_MANAGER.name();
+      case "RECRUITER", "ROLE_RECRUITER" -> RoleName.ROLE_RECRUITER.name();
+      case "HIRING_MANAGER", "ROLE_HIRING_MANAGER" -> RoleName.ROLE_HIRING_MANAGER.name();
+      case "INTERVIEWER", "ROLE_INTERVIEWER" -> RoleName.ROLE_INTERVIEWER.name();
+      case "VIEWER", "ROLE_VIEWER" -> RoleName.ROLE_VIEWER.name();
+      default -> RoleName.ROLE_VIEWER.name();
+    };
   }
 
   private RoleEntity requireRole(String roleName) {

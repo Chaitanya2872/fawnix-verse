@@ -9,6 +9,7 @@ import type {
   TaskComment,
   TaskChecklistItem,
   TaskTimeLog,
+  TaskTreeResponse,
 } from "./types";
 import type { User } from "@/modules/users/types";
 
@@ -51,6 +52,29 @@ export async function fetchTasks(filter: TaskFilter): Promise<TaskListResponse> 
   }
 }
 
+export async function fetchTaskTree(filter: TaskFilter): Promise<TaskTreeResponse> {
+  try {
+    await ensureApiSession();
+    const response = await api.get<TaskTreeResponse>("/tasks/tree", {
+      params: {
+        search: filter.search || undefined,
+        status: filter.status || undefined,
+        priority: filter.priority || undefined,
+        scope: filter.scope === "all" ? undefined : filter.scope,
+        assigneeId: filter.assigneeId || undefined,
+        projectRef: filter.projectRef || undefined,
+        moduleRef: filter.moduleRef || undefined,
+        approvalStatus: filter.approvalStatus || undefined,
+        overdue: filter.overdue || undefined,
+        dueToday: filter.dueToday || undefined,
+      },
+    });
+    return response.data;
+  } catch (error) {
+    rethrow(error, "Failed to load task hierarchy.");
+  }
+}
+
 export async function fetchTask(id: string): Promise<TaskDetail> {
   try {
     await ensureApiSession();
@@ -71,6 +95,16 @@ export async function createTask(payload: TaskRequest): Promise<TaskDetail> {
   }
 }
 
+export async function createSubtask(parentId: string, payload: TaskRequest): Promise<TaskDetail> {
+  try {
+    await ensureApiSession();
+    const response = await api.post<TaskDetail>(`/tasks/${parentId}/subtasks`, payload);
+    return response.data;
+  } catch (error) {
+    rethrow(error, "Failed to create subtask.");
+  }
+}
+
 export async function updateTask(id: string, payload: TaskRequest): Promise<TaskDetail> {
   try {
     await ensureApiSession();
@@ -87,6 +121,19 @@ export async function deleteTask(id: string): Promise<void> {
     await api.delete(`/tasks/${id}`);
   } catch (error) {
     rethrow(error, "Failed to delete task.");
+  }
+}
+
+export async function reorderTaskHierarchy(
+  id: string,
+  payload: { parentTaskId?: string | null; orderIndex?: number | null }
+): Promise<TaskDetail> {
+  try {
+    await ensureApiSession();
+    const response = await api.put<TaskDetail>(`/tasks/${id}/hierarchy`, payload);
+    return response.data;
+  } catch (error) {
+    rethrow(error, "Failed to move task in hierarchy.");
   }
 }
 

@@ -2,6 +2,8 @@ package com.hirepath.task.tasks.domain;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
@@ -29,6 +31,10 @@ public class TaskDependencyEntity {
   @Column(name = "depends_on_title", length = 200)
   private String dependsOnTitle;
 
+  @Enumerated(EnumType.STRING)
+  @Column(name = "relationship_type", nullable = false, length = 30)
+  private TaskRelationshipType relationshipType;
+
   @Column(name = "created_at", nullable = false)
   private Instant createdAt;
 
@@ -42,6 +48,8 @@ public class TaskDependencyEntity {
   public void setDependsOnTaskCode(String dependsOnTaskCode) { this.dependsOnTaskCode = dependsOnTaskCode; }
   public String getDependsOnTitle() { return dependsOnTitle; }
   public void setDependsOnTitle(String dependsOnTitle) { this.dependsOnTitle = dependsOnTitle; }
+  public TaskRelationshipType getRelationshipType() { return relationshipType; }
+  public void setRelationshipType(TaskRelationshipType relationshipType) { this.relationshipType = relationshipType; }
   public Instant getCreatedAt() { return createdAt; }
   public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
 }

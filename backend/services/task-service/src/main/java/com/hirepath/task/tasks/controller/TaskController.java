@@ -55,12 +55,37 @@ public class TaskController {
     return taskService.listTasks(search, status, priority, scope, assigneeId, projectRef, moduleRef, approvalStatus, overdue, dueToday, page, pageSize, user);
   }
 
+  @GetMapping("/tree")
+  public TaskDtos.TaskTreeResponse tree(
+      @RequestParam(required = false) String search,
+      @RequestParam(required = false) String status,
+      @RequestParam(required = false) String priority,
+      @RequestParam(required = false) String scope,
+      @RequestParam(required = false) String assigneeId,
+      @RequestParam(required = false) String projectRef,
+      @RequestParam(required = false) String moduleRef,
+      @RequestParam(required = false) String approvalStatus,
+      @RequestParam(required = false) Boolean overdue,
+      @RequestParam(required = false) Boolean dueToday,
+      @AuthenticationPrincipal AppUserDetails user
+  ) {
+    return taskService.treeTasks(search, status, priority, scope, assigneeId, projectRef, moduleRef, approvalStatus, overdue, dueToday, user);
+  }
+
   @GetMapping("/{id}")
   public TaskDtos.TaskDetailResponse getTask(
       @PathVariable String id,
       @AuthenticationPrincipal AppUserDetails user
   ) {
     return taskService.getTask(id, user);
+  }
+
+  @GetMapping("/{id}/subtasks")
+  public TaskDtos.TaskTreeResponse getSubtasks(
+      @PathVariable String id,
+      @AuthenticationPrincipal AppUserDetails user
+  ) {
+    return taskService.getSubtasks(id, user);
   }
 
   @PutMapping("/{id}")
@@ -70,6 +95,15 @@ public class TaskController {
       @AuthenticationPrincipal AppUserDetails user
   ) {
     return taskService.updateTask(id, request, user);
+  }
+
+  @PutMapping("/{id}/hierarchy")
+  public TaskDtos.TaskDetailResponse reorderHierarchy(
+      @PathVariable String id,
+      @RequestBody TaskDtos.ReorderHierarchyRequest request,
+      @AuthenticationPrincipal AppUserDetails user
+  ) {
+    return taskService.reorderHierarchy(id, request, user);
   }
 
   @DeleteMapping("/{id}")
@@ -107,6 +141,16 @@ public class TaskController {
       @AuthenticationPrincipal AppUserDetails user
   ) {
     return taskService.addChecklistItem(id, request, user);
+  }
+
+  @PostMapping("/{id}/subtasks")
+  @ResponseStatus(HttpStatus.CREATED)
+  public TaskDtos.TaskDetailResponse addSubtask(
+      @PathVariable String id,
+      @Valid @RequestBody TaskDtos.TaskRequest request,
+      @AuthenticationPrincipal AppUserDetails user
+  ) {
+    return taskService.addSubtask(id, request, user);
   }
 
   @PutMapping("/{id}/checklist/{itemId}")

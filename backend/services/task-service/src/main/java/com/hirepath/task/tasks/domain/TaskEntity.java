@@ -60,6 +60,18 @@ public class TaskEntity {
   @Column(name = "module_ref", length = 120)
   private String moduleRef;
 
+  @Column(name = "parent_task_id", length = 64)
+  private String parentTaskId;
+
+  @Column(name = "hierarchy_level", nullable = false)
+  private int hierarchyLevel;
+
+  @Column(name = "task_path", nullable = false, length = 500)
+  private String taskPath;
+
+  @Column(name = "order_index", nullable = false)
+  private long orderIndex;
+
   @Column(name = "assigned_by_id", length = 64)
   private String assignedById;
 
@@ -224,6 +236,38 @@ public class TaskEntity {
 
   public void setModuleRef(String moduleRef) {
     this.moduleRef = moduleRef;
+  }
+
+  public String getParentTaskId() {
+    return parentTaskId;
+  }
+
+  public void setParentTaskId(String parentTaskId) {
+    this.parentTaskId = parentTaskId;
+  }
+
+  public int getHierarchyLevel() {
+    return hierarchyLevel;
+  }
+
+  public void setHierarchyLevel(int hierarchyLevel) {
+    this.hierarchyLevel = hierarchyLevel;
+  }
+
+  public String getTaskPath() {
+    return taskPath;
+  }
+
+  public void setTaskPath(String taskPath) {
+    this.taskPath = taskPath;
+  }
+
+  public long getOrderIndex() {
+    return orderIndex;
+  }
+
+  public void setOrderIndex(long orderIndex) {
+    this.orderIndex = orderIndex;
   }
 
   public String getAssignedById() {

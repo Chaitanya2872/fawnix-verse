@@ -3,6 +3,7 @@ package com.hirepath.task.tasks.dto;
 import com.hirepath.task.tasks.domain.TaskActivityType;
 import com.hirepath.task.tasks.domain.TaskApprovalStatus;
 import com.hirepath.task.tasks.domain.TaskPriority;
+import com.hirepath.task.tasks.domain.TaskRelationshipType;
 import com.hirepath.task.tasks.domain.TaskStatus;
 import com.hirepath.task.tasks.domain.TaskVisibility;
 import jakarta.validation.Valid;
@@ -43,6 +44,8 @@ public final class TaskDtos {
       String assignedTeamName,
       String approverId,
       String approverName,
+      String parentTaskId,
+      Long orderIndex,
       @Valid List<TagRequest> tags,
       @Valid List<AttachmentRequest> attachments,
       @Valid List<DependencyRequest> dependencies,
@@ -70,7 +73,19 @@ public final class TaskDtos {
       @NotBlank(message = "Dependency task id is required.")
       String taskId,
       String taskCode,
-      String title
+      String title,
+      TaskRelationshipType relationshipType
+  ) {
+  }
+
+  public record TaskTreeResponse(
+      List<TaskSummaryResponse> data
+  ) {
+  }
+
+  public record ReorderHierarchyRequest(
+      String parentTaskId,
+      Long orderIndex
   ) {
   }
 
@@ -144,13 +159,20 @@ public final class TaskDtos {
       String assignedToId,
       String assignedToName,
       String assignedTeamName,
+      String parentTaskId,
+      int hierarchyLevel,
+      String taskPath,
+      long orderIndex,
       BigDecimal estimatedHours,
       BigDecimal actualHours,
       List<String> tags,
       int checklistCompleted,
       int checklistTotal,
+      int childCount,
+      int progressPercent,
       boolean overdue,
-      Instant updatedAt
+      Instant updatedAt,
+      List<TaskSummaryResponse> subtasks
   ) {
   }
 
@@ -162,7 +184,8 @@ public final class TaskDtos {
       List<DependencyResponse> dependencies,
       List<AssignmentHistoryResponse> assignments,
       List<ActivityResponse> activity,
-      List<TimeLogResponse> timeLogs
+      List<TimeLogResponse> timeLogs,
+      List<TaskSummaryResponse> subtasks
   ) {
   }
 
@@ -201,7 +224,8 @@ public final class TaskDtos {
       String id,
       String taskId,
       String taskCode,
-      String title
+      String title,
+      TaskRelationshipType relationshipType
   ) {
   }
 
