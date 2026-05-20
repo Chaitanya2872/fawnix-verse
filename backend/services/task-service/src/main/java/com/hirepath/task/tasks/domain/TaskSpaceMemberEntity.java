@@ -31,6 +31,9 @@ public class TaskSpaceMemberEntity {
   @Column(name = "user_email", length = 200)
   private String userEmail;
 
+  @Column(columnDefinition = "text")
+  private String permissions;
+
   @Enumerated(EnumType.STRING)
   @Column(nullable = false, length = 40)
   private TaskSpaceMemberRole role;
@@ -63,6 +66,8 @@ public class TaskSpaceMemberEntity {
   public void setUserName(String userName) { this.userName = userName; }
   public String getUserEmail() { return userEmail; }
   public void setUserEmail(String userEmail) { this.userEmail = userEmail; }
+  public String getPermissions() { return permissions; }
+  public void setPermissions(String permissions) { this.permissions = permissions; }
   public TaskSpaceMemberRole getRole() { return role; }
   public void setRole(TaskSpaceMemberRole role) { this.role = role; }
   public boolean isActive() { return active; }

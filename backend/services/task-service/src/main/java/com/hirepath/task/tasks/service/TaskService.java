@@ -1,5 +1,32 @@
 package com.hirepath.task.tasks.service;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.UUID;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
+
+import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+
 import com.hirepath.task.common.exception.BadRequestException;
 import com.hirepath.task.common.exception.ForbiddenOperationException;
 import com.hirepath.task.common.exception.ResourceNotFoundException;
@@ -20,7 +47,7 @@ import com.hirepath.task.tasks.domain.TaskSpaceInvitationEntity;
 import com.hirepath.task.tasks.domain.TaskSpaceInvitationStatus;
 import com.hirepath.task.tasks.domain.TaskSpaceMemberEntity;
 import com.hirepath.task.tasks.domain.TaskSpaceMemberRole;
-import com.hirepath.task.tasks.domain.TaskSpaceVisibility;
+import com.hirepath.task.tasks.domain.TaskSpacePermission;
 import com.hirepath.task.tasks.domain.TaskStatus;
 import com.hirepath.task.tasks.domain.TaskTagEntity;
 import com.hirepath.task.tasks.domain.TaskTimeLogEntity;
@@ -35,32 +62,8 @@ import com.hirepath.task.tasks.repository.TaskSpaceInvitationRepository;
 import com.hirepath.task.tasks.repository.TaskSpaceMemberRepository;
 import com.hirepath.task.tasks.repository.TaskSpaceRepository;
 import com.hirepath.task.tasks.repository.TaskTimeLogRepository;
+
 import jakarta.transaction.Transactional;
-import java.math.BigDecimal;
-import java.math.RoundingMode;
-import java.time.Duration;
-import java.time.Instant;
-import java.time.LocalDate;
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.Set;
-import java.util.UUID;
-import java.util.function.Predicate;
-import java.util.stream.Collectors;
-import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
-import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 @Service
 @Transactional
@@ -77,6 +80,7 @@ public class TaskService {
   );
 
   private static final long ORDER_INCREMENT = 1024L;
+  private static final EnumSet<TaskSpacePermission> ALL_SPACE_PERMISSIONS = EnumSet.allOf(TaskSpacePermission.class);
 
   private final TaskRepository taskRepository;
   private final TaskCommentRepository commentRepository;
@@ -524,7 +528,9 @@ public class TaskService {
     owner.setSpace(space);
     owner.setUserId(user.getUserId());
     owner.setUserName(user.getFullName());
+    owner.setUserEmail(null);
     owner.setRole(TaskSpaceMemberRole.OWNER);
+    owner.setPermissions(serializePermissions(defaultPermissionsForRole(TaskSpaceMemberRole.OWNER)));
     owner.setActive(true);
     owner.setInvitedById(user.getUserId());
     owner.setInvitedByName(user.getFullName());
@@ -533,7 +539,37 @@ public class TaskService {
     owner.setUpdatedAt(now);
     taskSpaceMemberRepository.save(owner);
 
+    Set<String> seededUserIds = new HashSet<>();
+    seededUserIds.add(user.getUserId());
+    if (request.members() != null) {
+      for (TaskDtos.SpaceMemberSeedRequest memberRequest : request.members()) {
+        if (memberRequest == null || !StringUtils.hasText(memberRequest.userId()) || !StringUtils.hasText(memberRequest.userName())) {
+          continue;
+        }
+        String memberUserId = memberRequest.userId().trim();
+        if (!seededUserIds.add(memberUserId)) {
+          continue;
+        }
+        TaskSpaceMemberEntity member = new TaskSpaceMemberEntity();
+        member.setId(UUID.randomUUID().toString());
+        member.setSpace(space);
+        member.setUserId(memberUserId);
+        member.setUserName(memberRequest.userName().trim());
+        member.setUserEmail(trimToNull(memberRequest.userEmail()));
+        member.setRole(memberRequest.role());
+        member.setPermissions(serializePermissions(resolvePermissions(memberRequest.permissions(), memberRequest.role())));
+        member.setActive(true);
+        member.setInvitedById(user.getUserId());
+        member.setInvitedByName(user.getFullName());
+        member.setJoinedAt(now);
+        member.setCreatedAt(now);
+        member.setUpdatedAt(now);
+        taskSpaceMemberRepository.save(member);
+      }
+    }
+
     taskSpaceStreamService.publishSpaceUpdate(user.getUserId(), "SPACE_CREATED", space.getId());
+    broadcastSpaceMembers(space, "SPACE_MEMBER_ADDED");
     return getSpace(space.getId(), user);
   }
 
@@ -607,6 +643,7 @@ public class TaskService {
     invitation.setInvitedById(user.getUserId());
     invitation.setInvitedByName(user.getFullName());
     invitation.setRole(request.role());
+    invitation.setPermissions(serializePermissions(resolvePermissions(request.permissions(), request.role())));
     invitation.setStatus(TaskSpaceInvitationStatus.PENDING);
     invitation.setMessage(trimToNull(request.message()));
     invitation.setCreatedAt(now);
@@ -644,6 +681,7 @@ public class TaskService {
       member.setUserName(invitation.getInviteeName());
       member.setUserEmail(invitation.getInviteeEmail());
       member.setRole(invitation.getRole());
+      member.setPermissions(invitation.getPermissions());
       member.setActive(true);
       member.setInvitedById(invitation.getInvitedById());
       member.setInvitedByName(invitation.getInvitedByName());
@@ -667,6 +705,9 @@ public class TaskService {
         .filter(entity -> entity.getSpace().getId().equals(spaceId))
         .orElseThrow(() -> new ResourceNotFoundException("Space member not found."));
     member.setRole(request.role());
+    if (request.permissions() != null) {
+      member.setPermissions(serializePermissions(resolvePermissions(request.permissions(), request.role())));
+    }
     member.setUpdatedAt(Instant.now());
     taskSpaceMemberRepository.save(member);
     broadcastSpaceMembers(space, "SPACE_MEMBER_UPDATED");
@@ -1208,10 +1249,9 @@ public class TaskService {
     if (hasPrivilegedRole(user)) {
       return;
     }
-    TaskSpaceMemberRole role = findActiveSpaceMember(space.getId(), user.getUserId())
-        .map(TaskSpaceMemberEntity::getRole)
-        .orElse(null);
-    if (role == TaskSpaceMemberRole.OWNER || role == TaskSpaceMemberRole.ADMIN || role == TaskSpaceMemberRole.PROJECT_MANAGER) {
+    if (hasSpacePermission(space.getId(), user.getUserId(), TaskSpacePermission.MANAGE_SPACE_SETTINGS)
+        || hasSpacePermission(space.getId(), user.getUserId(), TaskSpacePermission.MANAGE_MEMBERS)
+        || hasSpacePermission(space.getId(), user.getUserId(), TaskSpacePermission.INVITE_MEMBERS)) {
       return;
     }
     throw new ForbiddenOperationException("You do not have permission to manage this space.");
@@ -1229,8 +1269,15 @@ public class TaskService {
       return null;
     }
     TaskSpaceEntity space = requireSpace(spaceId.trim());
-    ensureSpaceManager(user, space);
+    ensureSpaceCreateAccess(user, space);
     return space;
+  }
+
+  private void ensureSpaceCreateAccess(AppUserDetails user, TaskSpaceEntity space) {
+    if (hasPrivilegedRole(user) || hasSpacePermission(space.getId(), user.getUserId(), TaskSpacePermission.CREATE_TASKS)) {
+      return;
+    }
+    throw new ForbiddenOperationException("You do not have permission to create tasks in this space.");
   }
 
   private String nextSpaceKey(String rawName) {
@@ -1288,6 +1335,7 @@ public class TaskService {
         member.getUserName(),
         member.getUserEmail(),
         member.getRole(),
+        parsePermissions(member.getPermissions(), member.getRole()),
         member.isActive(),
         member.getInvitedByName(),
         member.getJoinedAt()
@@ -1305,6 +1353,7 @@ public class TaskService {
         invitation.getInvitedById(),
         invitation.getInvitedByName(),
         invitation.getRole(),
+        parsePermissions(invitation.getPermissions(), invitation.getRole()),
         invitation.getStatus(),
         invitation.getMessage(),
         invitation.getRespondedAt(),
@@ -1347,15 +1396,72 @@ public class TaskService {
     if (!StringUtils.hasText(task.getSpaceId())) {
       return false;
     }
-    return findActiveSpaceMember(task.getSpaceId(), user.getUserId())
-        .map(member -> member.getRole() == TaskSpaceMemberRole.OWNER
-            || member.getRole() == TaskSpaceMemberRole.ADMIN
-            || member.getRole() == TaskSpaceMemberRole.PROJECT_MANAGER)
-        .orElse(false);
+    return hasSpacePermission(task.getSpaceId(), user.getUserId(), TaskSpacePermission.EDIT_TASKS);
   }
 
   private boolean canManageExecution(AppUserDetails user, TaskEntity task) {
-    return canEdit(user, task) || equalsNullable(user.getUserId(), task.getAssignedToId());
+    return canEdit(user, task)
+        || equalsNullable(user.getUserId(), task.getAssignedToId())
+        || hasSpacePermission(task.getSpaceId(), user.getUserId(), TaskSpacePermission.UPDATE_STATUS)
+        || hasSpacePermission(task.getSpaceId(), user.getUserId(), TaskSpacePermission.ADD_COMMENTS)
+        || hasSpacePermission(task.getSpaceId(), user.getUserId(), TaskSpacePermission.UPDATE_CHECKLIST);
+  }
+
+  private boolean hasSpacePermission(String spaceId, String userId, TaskSpacePermission permission) {
+    if (!StringUtils.hasText(spaceId) || !StringUtils.hasText(userId)) {
+      return false;
+    }
+    return findActiveSpaceMember(spaceId, userId)
+        .map(member -> parsePermissions(member.getPermissions(), member.getRole()).contains(permission))
+        .orElse(false);
+  }
+
+  private List<TaskSpacePermission> parsePermissions(String rawPermissions, TaskSpaceMemberRole role) {
+    if (!StringUtils.hasText(rawPermissions)) {
+      return new ArrayList<>(defaultPermissionsForRole(role));
+    }
+    return java.util.Arrays.stream(rawPermissions.split(","))
+        .map(String::trim)
+        .filter(StringUtils::hasText)
+        .map(value -> TaskSpacePermission.valueOf(value.toUpperCase(Locale.ROOT)))
+        .distinct()
+        .toList();
+  }
+
+  private List<TaskSpacePermission> resolvePermissions(List<TaskSpacePermission> requested, TaskSpaceMemberRole role) {
+    TaskSpaceMemberRole resolvedRole = role == null ? TaskSpaceMemberRole.MEMBER : role;
+    if (requested == null || requested.isEmpty()) {
+      return new ArrayList<>(defaultPermissionsForRole(resolvedRole));
+    }
+    EnumSet<TaskSpacePermission> permissions = EnumSet.copyOf(requested);
+    if (resolvedRole == TaskSpaceMemberRole.OWNER || resolvedRole == TaskSpaceMemberRole.ADMIN || resolvedRole == TaskSpaceMemberRole.PROJECT_MANAGER) {
+      permissions.addAll(defaultPermissionsForRole(resolvedRole));
+    }
+    return permissions.stream().distinct().toList();
+  }
+
+  private String serializePermissions(Collection<TaskSpacePermission> permissions) {
+    if (permissions == null || permissions.isEmpty()) {
+      return null;
+    }
+    return permissions.stream().map(TaskSpacePermission::name).distinct().collect(Collectors.joining(","));
+  }
+
+  private EnumSet<TaskSpacePermission> defaultPermissionsForRole(TaskSpaceMemberRole role) {
+    if (role == null) {
+      return EnumSet.of(TaskSpacePermission.UPDATE_STATUS, TaskSpacePermission.ADD_COMMENTS, TaskSpacePermission.UPDATE_CHECKLIST);
+    }
+    return switch (role) {
+      case OWNER, ADMIN, PROJECT_MANAGER -> EnumSet.copyOf(ALL_SPACE_PERMISSIONS);
+      case MEMBER -> EnumSet.of(
+          TaskSpacePermission.CREATE_TASKS,
+          TaskSpacePermission.UPDATE_STATUS,
+          TaskSpacePermission.ADD_COMMENTS,
+          TaskSpacePermission.UPDATE_CHECKLIST,
+          TaskSpacePermission.UPLOAD_ATTACHMENTS
+      );
+      case VIEWER -> EnumSet.noneOf(TaskSpacePermission.class);
+    };
   }
 
   private boolean hasPrivilegedRole(AppUserDetails user) {

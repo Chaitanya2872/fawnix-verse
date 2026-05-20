@@ -1,0 +1,14 @@
+package com.hirepath.task.tasks.domain;
+
+public enum TaskSpacePermission {
+  CREATE_TASKS,
+  EDIT_TASKS,
+  DELETE_TASKS,
+  UPDATE_STATUS,
+  ADD_COMMENTS,
+  UPDATE_CHECKLIST,
+  UPLOAD_ATTACHMENTS,
+  INVITE_MEMBERS,
+  MANAGE_MEMBERS,
+  MANAGE_SPACE_SETTINGS
+}

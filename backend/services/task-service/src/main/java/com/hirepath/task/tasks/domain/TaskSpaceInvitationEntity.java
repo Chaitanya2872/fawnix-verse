@@ -41,6 +41,9 @@ public class TaskSpaceInvitationEntity {
   @Column(nullable = false, length = 40)
   private TaskSpaceMemberRole role;
 
+  @Column(columnDefinition = "text")
+  private String permissions;
+
   @Enumerated(EnumType.STRING)
   @Column(nullable = false, length = 30)
   private TaskSpaceInvitationStatus status;
@@ -73,6 +76,8 @@ public class TaskSpaceInvitationEntity {
   public void setInvitedByName(String invitedByName) { this.invitedByName = invitedByName; }
   public TaskSpaceMemberRole getRole() { return role; }
   public void setRole(TaskSpaceMemberRole role) { this.role = role; }
+  public String getPermissions() { return permissions; }
+  public void setPermissions(String permissions) { this.permissions = permissions; }
   public TaskSpaceInvitationStatus getStatus() { return status; }
   public void setStatus(TaskSpaceInvitationStatus status) { this.status = status; }
   public String getMessage() { return message; }

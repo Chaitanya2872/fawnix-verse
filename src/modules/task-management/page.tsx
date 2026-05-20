@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable react-hooks/set-state-in-effect */
 "use client";
 
@@ -78,9 +79,11 @@ import {
   type TaskVisibility,
   type TaskSpaceDetail,
   type TaskSpaceMemberRole,
+  type TaskSpacePermission,
   type TaskSpaceRequest,
   type TaskSpaceSummary,
   TASK_SPACE_MEMBER_ROLES,
+  TASK_SPACE_PERMISSIONS,
   TASK_SPACE_VISIBILITIES,
 } from "./types";
 
@@ -111,6 +114,12 @@ type SpaceFormState = {
   iconName: string;
   colorHex: string;
   visibility: "PRIVATE" | "PUBLIC";
+};
+
+type SpaceMemberDraft = {
+  userId: string;
+  role: TaskSpaceMemberRole;
+  permissions: TaskSpacePermission[];
 };
 
 type GroupSection = {
@@ -160,6 +169,16 @@ const defaultSpaceForm: SpaceFormState = {
   colorHex: "#0f172a",
   visibility: "PRIVATE",
 };
+
+function defaultPermissionsForRole(role: TaskSpaceMemberRole): TaskSpacePermission[] {
+  if (role === "OWNER" || role === "ADMIN" || role === "PROJECT_MANAGER") {
+    return [...TASK_SPACE_PERMISSIONS];
+  }
+  if (role === "MEMBER") {
+    return ["CREATE_TASKS", "UPDATE_STATUS", "ADD_COMMENTS", "UPDATE_CHECKLIST", "UPLOAD_ATTACHMENTS"];
+  }
+  return [];
+}
 
 const PRIMARY_STATUSES: TaskStatus[] = ["PENDING", "IN_PROGRESS", "UNDER_REVIEW", "COMPLETED"];
 
@@ -399,6 +418,7 @@ export default function TaskManagementPage() {
   const [memberPanelOpen, setMemberPanelOpen] = useState(false);
   const [editingSpace, setEditingSpace] = useState<TaskSpaceSummary | null>(null);
   const [spaceForm, setSpaceForm] = useState<SpaceFormState>(defaultSpaceForm);
+  const [spaceMembersDraft, setSpaceMembersDraft] = useState<SpaceMemberDraft[]>([]);
   const [inviteUserId, setInviteUserId] = useState("");
   const [inviteRole, setInviteRole] = useState<TaskSpaceMemberRole>("MEMBER");
   const [inviteMessage, setInviteMessage] = useState("");
@@ -575,6 +595,7 @@ export default function TaskManagementPage() {
   function openSpaceEditor(space?: TaskSpaceSummary | null) {
     setEditingSpace(space ?? null);
     setSpaceForm(toSpaceForm(space ?? null));
+    setSpaceMembersDraft([]);
     setSpaceEditorOpen(true);
   }
 
@@ -584,6 +605,46 @@ export default function TaskManagementPage() {
       return;
     }
     setSelectedSpaceId(value);
+  }
+
+  function addSpaceMemberDraft() {
+    setSpaceMembersDraft((prev) => [...prev, { userId: "", role: "MEMBER", permissions: defaultPermissionsForRole("MEMBER") }]);
+  }
+
+  function updateSpaceMemberDraft(index: number, patch: Partial<SpaceMemberDraft>) {
+    setSpaceMembersDraft((prev) =>
+      prev.map((item, itemIndex) => {
+        if (itemIndex !== index) return item;
+        const nextRole = (patch.role ?? item.role) as TaskSpaceMemberRole;
+        const nextPermissions = patch.permissions ?? item.permissions;
+        return {
+          ...item,
+          ...patch,
+          role: nextRole,
+          permissions: nextPermissions,
+        };
+      })
+    );
+  }
+
+  function updateSpaceMemberRole(index: number, role: TaskSpaceMemberRole) {
+    updateSpaceMemberDraft(index, { role, permissions: defaultPermissionsForRole(role) });
+  }
+
+  function toggleSpaceMemberPermission(index: number, permission: TaskSpacePermission) {
+    setSpaceMembersDraft((prev) =>
+      prev.map((item, itemIndex) => {
+        if (itemIndex !== index) return item;
+        const nextPermissions = item.permissions.includes(permission)
+          ? item.permissions.filter((itemPermission) => itemPermission !== permission)
+          : [...item.permissions, permission];
+        return { ...item, permissions: nextPermissions };
+      })
+    );
+  }
+
+  function removeSpaceMemberDraft(index: number) {
+    setSpaceMembersDraft((prev) => prev.filter((_, itemIndex) => itemIndex !== index));
   }
 
   function handleQuickCreate() {

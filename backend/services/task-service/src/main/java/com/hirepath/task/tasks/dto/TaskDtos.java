@@ -6,6 +6,7 @@ import com.hirepath.task.tasks.domain.TaskPriority;
 import com.hirepath.task.tasks.domain.TaskRelationshipType;
 import com.hirepath.task.tasks.domain.TaskSpaceInvitationStatus;
 import com.hirepath.task.tasks.domain.TaskSpaceMemberRole;
+import com.hirepath.task.tasks.domain.TaskSpacePermission;
 import com.hirepath.task.tasks.domain.TaskSpaceVisibility;
 import com.hirepath.task.tasks.domain.TaskStatus;
 import com.hirepath.task.tasks.domain.TaskVisibility;
@@ -106,7 +107,8 @@ public final class TaskDtos {
       String iconName,
       String colorHex,
       @NotNull(message = "Space visibility is required.")
-      TaskSpaceVisibility visibility
+      TaskSpaceVisibility visibility,
+      List<SpaceMemberSeedRequest> members
   ) {
   }
 
@@ -128,6 +130,7 @@ public final class TaskDtos {
       String userEmail,
       @NotNull(message = "Member role is required.")
       TaskSpaceMemberRole role,
+      List<TaskSpacePermission> permissions,
       String message
   ) {
   }
@@ -140,7 +143,20 @@ public final class TaskDtos {
 
   public record SpaceMemberUpdateRequest(
       @NotNull(message = "Member role is required.")
-      TaskSpaceMemberRole role
+      TaskSpaceMemberRole role,
+      List<TaskSpacePermission> permissions
+  ) {
+  }
+
+  public record SpaceMemberSeedRequest(
+      @NotBlank(message = "Member user id is required.")
+      String userId,
+      @NotBlank(message = "Member name is required.")
+      String userName,
+      String userEmail,
+      @NotNull(message = "Member role is required.")
+      TaskSpaceMemberRole role,
+      List<TaskSpacePermission> permissions
   ) {
   }
 
@@ -352,6 +368,7 @@ public final class TaskDtos {
       String userName,
       String userEmail,
       TaskSpaceMemberRole role,
+      List<TaskSpacePermission> permissions,
       boolean active,
       String invitedByName,
       Instant joinedAt
@@ -368,6 +385,7 @@ public final class TaskDtos {
       String invitedById,
       String invitedByName,
       TaskSpaceMemberRole role,
+      List<TaskSpacePermission> permissions,
       TaskSpaceInvitationStatus status,
       String message,
       Instant respondedAt,

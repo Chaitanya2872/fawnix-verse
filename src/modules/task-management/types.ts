@@ -13,6 +13,18 @@ export const TASK_PRIORITIES = ["LOW", "MEDIUM", "HIGH", "CRITICAL"] as const;
 export const TASK_VISIBILITIES = ["PRIVATE", "TEAM", "PROJECT", "ORGANIZATION"] as const;
 export const TASK_SPACE_VISIBILITIES = ["PRIVATE", "PUBLIC"] as const;
 export const TASK_SPACE_MEMBER_ROLES = ["OWNER", "ADMIN", "PROJECT_MANAGER", "MEMBER", "VIEWER"] as const;
+export const TASK_SPACE_PERMISSIONS = [
+  "CREATE_TASKS",
+  "EDIT_TASKS",
+  "DELETE_TASKS",
+  "UPDATE_STATUS",
+  "ADD_COMMENTS",
+  "UPDATE_CHECKLIST",
+  "UPLOAD_ATTACHMENTS",
+  "INVITE_MEMBERS",
+  "MANAGE_MEMBERS",
+  "MANAGE_SPACE_SETTINGS",
+] as const;
 export const TASK_SPACE_INVITATION_STATUSES = ["PENDING", "ACCEPTED", "REJECTED"] as const;
 export const TASK_APPROVAL_STATUSES = [
   "NOT_REQUIRED",
@@ -28,6 +40,7 @@ export type TaskVisibility = (typeof TASK_VISIBILITIES)[number];
 export type TaskApprovalStatus = (typeof TASK_APPROVAL_STATUSES)[number];
 export type TaskSpaceVisibility = (typeof TASK_SPACE_VISIBILITIES)[number];
 export type TaskSpaceMemberRole = (typeof TASK_SPACE_MEMBER_ROLES)[number];
+export type TaskSpacePermission = (typeof TASK_SPACE_PERMISSIONS)[number];
 export type TaskSpaceInvitationStatus = (typeof TASK_SPACE_INVITATION_STATUSES)[number];
 
 export type TaskSummary = {
@@ -269,6 +282,7 @@ export type TaskSpaceMember = {
   userName: string;
   userEmail: string | null;
   role: TaskSpaceMemberRole;
+  permissions: TaskSpacePermission[];
   active: boolean;
   invitedByName: string | null;
   joinedAt: string;
@@ -284,6 +298,7 @@ export type TaskSpaceInvitation = {
   invitedById: string;
   invitedByName: string;
   role: TaskSpaceMemberRole;
+  permissions: TaskSpacePermission[];
   status: TaskSpaceInvitationStatus;
   message: string | null;
   respondedAt: string | null;
@@ -302,6 +317,7 @@ export type TaskSpaceRequest = {
   iconName?: string | null;
   colorHex?: string | null;
   visibility: TaskSpaceVisibility;
+  members?: TaskSpaceMemberSeedRequest[];
 };
 
 export type TaskSpaceInvitationRequest = {
@@ -309,7 +325,16 @@ export type TaskSpaceInvitationRequest = {
   userName: string;
   userEmail?: string | null;
   role: TaskSpaceMemberRole;
+  permissions?: TaskSpacePermission[];
   message?: string | null;
+};
+
+export type TaskSpaceMemberSeedRequest = {
+  userId: string;
+  userName: string;
+  userEmail?: string | null;
+  role: TaskSpaceMemberRole;
+  permissions?: TaskSpacePermission[];
 };
 
 export type TaskStreamEvent = {
