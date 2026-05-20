@@ -6,7 +6,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
   Bell,
-  BriefcaseBusiness,
   CalendarDays,
   CheckCircle2,
   CheckCheck,
@@ -16,19 +15,15 @@ import {
   Clock3,
   Filter,
   FolderKanban,
-  Globe2,
   GripVertical,
-  Hash,
   LayoutList,
   Loader2,
-  Lock,
   MessageSquareText,
   MoreHorizontal,
   PencilLine,
   Plus,
   Search,
   Settings2,
-  ShieldCheck,
   SquareKanban,
   Timer,
   TrendingUp,
@@ -51,31 +46,29 @@ import {
   spaceKeys,
   taskKeys,
   useCreateTaskSpace,
-  useCreateSubtask,
-  useCreateTask,
-  useDeleteTask,
-  useDeleteTaskSpace,
-  useInviteToTaskSpace,
-  useReorderTaskHierarchy,
-  useTask,
-  useTaskDashboard,
   useTaskInvitations,
   useTaskSpace,
   useTaskSpaces,
+  useDeleteTaskSpace,
+  useInviteToTaskSpace,
+  useCreateSubtask,
+  useCreateTask,
+  useDeleteTask,
+  useRemoveTaskSpaceMember,
+  useReorderTaskHierarchy,
+  useRespondToTaskInvitation,
+  useTask,
+  useTaskDashboard,
   useTaskTree,
   useTaskUsers,
-  useRespondToTaskInvitation,
-  useRemoveTaskSpaceMember,
-  useUpdateChecklistItem,
   useUpdateTaskSpace,
   useUpdateTaskSpaceMember,
+  useUpdateChecklistItem,
   useUpdateTask,
   useUpdateTaskStatus,
 } from "./hooks";
 import {
   TASK_PRIORITIES,
-  TASK_SPACE_MEMBER_ROLES,
-  TASK_SPACE_VISIBILITIES,
   TASK_STATUSES,
   TASK_VISIBILITIES,
   type TaskChecklistItem,
@@ -92,6 +85,8 @@ import {
   type TaskSpaceMemberRole,
   type TaskSpaceRequest,
   type TaskSpaceSummary,
+  TASK_SPACE_MEMBER_ROLES,
+  TASK_SPACE_VISIBILITIES,
 } from "./types";
 
 type TaskView = "list" | "board" | "calendar" | "timeline";
@@ -136,7 +131,6 @@ const defaultFilter: TaskFilter = {
   priority: "",
   scope: "all",
   assigneeId: "",
-  spaceId: "",
   projectRef: "",
   moduleRef: "",
   approvalStatus: "",
@@ -144,6 +138,7 @@ const defaultFilter: TaskFilter = {
   dueToday: false,
   page: 1,
   pageSize: 200,
+  spaceId: ""
 };
 
 const defaultForm: TaskFormState = {
@@ -166,7 +161,7 @@ const defaultForm: TaskFormState = {
 const defaultSpaceForm: SpaceFormState = {
   name: "",
   description: "",
-  iconName: "rocket",
+  iconName: "space",
   colorHex: "#0f172a",
   visibility: "PRIVATE",
 };
@@ -348,6 +343,12 @@ function initials(name?: string | null) {
     .toUpperCase();
 }
 
+function canOpenFullTaskEditor(user: CurrentUser | null | undefined, task: TaskSummary) {
+  if (!user) return false;
+  if (typeof task.canEdit === "boolean") return task.canEdit;
+  return hasPermission(user, PERMISSIONS.PAGE_TASKS) || hasPermission(user, PERMISSIONS.MODULE_TASKS);
+}
+
 function canManageExecution(user: CurrentUser | null | undefined, task: TaskSummary) {
   if (!user) return false;
   if (typeof task.canManageExecution === "boolean") return task.canManageExecution;
@@ -355,78 +356,41 @@ function canManageExecution(user: CurrentUser | null | undefined, task: TaskSumm
   return hasPermission(user, PERMISSIONS.PAGE_TASKS) || hasPermission(user, PERMISSIONS.MODULE_TASKS);
 }
 
-function canOpenFullTaskEditor(user: CurrentUser | null | undefined, task: TaskSummary) {
-  if (!user) return false;
-  if (typeof task.canEdit === "boolean") return task.canEdit;
-  return hasPermission(user, PERMISSIONS.PAGE_TASKS) || hasPermission(user, PERMISSIONS.MODULE_TASKS);
+function activeSpaceTasks(tasks: TaskSummary[], spaceId: string) {
+  if (!spaceId) return tasks;
+  return tasks.filter((task) => task.spaceId === spaceId);
 }
 
-function canManageSpace(user: CurrentUser | null | undefined, space: TaskSpaceSummary | null | undefined) {
+function spaceAccent(space: TaskSpaceSummary) {
+  return space.colorHex || "#0f172a";
+}
+
+function canManageSpace(user: CurrentUser | null | undefined, space: TaskSpaceSummary | null) {
   if (!user || !space) return false;
   if (hasPermission(user, PERMISSIONS.PAGE_TASKS) || hasPermission(user, PERMISSIONS.MODULE_TASKS)) return true;
   return space.currentUserRole === "OWNER" || space.currentUserRole === "ADMIN" || space.currentUserRole === "PROJECT_MANAGER";
 }
 
-function taskBelongsToSpace(task: TaskSummary, spaceId: string | null) {
-  if (!spaceId) return true;
-  return task.spaceId === spaceId;
+function roleBadge(role: TaskSpaceMemberRole) {
+  return {
+    OWNER: "border-slate-300 bg-slate-950 text-white",
+    ADMIN: "border-slate-300 bg-slate-100 text-slate-800",
+    PROJECT_MANAGER: "border-amber-200 bg-amber-50 text-amber-700",
+    MEMBER: "border-emerald-200 bg-emerald-50 text-emerald-700",
+    VIEWER: "border-slate-200 bg-slate-50 text-slate-600",
+  }[role];
 }
 
-function spaceToForm(space: TaskSpaceSummary | null): SpaceFormState {
+function toSpaceForm(space: TaskSpaceSummary | null): SpaceFormState {
   if (!space) return defaultSpaceForm;
   return {
     name: space.name,
     description: space.description ?? "",
-    iconName: space.iconName ?? "rocket",
+    iconName: space.iconName ?? "space",
     colorHex: space.colorHex ?? "#0f172a",
     visibility: space.visibility,
   };
 }
-
-function roleTone(role: TaskSpaceMemberRole) {
-  return {
-    OWNER: "border-slate-300 bg-slate-950 text-white",
-    ADMIN: "border-sky-200 bg-sky-50 text-sky-700",
-    PROJECT_MANAGER: "border-violet-200 bg-violet-50 text-violet-700",
-    MEMBER: "border-emerald-200 bg-emerald-50 text-emerald-700",
-    VIEWER: "border-slate-200 bg-slate-100 text-slate-700",
-  }[role];
-}
-
-function visibilityTone(visibility: "PRIVATE" | "PUBLIC") {
-  return visibility === "PRIVATE"
-    ? "border-slate-200 bg-slate-100 text-slate-700"
-    : "border-emerald-200 bg-emerald-50 text-emerald-700";
-}
-
-function spaceIcon(iconName?: string | null) {
-  const className = "h-4 w-4";
-  switch ((iconName ?? "").toLowerCase()) {
-    case "globe":
-      return <Globe2 className={className} />;
-    case "shield":
-      return <ShieldCheck className={className} />;
-    case "hash":
-      return <Hash className={className} />;
-    case "briefcase":
-      return <BriefcaseBusiness className={className} />;
-    case "lock":
-      return <Lock className={className} />;
-    default:
-      return <FolderKanban className={className} />;
-  }
-}
-
-const SPACE_ICON_OPTIONS = [
-  { value: "rocket", label: "Rocket" },
-  { value: "briefcase", label: "Briefcase" },
-  { value: "globe", label: "Globe" },
-  { value: "shield", label: "Shield" },
-  { value: "hash", label: "Hash" },
-  { value: "lock", label: "Lock" },
-] as const;
-
-const SPACE_COLOR_OPTIONS = ["#0f172a", "#0369a1", "#4338ca", "#7c3aed", "#047857", "#be123c", "#d97706"];
 
 export default function TaskManagementPage() {
   const queryClient = useQueryClient();
@@ -434,20 +398,20 @@ export default function TaskManagementPage() {
   const [scope, setScope] = useState<TaskScope>("all");
   const [grouping, setGrouping] = useState<TaskGrouping>("status");
   const [filter, setFilter] = useState<TaskFilter>(defaultFilter);
-  const [selectedSpaceId, setSelectedSpaceId] = useState<string | null>(null);
+  const [selectedSpaceId, setSelectedSpaceId] = useState("");
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [detailTaskId, setDetailTaskId] = useState<string | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<TaskSummary | null>(null);
   const [spaceEditorOpen, setSpaceEditorOpen] = useState(false);
+  const [memberPanelOpen, setMemberPanelOpen] = useState(false);
   const [editingSpace, setEditingSpace] = useState<TaskSpaceSummary | null>(null);
   const [spaceForm, setSpaceForm] = useState<SpaceFormState>(defaultSpaceForm);
-  const [quickTitle, setQuickTitle] = useState("");
-  const [inviteOpen, setInviteOpen] = useState(false);
   const [inviteUserId, setInviteUserId] = useState("");
   const [inviteRole, setInviteRole] = useState<TaskSpaceMemberRole>("MEMBER");
   const [inviteMessage, setInviteMessage] = useState("");
+  const [quickTitle, setQuickTitle] = useState("");
   const [groupDrafts, setGroupDrafts] = useState<Record<string, string>>({});
   const [commentDraft, setCommentDraft] = useState("");
   const [checklistDraft, setChecklistDraft] = useState("");
@@ -458,7 +422,7 @@ export default function TaskManagementPage() {
   const dashboardQuery = useTaskDashboard();
   const spacesQuery = useTaskSpaces();
   const invitationsQuery = useTaskInvitations();
-  const selectedSpaceQuery = useTaskSpace(selectedSpaceId);
+  const spaceDetailQuery = useTaskSpace(selectedSpaceId || null);
   const treeQuery = useTaskTree(filter);
   const detailQuery = useTask(detailTaskId);
   const usersQuery = useTaskUsers();
@@ -468,14 +432,14 @@ export default function TaskManagementPage() {
   const createSubtaskMutation = useCreateSubtask();
   const deleteSpaceMutation = useDeleteTaskSpace();
   const inviteSpaceMutation = useInviteToTaskSpace();
+  const removeMemberMutation = useRemoveTaskSpaceMember();
   const updateTaskMutation = useUpdateTask();
+  const respondInvitationMutation = useRespondToTaskInvitation();
   const updateSpaceMutation = useUpdateTaskSpace();
   const updateSpaceMemberMutation = useUpdateTaskSpaceMember();
   const updateTaskStatusMutation = useUpdateTaskStatus();
   const deleteTaskMutation = useDeleteTask();
   const reorderMutation = useReorderTaskHierarchy();
-  const respondToInvitationMutation = useRespondToTaskInvitation();
-  const removeSpaceMemberMutation = useRemoveTaskSpaceMember();
   const assignMutation = useAssignTask();
   const commentMutation = useAddTaskComment();
   const addChecklistMutation = useAddChecklistItem();
@@ -484,8 +448,8 @@ export default function TaskManagementPage() {
   const dashboard = dashboardQuery.data;
   const spaces = spacesQuery.data ?? [];
   const invitations = invitationsQuery.data ?? [];
-  const selectedSpaceDetail = selectedSpaceQuery.data ?? null;
-  const selectedSpace = spaces.find((space) => space.id === selectedSpaceId) ?? selectedSpaceDetail?.space ?? null;
+  const selectedSpace = spaces.find((space) => space.id === selectedSpaceId) ?? null;
+  const selectedSpaceDetail = spaceDetailQuery.data ?? null;
   const taskTree = treeQuery.data?.data ?? [];
   const detail = detailQuery.data ?? null;
   const users = useMemo(
@@ -499,14 +463,11 @@ export default function TaskManagementPage() {
   );
 
   useEffect(() => {
-    if (!spaces.length) {
-      if (selectedSpaceId !== null) setSelectedSpaceId(null);
-      return;
-    }
+    if (!spaces.length) return;
     if (selectedSpaceId && spaces.some((space) => space.id === selectedSpaceId)) return;
-    const nextDefault = spaces.find((space) => !space.archived)?.id ?? spaces[0]?.id ?? null;
-    if (nextDefault !== selectedSpaceId) {
-      setSelectedSpaceId(nextDefault);
+    const nextSpaceId = spaces[0]?.id ?? "";
+    if (nextSpaceId) {
+      setSelectedSpaceId(nextSpaceId);
     }
   }, [selectedSpaceId, spaces]);
 
@@ -530,29 +491,19 @@ export default function TaskManagementPage() {
     // Defer updating filter state to avoid synchronous setState in an effect
     // which can trigger cascading renders.
     Promise.resolve().then(() => {
-      setFilter((prev) => ({ ...prev, scope, spaceId: selectedSpaceId ?? "" }));
+      setFilter((prev) => ({ ...prev, scope, spaceId: selectedSpaceId }));
     });
   }, [scope, selectedSpaceId]);
 
   useEffect(() => {
-    if (selectedSpaceId) {
-      setGrouping("status");
-    }
-  }, [selectedSpaceId]);
-
-  useEffect(() => {
-    const cleanup = connectTaskStream(
-      (event) => {
-        queryClient.invalidateQueries({ queryKey: taskKeys.all });
-        queryClient.invalidateQueries({ queryKey: spaceKeys.all });
-        if (event.spaceId) {
-          queryClient.invalidateQueries({ queryKey: spaceKeys.detail(event.spaceId) });
-        }
-      },
-      () => {
-        // Keep stream errors quiet; polling/invalidation still maintains UX.
+    const cleanup = connectTaskStream((event) => {
+      queryClient.invalidateQueries({ queryKey: taskKeys.all });
+      queryClient.invalidateQueries({ queryKey: spaceKeys.all });
+      queryClient.invalidateQueries({ queryKey: spaceKeys.invitations() });
+      if (event.spaceId) {
+        queryClient.invalidateQueries({ queryKey: spaceKeys.detail(event.spaceId) });
       }
-    );
+    });
     return cleanup;
   }, [queryClient]);
 
@@ -583,18 +534,17 @@ export default function TaskManagementPage() {
         .slice(0, 24),
     [allFlatTasks]
   );
-  const selectedSpaceTasks = useMemo(
-    () => allFlatTasks.filter((task) => taskBelongsToSpace(task, selectedSpaceId)),
-    [allFlatTasks, selectedSpaceId]
+  const selectedScopedTasks = useMemo(() => activeSpaceTasks(allFlatTasks, selectedSpaceId), [allFlatTasks, selectedSpaceId]);
+  const selectedSpaceCounts = useMemo(
+    () => ({
+      total: selectedScopedTasks.length,
+      inProgress: selectedScopedTasks.filter((task) => task.status === "IN_PROGRESS").length,
+      review: selectedScopedTasks.filter((task) => task.status === "UNDER_REVIEW").length,
+      completed: selectedScopedTasks.filter((task) => task.status === "COMPLETED").length,
+      overdue: selectedScopedTasks.filter((task) => task.overdue).length,
+    }),
+    [selectedScopedTasks]
   );
-  const selectedSpaceTaskCounts = useMemo(() => {
-    const total = selectedSpaceTasks.length;
-    const inProgress = selectedSpaceTasks.filter((task) => task.status === "IN_PROGRESS").length;
-    const review = selectedSpaceTasks.filter((task) => task.status === "UNDER_REVIEW").length;
-    const completed = selectedSpaceTasks.filter((task) => task.status === "COMPLETED").length;
-    const overdue = selectedSpaceTasks.filter((task) => task.overdue).length;
-    return { total, inProgress, review, completed, overdue };
-  }, [selectedSpaceTasks]);
   const manageableSpace = canManageSpace(currentUser, selectedSpace);
 
   function toggleGroup(groupKey: string) {
@@ -617,16 +567,16 @@ export default function TaskManagementPage() {
 
   function openEditor(task?: TaskSummary | null) {
     setEditingTask(task ?? null);
-    setForm((prev) => ({
+    setForm({
       ...taskToForm(task ?? null),
-      spaceId: task?.spaceId ?? selectedSpaceId ?? prev.spaceId,
-    }));
+      spaceId: task?.spaceId ?? selectedSpaceId,
+    });
     setEditorOpen(true);
   }
 
   function openSpaceEditor(space?: TaskSpaceSummary | null) {
     setEditingSpace(space ?? null);
-    setSpaceForm(spaceToForm(space ?? null));
+    setSpaceForm(toSpaceForm(space ?? null));
     setSpaceEditorOpen(true);
   }
 
@@ -638,7 +588,7 @@ export default function TaskManagementPage() {
         priority: "MEDIUM",
         status: "PENDING",
         visibility: "TEAM",
-        spaceId: selectedSpaceId,
+        spaceId: selectedSpaceId || undefined,
         projectRef: filter.projectRef || undefined,
         moduleRef: filter.moduleRef || undefined,
       },
@@ -689,7 +639,7 @@ export default function TaskManagementPage() {
       status: grouping === "status" ? (section.key as TaskStatus) : "PENDING",
       priority: grouping === "priority" ? (section.key as TaskPriority) : "MEDIUM",
       visibility: "TEAM",
-      spaceId: selectedSpaceId,
+      spaceId: selectedSpaceId || undefined,
       projectRef: grouping === "project" ? section.label : filter.projectRef || undefined,
       moduleRef: grouping === "module" ? section.label : filter.moduleRef || undefined,
     };
@@ -731,134 +681,6 @@ export default function TaskManagementPage() {
         onError: (error) => toast.error(error.message),
       }
     );
-  }
-
-  function handleSaveSpace(event: React.FormEvent) {
-    event.preventDefault();
-    const payload: TaskSpaceRequest = {
-      name: spaceForm.name.trim(),
-      description: spaceForm.description.trim() || null,
-      iconName: spaceForm.iconName,
-      colorHex: spaceForm.colorHex,
-      visibility: spaceForm.visibility,
-    };
-    if (!payload.name) {
-      toast.error("Space name is required.");
-      return;
-    }
-
-    if (editingSpace) {
-      updateSpaceMutation.mutate(
-        { spaceId: editingSpace.id, payload },
-        {
-          onSuccess: () => {
-            toast.success("Space updated.");
-            setSpaceEditorOpen(false);
-          },
-          onError: (error) => toast.error(error.message),
-        }
-      );
-      return;
-    }
-
-    createSpaceMutation.mutate(payload, {
-      onSuccess: (created) => {
-        toast.success("Space created.");
-        setSelectedSpaceId(created.space.id);
-        setSpaceEditorOpen(false);
-      },
-      onError: (error) => toast.error(error.message),
-    });
-  }
-
-  function handleInviteToSpace() {
-    if (!selectedSpaceId || !inviteUserId) return;
-    const user = users.find((candidate) => candidate.id === inviteUserId);
-    if (!user) {
-      toast.error("Select a user to invite.");
-      return;
-    }
-    inviteSpaceMutation.mutate(
-      {
-        spaceId: selectedSpaceId,
-        payload: {
-          userId: user.id,
-          userName: user.name,
-          userEmail: user.email,
-          role: inviteRole,
-          message: inviteMessage.trim() || null,
-        },
-      },
-      {
-        onSuccess: () => {
-          toast.success("Invitation sent.");
-          setInviteUserId("");
-          setInviteRole("MEMBER");
-          setInviteMessage("");
-          setInviteOpen(false);
-        },
-        onError: (error) => toast.error(error.message),
-      }
-    );
-  }
-
-  function handleInvitationResponse(invitation: TaskSpaceInvitation, status: TaskSpaceInvitationStatus) {
-    respondToInvitationMutation.mutate(
-      { invitationId: invitation.id, status },
-      {
-        onSuccess: () => {
-          toast.success(status === "ACCEPTED" ? "Invitation accepted." : "Invitation rejected.");
-          if (status === "ACCEPTED") {
-            setSelectedSpaceId(invitation.spaceId);
-          }
-        },
-        onError: (error) => toast.error(error.message),
-      }
-    );
-  }
-
-  function handleMemberRoleChange(memberId: string, role: TaskSpaceMemberRole) {
-    if (!selectedSpaceId) return;
-    updateSpaceMemberMutation.mutate(
-      { spaceId: selectedSpaceId, memberId, role },
-      {
-        onSuccess: () => toast.success("Member role updated."),
-        onError: (error) => toast.error(error.message),
-      }
-    );
-  }
-
-  function handleRemoveMember(memberId: string) {
-    if (!selectedSpaceId) return;
-    removeSpaceMemberMutation.mutate(
-      { spaceId: selectedSpaceId, memberId },
-      {
-        onSuccess: () => toast.success("Member removed."),
-        onError: (error) => toast.error(error.message),
-      }
-    );
-  }
-
-  function handleArchiveSpace(space: TaskSpaceSummary) {
-    updateSpaceMutation.mutate(
-      { spaceId: space.id, payload: { archived: !space.archived } },
-      {
-        onSuccess: () => toast.success(space.archived ? "Space restored." : "Space archived."),
-        onError: (error) => toast.error(error.message),
-      }
-    );
-  }
-
-  function handleDeleteSpace(space: TaskSpaceSummary) {
-    deleteSpaceMutation.mutate(space.id, {
-      onSuccess: () => {
-        toast.success("Space deleted.");
-        if (selectedSpaceId === space.id) {
-          setSelectedSpaceId(null);
-        }
-      },
-      onError: (error) => toast.error(error.message),
-    });
   }
 
   function handleStatusUpdate(task: TaskSummary, status: TaskStatus, message: string) {
@@ -980,324 +802,407 @@ export default function TaskManagementPage() {
     );
   }
 
+  function handleSaveSpace(event: React.FormEvent) {
+    event.preventDefault();
+    const payload: TaskSpaceRequest = {
+      name: spaceForm.name.trim(),
+      description: spaceForm.description.trim() || null,
+      iconName: spaceForm.iconName || null,
+      colorHex: spaceForm.colorHex || null,
+      visibility: spaceForm.visibility,
+    };
+    if (!payload.name) {
+      toast.error("Space name is required.");
+      return;
+    }
+    if (editingSpace) {
+      updateSpaceMutation.mutate(
+        { spaceId: editingSpace.id, payload },
+        {
+          onSuccess: () => {
+            toast.success("Space updated.");
+            setSpaceEditorOpen(false);
+          },
+          onError: (error) => toast.error(error.message),
+        }
+      );
+      return;
+    }
+    createSpaceMutation.mutate(payload, {
+      onSuccess: (created) => {
+        toast.success("Space created.");
+        setSelectedSpaceId(created.space.id);
+        setSpaceEditorOpen(false);
+      },
+      onError: (error) => toast.error(error.message),
+    });
+  }
+
+  function handleDeleteSpace(space: TaskSpaceSummary) {
+    deleteSpaceMutation.mutate(space.id, {
+      onSuccess: () => {
+        toast.success("Space deleted.");
+        setSpaceEditorOpen(false);
+      },
+      onError: (error) => toast.error(error.message),
+    });
+  }
+
+  function handleInviteMember() {
+    if (!selectedSpaceId || !inviteUserId) return;
+    const user = users.find((candidate) => candidate.id === inviteUserId);
+    if (!user) {
+      toast.error("Select a user to invite.");
+      return;
+    }
+    inviteSpaceMutation.mutate(
+      {
+        spaceId: selectedSpaceId,
+        payload: {
+          userId: user.id,
+          userName: user.name,
+          userEmail: user.email,
+          role: inviteRole,
+          message: inviteMessage.trim() || null,
+        },
+      },
+      {
+        onSuccess: () => {
+          toast.success("Invitation sent.");
+          setInviteUserId("");
+          setInviteRole("MEMBER");
+          setInviteMessage("");
+        },
+        onError: (error) => toast.error(error.message),
+      }
+    );
+  }
+
+  function handleInvitationAction(invitation: TaskSpaceInvitation, status: TaskSpaceInvitationStatus) {
+    respondInvitationMutation.mutate(
+      { invitationId: invitation.id, status },
+      {
+        onSuccess: () => {
+          toast.success(status === "ACCEPTED" ? "Invitation accepted." : "Invitation rejected.");
+          if (status === "ACCEPTED") {
+            setSelectedSpaceId(invitation.spaceId);
+          }
+        },
+        onError: (error) => toast.error(error.message),
+      }
+    );
+  }
+
+  function handleMemberRoleUpdate(memberId: string, role: TaskSpaceMemberRole) {
+    if (!selectedSpaceId) return;
+    updateSpaceMemberMutation.mutate(
+      { spaceId: selectedSpaceId, memberId, role },
+      {
+        onSuccess: () => toast.success("Member role updated."),
+        onError: (error) => toast.error(error.message),
+      }
+    );
+  }
+
+  function handleRemoveMember(memberId: string) {
+    if (!selectedSpaceId) return;
+    removeMemberMutation.mutate(
+      { spaceId: selectedSpaceId, memberId },
+      {
+        onSuccess: () => toast.success("Member removed."),
+        onError: (error) => toast.error(error.message),
+      }
+    );
+  }
+
   return (
     <>
-      <div className="min-h-screen bg-slate-50">
+      <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.15),_transparent_28%),linear-gradient(180deg,#f8fafc_0%,#eef2ff_100%)]">
         <div className="mx-auto max-w-[1760px] px-4 py-4 sm:px-5 lg:px-6">
-          <div className="flex min-h-screen flex-col gap-4">
-            <div className="grid min-h-0 flex-1 gap-4 xl:grid-cols-[300px_minmax(0,1fr)]">
-              <aside className="flex min-h-0 flex-col gap-3">
-                <section className="rounded-[26px] border border-white/60 bg-white/70 p-4 shadow-[0_16px_48px_rgba(15,23,42,0.08)] backdrop-blur-xl">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-600">
-                        <FolderKanban className="h-3.5 w-3.5" />
-                        Spaces
-                      </div>
-                      <p className="mt-2 text-lg font-semibold text-slate-950">Execution OS</p>
+          <div className="grid min-h-screen gap-4 xl:grid-cols-[280px_minmax(0,1fr)]">
+            <aside className="flex min-h-0 flex-col gap-3">
+              <section className="rounded-[26px] border border-slate-200 bg-white p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
+                      <FolderKanban className="h-3.5 w-3.5" />
+                      Spaces
                     </div>
+                    <p className="mt-2 text-lg font-semibold text-slate-950">Execution OS</p>
+                  </div>
+                  <div className="flex items-center gap-2">
                     <button
                       type="button"
                       onClick={() => openSpaceEditor(null)}
-                      className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700"
+                      className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-700"
                     >
-                      <Plus className="h-3.5 w-3.5" />
+                      <Plus className="mr-1 inline h-3 w-3" />
                       New
                     </button>
-                  </div>
-
-                  <div className="mt-4 space-y-2">
-                    {spaces.map((space) => (
-                      <button
-                        key={space.id}
-                        type="button"
-                        onClick={() => setSelectedSpaceId(space.id)}
-                        className={`flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left transition ${
-                          selectedSpaceId === space.id
-                            ? "border border-slate-300 bg-slate-100 text-slate-950"
-                            : "border border-slate-200/80 bg-white/80 text-slate-700 hover:border-slate-300"
-                        }`}
-                      >
-                        <span
-                          className="flex h-9 w-9 items-center justify-center rounded-2xl text-white"
-                          style={{ backgroundColor: space.colorHex ?? "#0f172a" }}
-                        >
-                          {spaceIcon(space.iconName)}
-                        </span>
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate text-sm font-semibold">{space.name}</span>
-                          <span
-                            className={`mt-1 flex items-center gap-2 text-xs ${
-                              selectedSpaceId === space.id ? "text-slate-500" : "text-slate-500"
-                            }`}
-                          >
-                            <span>{space.pendingCount + space.inProgressCount + space.completedCount}</span>
-                            <span>tasks</span>
-                            <span>·</span>
-                            <span>{space.currentUserRole?.toLowerCase().replace(/_/g, " ") ?? "member"}</span>
-                          </span>
-                        </span>
-                        {space.pendingInvitations ? (
-                          <span className="rounded-full bg-rose-500 px-2 py-0.5 text-[10px] font-semibold text-white">
-                            {space.pendingInvitations}
-                          </span>
-                        ) : null}
-                      </button>
-                    ))}
-                    {!spaces.length ? (
-                      <div className="rounded-2xl border border-dashed border-slate-300 px-3 py-4 text-sm text-slate-500">
-                        No spaces yet. Create the first space to start organizing execution lanes.
-                      </div>
-                    ) : null}
-                  </div>
-                </section>
-
-                <section className="rounded-[26px] border border-white/60 bg-white/70 p-4 shadow-[0_16px_48px_rgba(15,23,42,0.08)] backdrop-blur-xl">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
-                      <Bell className="h-4 w-4 text-slate-500" />
-                      Invitations
-                    </div>
-                    <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-semibold text-slate-600">
-                      {invitations.filter((invitation) => invitation.status === "PENDING").length}
+                    <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
+                      {spaces.length}
                     </span>
                   </div>
-                  <div className="mt-3 space-y-2">
-                    {invitations.slice(0, 4).map((invitation) => (
-                      <div key={invitation.id} className="rounded-2xl border border-slate-200 bg-white/90 p-3">
-                        <p className="text-sm font-semibold text-slate-900">{invitation.spaceName}</p>
-                        <p className="mt-1 text-xs text-slate-500">
-                          {invitation.invitedByName} invited you as {toLabel(invitation.role)}
-                        </p>
+                </div>
+                <div className="mt-4 space-y-2">
+                  {spaces.map((space) => (
+                    <button
+                      key={space.id}
+                      type="button"
+                      onClick={() => setSelectedSpaceId(space.id)}
+                      className={`flex w-full items-center gap-3 rounded-2xl border px-3 py-3 text-left transition ${
+                        selectedSpaceId === space.id
+                          ? "border-slate-300 bg-slate-100 text-slate-950"
+                          : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
+                      }`}
+                    >
+                      <span className="h-3 w-3 rounded-full" style={{ backgroundColor: spaceAccent(space) }} />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-semibold">{space.name}</span>
+                        <span className="mt-1 block text-xs text-slate-500">
+                          {space.pendingCount} pending, {space.inProgressCount} in progress
+                        </span>
+                      </span>
+                    </button>
+                  ))}
+                  {!spaces.length ? <p className="text-sm text-slate-500">No spaces available yet.</p> : null}
+                </div>
+              </section>
+
+              <section className="rounded-[26px] border border-slate-200 bg-white p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+                    <Bell className="h-4 w-4 text-slate-500" />
+                    Invitations
+                  </div>
+                  <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
+                    {invitations.filter((item) => item.status === "PENDING").length}
+                  </span>
+                </div>
+                <div className="mt-3 space-y-2">
+                  {invitations.slice(0, 3).map((invitation) => (
+                    <div key={invitation.id} className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5">
+                      <p className="text-sm font-semibold text-slate-900">{invitation.spaceName}</p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        {invitation.invitedByName} invited you as {toLabel(invitation.role)}
+                      </p>
+                      {invitation.status === "PENDING" ? (
                         <div className="mt-3 flex gap-2">
                           <button
                             type="button"
-                            onClick={() => handleInvitationResponse(invitation, "ACCEPTED")}
-                            className="rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white"
+                            onClick={() => handleInvitationAction(invitation, "ACCEPTED")}
+                            className="rounded-xl bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white"
                           >
                             Accept
                           </button>
                           <button
                             type="button"
-                            onClick={() => handleInvitationResponse(invitation, "REJECTED")}
+                            onClick={() => handleInvitationAction(invitation, "REJECTED")}
                             className="rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700"
                           >
                             Reject
                           </button>
                         </div>
-                      </div>
-                    ))}
-                    {!invitations.length ? <p className="text-sm text-slate-500">No pending invitations.</p> : null}
-                  </div>
-                </section>
-
-                {selectedSpace ? (
-                  <section className="rounded-[26px] border border-white/60 bg-white/70 p-4 shadow-[0_16px_48px_rgba(15,23,42,0.08)] backdrop-blur-xl">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
-                          <span
-                            className="flex h-8 w-8 items-center justify-center rounded-2xl text-white"
-                            style={{ backgroundColor: selectedSpace.colorHex ?? "#0f172a" }}
-                          >
-                            {spaceIcon(selectedSpace.iconName)}
-                          </span>
-                          {selectedSpace.name}
-                        </div>
-                        <div className="mt-2 flex flex-wrap gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-                          <span className={`rounded-full border px-2 py-1 ${visibilityTone(selectedSpace.visibility)}`}>
-                            {toLabel(selectedSpace.visibility)}
-                          </span>
-                          {selectedSpace.currentUserRole ? (
-                            <span className={`rounded-full border px-2 py-1 ${roleTone(selectedSpace.currentUserRole)}`}>
-                              {toLabel(selectedSpace.currentUserRole)}
-                            </span>
-                          ) : null}
-                        </div>
-                      </div>
-                      {manageableSpace ? (
-                        <button
-                          type="button"
-                          onClick={() => openSpaceEditor(selectedSpace)}
-                          className="rounded-xl border border-slate-200 p-2 text-slate-500 hover:bg-slate-100"
-                        >
-                          <MoreHorizontal className="h-4 w-4" />
-                        </button>
                       ) : null}
                     </div>
-                    <p className="mt-3 text-sm leading-6 text-slate-600">
-                      {selectedSpace.description || "This space keeps execution grouped by membership, status lanes, and delivery ownership."}
-                    </p>
-                    <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                      <MiniMetric label="Pending" value={selectedSpace.pendingCount} />
-                      <MiniMetric label="In Progress" value={selectedSpace.inProgressCount} />
-                      <MiniMetric label="Completed" value={selectedSpace.completedCount} />
-                      <MiniMetric label="Overdue" value={selectedSpace.overdueCount} />
-                    </div>
-                  </section>
-                ) : null}
-              </aside>
+                  ))}
+                  {!invitations.length ? <p className="text-sm text-slate-500">No pending invites.</p> : null}
+                </div>
+              </section>
+            </aside>
 
-              <main className="flex min-h-0 flex-col">
-                <div className="border-b border-slate-200/80 px-4 py-4 sm:px-5">
-                  <div className="flex flex-col gap-4">
-                    <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                      <div className="flex items-start gap-3">
-                        <div>
-                      <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-600">
-                            <FolderKanban className="h-3.5 w-3.5" />
-                            Task Workspace
-                          </div>
-                          <h1 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950 sm:text-[2rem]">
-                            {selectedSpace ? selectedSpace.name : "Collaborative execution"}
-                          </h1>
-                          <p className="mt-1 max-w-3xl text-sm text-slate-500">
-                            Spaces own the pending, in progress, completed, and overdue streams so teams can operate from one execution surface.
-                          </p>
-                          <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-slate-500">
-                            <span className="font-medium text-slate-700">Execution OS</span>
-                            <span>/</span>
-                            <span>{selectedSpace?.name || "All Spaces"}</span>
-                            <span>/</span>
-                            <span>{filter.projectRef || detail?.task.projectRef || "All Projects"}</span>
-                            <span>/</span>
-                            <span>{filter.moduleRef || detail?.task.moduleRef || "All Modules"}</span>
-                          </div>
+            <main className="flex min-h-0 flex-col">
+              <div className="border-b border-slate-200/80 px-4 py-4 sm:px-5">
+                <div className="flex flex-col gap-4">
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                    <div className="flex items-start gap-3">
+                      <div>
+                        <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.28em] text-sky-700">
+                          <FolderKanban className="h-3.5 w-3.5" />
+                          Task Workspace
+                        </div>
+                        <h1 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950 sm:text-[2rem]">
+                          {selectedSpace?.name || "Collaborative execution, not dashboard clutter"}
+                        </h1>
+                        <p className="mt-1 max-w-3xl text-sm text-slate-500">
+                          Pending, in progress, completed, and overdue work now stays scoped inside the selected space.
+                        </p>
+                        <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-slate-500">
+                          <span className="font-medium text-slate-700">Execution OS</span>
+                          <span>/</span>
+                          <span>{selectedSpace?.name || filter.projectRef || detail?.task.projectRef || "All Execution"}</span>
+                          <span>/</span>
+                          <span>{filter.moduleRef || detail?.task.moduleRef || "All Modules"}</span>
                         </div>
                       </div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <ViewSwitch value={view} onChange={setView} />
-                        {manageableSpace ? (
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <ViewSwitch value={view} onChange={setView} />
+                      {selectedSpace && manageableSpace ? (
+                        <>
                           <button
                             type="button"
-                            onClick={() => setInviteOpen(true)}
+                            onClick={() => setMemberPanelOpen(true)}
                             className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700"
                           >
                             <UserPlus className="h-4 w-4" />
-                            Invite
+                            Members
                           </button>
-                        ) : null}
-                        <button
-                          type="button"
-                          onClick={() => openEditor(null)}
-                          className="inline-flex items-center gap-2 rounded-2xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white"
-                        >
-                          <Plus className="h-4 w-4" />
-                          New Task
-                        </button>
-                      </div>
+                          <button
+                            type="button"
+                            onClick={() => openSpaceEditor(selectedSpace)}
+                            className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700"
+                          >
+                            <MoreHorizontal className="h-4 w-4" />
+                            Edit Space
+                          </button>
+                        </>
+                      ) : null}
+                      <button
+                        type="button"
+                        onClick={() => openEditor(null)}
+                        className="inline-flex items-center gap-2 rounded-2xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white"
+                      >
+                        <Plus className="h-4 w-4" />
+                        New Task
+                      </button>
                     </div>
+                  </div>
 
-                    <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
-                      <MetricStrip label="Total" value={selectedSpaceTaskCounts.total || dashboard?.kpis.totalTasks || 0} hint="Visible work items" tone="slate" />
-                      <MetricStrip label="In Progress" value={selectedSpace ? selectedSpace.inProgressCount : selectedSpaceTaskCounts.inProgress || dashboard?.kpis.inProgress || 0} hint="Execution active" tone="sky" />
-                      <MetricStrip label="Review" value={selectedSpaceTaskCounts.review || dashboard?.statusDistribution.UNDER_REVIEW || 0} hint="Awaiting decisions" tone="fuchsia" />
-                      <MetricStrip label="Completed" value={selectedSpace ? selectedSpace.completedCount : selectedSpaceTaskCounts.completed || dashboard?.kpis.completed || 0} hint="Closed this cycle" tone="emerald" />
-                      <MetricStrip label="Overdue" value={selectedSpace ? selectedSpace.overdueCount : selectedSpaceTaskCounts.overdue || dashboard?.kpis.overdue || 0} hint="Needs recovery" tone="rose" />
-                    </div>
+                  <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+                    <MetricStrip
+                      label="Total"
+                      value={selectedSpace ? selectedSpaceCounts.total : dashboard?.kpis.totalTasks ?? 0}
+                      hint="Visible work items"
+                      tone="slate"
+                    />
+                    <MetricStrip
+                      label="In Progress"
+                      value={selectedSpace ? selectedSpaceCounts.inProgress : dashboard?.kpis.inProgress ?? 0}
+                      hint="Execution active"
+                      tone="sky"
+                    />
+                    <MetricStrip
+                      label="Review"
+                      value={selectedSpace ? selectedSpaceCounts.review : dashboard?.statusDistribution.UNDER_REVIEW ?? 0}
+                      hint="Awaiting decisions"
+                      tone="fuchsia"
+                    />
+                    <MetricStrip
+                      label="Completed"
+                      value={selectedSpace ? selectedSpaceCounts.completed : dashboard?.kpis.completed ?? 0}
+                      hint="Closed this cycle"
+                      tone="emerald"
+                    />
+                    <MetricStrip
+                      label="Overdue"
+                      value={selectedSpace ? selectedSpaceCounts.overdue : dashboard?.kpis.overdue ?? 0}
+                      hint="Needs recovery"
+                      tone="rose"
+                    />
+                  </div>
 
-                    <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-                      <div className="flex flex-1 flex-wrap items-center gap-2">
-                        <label className="relative min-w-[240px] flex-1 xl:max-w-md">
-                          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                          <input
-                            value={filter.search}
-                            onChange={(event) => setFilter((prev) => ({ ...prev, search: event.target.value }))}
-                            placeholder="Search title, code, assignee, project, module"
-                            className="w-full rounded-2xl border border-slate-200 bg-white px-10 py-2.5 text-sm text-slate-700 outline-none transition focus:border-slate-400"
-                          />
-                        </label>
-                        <FloatingSelect
-                          value={filter.status}
-                          onChange={(value) => setFilter((prev) => ({ ...prev, status: value }))}
-                          options={[
-                            { value: "", label: "All statuses" },
-                            ...TASK_STATUSES.map((status) => ({ value: status, label: toLabel(status) })),
-                          ]}
-                          className="min-w-[180px]"
-                        />
-                        <FloatingSelect
-                          value={filter.priority}
-                          onChange={(value) => setFilter((prev) => ({ ...prev, priority: value }))}
-                          options={[
-                            { value: "", label: "All priorities" },
-                            ...TASK_PRIORITIES.map((priority) => ({ value: priority, label: toLabel(priority) })),
-                          ]}
-                          className="min-w-[180px]"
-                        />
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setFilter({
-                              ...defaultFilter,
-                              scope,
-                              search: filter.search,
-                              spaceId: selectedSpaceId ?? "",
-                            })
-                          }
-                          className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-600"
-                        >
-                          <Filter className="h-4 w-4" />
-                          Reset
-                        </button>
-                      </div>
-
-                      <div className="flex flex-wrap items-center gap-2">
-                        <div className="inline-flex rounded-2xl border border-slate-200 bg-slate-50 p-1">
-                          {(["all", "my", "team"] as TaskScope[]).map((item) => (
-                            <button
-                              key={item}
-                              type="button"
-                              onClick={() => setScope(item)}
-                              className={`rounded-xl px-3 py-1.5 text-sm font-medium transition ${
-                                scope === item ? "bg-white text-slate-900 shadow-sm" : "text-slate-500"
-                              }`}
-                            >
-                              {item === "all" ? "All work" : item === "my" ? "My queue" : "Team lane"}
-                            </button>
-                          ))}
-                        </div>
-                        <FloatingSelect
-                          value={grouping}
-                          onChange={(value) => setGrouping(value as TaskGrouping)}
-                          options={[
-                            { value: "status", label: "Group by status" },
-                            { value: "priority", label: "Group by priority" },
-                            { value: "project", label: "Group by project" },
-                            { value: "module", label: "Group by module" },
-                          ]}
-                          className="min-w-[210px]"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="flex flex-col gap-2 rounded-2xl border border-slate-200 bg-slate-50/80 px-3 py-3 sm:flex-row sm:items-center">
-                      <div className="flex flex-1 items-center gap-2 text-sm text-slate-500">
-                        <Settings2 className="h-4 w-4 text-slate-400" />
-                        Quick capture keeps the work stream moving inside {selectedSpace?.name || "the current space"}.
-                      </div>
-                      <div className="flex flex-1 gap-2">
+                  <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+                    <div className="flex flex-1 flex-wrap items-center gap-2">
+                      <label className="relative min-w-[240px] flex-1 xl:max-w-md">
+                        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                         <input
-                          value={quickTitle}
-                          onChange={(event) => setQuickTitle(event.target.value)}
-                          onKeyDown={(event) => event.key === "Enter" && handleQuickCreate()}
-                          placeholder="Quick create a task in the current space"
-                          className="flex-1 rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm"
+                          value={filter.search}
+                          onChange={(event) => setFilter((prev) => ({ ...prev, search: event.target.value }))}
+                          placeholder="Search title, code, assignee, project, module"
+                          className="w-full rounded-2xl border border-slate-200 bg-white px-10 py-2.5 text-sm text-slate-700 outline-none transition focus:border-sky-400"
                         />
-                        <button
-                          type="button"
-                          onClick={handleQuickCreate}
-                          className="inline-flex items-center gap-2 rounded-2xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white"
-                        >
-                          <Plus className="h-4 w-4" />
-                          Add
-                        </button>
+                      </label>
+                      <FloatingSelect
+                        value={filter.status}
+                        onChange={(value) => setFilter((prev) => ({ ...prev, status: value }))}
+                        options={[
+                          { value: "", label: "All statuses" },
+                          ...TASK_STATUSES.map((status) => ({ value: status, label: toLabel(status) })),
+                        ]}
+                        className="min-w-[180px]"
+                      />
+                      <FloatingSelect
+                        value={filter.priority}
+                        onChange={(value) => setFilter((prev) => ({ ...prev, priority: value }))}
+                        options={[
+                          { value: "", label: "All priorities" },
+                          ...TASK_PRIORITIES.map((priority) => ({ value: priority, label: toLabel(priority) })),
+                        ]}
+                        className="min-w-[180px]"
+                      />
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setFilter({
+                            ...defaultFilter,
+                            scope,
+                            search: filter.search,
+                          })
+                        }
+                        className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-600"
+                      >
+                        <Filter className="h-4 w-4" />
+                        Reset
+                      </button>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      <div className="inline-flex rounded-2xl border border-slate-200 bg-slate-50 p-1">
+                        {(["all", "my", "team"] as TaskScope[]).map((item) => (
+                          <button
+                            key={item}
+                            type="button"
+                            onClick={() => setScope(item)}
+                            className={`rounded-xl px-3 py-1.5 text-sm font-medium transition ${
+                              scope === item ? "bg-white text-slate-900 shadow-sm" : "text-slate-500"
+                            }`}
+                          >
+                            {item === "all" ? "All work" : item === "my" ? "My queue" : "Team lane"}
+                          </button>
+                        ))}
                       </div>
+                      <FloatingSelect
+                        value={grouping}
+                        onChange={(value) => setGrouping(value as TaskGrouping)}
+                        options={[
+                          { value: "status", label: "Group by status" },
+                          { value: "priority", label: "Group by priority" },
+                          { value: "project", label: "Group by project" },
+                          { value: "module", label: "Group by module" },
+                        ]}
+                        className="min-w-[210px]"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-2 rounded-2xl border border-slate-200 bg-slate-50/80 px-3 py-3 sm:flex-row sm:items-center">
+                    <div className="flex flex-1 items-center gap-2 text-sm text-slate-500">
+                      <Settings2 className="h-4 w-4 text-slate-400" />
+                      Quick capture keeps the work stream moving without leaving the workspace.
+                    </div>
+                    <div className="flex flex-1 gap-2">
+                      <input
+                        value={quickTitle}
+                        onChange={(event) => setQuickTitle(event.target.value)}
+                        onKeyDown={(event) => event.key === "Enter" && handleQuickCreate()}
+                        placeholder="Quick create a task in the current space"
+                        className="flex-1 rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleQuickCreate}
+                        className="inline-flex items-center gap-2 rounded-2xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white"
+                      >
+                        <Plus className="h-4 w-4" />
+                        Add
+                      </button>
                     </div>
                   </div>
                 </div>
+              </div>
 
-                <div className="min-h-0 flex-1 px-3 py-3 sm:px-4">
+              <div className="min-h-0 flex-1 px-3 py-3 sm:px-4">
                 {treeQuery.isLoading ? (
                   <PanelState icon={<Loader2 className="h-5 w-5 animate-spin" />} title="Loading workspace" body="Syncing task streams, activity, and workspace structure." />
                 ) : treeQuery.error ? (
@@ -1416,7 +1321,7 @@ export default function TaskManagementPage() {
                                 <div>
                                   <p className="text-sm font-semibold text-slate-900">{task.title}</p>
                                   <p className="mt-1 text-xs text-slate-500">
-                                    {task.taskCode} · {task.projectRef || "General"} · {task.moduleRef || "Unsorted"}
+                                    {task.taskCode} � {task.projectRef || "General"} � {task.moduleRef || "Unsorted"}
                                   </p>
                                 </div>
                                 <span className={`rounded-full border px-2 py-1 text-[10px] font-semibold ${priorityTone(task.priority)}`}>
@@ -1455,7 +1360,7 @@ export default function TaskManagementPage() {
                         </div>
                         <p className="mt-3 text-base font-semibold text-slate-900">{task.title}</p>
                         <p className="mt-1 text-sm text-slate-500">
-                          {task.projectRef || "General"} · {task.moduleRef || "Unsorted"}
+                          {task.projectRef || "General"} � {task.moduleRef || "Unsorted"}
                         </p>
                         <div className="mt-4 flex items-center gap-2 text-xs text-slate-500">
                           <Avatar name={task.assignedToName} />
@@ -1476,7 +1381,7 @@ export default function TaskManagementPage() {
                         <div className="lg:w-64">
                           <p className="text-sm font-semibold text-slate-900">{task.title}</p>
                           <p className="mt-1 text-xs text-slate-500">
-                            {task.taskCode} · {task.projectRef || "General"} · {task.moduleRef || "Unsorted"}
+                            {task.taskCode} � {task.projectRef || "General"} � {task.moduleRef || "Unsorted"}
                           </p>
                         </div>
                         <div className="grid flex-1 gap-3 md:grid-cols-3">
@@ -1488,15 +1393,42 @@ export default function TaskManagementPage() {
                     ))}
                   </div>
                 )}
-                </div>
-              </main>
-            </div>
+              </div>
+            </main>
           </div>
         </div>
       </div>
 
       <Drawer open={editorOpen} title={editingTask ? "Edit Task" : "Create Task"} onClose={() => setEditorOpen(false)} maxWidth="max-w-xl">
         <TaskEditor form={form} setForm={setForm} users={users} spaces={spaces} onSubmit={handleSaveTask} onClose={() => setEditorOpen(false)} />
+      </Drawer>
+
+      <Drawer open={spaceEditorOpen} title={editingSpace ? "Edit Space" : "Create Space"} onClose={() => setSpaceEditorOpen(false)} maxWidth="max-w-lg">
+        <SpaceEditor
+          form={spaceForm}
+          setForm={setSpaceForm}
+          onSubmit={handleSaveSpace}
+          editingSpace={editingSpace}
+          onDelete={() => editingSpace && handleDeleteSpace(editingSpace)}
+          onClose={() => setSpaceEditorOpen(false)}
+        />
+      </Drawer>
+
+      <Drawer open={memberPanelOpen} title={selectedSpace ? `${selectedSpace.name} Members` : "Space Members"} onClose={() => setMemberPanelOpen(false)} maxWidth="max-w-xl">
+        <SpaceMembersPanel
+          detail={selectedSpaceDetail}
+          users={users}
+          inviteUserId={inviteUserId}
+          inviteRole={inviteRole}
+          inviteMessage={inviteMessage}
+          setInviteUserId={setInviteUserId}
+          setInviteRole={setInviteRole}
+          setInviteMessage={setInviteMessage}
+          onInvite={handleInviteMember}
+          onRoleChange={handleMemberRoleUpdate}
+          onRemoveMember={handleRemoveMember}
+          canManage={manageableSpace}
+        />
       </Drawer>
 
       <Drawer open={Boolean(detailTaskId)} title={detail?.task.title ?? "Task"} onClose={() => setDetailTaskId(null)} maxWidth="max-w-full md:max-w-[72vw] xl:max-w-[42vw]">
@@ -1513,7 +1445,7 @@ export default function TaskManagementPage() {
           onAddChecklistItem={handleAddChecklistItem}
           onChecklistToggle={handleChecklistToggle}
           onQuickSubtask={(task, title) => {
-            const payload = buildPayload({ ...defaultForm, title, spaceId: task.spaceId ?? selectedSpaceId ?? "" }, users, task.spaceId, task.id, null);
+            const payload = buildPayload({ ...defaultForm, title, spaceId: task.spaceId ?? selectedSpaceId }, users, task.spaceId, task.id, null);
             createSubtaskMutation.mutate(
               { parentId: task.id, payload },
               {
@@ -1535,41 +1467,6 @@ export default function TaskManagementPage() {
           onStatusUpdate={handleStatusUpdate}
           onInlineUpdate={handleInlineUpdate}
           onClose={() => setDetailTaskId(null)}
-        />
-      </Drawer>
-
-      <Drawer open={spaceEditorOpen} title={editingSpace ? "Edit Space" : "Create Space"} onClose={() => setSpaceEditorOpen(false)} maxWidth="max-w-lg">
-        <SpaceEditor
-          form={spaceForm}
-          setForm={setSpaceForm}
-          editingSpace={editingSpace}
-          canDelete={Boolean(editingSpace)}
-          onSubmit={handleSaveSpace}
-          onArchive={() => editingSpace && handleArchiveSpace(editingSpace)}
-          onDelete={() => editingSpace && handleDeleteSpace(editingSpace)}
-          onClose={() => setSpaceEditorOpen(false)}
-        />
-      </Drawer>
-
-      <Drawer
-        open={inviteOpen && Boolean(selectedSpace)}
-        title={selectedSpace ? `Invite to ${selectedSpace.name}` : "Invite to Space"}
-        onClose={() => setInviteOpen(false)}
-        maxWidth="max-w-xl"
-      >
-        <SpaceAccessPanel
-          spaceDetail={selectedSpaceDetail}
-          users={users}
-          currentUser={currentUser}
-          inviteUserId={inviteUserId}
-          inviteRole={inviteRole}
-          inviteMessage={inviteMessage}
-          setInviteUserId={setInviteUserId}
-          setInviteRole={setInviteRole}
-          setInviteMessage={setInviteMessage}
-          onInvite={handleInviteToSpace}
-          onMemberRoleChange={handleMemberRoleChange}
-          onRemoveMember={handleRemoveMember}
         />
       </Drawer>
     </>
@@ -1715,7 +1612,7 @@ function FloatingSelect({
         ref={triggerRef}
         type="button"
         onClick={() => setOpen((prev) => !prev)}
-        className={`inline-flex w-full items-center justify-between gap-2 rounded-2xl border border-white/60 bg-white/75 px-3 py-2.5 text-left text-sm text-slate-700 backdrop-blur-md transition hover:border-slate-200 hover:bg-white/90 ${triggerClassName}`}
+        className={`inline-flex w-full items-center justify-between gap-2 rounded-2xl border border-white/60 bg-white/75 px-3 py-2.5 text-left text-sm text-slate-700 shadow-[0_10px_24px_rgba(15,23,42,0.08)] backdrop-blur-md transition hover:border-slate-200 hover:bg-white/90 ${triggerClassName}`}
         aria-haspopup="listbox"
         aria-expanded={open}
       >
@@ -1728,7 +1625,7 @@ function FloatingSelect({
             <div
               ref={panelRef}
               style={panelStyle}
-              className="overflow-hidden rounded-2xl border border-white/60 bg-white/78 backdrop-blur-xl ring-1 ring-slate-200/60"
+              className="overflow-hidden rounded-2xl border border-white/60 bg-white/78 shadow-[0_24px_60px_rgba(15,23,42,0.18)] backdrop-blur-xl ring-1 ring-slate-200/60"
             >
               <div className="max-h-72 overflow-y-auto p-1.5">
                 {options.map((option, index) => {
@@ -1745,7 +1642,7 @@ function FloatingSelect({
                       }}
                       className={`flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-sm transition ${
                         selected
-                          ? "bg-slate-900 text-white"
+                          ? "bg-sky-500 text-white shadow-sm"
                           : highlighted
                             ? "bg-slate-100 text-slate-900"
                             : "text-slate-700 hover:bg-slate-100"
@@ -1828,15 +1725,6 @@ function MetricStrip({
   );
 }
 
-function MiniMetric({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">{label}</p>
-      <p className="mt-1 text-lg font-semibold text-slate-900">{value}</p>
-    </div>
-  );
-}
-
 function TaskRow({
   task,
   currentUser,
@@ -1885,7 +1773,7 @@ function TaskRow({
         event.preventDefault();
       }}
       onDrop={() => onDropOnTask(task)}
-      className={`group px-3 py-2 transition sm:px-4 ${active ? "bg-slate-100" : "hover:bg-slate-50/80"} ${
+      className={`group px-3 py-2 transition sm:px-4 ${active ? "bg-sky-50/80" : "hover:bg-slate-50/80"} ${
         dragTaskId === task.id ? "opacity-60" : ""
       }`}
     >
@@ -1923,11 +1811,11 @@ function TaskRow({
             </div>
             <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
               <span>{task.taskCode}</span>
-              <span>·</span>
+              <span>�</span>
               <span>{task.projectRef || "General"}</span>
-              <span>·</span>
+              <span>�</span>
               <span>{task.moduleRef || "Unsorted"}</span>
-              <span>·</span>
+              <span>�</span>
               <span>{task.tags.length ? task.tags.join(", ") : "No tags"}</span>
             </div>
           </button>
@@ -2103,7 +1991,7 @@ function DetailPanel({
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">{detail.task.taskCode}</p>
             <h2 className="mt-1 text-xl font-semibold tracking-tight text-slate-950">{detail.task.title}</h2>
             <p className="mt-1 text-sm text-slate-500">
-              {detail.task.projectRef || "General"} · {detail.task.moduleRef || "Unsorted"} · Updated {formatRelativeDate(detail.task.updatedAt)}
+              {detail.task.projectRef || "General"} � {detail.task.moduleRef || "Unsorted"} � Updated {formatRelativeDate(detail.task.updatedAt)}
             </p>
           </div>
           <button type="button" onClick={onClose} className="rounded-xl p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
@@ -2138,7 +2026,7 @@ function DetailPanel({
               type="button"
               onClick={() => setMetadataEditMode((prev) => !prev)}
               className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-semibold ${
-                metadataEditMode ? "border-slate-300 bg-slate-100 text-slate-900" : "border-slate-200 text-slate-700"
+                metadataEditMode ? "border-sky-200 bg-sky-50 text-sky-700" : "border-slate-200 text-slate-700"
               }`}
             >
               <PencilLine className="h-3.5 w-3.5" />
@@ -2222,17 +2110,17 @@ function DetailPanel({
               <button
                 key={item.id}
                 type="button"
-                onClick={() => canUpdateExecution && onChecklistToggle(item)}
-                disabled={!canUpdateExecution}
+                onClick={() => canEditTask && onChecklistToggle(item)}
+                disabled={!canEditTask}
                 className={`flex w-full items-center gap-3 rounded-xl border px-3 py-2 text-left text-sm transition ${
                   item.completed ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-slate-200 bg-white text-slate-700"
-                } ${canUpdateExecution ? "hover:border-slate-300" : "cursor-not-allowed opacity-70"}`}
+                } ${canEditTask ? "hover:border-slate-300" : "cursor-not-allowed opacity-70"}`}
               >
                 <CheckCircle2 className={`h-4 w-4 ${item.completed ? "fill-emerald-500 text-emerald-500" : "text-slate-300"}`} />
                 <span className={item.completed ? "line-through opacity-80" : ""}>{item.label}</span>
               </button>
             ))}
-            {canUpdateExecution ? (
+            {canEditTask ? (
               <div className="flex gap-2 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-2 py-2">
                 <input
                   value={checklistDraft}
@@ -2280,7 +2168,7 @@ function DetailPanel({
                         <p className={`text-sm font-semibold ${task.status === "COMPLETED" ? "text-emerald-800 line-through" : "text-slate-900"}`}>{task.title}</p>
                       )}
                       <p className="mt-1 text-xs text-slate-500">
-                        {task.taskCode} · Level {task.hierarchyLevel} · {task.progressPercent}%
+                        {task.taskCode} � Level {task.hierarchyLevel} � {task.progressPercent}%
                       </p>
                     </div>
                     <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${statusTone(task.status)}`}>{toLabel(task.status)}</span>
@@ -2303,7 +2191,7 @@ function DetailPanel({
                     onQuickSubtask(detail.task, nestedDraft);
                     setNestedDraft("");
                   }}
-                  className="rounded-2xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white"
+                  className="rounded-2xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white"
                 >
                   Add
                 </button>
@@ -2353,7 +2241,7 @@ function DetailPanel({
                 <div className="min-w-0">
                   <p className="text-sm text-slate-800">{activity.message}</p>
                   <p className="mt-1 text-xs text-slate-500">
-                    {activity.actorName || "System"} · {formatLongDate(activity.createdAt)}
+                    {activity.actorName || "System"} � {formatLongDate(activity.createdAt)}
                   </p>
                 </div>
               </div>
@@ -2487,6 +2375,186 @@ function TaskEditor({
   );
 }
 
+function SpaceEditor({
+  form,
+  setForm,
+  onSubmit,
+  editingSpace,
+  onDelete,
+  onClose,
+}: {
+  form: SpaceFormState;
+  setForm: React.Dispatch<React.SetStateAction<SpaceFormState>>;
+  onSubmit: (event: React.FormEvent) => void;
+  editingSpace: TaskSpaceSummary | null;
+  onDelete: () => void;
+  onClose: () => void;
+}) {
+  return (
+    <form onSubmit={onSubmit} className="space-y-4">
+      <Field label="Name">
+        <input
+          value={form.name}
+          onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))}
+          className="w-full rounded-2xl border border-slate-200 px-3 py-2.5 text-sm"
+          required
+        />
+      </Field>
+      <Field label="Description">
+        <textarea
+          value={form.description}
+          onChange={(event) => setForm((prev) => ({ ...prev, description: event.target.value }))}
+          rows={4}
+          className="w-full rounded-2xl border border-slate-200 px-3 py-2.5 text-sm"
+        />
+      </Field>
+      <div className="grid gap-3 md:grid-cols-2">
+        <Field label="Visibility">
+          <FloatingSelect
+            value={form.visibility}
+            onChange={(value) => setForm((prev) => ({ ...prev, visibility: value as "PRIVATE" | "PUBLIC" }))}
+            options={TASK_SPACE_VISIBILITIES.map((item) => ({ value: item, label: toLabel(item) }))}
+            className="w-full"
+          />
+        </Field>
+        <Field label="Color">
+          <input
+            type="color"
+            value={form.colorHex}
+            onChange={(event) => setForm((prev) => ({ ...prev, colorHex: event.target.value }))}
+            className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-2 py-2"
+          />
+        </Field>
+      </div>
+      <div className="flex justify-between gap-3 border-t border-slate-200 pt-4">
+        <div>
+          {editingSpace ? (
+            <button type="button" onClick={onDelete} className="rounded-2xl border border-rose-200 px-4 py-2 text-sm font-semibold text-rose-700">
+              Delete
+            </button>
+          ) : null}
+        </div>
+        <div className="flex gap-3">
+          <button type="button" onClick={onClose} className="rounded-2xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600">
+            Cancel
+          </button>
+          <button type="submit" className="rounded-2xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white">
+            {editingSpace ? "Save Space" : "Create Space"}
+          </button>
+        </div>
+      </div>
+    </form>
+  );
+}
+
+function SpaceMembersPanel({
+  detail,
+  users,
+  inviteUserId,
+  inviteRole,
+  inviteMessage,
+  setInviteUserId,
+  setInviteRole,
+  setInviteMessage,
+  onInvite,
+  onRoleChange,
+  onRemoveMember,
+  canManage,
+}: {
+  detail: TaskSpaceDetail | null;
+  users: Array<{ id: string; name: string; email: string }>;
+  inviteUserId: string;
+  inviteRole: TaskSpaceMemberRole;
+  inviteMessage: string;
+  setInviteUserId: React.Dispatch<React.SetStateAction<string>>;
+  setInviteRole: React.Dispatch<React.SetStateAction<TaskSpaceMemberRole>>;
+  setInviteMessage: React.Dispatch<React.SetStateAction<string>>;
+  onInvite: () => void;
+  onRoleChange: (memberId: string, role: TaskSpaceMemberRole) => void;
+  onRemoveMember: (memberId: string) => void;
+  canManage: boolean;
+}) {
+  return (
+    <div className="space-y-5">
+      {canManage ? (
+        <section className="space-y-3">
+          <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+            <UserPlus className="h-4 w-4 text-slate-500" />
+            Invite user
+          </div>
+          <div className="grid gap-3 md:grid-cols-2">
+            <Field label="User">
+              <FloatingSelect
+                value={inviteUserId}
+                onChange={setInviteUserId}
+                options={[{ value: "", label: "Select teammate" }, ...users.map((user) => ({ value: user.id, label: user.name }))]}
+                className="w-full"
+              />
+            </Field>
+            <Field label="Role">
+              <FloatingSelect
+                value={inviteRole}
+                onChange={(value) => setInviteRole(value as TaskSpaceMemberRole)}
+                options={TASK_SPACE_MEMBER_ROLES.map((item) => ({ value: item, label: toLabel(item) }))}
+                className="w-full"
+              />
+            </Field>
+          </div>
+          <Field label="Message">
+            <textarea
+              value={inviteMessage}
+              onChange={(event) => setInviteMessage(event.target.value)}
+              rows={3}
+              className="w-full rounded-2xl border border-slate-200 px-3 py-2.5 text-sm"
+            />
+          </Field>
+          <div className="flex justify-end">
+            <button type="button" onClick={onInvite} className="rounded-2xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white">
+              Send invite
+            </button>
+          </div>
+        </section>
+      ) : null}
+
+      <section className="space-y-3 border-t border-slate-200 pt-4">
+        <div className="text-sm font-semibold text-slate-900">Members</div>
+        <div className="max-h-[320px] space-y-2 overflow-y-auto pr-1">
+          {detail?.members.map((member) => (
+            <div key={member.id} className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">{member.userName}</p>
+                  <p className="mt-1 text-xs text-slate-500">{member.userEmail || "No email"}</p>
+                </div>
+                {canManage ? (
+                  <div className="w-[170px]">
+                    <FloatingSelect
+                      value={member.role}
+                      onChange={(value) => onRoleChange(member.id, value as TaskSpaceMemberRole)}
+                      options={TASK_SPACE_MEMBER_ROLES.map((item) => ({ value: item, label: toLabel(item) }))}
+                      className="w-full"
+                    />
+                  </div>
+                ) : (
+                  <span className={`rounded-full border px-2 py-1 text-[10px] font-semibold ${roleBadge(member.role)}`}>{toLabel(member.role)}</span>
+                )}
+              </div>
+              {canManage ? (
+                <div className="mt-3 flex justify-end">
+                  <button type="button" onClick={() => onRemoveMember(member.id)} className="text-xs font-semibold text-rose-700">
+                    Remove
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          ))}
+          {!detail?.members.length ? <p className="text-sm text-slate-500">No members yet.</p> : null}
+        </div>
+      </section>
+    </div>
+  );
+}
+
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block">
@@ -2516,246 +2584,6 @@ function SelectField({
         className="w-full"
       />
     </Field>
-  );
-}
-
-function SpaceEditor({
-  form,
-  setForm,
-  editingSpace,
-  canDelete,
-  onSubmit,
-  onArchive,
-  onDelete,
-  onClose,
-}: {
-  form: SpaceFormState;
-  setForm: React.Dispatch<React.SetStateAction<SpaceFormState>>;
-  editingSpace: TaskSpaceSummary | null;
-  canDelete: boolean;
-  onSubmit: (event: React.FormEvent) => void;
-  onArchive: () => void;
-  onDelete: () => void;
-  onClose: () => void;
-}) {
-  return (
-    <form onSubmit={onSubmit} className="space-y-4">
-      <Field label="Space name">
-        <input
-          value={form.name}
-          onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))}
-          className="w-full rounded-2xl border border-slate-200 px-3 py-2.5 text-sm"
-          required
-        />
-      </Field>
-      <Field label="Description">
-        <textarea
-          value={form.description}
-          onChange={(event) => setForm((prev) => ({ ...prev, description: event.target.value }))}
-          rows={4}
-          className="w-full rounded-2xl border border-slate-200 px-3 py-2.5 text-sm"
-        />
-      </Field>
-      <div className="grid gap-3 md:grid-cols-2">
-        <Field label="Icon">
-          <FloatingSelect
-            value={form.iconName}
-            onChange={(value) => setForm((prev) => ({ ...prev, iconName: value }))}
-            options={SPACE_ICON_OPTIONS.map((option) => ({ value: option.value, label: option.label }))}
-            className="w-full"
-          />
-        </Field>
-        <Field label="Visibility">
-          <FloatingSelect
-            value={form.visibility}
-            onChange={(value) => setForm((prev) => ({ ...prev, visibility: value as "PRIVATE" | "PUBLIC" }))}
-            options={TASK_SPACE_VISIBILITIES.map((option) => ({ value: option, label: toLabel(option) }))}
-            className="w-full"
-          />
-        </Field>
-      </div>
-      <Field label="Accent color">
-        <div className="flex flex-wrap gap-2">
-          {SPACE_COLOR_OPTIONS.map((color) => (
-            <button
-              key={color}
-              type="button"
-              onClick={() => setForm((prev) => ({ ...prev, colorHex: color }))}
-              className={`h-9 w-9 rounded-2xl border-2 transition ${form.colorHex === color ? "border-slate-950" : "border-white"}`}
-              style={{ backgroundColor: color }}
-              aria-label={`Select ${color}`}
-            />
-          ))}
-        </div>
-      </Field>
-      <div className="flex items-center justify-between gap-3 border-t border-slate-200 pt-4">
-        <div className="flex gap-2">
-          {editingSpace ? (
-            <button type="button" onClick={onArchive} className="rounded-2xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700">
-              {editingSpace.archived ? "Restore Space" : "Archive Space"}
-            </button>
-          ) : null}
-          {canDelete ? (
-            <button type="button" onClick={onDelete} className="rounded-2xl border border-rose-200 px-4 py-2 text-sm font-semibold text-rose-700">
-              Delete
-            </button>
-          ) : null}
-        </div>
-        <div className="flex gap-3">
-          <button type="button" onClick={onClose} className="rounded-2xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600">
-            Cancel
-          </button>
-          <button type="submit" className="rounded-2xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white">
-            {editingSpace ? "Save Space" : "Create Space"}
-          </button>
-        </div>
-      </div>
-    </form>
-  );
-}
-
-function SpaceAccessPanel({
-  spaceDetail,
-  users,
-  currentUser,
-  inviteUserId,
-  inviteRole,
-  inviteMessage,
-  setInviteUserId,
-  setInviteRole,
-  setInviteMessage,
-  onInvite,
-  onMemberRoleChange,
-  onRemoveMember,
-}: {
-  spaceDetail: TaskSpaceDetail | null;
-  users: Array<{ id: string; name: string; email: string }>;
-  currentUser: CurrentUser | null | undefined;
-  inviteUserId: string;
-  inviteRole: TaskSpaceMemberRole;
-  inviteMessage: string;
-  setInviteUserId: React.Dispatch<React.SetStateAction<string>>;
-  setInviteRole: React.Dispatch<React.SetStateAction<TaskSpaceMemberRole>>;
-  setInviteMessage: React.Dispatch<React.SetStateAction<string>>;
-  onInvite: () => void;
-  onMemberRoleChange: (memberId: string, role: TaskSpaceMemberRole) => void;
-  onRemoveMember: (memberId: string) => void;
-}) {
-  const space = spaceDetail?.space ?? null;
-  const canManage = canManageSpace(currentUser, space);
-
-  return (
-    <div className="space-y-5">
-      <section className="space-y-3">
-        <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
-          <UserPlus className="h-4 w-4 text-slate-500" />
-          Invite member
-        </div>
-        <div className="grid gap-3 md:grid-cols-2">
-          <Field label="User">
-            <FloatingSelect
-              value={inviteUserId}
-              onChange={setInviteUserId}
-              options={[
-                { value: "", label: "Select teammate" },
-                ...users.map((user) => ({ value: user.id, label: user.name })),
-              ]}
-              className="w-full"
-            />
-          </Field>
-          <Field label="Role">
-            <FloatingSelect
-              value={inviteRole}
-              onChange={(value) => setInviteRole(value as TaskSpaceMemberRole)}
-              options={TASK_SPACE_MEMBER_ROLES.map((role) => ({ value: role, label: toLabel(role) }))}
-              className="w-full"
-            />
-          </Field>
-        </div>
-        <Field label="Message">
-          <textarea
-            value={inviteMessage}
-            onChange={(event) => setInviteMessage(event.target.value)}
-            rows={3}
-            placeholder="Share context for why they’re being invited"
-            className="w-full rounded-2xl border border-slate-200 px-3 py-2.5 text-sm"
-          />
-        </Field>
-        <div className="flex justify-end">
-          <button
-            type="button"
-            onClick={onInvite}
-            disabled={!canManage}
-            className={`rounded-2xl px-4 py-2 text-sm font-semibold ${
-              canManage ? "bg-slate-950 text-white" : "cursor-not-allowed border border-slate-200 text-slate-400"
-            }`}
-          >
-            Send invitation
-          </button>
-        </div>
-      </section>
-
-      <section className="space-y-3 border-t border-slate-200 pt-4">
-        <div className="flex items-center justify-between gap-3">
-          <div className="text-sm font-semibold text-slate-900">Members</div>
-          <span className="text-xs text-slate-500">{spaceDetail?.members.length ?? 0} active members</span>
-        </div>
-        <div className="max-h-[320px] space-y-2 overflow-y-auto pr-1">
-          {spaceDetail?.members.map((member) => (
-            <div key={member.id} className="rounded-2xl border border-slate-200 bg-slate-50/80 p-3">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <Avatar name={member.userName} />
-                    <div>
-                      <p className="text-sm font-semibold text-slate-900">{member.userName}</p>
-                      <p className="text-xs text-slate-500">{member.userEmail || "No email"}</p>
-                    </div>
-                  </div>
-                </div>
-                {canManage ? (
-                  <div className="min-w-[160px]">
-                    <FloatingSelect
-                      value={member.role}
-                      onChange={(value) => onMemberRoleChange(member.id, value as TaskSpaceMemberRole)}
-                      options={TASK_SPACE_MEMBER_ROLES.map((role) => ({ value: role, label: toLabel(role) }))}
-                      className="w-full"
-                      triggerClassName="text-xs"
-                    />
-                  </div>
-                ) : (
-                  <span className={`rounded-full border px-2 py-1 text-[10px] font-semibold ${roleTone(member.role)}`}>{toLabel(member.role)}</span>
-                )}
-              </div>
-              {canManage ? (
-                <div className="mt-3 flex justify-end">
-                  <button type="button" onClick={() => onRemoveMember(member.id)} className="text-xs font-semibold text-rose-700">
-                    Remove member
-                  </button>
-                </div>
-              ) : null}
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section className="space-y-3 border-t border-slate-200 pt-4">
-        <div className="text-sm font-semibold text-slate-900">Pending invitations</div>
-        <div className="space-y-2">
-          {spaceDetail?.invitations.filter((invitation) => invitation.status === "PENDING").map((invitation) => (
-            <div key={invitation.id} className="rounded-2xl border border-slate-200 bg-white px-3 py-2.5">
-              <p className="text-sm font-semibold text-slate-900">{invitation.inviteeName}</p>
-              <p className="mt-1 text-xs text-slate-500">
-                {invitation.inviteeEmail || "No email"} · {toLabel(invitation.role)}
-              </p>
-            </div>
-          ))}
-          {!spaceDetail?.invitations.filter((invitation) => invitation.status === "PENDING").length ? (
-            <p className="text-sm text-slate-500">No pending invitations.</p>
-          ) : null}
-        </div>
-      </section>
-    </div>
   );
 }
 

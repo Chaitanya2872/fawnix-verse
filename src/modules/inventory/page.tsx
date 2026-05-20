@@ -7,6 +7,7 @@ import {
   Bookmark,
   ChevronLeft,
   ChevronRight,
+  Download,
   Loader2,
   Package,
   Pencil,
@@ -36,6 +37,7 @@ import {
   useDeleteProduct,
 } from "./hooks";
 import { InventoryLayout } from "./layout";
+import { exportProductsCsv } from "./export";
 
 type StockView = "items" | "categories";
 type StockActionMode = "consume" | "receive";
@@ -576,6 +578,15 @@ export default function InventoryPage() {
     );
   }
 
+  function handleExportProducts() {
+    if (!products.length) {
+      toast.error("No inventory items available to export.");
+      return;
+    }
+    exportProductsCsv(products);
+    toast.success("Inventory CSV downloaded.");
+  }
+
   return (
     <>
       <InventoryLayout
@@ -645,6 +656,14 @@ export default function InventoryPage() {
                   />
                 </div>
                 <div className="flex flex-col gap-3 sm:flex-row">
+                  <button
+                    type="button"
+                    onClick={handleExportProducts}
+                    className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+                  >
+                    <Download className="h-4 w-4" />
+                    Export CSV
+                  </button>
                   <select
                     value={filter.category}
                     onChange={(e) => setFilter((prev) => ({ ...prev, category: e.target.value, page: 1 }))}

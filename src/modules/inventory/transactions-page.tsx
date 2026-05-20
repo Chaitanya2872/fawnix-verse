@@ -1,10 +1,11 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
-import { Loader2, Search } from "lucide-react";
+import { Download, Loader2, Search } from "lucide-react";
 import { getApiErrorMessage } from "@/services/api-client";
 import { useTransactions } from "./hooks";
 import { InventoryLayout } from "./layout";
+import { exportTransactionsCsv } from "./export";
 import { type InventoryTransaction, type InventoryTransactionType } from "./types";
 
 function formatDate(value: string) {
@@ -56,6 +57,11 @@ export default function InventoryTransactionsPage() {
     );
   }, [transactions]);
 
+  function handleExportTransactions() {
+    if (!transactions.length) return;
+    exportTransactionsCsv(transactions);
+  }
+
   return (
     <InventoryLayout>
       <div className="space-y-6">
@@ -89,18 +95,29 @@ export default function InventoryTransactionsPage() {
                 className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-3 text-sm text-slate-900 outline-none transition-colors focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
               />
             </div>
-            <select
-              value={typeFilter}
-              onChange={(e) => setTypeFilter(e.target.value as InventoryTransactionType | "ALL")}
-              className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition-colors focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
-            >
-              <option value="ALL">All Types</option>
-              <option value="RECEIVED">Received</option>
-              <option value="CONSUMED">Consumed</option>
-              <option value="INWARD">Inward</option>
-              <option value="OUTWARD">Outward</option>
-              <option value="OPENING">Opening</option>
-            </select>
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <button
+                type="button"
+                onClick={handleExportTransactions}
+                disabled={!transactions.length}
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Download className="h-4 w-4" />
+                Export CSV
+              </button>
+              <select
+                value={typeFilter}
+                onChange={(e) => setTypeFilter(e.target.value as InventoryTransactionType | "ALL")}
+                className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition-colors focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
+              >
+                <option value="ALL">All Types</option>
+                <option value="RECEIVED">Received</option>
+                <option value="CONSUMED">Consumed</option>
+                <option value="INWARD">Inward</option>
+                <option value="OUTWARD">Outward</option>
+                <option value="OPENING">Opening</option>
+              </select>
+            </div>
           </div>
 
           {transactionsQuery.isLoading ? (
