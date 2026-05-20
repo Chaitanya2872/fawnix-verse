@@ -4,6 +4,9 @@ import com.hirepath.task.tasks.domain.TaskActivityType;
 import com.hirepath.task.tasks.domain.TaskApprovalStatus;
 import com.hirepath.task.tasks.domain.TaskPriority;
 import com.hirepath.task.tasks.domain.TaskRelationshipType;
+import com.hirepath.task.tasks.domain.TaskSpaceInvitationStatus;
+import com.hirepath.task.tasks.domain.TaskSpaceMemberRole;
+import com.hirepath.task.tasks.domain.TaskSpaceVisibility;
 import com.hirepath.task.tasks.domain.TaskStatus;
 import com.hirepath.task.tasks.domain.TaskVisibility;
 import jakarta.validation.Valid;
@@ -38,6 +41,7 @@ public final class TaskDtos {
       TaskVisibility visibility,
       Integer reminderMinutesBefore,
       String workflowName,
+      String spaceId,
       String assignedToId,
       String assignedToName,
       String assignedToEmail,
@@ -92,6 +96,51 @@ public final class TaskDtos {
   public record TaskStatusUpdateRequest(
       @NotNull(message = "Task status is required.")
       TaskStatus status
+  ) {
+  }
+
+  public record SpaceCreateRequest(
+      @NotBlank(message = "Space name is required.")
+      String name,
+      String description,
+      String iconName,
+      String colorHex,
+      @NotNull(message = "Space visibility is required.")
+      TaskSpaceVisibility visibility
+  ) {
+  }
+
+  public record SpaceUpdateRequest(
+      String name,
+      String description,
+      String iconName,
+      String colorHex,
+      TaskSpaceVisibility visibility,
+      Boolean archived
+  ) {
+  }
+
+  public record SpaceInvitationRequest(
+      @NotBlank(message = "Invitee user id is required.")
+      String userId,
+      @NotBlank(message = "Invitee name is required.")
+      String userName,
+      String userEmail,
+      @NotNull(message = "Member role is required.")
+      TaskSpaceMemberRole role,
+      String message
+  ) {
+  }
+
+  public record SpaceInvitationActionRequest(
+      @NotNull(message = "Invitation action is required.")
+      TaskSpaceInvitationStatus status
+  ) {
+  }
+
+  public record SpaceMemberUpdateRequest(
+      @NotNull(message = "Member role is required.")
+      TaskSpaceMemberRole role
   ) {
   }
 
@@ -160,6 +209,8 @@ public final class TaskDtos {
       LocalDate startDate,
       LocalDate dueDate,
       LocalDate completionDate,
+      String spaceId,
+      String spaceName,
       String projectRef,
       String moduleRef,
       String assignedToId,
@@ -178,6 +229,8 @@ public final class TaskDtos {
       int progressPercent,
       boolean overdue,
       Instant updatedAt,
+      boolean canEdit,
+      boolean canManageExecution,
       List<TaskSummaryResponse> subtasks
   ) {
   }
@@ -268,6 +321,72 @@ public final class TaskDtos {
       BigDecimal durationHours,
       String note,
       Instant createdAt
+  ) {
+  }
+
+  public record SpaceSummaryResponse(
+      String id,
+      String spaceKey,
+      String name,
+      String description,
+      String iconName,
+      String colorHex,
+      TaskSpaceVisibility visibility,
+      String ownerUserId,
+      String ownerUserName,
+      TaskSpaceMemberRole currentUserRole,
+      boolean archived,
+      long pendingCount,
+      long inProgressCount,
+      long completedCount,
+      long overdueCount,
+      long memberCount,
+      long pendingInvitations,
+      Instant updatedAt
+  ) {
+  }
+
+  public record SpaceMemberResponse(
+      String id,
+      String userId,
+      String userName,
+      String userEmail,
+      TaskSpaceMemberRole role,
+      boolean active,
+      String invitedByName,
+      Instant joinedAt
+  ) {
+  }
+
+  public record SpaceInvitationResponse(
+      String id,
+      String spaceId,
+      String spaceName,
+      String inviteeUserId,
+      String inviteeName,
+      String inviteeEmail,
+      String invitedById,
+      String invitedByName,
+      TaskSpaceMemberRole role,
+      TaskSpaceInvitationStatus status,
+      String message,
+      Instant respondedAt,
+      Instant createdAt
+  ) {
+  }
+
+  public record SpaceDetailResponse(
+      SpaceSummaryResponse space,
+      List<SpaceMemberResponse> members,
+      List<SpaceInvitationResponse> invitations
+  ) {
+  }
+
+  public record TaskStreamEvent(
+      String type,
+      String spaceId,
+      String invitationId,
+      Instant occurredAt
   ) {
   }
 

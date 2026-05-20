@@ -11,6 +11,9 @@ export const TASK_STATUSES = [
 
 export const TASK_PRIORITIES = ["LOW", "MEDIUM", "HIGH", "CRITICAL"] as const;
 export const TASK_VISIBILITIES = ["PRIVATE", "TEAM", "PROJECT", "ORGANIZATION"] as const;
+export const TASK_SPACE_VISIBILITIES = ["PRIVATE", "PUBLIC"] as const;
+export const TASK_SPACE_MEMBER_ROLES = ["OWNER", "ADMIN", "PROJECT_MANAGER", "MEMBER", "VIEWER"] as const;
+export const TASK_SPACE_INVITATION_STATUSES = ["PENDING", "ACCEPTED", "REJECTED"] as const;
 export const TASK_APPROVAL_STATUSES = [
   "NOT_REQUIRED",
   "PENDING_APPROVAL",
@@ -23,6 +26,9 @@ export type TaskStatus = (typeof TASK_STATUSES)[number];
 export type TaskPriority = (typeof TASK_PRIORITIES)[number];
 export type TaskVisibility = (typeof TASK_VISIBILITIES)[number];
 export type TaskApprovalStatus = (typeof TASK_APPROVAL_STATUSES)[number];
+export type TaskSpaceVisibility = (typeof TASK_SPACE_VISIBILITIES)[number];
+export type TaskSpaceMemberRole = (typeof TASK_SPACE_MEMBER_ROLES)[number];
+export type TaskSpaceInvitationStatus = (typeof TASK_SPACE_INVITATION_STATUSES)[number];
 
 export type TaskSummary = {
   id: string;
@@ -36,6 +42,8 @@ export type TaskSummary = {
   startDate: string | null;
   dueDate: string | null;
   completionDate: string | null;
+  spaceId: string | null;
+  spaceName: string | null;
   projectRef: string | null;
   moduleRef: string | null;
   assignedToId: string | null;
@@ -54,6 +62,8 @@ export type TaskSummary = {
   progressPercent: number;
   overdue: boolean;
   updatedAt: string;
+  canEdit: boolean;
+  canManageExecution: boolean;
   subtasks: TaskSummary[];
 };
 
@@ -182,6 +192,7 @@ export type TaskFilter = {
   priority: string;
   scope: "all" | "my" | "team";
   assigneeId: string;
+  spaceId: string;
   projectRef: string;
   moduleRef: string;
   approvalStatus: string;
@@ -206,6 +217,7 @@ export type TaskRequest = {
   visibility?: TaskVisibility;
   reminderMinutesBefore?: number | null;
   workflowName?: string | null;
+  spaceId?: string | null;
   assignedToId?: string | null;
   assignedToName?: string | null;
   assignedToEmail?: string | null;
@@ -228,4 +240,81 @@ export type TaskRequest = {
     relationshipType?: "DEPENDS_ON" | "RELATED_TO" | "BLOCKED_BY" | "WAITING_ON";
   }>;
   checklistItems?: Array<{ label: string }>;
+};
+
+export type TaskSpaceSummary = {
+  id: string;
+  spaceKey: string;
+  name: string;
+  description: string | null;
+  iconName: string | null;
+  colorHex: string | null;
+  visibility: TaskSpaceVisibility;
+  ownerUserId: string;
+  ownerUserName: string;
+  currentUserRole: TaskSpaceMemberRole | null;
+  archived: boolean;
+  pendingCount: number;
+  inProgressCount: number;
+  completedCount: number;
+  overdueCount: number;
+  memberCount: number;
+  pendingInvitations: number;
+  updatedAt: string;
+};
+
+export type TaskSpaceMember = {
+  id: string;
+  userId: string;
+  userName: string;
+  userEmail: string | null;
+  role: TaskSpaceMemberRole;
+  active: boolean;
+  invitedByName: string | null;
+  joinedAt: string;
+};
+
+export type TaskSpaceInvitation = {
+  id: string;
+  spaceId: string;
+  spaceName: string;
+  inviteeUserId: string;
+  inviteeName: string;
+  inviteeEmail: string | null;
+  invitedById: string;
+  invitedByName: string;
+  role: TaskSpaceMemberRole;
+  status: TaskSpaceInvitationStatus;
+  message: string | null;
+  respondedAt: string | null;
+  createdAt: string;
+};
+
+export type TaskSpaceDetail = {
+  space: TaskSpaceSummary;
+  members: TaskSpaceMember[];
+  invitations: TaskSpaceInvitation[];
+};
+
+export type TaskSpaceRequest = {
+  name: string;
+  description?: string | null;
+  iconName?: string | null;
+  colorHex?: string | null;
+  visibility: TaskSpaceVisibility;
+};
+
+export type TaskSpaceInvitationRequest = {
+  userId: string;
+  userName: string;
+  userEmail?: string | null;
+  role: TaskSpaceMemberRole;
+  message?: string | null;
+};
+
+export type TaskStreamEvent = {
+  type: string;
+  spaceId: string | null;
+  invitationId: string | null;
+  occurredAt: string;
 };

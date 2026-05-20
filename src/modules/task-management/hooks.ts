@@ -4,23 +4,42 @@ import {
   addTaskComment,
   approveTask,
   assignTask,
+  connectTaskStream,
   createTask,
+  createTaskSpace,
   createSubtask,
   deleteTask,
+  deleteTaskSpace,
   fetchTask,
   fetchTaskDashboard,
+  fetchTaskSpace,
+  fetchTaskSpaces,
   fetchTaskTree,
+  fetchMyTaskInvitations,
   fetchTasks,
   fetchTaskUsers,
+  inviteTaskSpaceMember,
   rejectTask,
   reorderTaskHierarchy,
+  removeTaskSpaceMember,
+  respondToTaskInvitation,
   startTaskTimer,
   stopTaskTimer,
   updateChecklistItem,
   updateTask,
+  updateTaskSpace,
+  updateTaskSpaceMember,
   updateTaskStatus,
 } from "./api";
-import type { TaskFilter, TaskRequest, TaskStatus } from "./types";
+import type {
+  TaskFilter,
+  TaskRequest,
+  TaskSpaceInvitationRequest,
+  TaskSpaceInvitationStatus,
+  TaskSpaceMemberRole,
+  TaskSpaceRequest,
+  TaskStatus,
+} from "./types";
 
 export const taskKeys = {
   all: ["tasks"] as const,
@@ -30,6 +49,14 @@ export const taskKeys = {
   tree: (filter: TaskFilter) => [...taskKeys.all, "tree", filter] as const,
   detail: (id: string) => [...taskKeys.all, "detail", id] as const,
   users: () => [...taskKeys.all, "users"] as const,
+};
+
+export const spaceKeys = {
+  all: ["task-spaces"] as const,
+  lists: () => [...spaceKeys.all, "list"] as const,
+  list: () => [...spaceKeys.lists()] as const,
+  detail: (spaceId: string) => [...spaceKeys.all, "detail", spaceId] as const,
+  invitations: () => [...spaceKeys.all, "invitations"] as const,
 };
 
 export function useTaskDashboard() {
@@ -78,9 +105,35 @@ function invalidateTasks(queryClient: ReturnType<typeof useQueryClient>, taskId?
   queryClient.invalidateQueries({ queryKey: taskKeys.dashboard() });
   queryClient.invalidateQueries({ queryKey: taskKeys.lists() });
   queryClient.invalidateQueries({ queryKey: taskKeys.all });
+  queryClient.invalidateQueries({ queryKey: spaceKeys.all });
   if (taskId) {
     queryClient.invalidateQueries({ queryKey: taskKeys.detail(taskId) });
   }
+}
+
+export function useTaskSpaces() {
+  return useQuery({
+    queryKey: spaceKeys.list(),
+    queryFn: fetchTaskSpaces,
+    staleTime: 15_000,
+  });
+}
+
+export function useTaskSpace(spaceId: string | null) {
+  return useQuery({
+    queryKey: spaceKeys.detail(spaceId ?? "unknown"),
+    queryFn: () => fetchTaskSpace(spaceId as string),
+    enabled: Boolean(spaceId),
+    staleTime: 10_000,
+  });
+}
+
+export function useTaskInvitations() {
+  return useQuery({
+    queryKey: spaceKeys.invitations(),
+    queryFn: fetchMyTaskInvitations,
+    staleTime: 10_000,
+  });
 }
 
 export function useCreateTask() {
@@ -88,6 +141,109 @@ export function useCreateTask() {
   return useMutation({
     mutationFn: (payload: TaskRequest) => createTask(payload),
     onSuccess: () => invalidateTasks(queryClient),
+  });
+}
+
+export function useCreateTaskSpace() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: TaskSpaceRequest) => createTaskSpace(payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: spaceKeys.all });
+      queryClient.invalidateQueries({ queryKey: taskKeys.all });
+    },
+  });
+}
+
+export function useUpdateTaskSpace() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      spaceId,
+      payload,
+    }: {
+      spaceId: string;
+      payload: Partial<TaskSpaceRequest> & { archived?: boolean };
+    }) => updateTaskSpace(spaceId, payload),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: spaceKeys.all });
+      queryClient.invalidateQueries({ queryKey: spaceKeys.detail(variables.spaceId) });
+      queryClient.invalidateQueries({ queryKey: taskKeys.all });
+    },
+  });
+}
+
+export function useDeleteTaskSpace() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (spaceId: string) => deleteTaskSpace(spaceId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: spaceKeys.all });
+      queryClient.invalidateQueries({ queryKey: taskKeys.all });
+    },
+  });
+}
+
+export function useInviteToTaskSpace() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ spaceId, payload }: { spaceId: string; payload: TaskSpaceInvitationRequest }) =>
+      inviteTaskSpaceMember(spaceId, payload),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: spaceKeys.invitations() });
+      queryClient.invalidateQueries({ queryKey: spaceKeys.detail(variables.spaceId) });
+      queryClient.invalidateQueries({ queryKey: spaceKeys.all });
+    },
+  });
+}
+
+export function useRespondToTaskInvitation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      invitationId,
+      status,
+    }: {
+      invitationId: string;
+      status: TaskSpaceInvitationStatus;
+    }) => respondToTaskInvitation(invitationId, status),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: spaceKeys.invitations() });
+      queryClient.invalidateQueries({ queryKey: spaceKeys.all });
+      queryClient.invalidateQueries({ queryKey: taskKeys.all });
+    },
+  });
+}
+
+export function useUpdateTaskSpaceMember() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      spaceId,
+      memberId,
+      role,
+    }: {
+      spaceId: string;
+      memberId: string;
+      role: TaskSpaceMemberRole;
+    }) => updateTaskSpaceMember(spaceId, memberId, role),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: spaceKeys.detail(variables.spaceId) });
+      queryClient.invalidateQueries({ queryKey: spaceKeys.all });
+    },
+  });
+}
+
+export function useRemoveTaskSpaceMember() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ spaceId, memberId }: { spaceId: string; memberId: string }) =>
+      removeTaskSpaceMember(spaceId, memberId),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: spaceKeys.detail(variables.spaceId) });
+      queryClient.invalidateQueries({ queryKey: spaceKeys.all });
+      queryClient.invalidateQueries({ queryKey: taskKeys.all });
+    },
   });
 }
 
@@ -211,3 +367,5 @@ export function useStopTaskTimer() {
     onSuccess: (_, variables) => invalidateTasks(queryClient, variables.id),
   });
 }
+
+export { connectTaskStream };

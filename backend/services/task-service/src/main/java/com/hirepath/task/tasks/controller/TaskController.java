@@ -5,6 +5,7 @@ import com.hirepath.task.tasks.dto.TaskDtos;
 import com.hirepath.task.tasks.service.TaskService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -16,6 +17,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 @RestController
 @RequestMapping("/api/tasks")
@@ -43,6 +45,7 @@ public class TaskController {
       @RequestParam(required = false) String priority,
       @RequestParam(required = false) String scope,
       @RequestParam(required = false) String assigneeId,
+      @RequestParam(required = false) String spaceId,
       @RequestParam(required = false) String projectRef,
       @RequestParam(required = false) String moduleRef,
       @RequestParam(required = false) String approvalStatus,
@@ -52,7 +55,7 @@ public class TaskController {
       @RequestParam(defaultValue = "20") int pageSize,
       @AuthenticationPrincipal AppUserDetails user
   ) {
-    return taskService.listTasks(search, status, priority, scope, assigneeId, projectRef, moduleRef, approvalStatus, overdue, dueToday, page, pageSize, user);
+    return taskService.listTasks(search, status, priority, scope, assigneeId, spaceId, projectRef, moduleRef, approvalStatus, overdue, dueToday, page, pageSize, user);
   }
 
   @GetMapping("/tree")
@@ -62,6 +65,7 @@ public class TaskController {
       @RequestParam(required = false) String priority,
       @RequestParam(required = false) String scope,
       @RequestParam(required = false) String assigneeId,
+      @RequestParam(required = false) String spaceId,
       @RequestParam(required = false) String projectRef,
       @RequestParam(required = false) String moduleRef,
       @RequestParam(required = false) String approvalStatus,
@@ -69,7 +73,7 @@ public class TaskController {
       @RequestParam(required = false) Boolean dueToday,
       @AuthenticationPrincipal AppUserDetails user
   ) {
-    return taskService.treeTasks(search, status, priority, scope, assigneeId, projectRef, moduleRef, approvalStatus, overdue, dueToday, user);
+    return taskService.treeTasks(search, status, priority, scope, assigneeId, spaceId, projectRef, moduleRef, approvalStatus, overdue, dueToday, user);
   }
 
   @GetMapping("/{id}")
@@ -228,5 +232,88 @@ public class TaskController {
   @GetMapping("/dashboard")
   public TaskDtos.DashboardResponse dashboard(@AuthenticationPrincipal AppUserDetails user) {
     return taskService.dashboard(user);
+  }
+
+  @GetMapping("/spaces")
+  public java.util.List<TaskDtos.SpaceSummaryResponse> listSpaces(@AuthenticationPrincipal AppUserDetails user) {
+    return taskService.listSpaces(user);
+  }
+
+  @PostMapping("/spaces")
+  @ResponseStatus(HttpStatus.CREATED)
+  public TaskDtos.SpaceDetailResponse createSpace(
+      @Valid @RequestBody TaskDtos.SpaceCreateRequest request,
+      @AuthenticationPrincipal AppUserDetails user
+  ) {
+    return taskService.createSpace(request, user);
+  }
+
+  @GetMapping("/spaces/{spaceId}")
+  public TaskDtos.SpaceDetailResponse getSpace(@PathVariable String spaceId, @AuthenticationPrincipal AppUserDetails user) {
+    return taskService.getSpace(spaceId, user);
+  }
+
+  @PutMapping("/spaces/{spaceId}")
+  public TaskDtos.SpaceDetailResponse updateSpace(
+      @PathVariable String spaceId,
+      @RequestBody TaskDtos.SpaceUpdateRequest request,
+      @AuthenticationPrincipal AppUserDetails user
+  ) {
+    return taskService.updateSpace(spaceId, request, user);
+  }
+
+  @DeleteMapping("/spaces/{spaceId}")
+  @ResponseStatus(HttpStatus.NO_CONTENT)
+  public void deleteSpace(@PathVariable String spaceId, @AuthenticationPrincipal AppUserDetails user) {
+    taskService.deleteSpace(spaceId, user);
+  }
+
+  @PostMapping("/spaces/{spaceId}/invitations")
+  @ResponseStatus(HttpStatus.CREATED)
+  public TaskDtos.SpaceInvitationResponse inviteToSpace(
+      @PathVariable String spaceId,
+      @Valid @RequestBody TaskDtos.SpaceInvitationRequest request,
+      @AuthenticationPrincipal AppUserDetails user
+  ) {
+    return taskService.inviteToSpace(spaceId, request, user);
+  }
+
+  @GetMapping("/spaces/invitations")
+  public java.util.List<TaskDtos.SpaceInvitationResponse> myInvitations(@AuthenticationPrincipal AppUserDetails user) {
+    return taskService.listMyInvitations(user);
+  }
+
+  @PutMapping("/spaces/invitations/{invitationId}")
+  public TaskDtos.SpaceInvitationResponse respondToInvitation(
+      @PathVariable String invitationId,
+      @Valid @RequestBody TaskDtos.SpaceInvitationActionRequest request,
+      @AuthenticationPrincipal AppUserDetails user
+  ) {
+    return taskService.respondToInvitation(invitationId, request, user);
+  }
+
+  @PutMapping("/spaces/{spaceId}/members/{memberId}")
+  public TaskDtos.SpaceMemberResponse updateMemberRole(
+      @PathVariable String spaceId,
+      @PathVariable String memberId,
+      @Valid @RequestBody TaskDtos.SpaceMemberUpdateRequest request,
+      @AuthenticationPrincipal AppUserDetails user
+  ) {
+    return taskService.updateSpaceMember(spaceId, memberId, request, user);
+  }
+
+  @DeleteMapping("/spaces/{spaceId}/members/{memberId}")
+  @ResponseStatus(HttpStatus.NO_CONTENT)
+  public void removeMember(
+      @PathVariable String spaceId,
+      @PathVariable String memberId,
+      @AuthenticationPrincipal AppUserDetails user
+  ) {
+    taskService.removeSpaceMember(spaceId, memberId, user);
+  }
+
+  @GetMapping(path = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+  public SseEmitter stream(@AuthenticationPrincipal AppUserDetails user) {
+    return taskService.subscribe(user);
   }
 }

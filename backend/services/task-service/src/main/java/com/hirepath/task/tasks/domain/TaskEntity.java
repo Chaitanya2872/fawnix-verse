@@ -60,6 +60,9 @@ public class TaskEntity {
   @Column(name = "module_ref", length = 120)
   private String moduleRef;
 
+  @Column(name = "space_id", length = 64)
+  private String spaceId;
+
   @Column(name = "parent_task_id", length = 64)
   private String parentTaskId;
 
@@ -236,6 +239,14 @@ public class TaskEntity {
 
   public void setModuleRef(String moduleRef) {
     this.moduleRef = moduleRef;
+  }
+
+  public String getSpaceId() {
+    return spaceId;
+  }
+
+  public void setSpaceId(String spaceId) {
+    this.spaceId = spaceId;
   }
 
   public String getParentTaskId() {

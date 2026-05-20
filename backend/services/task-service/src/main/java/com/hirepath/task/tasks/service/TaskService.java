@@ -15,6 +15,12 @@ import com.hirepath.task.tasks.domain.TaskDependencyEntity;
 import com.hirepath.task.tasks.domain.TaskEntity;
 import com.hirepath.task.tasks.domain.TaskPriority;
 import com.hirepath.task.tasks.domain.TaskRelationshipType;
+import com.hirepath.task.tasks.domain.TaskSpaceEntity;
+import com.hirepath.task.tasks.domain.TaskSpaceInvitationEntity;
+import com.hirepath.task.tasks.domain.TaskSpaceInvitationStatus;
+import com.hirepath.task.tasks.domain.TaskSpaceMemberEntity;
+import com.hirepath.task.tasks.domain.TaskSpaceMemberRole;
+import com.hirepath.task.tasks.domain.TaskSpaceVisibility;
 import com.hirepath.task.tasks.domain.TaskStatus;
 import com.hirepath.task.tasks.domain.TaskTagEntity;
 import com.hirepath.task.tasks.domain.TaskTimeLogEntity;
@@ -25,6 +31,9 @@ import com.hirepath.task.tasks.repository.TaskAssignmentRepository;
 import com.hirepath.task.tasks.repository.TaskChecklistRepository;
 import com.hirepath.task.tasks.repository.TaskCommentRepository;
 import com.hirepath.task.tasks.repository.TaskRepository;
+import com.hirepath.task.tasks.repository.TaskSpaceInvitationRepository;
+import com.hirepath.task.tasks.repository.TaskSpaceMemberRepository;
+import com.hirepath.task.tasks.repository.TaskSpaceRepository;
 import com.hirepath.task.tasks.repository.TaskTimeLogRepository;
 import jakarta.transaction.Transactional;
 import java.math.BigDecimal;
@@ -51,6 +60,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 @Service
 @Transactional
@@ -74,6 +84,11 @@ public class TaskService {
   private final TaskAssignmentRepository assignmentRepository;
   private final TaskActivityLogRepository activityRepository;
   private final TaskTimeLogRepository timeLogRepository;
+  private final TaskSpaceRepository taskSpaceRepository;
+  private final TaskSpaceMemberRepository taskSpaceMemberRepository;
+  private final TaskSpaceInvitationRepository taskSpaceInvitationRepository;
+  private final TaskSpaceNotificationService taskSpaceNotificationService;
+  private final TaskSpaceStreamService taskSpaceStreamService;
 
   public TaskService(
       TaskRepository taskRepository,
@@ -81,7 +96,12 @@ public class TaskService {
       TaskChecklistRepository checklistRepository,
       TaskAssignmentRepository assignmentRepository,
       TaskActivityLogRepository activityRepository,
-      TaskTimeLogRepository timeLogRepository
+      TaskTimeLogRepository timeLogRepository,
+      TaskSpaceRepository taskSpaceRepository,
+      TaskSpaceMemberRepository taskSpaceMemberRepository,
+      TaskSpaceInvitationRepository taskSpaceInvitationRepository,
+      TaskSpaceNotificationService taskSpaceNotificationService,
+      TaskSpaceStreamService taskSpaceStreamService
   ) {
     this.taskRepository = taskRepository;
     this.commentRepository = commentRepository;
@@ -89,6 +109,11 @@ public class TaskService {
     this.assignmentRepository = assignmentRepository;
     this.activityRepository = activityRepository;
     this.timeLogRepository = timeLogRepository;
+    this.taskSpaceRepository = taskSpaceRepository;
+    this.taskSpaceMemberRepository = taskSpaceMemberRepository;
+    this.taskSpaceInvitationRepository = taskSpaceInvitationRepository;
+    this.taskSpaceNotificationService = taskSpaceNotificationService;
+    this.taskSpaceStreamService = taskSpaceStreamService;
   }
 
   public TaskDtos.TaskDetailResponse createTask(TaskDtos.TaskRequest request, AppUserDetails user) {
@@ -97,7 +122,7 @@ public class TaskService {
 
   public TaskDtos.TaskDetailResponse addSubtask(String taskId, TaskDtos.TaskRequest request, AppUserDetails user) {
     TaskEntity parent = requireTask(taskId);
-    ensureViewAccess(user, parent);
+    ensureEditAccess(user, parent);
     return createTaskInternal(request, user, parent.getId());
   }
 
@@ -107,6 +132,7 @@ public class TaskService {
       String priority,
       String scope,
       String assigneeId,
+      String spaceId,
       String projectRef,
       String moduleRef,
       String approvalStatus,
@@ -116,8 +142,8 @@ public class TaskService {
       int pageSize,
       AppUserDetails user
   ) {
-    List<TaskEntity> visible = filteredVisibleTasks(search, status, priority, scope, assigneeId, projectRef, moduleRef, approvalStatus, overdue, dueToday, user);
-    TreeContext context = buildTreeContext(visible);
+    List<TaskEntity> visible = filteredVisibleTasks(search, status, priority, scope, assigneeId, spaceId, projectRef, moduleRef, approvalStatus, overdue, dueToday, user);
+    TreeContext context = buildTreeContext(visible, user);
     List<TaskDtos.TaskSummaryResponse> flattened = flattenSummaries(context, null);
 
     int normalizedPage = Math.max(page, 1);
@@ -134,6 +160,7 @@ public class TaskService {
       String priority,
       String scope,
       String assigneeId,
+      String spaceId,
       String projectRef,
       String moduleRef,
       String approvalStatus,
@@ -141,8 +168,8 @@ public class TaskService {
       Boolean dueToday,
       AppUserDetails user
   ) {
-    List<TaskEntity> visible = filteredVisibleTasks(search, status, priority, scope, assigneeId, projectRef, moduleRef, approvalStatus, overdue, dueToday, user);
-    TreeContext context = buildTreeContext(visible);
+    List<TaskEntity> visible = filteredVisibleTasks(search, status, priority, scope, assigneeId, spaceId, projectRef, moduleRef, approvalStatus, overdue, dueToday, user);
+    TreeContext context = buildTreeContext(visible, user);
     return new TaskDtos.TaskTreeResponse(buildSummaries(context, null));
   }
 
@@ -150,14 +177,14 @@ public class TaskService {
     TaskEntity task = requireTask(id);
     ensureViewAccess(user, task);
     List<TaskEntity> visible = visibleTasks(user);
-    TreeContext context = buildTreeContext(visible);
+    TreeContext context = buildTreeContext(visible, user);
     return new TaskDtos.TaskTreeResponse(buildSummaries(context, id));
   }
 
   public TaskDtos.TaskDetailResponse getTask(String id, AppUserDetails user) {
     TaskEntity task = requireTask(id);
     ensureViewAccess(user, task);
-    return toDetail(task, buildTreeContext(visibleTasks(user)));
+    return toDetail(task, buildTreeContext(visibleTasks(user), user));
   }
 
   public TaskDtos.TaskDetailResponse updateTask(String id, TaskDtos.TaskRequest request, AppUserDetails user) {
@@ -165,6 +192,7 @@ public class TaskService {
     ensureEditAccess(user, task);
     validateTaskDates(request.startDate(), request.dueDate());
     validateAssignee(request.assignedToId(), request.assignedToName());
+    TaskSpaceEntity targetSpace = resolveManagedSpace(request.spaceId(), user);
 
     TaskStatus previousStatus = task.getStatus();
     TaskPriority previousPriority = task.getPriority();
@@ -183,6 +211,7 @@ public class TaskService {
     if (request.workflowName() != null) task.setWorkflowName(trimToNull(request.workflowName()));
     if (request.projectRef() != null) task.setProjectRef(trimToNull(request.projectRef()));
     if (request.moduleRef() != null) task.setModuleRef(trimToNull(request.moduleRef()));
+    if (request.spaceId() != null) task.setSpaceId(targetSpace == null ? null : targetSpace.getId());
     if (request.assignedToId() != null || request.assignedToName() != null) {
       if (StringUtils.hasText(request.assignedToId())) {
         task.setAssignedToId(request.assignedToId().trim());
@@ -279,7 +308,7 @@ public class TaskService {
 
   public TaskDtos.CommentResponse addComment(String taskId, TaskDtos.CommentCreateRequest request, AppUserDetails user) {
     TaskEntity task = requireTask(taskId);
-    ensureViewAccess(user, task);
+    ensureExecutionAccess(user, task);
     TaskCommentEntity comment = new TaskCommentEntity();
     comment.setId(UUID.randomUUID().toString());
     comment.setTask(task);
@@ -320,7 +349,7 @@ public class TaskService {
       AppUserDetails user
   ) {
     TaskEntity task = requireTask(taskId);
-    ensureEditAccess(user, task);
+    ensureExecutionAccess(user, task);
     TaskChecklistItemEntity item = checklistRepository.findByIdAndTask_Id(itemId, taskId)
         .orElseThrow(() -> new ResourceNotFoundException("Checklist item not found."));
     item.setLabel(request.label().trim());
@@ -421,7 +450,7 @@ public class TaskService {
         .map(this::toActivity)
         .toList();
 
-    TreeContext context = buildTreeContext(tasks);
+    TreeContext context = buildTreeContext(tasks, user);
     List<TaskDtos.UpcomingDeadlineResponse> upcomingDeadlines = tasks.stream()
         .filter(task -> task.getDueDate() != null && task.getStatus() != TaskStatus.COMPLETED && task.getStatus() != TaskStatus.CANCELLED)
         .sorted(Comparator.comparing(TaskEntity::getDueDate))
@@ -469,13 +498,211 @@ public class TaskService {
     return new TaskDtos.DashboardResponse(kpis, distribution, recentActivity, upcomingDeadlines, workload, metrics);
   }
 
+  public List<TaskDtos.SpaceSummaryResponse> listSpaces(AppUserDetails user) {
+    return accessibleSpaces(user).stream().map(space -> toSpaceSummary(space, user)).toList();
+  }
+
+  public TaskDtos.SpaceDetailResponse createSpace(TaskDtos.SpaceCreateRequest request, AppUserDetails user) {
+    Instant now = Instant.now();
+    TaskSpaceEntity space = new TaskSpaceEntity();
+    space.setId(UUID.randomUUID().toString());
+    space.setSpaceKey(nextSpaceKey(request.name()));
+    space.setName(request.name().trim());
+    space.setDescription(trimToNull(request.description()));
+    space.setIconName(trimToNull(request.iconName()));
+    space.setColorHex(trimToNull(request.colorHex()));
+    space.setVisibility(request.visibility());
+    space.setOwnerUserId(user.getUserId());
+    space.setOwnerUserName(user.getFullName());
+    space.setArchived(false);
+    space.setCreatedAt(now);
+    space.setUpdatedAt(now);
+    taskSpaceRepository.save(space);
+
+    TaskSpaceMemberEntity owner = new TaskSpaceMemberEntity();
+    owner.setId(UUID.randomUUID().toString());
+    owner.setSpace(space);
+    owner.setUserId(user.getUserId());
+    owner.setUserName(user.getFullName());
+    owner.setRole(TaskSpaceMemberRole.OWNER);
+    owner.setActive(true);
+    owner.setInvitedById(user.getUserId());
+    owner.setInvitedByName(user.getFullName());
+    owner.setJoinedAt(now);
+    owner.setCreatedAt(now);
+    owner.setUpdatedAt(now);
+    taskSpaceMemberRepository.save(owner);
+
+    taskSpaceStreamService.publishSpaceUpdate(user.getUserId(), "SPACE_CREATED", space.getId());
+    return getSpace(space.getId(), user);
+  }
+
+  public TaskDtos.SpaceDetailResponse getSpace(String spaceId, AppUserDetails user) {
+    TaskSpaceEntity space = requireSpace(spaceId);
+    ensureSpaceMember(user, space);
+    List<TaskDtos.SpaceMemberResponse> members = taskSpaceMemberRepository.findBySpace_IdAndActiveTrueOrderByRoleAscUserNameAsc(spaceId).stream()
+        .map(this::toSpaceMember)
+        .toList();
+    List<TaskDtos.SpaceInvitationResponse> invitations = taskSpaceInvitationRepository.findBySpace_IdOrderByCreatedAtDesc(spaceId).stream()
+        .map(this::toInvitation)
+        .toList();
+    return new TaskDtos.SpaceDetailResponse(toSpaceSummary(space, user), members, invitations);
+  }
+
+  public TaskDtos.SpaceDetailResponse updateSpace(String spaceId, TaskDtos.SpaceUpdateRequest request, AppUserDetails user) {
+    TaskSpaceEntity space = requireSpace(spaceId);
+    ensureSpaceManager(user, space);
+    if (request.name() != null && StringUtils.hasText(request.name())) {
+      space.setName(request.name().trim());
+    }
+    if (request.description() != null) {
+      space.setDescription(trimToNull(request.description()));
+    }
+    if (request.iconName() != null) {
+      space.setIconName(trimToNull(request.iconName()));
+    }
+    if (request.colorHex() != null) {
+      space.setColorHex(trimToNull(request.colorHex()));
+    }
+    if (request.visibility() != null) {
+      space.setVisibility(request.visibility());
+    }
+    if (request.archived() != null) {
+      space.setArchived(Boolean.TRUE.equals(request.archived()));
+    }
+    space.setUpdatedAt(Instant.now());
+    taskSpaceRepository.save(space);
+    broadcastSpaceMembers(space, "SPACE_UPDATED");
+    return getSpace(spaceId, user);
+  }
+
+  public void deleteSpace(String spaceId, AppUserDetails user) {
+    TaskSpaceEntity space = requireSpace(spaceId);
+    ensureSpaceOwner(user, space);
+    taskRepository.findAll().stream()
+        .filter(task -> spaceId.equals(task.getSpaceId()))
+        .forEach(task -> task.setSpaceId(null));
+    taskSpaceRepository.delete(space);
+    taskSpaceStreamService.publishSpaceUpdate(user.getUserId(), "SPACE_DELETED", spaceId);
+  }
+
+  public TaskDtos.SpaceInvitationResponse inviteToSpace(String spaceId, TaskDtos.SpaceInvitationRequest request, AppUserDetails user) {
+    TaskSpaceEntity space = requireSpace(spaceId);
+    ensureSpaceManager(user, space);
+    if (taskSpaceMemberRepository.existsBySpace_IdAndUserIdAndActiveTrue(spaceId, request.userId().trim())) {
+      throw new BadRequestException("User is already a member of this space.");
+    }
+    taskSpaceInvitationRepository.findBySpace_IdAndInviteeUserIdAndStatus(spaceId, request.userId().trim(), TaskSpaceInvitationStatus.PENDING)
+        .ifPresent(existing -> {
+          throw new BadRequestException("A pending invitation already exists for this user.");
+        });
+
+    Instant now = Instant.now();
+    TaskSpaceInvitationEntity invitation = new TaskSpaceInvitationEntity();
+    invitation.setId(UUID.randomUUID().toString());
+    invitation.setSpace(space);
+    invitation.setInviteeUserId(request.userId().trim());
+    invitation.setInviteeName(request.userName().trim());
+    invitation.setInviteeEmail(trimToNull(request.userEmail()));
+    invitation.setInvitedById(user.getUserId());
+    invitation.setInvitedByName(user.getFullName());
+    invitation.setRole(request.role());
+    invitation.setStatus(TaskSpaceInvitationStatus.PENDING);
+    invitation.setMessage(trimToNull(request.message()));
+    invitation.setCreatedAt(now);
+    invitation.setUpdatedAt(now);
+    taskSpaceInvitationRepository.save(invitation);
+
+    taskSpaceNotificationService.sendInvitation(invitation, space);
+    taskSpaceStreamService.publishInvitation(invitation.getInviteeUserId(), "SPACE_INVITATION_CREATED", spaceId, invitation.getId());
+    return toInvitation(invitation);
+  }
+
+  public List<TaskDtos.SpaceInvitationResponse> listMyInvitations(AppUserDetails user) {
+    return taskSpaceInvitationRepository.findByInviteeUserIdAndStatusOrderByCreatedAtDesc(user.getUserId(), TaskSpaceInvitationStatus.PENDING).stream()
+        .map(this::toInvitation)
+        .toList();
+  }
+
+  public TaskDtos.SpaceInvitationResponse respondToInvitation(String invitationId, TaskDtos.SpaceInvitationActionRequest request, AppUserDetails user) {
+    TaskSpaceInvitationEntity invitation = taskSpaceInvitationRepository.findByIdAndInviteeUserId(invitationId, user.getUserId())
+        .orElseThrow(() -> new ResourceNotFoundException("Invitation not found."));
+    if (invitation.getStatus() != TaskSpaceInvitationStatus.PENDING) {
+      throw new BadRequestException("Invitation has already been processed.");
+    }
+    invitation.setStatus(request.status());
+    invitation.setRespondedAt(Instant.now());
+    invitation.setUpdatedAt(Instant.now());
+    taskSpaceInvitationRepository.save(invitation);
+
+    if (request.status() == TaskSpaceInvitationStatus.ACCEPTED) {
+      Instant now = Instant.now();
+      TaskSpaceMemberEntity member = new TaskSpaceMemberEntity();
+      member.setId(UUID.randomUUID().toString());
+      member.setSpace(invitation.getSpace());
+      member.setUserId(invitation.getInviteeUserId());
+      member.setUserName(invitation.getInviteeName());
+      member.setUserEmail(invitation.getInviteeEmail());
+      member.setRole(invitation.getRole());
+      member.setActive(true);
+      member.setInvitedById(invitation.getInvitedById());
+      member.setInvitedByName(invitation.getInvitedByName());
+      member.setJoinedAt(now);
+      member.setCreatedAt(now);
+      member.setUpdatedAt(now);
+      taskSpaceMemberRepository.save(member);
+      broadcastSpaceMembers(invitation.getSpace(), "SPACE_MEMBERSHIP_ACCEPTED");
+    } else {
+      taskSpaceStreamService.publishSpaceUpdate(invitation.getInvitedById(), "SPACE_INVITATION_REJECTED", invitation.getSpace().getId());
+    }
+
+    taskSpaceStreamService.publishInvitation(user.getUserId(), "SPACE_INVITATION_UPDATED", invitation.getSpace().getId(), invitation.getId());
+    return toInvitation(invitation);
+  }
+
+  public TaskDtos.SpaceMemberResponse updateSpaceMember(String spaceId, String memberId, TaskDtos.SpaceMemberUpdateRequest request, AppUserDetails user) {
+    TaskSpaceEntity space = requireSpace(spaceId);
+    ensureSpaceManager(user, space);
+    TaskSpaceMemberEntity member = taskSpaceMemberRepository.findById(memberId)
+        .filter(entity -> entity.getSpace().getId().equals(spaceId))
+        .orElseThrow(() -> new ResourceNotFoundException("Space member not found."));
+    member.setRole(request.role());
+    member.setUpdatedAt(Instant.now());
+    taskSpaceMemberRepository.save(member);
+    broadcastSpaceMembers(space, "SPACE_MEMBER_UPDATED");
+    return toSpaceMember(member);
+  }
+
+  public void removeSpaceMember(String spaceId, String memberId, AppUserDetails user) {
+    TaskSpaceEntity space = requireSpace(spaceId);
+    ensureSpaceManager(user, space);
+    TaskSpaceMemberEntity member = taskSpaceMemberRepository.findById(memberId)
+        .filter(entity -> entity.getSpace().getId().equals(spaceId))
+        .orElseThrow(() -> new ResourceNotFoundException("Space member not found."));
+    if (member.getRole() == TaskSpaceMemberRole.OWNER) {
+      throw new BadRequestException("Space owner cannot be removed.");
+    }
+    member.setActive(false);
+    member.setUpdatedAt(Instant.now());
+    taskSpaceMemberRepository.save(member);
+    broadcastSpaceMembers(space, "SPACE_MEMBER_REMOVED");
+  }
+
+  public SseEmitter subscribe(AppUserDetails user) {
+    return taskSpaceStreamService.subscribe(user.getUserId());
+  }
+
   private TaskDtos.TaskDetailResponse createTaskInternal(TaskDtos.TaskRequest request, AppUserDetails user, String parentTaskId) {
     validateTaskDates(request.startDate(), request.dueDate());
     validateAssignee(request.assignedToId(), request.assignedToName());
     Instant now = Instant.now();
     TaskEntity parent = parentTaskId == null ? null : requireTask(parentTaskId);
+    TaskSpaceEntity space = resolveManagedSpace(request.spaceId(), user);
     if (parent != null) {
       ensureViewAccess(user, parent);
+      if (space == null && StringUtils.hasText(parent.getSpaceId())) {
+        space = requireSpace(parent.getSpaceId());
+      }
     }
 
     TaskEntity task = new TaskEntity();
@@ -489,6 +716,7 @@ public class TaskService {
     task.setApprovalStatus(resolveApprovalStatus(request, false, TaskApprovalStatus.NOT_REQUIRED));
     task.setVisibility(request.visibility() == null ? (parent == null ? TaskVisibility.TEAM : parent.getVisibility()) : request.visibility());
     task.setWorkflowName(trimToNull(firstNonBlank(request.workflowName(), parent == null ? null : parent.getWorkflowName())));
+    task.setSpaceId(space == null ? (parent == null ? null : parent.getSpaceId()) : space.getId());
     task.setProjectRef(trimToNull(firstNonBlank(request.projectRef(), parent == null ? null : parent.getProjectRef())));
     task.setModuleRef(trimToNull(firstNonBlank(request.moduleRef(), parent == null ? null : parent.getModuleRef())));
     task.setParentTaskId(parent == null ? null : parent.getId());
@@ -536,6 +764,7 @@ public class TaskService {
       String priority,
       String scope,
       String assigneeId,
+      String spaceId,
       String projectRef,
       String moduleRef,
       String approvalStatus,
@@ -549,6 +778,7 @@ public class TaskService {
         && !StringUtils.hasText(priority)
         && !StringUtils.hasText(scope)
         && !StringUtils.hasText(assigneeId)
+        && !StringUtils.hasText(spaceId)
         && !StringUtils.hasText(projectRef)
         && !StringUtils.hasText(moduleRef)
         && !StringUtils.hasText(approvalStatus)
@@ -557,7 +787,7 @@ public class TaskService {
       return sortHierarchically(visible);
     }
 
-    Predicate<TaskEntity> predicate = buildPredicate(search, status, priority, scope, assigneeId, projectRef, moduleRef, approvalStatus, overdue, dueToday, user);
+    Predicate<TaskEntity> predicate = buildPredicate(search, status, priority, scope, assigneeId, spaceId, projectRef, moduleRef, approvalStatus, overdue, dueToday, user);
     Set<String> includedIds = new LinkedHashSet<>();
     Map<String, TaskEntity> byId = visible.stream().collect(Collectors.toMap(TaskEntity::getId, task -> task));
     for (TaskEntity task : visible) {
@@ -574,7 +804,7 @@ public class TaskService {
   }
 
   private List<TaskEntity> sortHierarchically(Collection<TaskEntity> tasks) {
-    TreeContext context = buildTreeContext(tasks);
+    TreeContext context = buildTreeContext(tasks, null);
     List<TaskEntity> flattened = new ArrayList<>();
     flattenEntities(context, null, flattened);
     return flattened;
@@ -587,9 +817,15 @@ public class TaskService {
     }
   }
 
-  private TreeContext buildTreeContext(Collection<TaskEntity> tasks) {
+  private TreeContext buildTreeContext(Collection<TaskEntity> tasks, AppUserDetails user) {
     Map<String, TaskEntity> byId = tasks.stream().collect(Collectors.toMap(TaskEntity::getId, task -> task));
     Map<String, List<TaskEntity>> childrenByParent = new LinkedHashMap<>();
+    Map<String, TaskSpaceEntity> spacesById = taskSpaceRepository.findAll().stream()
+        .collect(Collectors.toMap(TaskSpaceEntity::getId, space -> space));
+    Map<String, TaskSpaceMemberEntity> membershipBySpaceId = user == null
+        ? Map.of()
+        : taskSpaceMemberRepository.findByUserIdAndActiveTrueOrderByUpdatedAtDesc(user.getUserId()).stream()
+            .collect(Collectors.toMap(member -> member.getSpace().getId(), member -> member, (left, right) -> left));
     for (TaskEntity task : tasks) {
       String parentId = byId.containsKey(task.getParentTaskId()) ? task.getParentTaskId() : null;
       childrenByParent.computeIfAbsent(parentId, key -> new ArrayList<>()).add(task);
@@ -597,7 +833,7 @@ public class TaskService {
     childrenByParent.values().forEach(list -> list.sort(Comparator
         .comparingLong(TaskEntity::getOrderIndex)
         .thenComparing(TaskEntity::getCreatedAt)));
-    return new TreeContext(byId, childrenByParent, new HashMap<>());
+    return new TreeContext(byId, childrenByParent, new HashMap<>(), user, spacesById, membershipBySpaceId);
   }
 
   private List<TaskDtos.TaskSummaryResponse> flattenSummaries(TreeContext context, String parentTaskId) {
@@ -647,6 +883,8 @@ public class TaskService {
     int checklistTotal = task.getChecklistItems().size();
     int checklistCompleted = (int) task.getChecklistItems().stream().filter(TaskChecklistItemEntity::isCompleted).count();
     List<TaskDtos.TaskSummaryResponse> subtasks = buildSummaries(context, task.getId());
+    TaskSpaceEntity space = context.spacesById().get(task.getSpaceId());
+    AppUserDetails user = context.user();
     return new TaskDtos.TaskSummaryResponse(
         task.getId(),
         task.getTaskCode(),
@@ -659,6 +897,8 @@ public class TaskService {
         task.getStartDate(),
         task.getDueDate(),
         task.getCompletionDate(),
+        task.getSpaceId(),
+        space == null ? null : space.getName(),
         task.getProjectRef(),
         task.getModuleRef(),
         task.getAssignedToId(),
@@ -677,6 +917,8 @@ public class TaskService {
         progressPercent(task, context),
         isOverdue(task),
         task.getUpdatedAt(),
+        user != null && canEdit(user, task),
+        user != null && canManageExecution(user, task),
         subtasks
     );
   }
@@ -917,13 +1159,163 @@ public class TaskService {
     if (hasPrivilegedRole(user)) {
       return true;
     }
+    if (StringUtils.hasText(task.getSpaceId()) && !isActiveSpaceMember(task.getSpaceId(), user.getUserId())) {
+      return false;
+    }
     return equalsNullable(user.getUserId(), task.getCreatedById())
         || equalsNullable(user.getUserId(), task.getAssignedToId())
-        || equalsNullable(user.getUserId(), task.getApproverId());
+        || equalsNullable(user.getUserId(), task.getApproverId())
+        || StringUtils.hasText(task.getSpaceId());
   }
 
   private boolean canApprove(AppUserDetails user, TaskEntity task) {
     return hasPrivilegedRole(user) || equalsNullable(user.getUserId(), task.getApproverId());
+  }
+
+  private List<TaskSpaceEntity> accessibleSpaces(AppUserDetails user) {
+    if (hasPrivilegedRole(user)) {
+      return taskSpaceRepository.findByArchivedFalseOrderByUpdatedAtDesc();
+    }
+    Set<String> ids = taskSpaceMemberRepository.findByUserIdAndActiveTrueOrderByUpdatedAtDesc(user.getUserId()).stream()
+        .map(member -> member.getSpace().getId())
+        .collect(Collectors.toCollection(LinkedHashSet::new));
+    return taskSpaceRepository.findByArchivedFalseOrderByUpdatedAtDesc().stream()
+        .filter(space -> ids.contains(space.getId()))
+        .toList();
+  }
+
+  private TaskSpaceEntity requireSpace(String id) {
+    return taskSpaceRepository.findByIdAndArchivedFalse(id)
+        .orElseThrow(() -> new ResourceNotFoundException("Space not found."));
+  }
+
+  private Optional<TaskSpaceMemberEntity> findActiveSpaceMember(String spaceId, String userId) {
+    return taskSpaceMemberRepository.findBySpace_IdAndUserIdAndActiveTrue(spaceId, userId);
+  }
+
+  private boolean isActiveSpaceMember(String spaceId, String userId) {
+    return taskSpaceMemberRepository.existsBySpace_IdAndUserIdAndActiveTrue(spaceId, userId);
+  }
+
+  private void ensureSpaceMember(AppUserDetails user, TaskSpaceEntity space) {
+    if (hasPrivilegedRole(user) || isActiveSpaceMember(space.getId(), user.getUserId())) {
+      return;
+    }
+    throw new ForbiddenOperationException("You do not have access to this space.");
+  }
+
+  private void ensureSpaceManager(AppUserDetails user, TaskSpaceEntity space) {
+    if (hasPrivilegedRole(user)) {
+      return;
+    }
+    TaskSpaceMemberRole role = findActiveSpaceMember(space.getId(), user.getUserId())
+        .map(TaskSpaceMemberEntity::getRole)
+        .orElse(null);
+    if (role == TaskSpaceMemberRole.OWNER || role == TaskSpaceMemberRole.ADMIN || role == TaskSpaceMemberRole.PROJECT_MANAGER) {
+      return;
+    }
+    throw new ForbiddenOperationException("You do not have permission to manage this space.");
+  }
+
+  private void ensureSpaceOwner(AppUserDetails user, TaskSpaceEntity space) {
+    if (hasPrivilegedRole(user) || equalsNullable(user.getUserId(), space.getOwnerUserId())) {
+      return;
+    }
+    throw new ForbiddenOperationException("Only the space owner can perform this action.");
+  }
+
+  private TaskSpaceEntity resolveManagedSpace(String spaceId, AppUserDetails user) {
+    if (!StringUtils.hasText(spaceId)) {
+      return null;
+    }
+    TaskSpaceEntity space = requireSpace(spaceId.trim());
+    ensureSpaceManager(user, space);
+    return space;
+  }
+
+  private String nextSpaceKey(String rawName) {
+    String normalized = rawName.toUpperCase(Locale.ROOT).replaceAll("[^A-Z0-9]+", "-").replaceAll("(^-|-$)", "");
+    if (!StringUtils.hasText(normalized)) {
+      normalized = "SPACE";
+    }
+    String candidate = normalized;
+    int suffix = 2;
+    while (taskSpaceRepository.existsBySpaceKeyIgnoreCase(candidate)) {
+      candidate = normalized + "-" + suffix++;
+    }
+    return candidate;
+  }
+
+  private TaskDtos.SpaceSummaryResponse toSpaceSummary(TaskSpaceEntity space, AppUserDetails user) {
+    TaskSpaceMemberRole currentRole = hasPrivilegedRole(user)
+        ? TaskSpaceMemberRole.ADMIN
+        : findActiveSpaceMember(space.getId(), user.getUserId()).map(TaskSpaceMemberEntity::getRole).orElse(null);
+    List<TaskEntity> spaceTasks = taskRepository.findAll().stream().filter(task -> space.getId().equals(task.getSpaceId())).toList();
+    long pendingCount = spaceTasks.stream().filter(task -> task.getStatus() == TaskStatus.PENDING || task.getStatus() == TaskStatus.ASSIGNED).count();
+    long inProgressCount = spaceTasks.stream().filter(task -> task.getStatus() == TaskStatus.IN_PROGRESS).count();
+    long completedCount = spaceTasks.stream().filter(task -> task.getStatus() == TaskStatus.COMPLETED).count();
+    long overdueCount = spaceTasks.stream().filter(this::isOverdue).count();
+    long memberCount = taskSpaceMemberRepository.findBySpace_IdAndActiveTrueOrderByRoleAscUserNameAsc(space.getId()).size();
+    long pendingInvitations = taskSpaceInvitationRepository.findBySpace_IdOrderByCreatedAtDesc(space.getId()).stream()
+        .filter(invitation -> invitation.getStatus() == TaskSpaceInvitationStatus.PENDING)
+        .count();
+    return new TaskDtos.SpaceSummaryResponse(
+        space.getId(),
+        space.getSpaceKey(),
+        space.getName(),
+        space.getDescription(),
+        space.getIconName(),
+        space.getColorHex(),
+        space.getVisibility(),
+        space.getOwnerUserId(),
+        space.getOwnerUserName(),
+        currentRole,
+        space.isArchived(),
+        pendingCount,
+        inProgressCount,
+        completedCount,
+        overdueCount,
+        memberCount,
+        pendingInvitations,
+        space.getUpdatedAt()
+    );
+  }
+
+  private TaskDtos.SpaceMemberResponse toSpaceMember(TaskSpaceMemberEntity member) {
+    return new TaskDtos.SpaceMemberResponse(
+        member.getId(),
+        member.getUserId(),
+        member.getUserName(),
+        member.getUserEmail(),
+        member.getRole(),
+        member.isActive(),
+        member.getInvitedByName(),
+        member.getJoinedAt()
+    );
+  }
+
+  private TaskDtos.SpaceInvitationResponse toInvitation(TaskSpaceInvitationEntity invitation) {
+    return new TaskDtos.SpaceInvitationResponse(
+        invitation.getId(),
+        invitation.getSpace().getId(),
+        invitation.getSpace().getName(),
+        invitation.getInviteeUserId(),
+        invitation.getInviteeName(),
+        invitation.getInviteeEmail(),
+        invitation.getInvitedById(),
+        invitation.getInvitedByName(),
+        invitation.getRole(),
+        invitation.getStatus(),
+        invitation.getMessage(),
+        invitation.getRespondedAt(),
+        invitation.getCreatedAt()
+    );
+  }
+
+  private void broadcastSpaceMembers(TaskSpaceEntity space, String eventType) {
+    taskSpaceMemberRepository.findBySpace_IdAndActiveTrueOrderByRoleAscUserNameAsc(space.getId()).forEach(member ->
+        taskSpaceStreamService.publishSpaceUpdate(member.getUserId(), eventType, space.getId())
+    );
   }
 
   private void ensureViewAccess(AppUserDetails user, TaskEntity task) {
@@ -933,22 +1325,37 @@ public class TaskService {
   }
 
   private void ensureEditAccess(AppUserDetails user, TaskEntity task) {
-    if (hasPrivilegedRole(user)
-        || equalsNullable(user.getUserId(), task.getCreatedById())
-        || equalsNullable(user.getUserId(), task.getAssignedById())) {
+    if (canEdit(user, task)) {
       return;
     }
     throw new ForbiddenOperationException("You do not have permission to modify this task.");
   }
 
   private void ensureExecutionAccess(AppUserDetails user, TaskEntity task) {
-    if (hasPrivilegedRole(user)
-        || equalsNullable(user.getUserId(), task.getCreatedById())
-        || equalsNullable(user.getUserId(), task.getAssignedById())
-        || equalsNullable(user.getUserId(), task.getAssignedToId())) {
+    if (canManageExecution(user, task)) {
       return;
     }
     throw new ForbiddenOperationException("You do not have permission to update this task status.");
+  }
+
+  private boolean canEdit(AppUserDetails user, TaskEntity task) {
+    if (hasPrivilegedRole(user)
+        || equalsNullable(user.getUserId(), task.getCreatedById())
+        || equalsNullable(user.getUserId(), task.getAssignedById())) {
+      return true;
+    }
+    if (!StringUtils.hasText(task.getSpaceId())) {
+      return false;
+    }
+    return findActiveSpaceMember(task.getSpaceId(), user.getUserId())
+        .map(member -> member.getRole() == TaskSpaceMemberRole.OWNER
+            || member.getRole() == TaskSpaceMemberRole.ADMIN
+            || member.getRole() == TaskSpaceMemberRole.PROJECT_MANAGER)
+        .orElse(false);
+  }
+
+  private boolean canManageExecution(AppUserDetails user, TaskEntity task) {
+    return canEdit(user, task) || equalsNullable(user.getUserId(), task.getAssignedToId());
   }
 
   private boolean hasPrivilegedRole(AppUserDetails user) {
@@ -961,6 +1368,7 @@ public class TaskService {
       String priority,
       String scope,
       String assigneeId,
+      String spaceId,
       String projectRef,
       String moduleRef,
       String approvalStatus,
@@ -985,6 +1393,9 @@ public class TaskService {
     }
     if (StringUtils.hasText(assigneeId)) {
       predicates.add(task -> assigneeId.trim().equals(task.getAssignedToId()));
+    }
+    if (StringUtils.hasText(spaceId)) {
+      predicates.add(task -> spaceId.trim().equals(task.getSpaceId()));
     }
     if (StringUtils.hasText(projectRef)) {
       predicates.add(task -> projectRef.trim().equalsIgnoreCase(String.valueOf(task.getProjectRef())));
@@ -1144,7 +1555,10 @@ public class TaskService {
   private record TreeContext(
       Map<String, TaskEntity> byId,
       Map<String, List<TaskEntity>> childrenByParent,
-      Map<String, Integer> progressMemo
+      Map<String, Integer> progressMemo,
+      AppUserDetails user,
+      Map<String, TaskSpaceEntity> spacesById,
+      Map<String, TaskSpaceMemberEntity> membershipBySpaceId
   ) {
   }
 }
