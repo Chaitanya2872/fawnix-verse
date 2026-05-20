@@ -5,7 +5,6 @@ import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "re
 import { useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
-  Bell,
   CalendarDays,
   CheckCircle2,
   CheckCheck,
@@ -46,7 +45,6 @@ import {
   spaceKeys,
   taskKeys,
   useCreateTaskSpace,
-  useTaskInvitations,
   useTaskSpace,
   useTaskSpaces,
   useDeleteTaskSpace,
@@ -56,7 +54,6 @@ import {
   useDeleteTask,
   useRemoveTaskSpaceMember,
   useReorderTaskHierarchy,
-  useRespondToTaskInvitation,
   useTask,
   useTaskDashboard,
   useTaskTree,
@@ -80,8 +77,6 @@ import {
   type TaskSummary,
   type TaskVisibility,
   type TaskSpaceDetail,
-  type TaskSpaceInvitation,
-  type TaskSpaceInvitationStatus,
   type TaskSpaceMemberRole,
   type TaskSpaceRequest,
   type TaskSpaceSummary,
@@ -361,10 +356,6 @@ function activeSpaceTasks(tasks: TaskSummary[], spaceId: string) {
   return tasks.filter((task) => task.spaceId === spaceId);
 }
 
-function spaceAccent(space: TaskSpaceSummary) {
-  return space.colorHex || "#0f172a";
-}
-
 function canManageSpace(user: CurrentUser | null | undefined, space: TaskSpaceSummary | null) {
   if (!user || !space) return false;
   if (hasPermission(user, PERMISSIONS.PAGE_TASKS) || hasPermission(user, PERMISSIONS.MODULE_TASKS)) return true;
@@ -421,7 +412,6 @@ export default function TaskManagementPage() {
   const { data: currentUser } = useCurrentUser();
   const dashboardQuery = useTaskDashboard();
   const spacesQuery = useTaskSpaces();
-  const invitationsQuery = useTaskInvitations();
   const spaceDetailQuery = useTaskSpace(selectedSpaceId || null);
   const treeQuery = useTaskTree(filter);
   const detailQuery = useTask(detailTaskId);
@@ -434,7 +424,6 @@ export default function TaskManagementPage() {
   const inviteSpaceMutation = useInviteToTaskSpace();
   const removeMemberMutation = useRemoveTaskSpaceMember();
   const updateTaskMutation = useUpdateTask();
-  const respondInvitationMutation = useRespondToTaskInvitation();
   const updateSpaceMutation = useUpdateTaskSpace();
   const updateSpaceMemberMutation = useUpdateTaskSpaceMember();
   const updateTaskStatusMutation = useUpdateTaskStatus();
@@ -447,7 +436,6 @@ export default function TaskManagementPage() {
 
   const dashboard = dashboardQuery.data;
   const spaces = spacesQuery.data ?? [];
-  const invitations = invitationsQuery.data ?? [];
   const selectedSpace = spaces.find((space) => space.id === selectedSpaceId) ?? null;
   const selectedSpaceDetail = spaceDetailQuery.data ?? null;
   const taskTree = treeQuery.data?.data ?? [];
@@ -546,6 +534,16 @@ export default function TaskManagementPage() {
     [selectedScopedTasks]
   );
   const manageableSpace = canManageSpace(currentUser, selectedSpace);
+  const spaceOptions = useMemo(
+    () => [
+      ...spaces.map((space) => ({
+        value: space.id,
+        label: space.name,
+      })),
+      { value: "__add_space__", label: "+ Add Space" },
+    ],
+    [spaces]
+  );
 
   function toggleGroup(groupKey: string) {
     setCollapsedGroups((prev) => {
@@ -578,6 +576,14 @@ export default function TaskManagementPage() {
     setEditingSpace(space ?? null);
     setSpaceForm(toSpaceForm(space ?? null));
     setSpaceEditorOpen(true);
+  }
+
+  function handleSpaceSelect(value: string) {
+    if (value === "__add_space__") {
+      openSpaceEditor(null);
+      return;
+    }
+    setSelectedSpaceId(value);
   }
 
   function handleQuickCreate() {
@@ -878,21 +884,6 @@ export default function TaskManagementPage() {
     );
   }
 
-  function handleInvitationAction(invitation: TaskSpaceInvitation, status: TaskSpaceInvitationStatus) {
-    respondInvitationMutation.mutate(
-      { invitationId: invitation.id, status },
-      {
-        onSuccess: () => {
-          toast.success(status === "ACCEPTED" ? "Invitation accepted." : "Invitation rejected.");
-          if (status === "ACCEPTED") {
-            setSelectedSpaceId(invitation.spaceId);
-          }
-        },
-        onError: (error) => toast.error(error.message),
-      }
-    );
-  }
-
   function handleMemberRoleUpdate(memberId: string, role: TaskSpaceMemberRole) {
     if (!selectedSpaceId) return;
     updateSpaceMemberMutation.mutate(
@@ -917,113 +908,27 @@ export default function TaskManagementPage() {
 
   return (
     <>
-      <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.15),_transparent_28%),linear-gradient(180deg,#f8fafc_0%,#eef2ff_100%)]">
+      <div className="min-h-screen bg-slate-50">
         <div className="mx-auto max-w-[1760px] px-4 py-4 sm:px-5 lg:px-6">
-          <div className="grid min-h-screen gap-4 xl:grid-cols-[280px_minmax(0,1fr)]">
-            <aside className="flex min-h-0 flex-col gap-3">
-              <section className="rounded-[26px] border border-slate-200 bg-white p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
-                      <FolderKanban className="h-3.5 w-3.5" />
-                      Spaces
-                    </div>
-                    <p className="mt-2 text-lg font-semibold text-slate-950">Execution OS</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => openSpaceEditor(null)}
-                      className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-700"
-                    >
-                      <Plus className="mr-1 inline h-3 w-3" />
-                      New
-                    </button>
-                    <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
-                      {spaces.length}
-                    </span>
-                  </div>
-                </div>
-                <div className="mt-4 space-y-2">
-                  {spaces.map((space) => (
-                    <button
-                      key={space.id}
-                      type="button"
-                      onClick={() => setSelectedSpaceId(space.id)}
-                      className={`flex w-full items-center gap-3 rounded-2xl border px-3 py-3 text-left transition ${
-                        selectedSpaceId === space.id
-                          ? "border-slate-300 bg-slate-100 text-slate-950"
-                          : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
-                      }`}
-                    >
-                      <span className="h-3 w-3 rounded-full" style={{ backgroundColor: spaceAccent(space) }} />
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-semibold">{space.name}</span>
-                        <span className="mt-1 block text-xs text-slate-500">
-                          {space.pendingCount} pending, {space.inProgressCount} in progress
-                        </span>
-                      </span>
-                    </button>
-                  ))}
-                  {!spaces.length ? <p className="text-sm text-slate-500">No spaces available yet.</p> : null}
-                </div>
-              </section>
-
-              <section className="rounded-[26px] border border-slate-200 bg-white p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
-                    <Bell className="h-4 w-4 text-slate-500" />
-                    Invitations
-                  </div>
-                  <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
-                    {invitations.filter((item) => item.status === "PENDING").length}
-                  </span>
-                </div>
-                <div className="mt-3 space-y-2">
-                  {invitations.slice(0, 3).map((invitation) => (
-                    <div key={invitation.id} className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5">
-                      <p className="text-sm font-semibold text-slate-900">{invitation.spaceName}</p>
-                      <p className="mt-1 text-xs text-slate-500">
-                        {invitation.invitedByName} invited you as {toLabel(invitation.role)}
-                      </p>
-                      {invitation.status === "PENDING" ? (
-                        <div className="mt-3 flex gap-2">
-                          <button
-                            type="button"
-                            onClick={() => handleInvitationAction(invitation, "ACCEPTED")}
-                            className="rounded-xl bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white"
-                          >
-                            Accept
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleInvitationAction(invitation, "REJECTED")}
-                            className="rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700"
-                          >
-                            Reject
-                          </button>
-                        </div>
-                      ) : null}
-                    </div>
-                  ))}
-                  {!invitations.length ? <p className="text-sm text-slate-500">No pending invites.</p> : null}
-                </div>
-              </section>
-            </aside>
-
+          <div className="min-h-screen">
             <main className="flex min-h-0 flex-col">
               <div className="border-b border-slate-200/80 px-4 py-4 sm:px-5">
                 <div className="flex flex-col gap-4">
                   <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                     <div className="flex items-start gap-3">
                       <div>
-                        <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.28em] text-sky-700">
+                        <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
                           <FolderKanban className="h-3.5 w-3.5" />
-                          Task Workspace
+                          Space
                         </div>
-                        <h1 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950 sm:text-[2rem]">
-                          {selectedSpace?.name || "Collaborative execution, not dashboard clutter"}
-                        </h1>
+                        <div className="mt-2 w-full max-w-[320px]">
+                          <FloatingSelect
+                            value={selectedSpaceId}
+                            onChange={handleSpaceSelect}
+                            options={spaceOptions}
+                            triggerClassName="border-slate-200 bg-white text-base font-semibold text-slate-950 shadow-none backdrop-blur-0"
+                          />
+                        </div>
                         <p className="mt-1 max-w-3xl text-sm text-slate-500">
                           Pending, in progress, completed, and overdue work now stays scoped inside the selected space.
                         </p>
