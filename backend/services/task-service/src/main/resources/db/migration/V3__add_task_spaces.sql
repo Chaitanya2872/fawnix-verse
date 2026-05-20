@@ -1,4 +1,4 @@
-create table task_spaces (
+create table if not exists task_spaces (
   id varchar(64) primary key,
   space_key varchar(80) not null unique,
   name varchar(160) not null,
@@ -13,7 +13,7 @@ create table task_spaces (
   updated_at timestamptz not null
 );
 
-create table task_space_members (
+create table if not exists task_space_members (
   id varchar(64) primary key,
   space_id varchar(64) not null references task_spaces(id) on delete cascade,
   user_id varchar(64) not null,
@@ -28,7 +28,7 @@ create table task_space_members (
   updated_at timestamptz not null
 );
 
-create table task_space_invitations (
+create table if not exists task_space_invitations (
   id varchar(64) primary key,
   space_id varchar(64) not null references task_spaces(id) on delete cascade,
   invitee_user_id varchar(64) not null,
@@ -45,14 +45,25 @@ create table task_space_invitations (
 );
 
 alter table tasks add column if not exists space_id varchar(64);
-alter table tasks add constraint fk_tasks_space
-  foreign key (space_id) references task_spaces(id) on delete set null;
 
-create index idx_task_spaces_owner on task_spaces(owner_user_id);
-create index idx_task_spaces_updated_at on task_spaces(updated_at);
-create index idx_task_space_members_space_active on task_space_members(space_id, active);
-create unique index ux_task_space_members_space_user_active on task_space_members(space_id, user_id, active);
-create index idx_task_space_members_user_active on task_space_members(user_id, active);
-create index idx_task_space_invitations_user_status on task_space_invitations(invitee_user_id, status);
-create index idx_task_space_invitations_space_status on task_space_invitations(space_id, status);
-create index idx_tasks_space_id on tasks(space_id);
+do $$
+begin
+  if not exists (
+    select 1
+    from information_schema.table_constraints
+    where constraint_name = 'fk_tasks_space'
+      and table_name = 'tasks'
+  ) then
+    alter table tasks add constraint fk_tasks_space
+      foreign key (space_id) references task_spaces(id) on delete set null;
+  end if;
+end $$;
+
+create index if not exists idx_task_spaces_owner on task_spaces(owner_user_id);
+create index if not exists idx_task_spaces_updated_at on task_spaces(updated_at);
+create index if not exists idx_task_space_members_space_active on task_space_members(space_id, active);
+create unique index if not exists ux_task_space_members_space_user_active on task_space_members(space_id, user_id, active);
+create index if not exists idx_task_space_members_user_active on task_space_members(user_id, active);
+create index if not exists idx_task_space_invitations_user_status on task_space_invitations(invitee_user_id, status);
+create index if not exists idx_task_space_invitations_space_status on task_space_invitations(space_id, status);
+create index if not exists idx_tasks_space_id on tasks(space_id);
