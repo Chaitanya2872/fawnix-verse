@@ -508,6 +508,7 @@ public class TaskService {
 
   public TaskDtos.SpaceDetailResponse createSpace(TaskDtos.SpaceCreateRequest request, AppUserDetails user) {
     Instant now = Instant.now();
+    String actorName = firstNonBlank(user.getFullName(), user.getUsername());
     TaskSpaceEntity space = new TaskSpaceEntity();
     space.setId(UUID.randomUUID().toString());
     space.setSpaceKey(nextSpaceKey(request.name()));
@@ -517,7 +518,7 @@ public class TaskService {
     space.setColorHex(trimToNull(request.colorHex()));
     space.setVisibility(request.visibility());
     space.setOwnerUserId(user.getUserId());
-    space.setOwnerUserName(user.getFullName());
+    space.setOwnerUserName(actorName);
     space.setArchived(false);
     space.setCreatedAt(now);
     space.setUpdatedAt(now);
@@ -527,13 +528,13 @@ public class TaskService {
     owner.setId(UUID.randomUUID().toString());
     owner.setSpace(space);
     owner.setUserId(user.getUserId());
-    owner.setUserName(user.getFullName());
-    owner.setUserEmail(null);
+    owner.setUserName(actorName);
+    owner.setUserEmail(trimToNull(user.getUsername()));
     owner.setRole(TaskSpaceMemberRole.OWNER);
     owner.setPermissions(serializePermissions(defaultPermissionsForRole(TaskSpaceMemberRole.OWNER)));
     owner.setActive(true);
     owner.setInvitedById(user.getUserId());
-    owner.setInvitedByName(user.getFullName());
+    owner.setInvitedByName(actorName);
     owner.setJoinedAt(now);
     owner.setCreatedAt(now);
     owner.setUpdatedAt(now);
@@ -556,11 +557,12 @@ public class TaskService {
         member.setUserId(memberUserId);
         member.setUserName(memberRequest.userName().trim());
         member.setUserEmail(trimToNull(memberRequest.userEmail()));
-        member.setRole(memberRequest.role());
-        member.setPermissions(serializePermissions(resolvePermissions(memberRequest.permissions(), memberRequest.role())));
+        TaskSpaceMemberRole memberRole = memberRequest.role() == null ? TaskSpaceMemberRole.MEMBER : memberRequest.role();
+        member.setRole(memberRole);
+        member.setPermissions(serializePermissions(resolvePermissions(memberRequest.permissions(), memberRole)));
         member.setActive(true);
         member.setInvitedById(user.getUserId());
-        member.setInvitedByName(user.getFullName());
+        member.setInvitedByName(actorName);
         member.setJoinedAt(now);
         member.setCreatedAt(now);
         member.setUpdatedAt(now);
@@ -625,6 +627,7 @@ public class TaskService {
   public TaskDtos.SpaceInvitationResponse inviteToSpace(String spaceId, TaskDtos.SpaceInvitationRequest request, AppUserDetails user) {
     TaskSpaceEntity space = requireSpace(spaceId);
     ensureSpaceManager(user, space);
+    String actorName = firstNonBlank(user.getFullName(), user.getUsername());
     if (taskSpaceMemberRepository.existsBySpace_IdAndUserIdAndActiveTrue(spaceId, request.userId().trim())) {
       throw new BadRequestException("User is already a member of this space.");
     }
@@ -641,9 +644,10 @@ public class TaskService {
     invitation.setInviteeName(request.userName().trim());
     invitation.setInviteeEmail(trimToNull(request.userEmail()));
     invitation.setInvitedById(user.getUserId());
-    invitation.setInvitedByName(user.getFullName());
-    invitation.setRole(request.role());
-    invitation.setPermissions(serializePermissions(resolvePermissions(request.permissions(), request.role())));
+    invitation.setInvitedByName(actorName);
+    TaskSpaceMemberRole inviteRole = request.role() == null ? TaskSpaceMemberRole.MEMBER : request.role();
+    invitation.setRole(inviteRole);
+    invitation.setPermissions(serializePermissions(resolvePermissions(request.permissions(), inviteRole)));
     invitation.setStatus(TaskSpaceInvitationStatus.PENDING);
     invitation.setMessage(trimToNull(request.message()));
     invitation.setCreatedAt(now);

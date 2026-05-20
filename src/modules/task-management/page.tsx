@@ -877,6 +877,21 @@ export default function TaskManagementPage() {
       iconName: spaceForm.iconName || null,
       colorHex: spaceForm.colorHex || null,
       visibility: spaceForm.visibility,
+      members: editingSpace
+        ? undefined
+        : spaceMembersDraft
+            .map((member) => {
+              const user = users.find((candidate) => candidate.id === member.userId);
+              if (!user) return null;
+              return {
+                userId: user.id,
+                userName: user.name,
+                userEmail: user.email,
+                role: member.role,
+                permissions: member.permissions,
+              };
+            })
+            .filter((member): member is NonNullable<typeof member> => Boolean(member)),
     };
     if (!payload.name) {
       toast.error("Space name is required.");
@@ -1373,6 +1388,13 @@ export default function TaskManagementPage() {
         <SpaceEditor
           form={spaceForm}
           setForm={setSpaceForm}
+          users={users}
+          memberDrafts={spaceMembersDraft}
+          onAddMember={addSpaceMemberDraft}
+          onUpdateMember={updateSpaceMemberDraft}
+          onUpdateMemberRole={updateSpaceMemberRole}
+          onTogglePermission={toggleSpaceMemberPermission}
+          onRemoveMember={removeSpaceMemberDraft}
           onSubmit={handleSaveSpace}
           editingSpace={editingSpace}
           onDelete={() => editingSpace && handleDeleteSpace(editingSpace)}
@@ -2344,6 +2366,13 @@ function TaskEditor({
 function SpaceEditor({
   form,
   setForm,
+  users,
+  memberDrafts,
+  onAddMember,
+  onUpdateMember,
+  onUpdateMemberRole,
+  onTogglePermission,
+  onRemoveMember,
   onSubmit,
   editingSpace,
   onDelete,
@@ -2351,6 +2380,13 @@ function SpaceEditor({
 }: {
   form: SpaceFormState;
   setForm: React.Dispatch<React.SetStateAction<SpaceFormState>>;
+  users: Array<{ id: string; name: string; email: string }>;
+  memberDrafts: SpaceMemberDraft[];
+  onAddMember: () => void;
+  onUpdateMember: (index: number, patch: Partial<SpaceMemberDraft>) => void;
+  onUpdateMemberRole: (index: number, role: TaskSpaceMemberRole) => void;
+  onTogglePermission: (index: number, permission: TaskSpacePermission) => void;
+  onRemoveMember: (index: number) => void;
   onSubmit: (event: React.FormEvent) => void;
   editingSpace: TaskSpaceSummary | null;
   onDelete: () => void;
@@ -2392,6 +2428,65 @@ function SpaceEditor({
           />
         </Field>
       </div>
+      {!editingSpace ? (
+        <section className="space-y-3 rounded-2xl border border-slate-200 p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-slate-900">Team members</p>
+              <p className="mt-1 text-xs text-slate-500">Add members and define their feature-level permissions while creating the space.</p>
+            </div>
+            <button type="button" onClick={onAddMember} className="rounded-2xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700">
+              Add member
+            </button>
+          </div>
+          <div className="space-y-3">
+            {memberDrafts.map((member, index) => (
+              <div key={`${member.userId}-${index}`} className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                <div className="grid gap-3 md:grid-cols-2">
+                  <Field label="User">
+                    <FloatingSelect
+                      value={member.userId}
+                      onChange={(value) => onUpdateMember(index, { userId: value })}
+                      options={[{ value: "", label: "Select teammate" }, ...users.map((user) => ({ value: user.id, label: user.name }))]}
+                      className="w-full"
+                    />
+                  </Field>
+                  <Field label="Role">
+                    <FloatingSelect
+                      value={member.role}
+                      onChange={(value) => onUpdateMemberRole(index, value as TaskSpaceMemberRole)}
+                      options={TASK_SPACE_MEMBER_ROLES.map((item) => ({ value: item, label: toLabel(item) }))}
+                      className="w-full"
+                    />
+                  </Field>
+                </div>
+                <div className="mt-3 space-y-2">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Permissions</p>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {TASK_SPACE_PERMISSIONS.map((permission) => (
+                      <label key={permission} className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
+                        <input
+                          type="checkbox"
+                          checked={member.permissions.includes(permission)}
+                          onChange={() => onTogglePermission(index, permission)}
+                          className="h-4 w-4 rounded border-slate-300"
+                        />
+                        <span>{toLabel(permission)}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                <div className="mt-3 flex justify-end">
+                  <button type="button" onClick={() => onRemoveMember(index)} className="text-xs font-semibold text-rose-700">
+                    Remove member
+                  </button>
+                </div>
+              </div>
+            ))}
+            {!memberDrafts.length ? <p className="text-sm text-slate-500">No team members added yet.</p> : null}
+          </div>
+        </section>
+      ) : null}
       <div className="flex justify-between gap-3 border-t border-slate-200 pt-4">
         <div>
           {editingSpace ? (
