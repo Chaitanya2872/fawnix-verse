@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { Navigate, createBrowserRouter, useParams } from "react-router-dom";
 import { RouteErrorFallback } from "@/app/ErrorBoundary";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -76,6 +77,7 @@ import P2PPaymentPage from "@/modules/purchases/p2p/payment/page";
 import P2PAlertsPage from "@/modules/purchases/p2p/alerts/page";
 import P2PReportsPage from "@/modules/purchases/p2p/reports/page";
 
+// eslint-disable-next-line react-refresh/only-export-components
 function RecruitmentFormRedirect() {
   const { id } = useParams();
   return <Navigate to={id ? `/forms/${id}` : "/forms"} replace />;
