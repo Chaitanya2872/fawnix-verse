@@ -129,7 +129,7 @@ services:
       PGUSER: ${POSTGRES_USER:-postgres}
       PGPASSWORD: ${POSTGRES_PASSWORD:-postgres}
       PGDATABASE: ${POSTGRES_DB:-postgres}
-      SERVICE_DATABASES: fawnix_identity fawnix_crm fawnix_inventory fawnix_hrms fawnix_sales fawnix_procurement
+      SERVICE_DATABASES: fawnix_identity fawnix_crm fawnix_inventory fawnix_hrms fawnix_sales fawnix_procurement fawnix_tasks
     volumes:
       - ../docker/postgres/bootstrap:/bootstrap:ro
     entrypoint: ["sh", "/bootstrap/bootstrap-databases.sh"]
@@ -366,6 +366,8 @@ services:
       start_period: 90s
     networks:
       - fawnix-network
+  
+
 
   procurement-service:
     build:
@@ -402,6 +404,39 @@ services:
     networks:
       - fawnix-network
 
+  task-service:
+    build:
+      context: ..
+      dockerfile: backend/Dockerfile
+      provenance: false
+      sbom: false
+      args:
+        MODULE_PATH: services/task-service
+    restart: unless-stopped
+    depends_on:
+      db-bootstrap:
+        condition: service_completed_successfully
+      eureka-server:
+        condition: service_healthy
+    environment:
+      SERVER_PORT: "8094"
+      EUREKA_SERVER_URL: http://eureka-server:8761/eureka/
+      JWT_SECRET: ${JWT_SECRET:-change-this-local-dev-secret-change-this-local-dev-secret}
+      INTERNAL_SERVICE_SECRET: ${INTERNAL_SERVICE_SECRET:-fawnix-internal-secret}
+      TASK_DB_URL: jdbc:postgresql://postgres:5432/fawnix_tasks
+      TASK_DB_USERNAME: ${POSTGRES_USER:-postgres}
+      TASK_DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    ports:
+      - "8094:8094"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8094/actuator/health > /dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 90s
+    networks:
+      - fawnix-network
+
   api-gateway:
     build:
       context: ..
@@ -425,6 +460,8 @@ services:
       sales-service:
         condition: service_healthy
       procurement-service:
+        condition: service_healthy
+      task-service:
         condition: service_healthy
     environment:
       SERVER_PORT: "8080"
