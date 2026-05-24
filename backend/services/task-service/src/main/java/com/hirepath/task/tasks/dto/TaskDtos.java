@@ -14,6 +14,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -27,13 +28,16 @@ public final class TaskDtos {
 
   public record TaskRequest(
       @NotBlank(message = "Task title is required.")
+      @Size(max = 200, message = "Task title must be at most 200 characters.")
       String title,
       String description,
       TaskPriority priority,
       TaskStatus status,
       LocalDate startDate,
       LocalDate dueDate,
+      @Size(max = 120, message = "Project reference must be at most 120 characters.")
       String projectRef,
+      @Size(max = 120, message = "Module reference must be at most 120 characters.")
       String moduleRef,
       @DecimalMin(value = "0.0", message = "Estimated hours must be at least 0.")
       BigDecimal estimatedHours,
@@ -41,13 +45,17 @@ public final class TaskDtos {
       TaskApprovalStatus approvalStatus,
       TaskVisibility visibility,
       Integer reminderMinutesBefore,
+      @Size(max = 120, message = "Workflow name must be at most 120 characters.")
       String workflowName,
       String spaceId,
       String assignedToId,
       String assignedToName,
+      @Size(max = 200, message = "Assignee email must be at most 200 characters.")
       String assignedToEmail,
+      @Size(max = 160, message = "Assigned team name must be at most 160 characters.")
       String assignedTeamName,
       String approverId,
+      @Size(max = 120, message = "Approver name must be at most 120 characters.")
       String approverName,
       String parentTaskId,
       Long orderIndex,
