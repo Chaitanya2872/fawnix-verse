@@ -1,6 +1,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { convertQuoteToOrder, fetchSalesOrder, fetchSalesOrders, updateSalesOrderStatus } from "./api";
-import type { SalesOrderFilter, SalesOrderStatus } from "./types";
+import { convertQuoteToOrder, createSalesOrder, fetchSalesOrder, fetchSalesOrders, updateSalesOrderStatus } from "./api";
+import type { CreateSalesOrderInput, SalesOrderFilter, SalesOrderStatus } from "./types";
 
 export const salesOrderKeys = {
   all: ["sales", "orders"] as const,
@@ -30,6 +30,17 @@ export function useConvertQuoteToOrder() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (quoteId: string) => convertQuoteToOrder(quoteId),
+    onSuccess: (created) => {
+      queryClient.invalidateQueries({ queryKey: salesOrderKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: salesOrderKeys.detail(created.id) });
+    },
+  });
+}
+
+export function useCreateSalesOrder() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: CreateSalesOrderInput) => createSalesOrder(payload),
     onSuccess: (created) => {
       queryClient.invalidateQueries({ queryKey: salesOrderKeys.lists() });
       queryClient.invalidateQueries({ queryKey: salesOrderKeys.detail(created.id) });

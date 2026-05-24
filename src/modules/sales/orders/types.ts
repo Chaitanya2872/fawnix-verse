@@ -25,6 +25,33 @@ export type SalesOrderLineItem = {
   lineTotal: number;
 };
 
+export type CreateSalesOrderLineItemInput = {
+  inventoryProductId?: string;
+  name: string;
+  make?: string;
+  description?: string;
+  utility?: string;
+  quantity: number;
+  unit?: string;
+  unitPrice: number;
+};
+
+export type CreateSalesOrderInput = {
+  quoteId?: string;
+  leadId?: string;
+  customerName: string;
+  company?: string;
+  email?: string;
+  phone?: string;
+  billingAddress?: string;
+  shippingAddress?: string;
+  currency?: string;
+  status?: SalesOrderStatus;
+  taxRate?: number;
+  notes?: string;
+  items: CreateSalesOrderLineItemInput[];
+};
+
 export type SalesOrderSummary = {
   id: string;
   orderNumber: string;

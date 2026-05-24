@@ -1,5 +1,6 @@
 import { api } from "@/services/api-client";
 import type {
+  CreateSalesOrderInput,
   PaginatedSalesOrders,
   SalesOrder,
   SalesOrderFilter,
@@ -20,6 +21,11 @@ export async function fetchSalesOrders(filter: SalesOrderFilter): Promise<Pagina
 
 export async function fetchSalesOrder(id: string): Promise<SalesOrder> {
   const response = await api.get<SalesOrder>(`/sales/orders/${id}`);
+  return response.data;
+}
+
+export async function createSalesOrder(payload: CreateSalesOrderInput): Promise<SalesOrder> {
+  const response = await api.post<SalesOrder>("/sales/orders", payload);
   return response.data;
 }
 
