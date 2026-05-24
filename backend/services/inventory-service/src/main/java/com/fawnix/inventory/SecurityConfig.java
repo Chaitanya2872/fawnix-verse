@@ -44,7 +44,7 @@ public class SecurityConfig {
         .authorizeHttpRequests(auth -> auth
             .requestMatchers("/actuator/health", "/actuator/info", "/internal/**").permitAll()
             .anyRequest().authenticated())
-        .addFilterBefore(internalServiceAuthFilter, JwtAuthenticationFilter.class)
+        .addFilterBefore(internalServiceAuthFilter, UsernamePasswordAuthenticationFilter.class)
         .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
     return http.build();
