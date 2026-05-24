@@ -32,7 +32,10 @@ management:
         include: health,info
 
 app:
+  services:
+    inventory-url: ${INVENTORY_SERVICE_URL:http://localhost:8083}
   security:
+    internal-service-secret: ${INTERNAL_SERVICE_SECRET:}
     jwt:
       issuer: fawnix-verse
       access-token-expiration-minutes: 30

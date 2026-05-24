@@ -62,6 +62,9 @@ public class ProductEntity {
   @Column(name = "stock_qty", precision = 14, scale = 2, nullable = false)
   private BigDecimal stockQty = BigDecimal.ZERO;
 
+  @Column(name = "reserved_qty", precision = 14, scale = 2, nullable = false)
+  private BigDecimal reservedQty = BigDecimal.ZERO;
+
   @Enumerated(EnumType.STRING)
   @Column(name = "status", length = 20, nullable = false)
   private ProductStatus status;
@@ -174,6 +177,14 @@ public class ProductEntity {
 
   public void setStockQty(BigDecimal stockQty) {
     this.stockQty = stockQty;
+  }
+
+  public BigDecimal getReservedQty() {
+    return reservedQty;
+  }
+
+  public void setReservedQty(BigDecimal reservedQty) {
+    this.reservedQty = reservedQty;
   }
 
   public BigDecimal getPriceTier1() {

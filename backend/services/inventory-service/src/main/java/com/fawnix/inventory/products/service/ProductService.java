@@ -253,10 +253,34 @@ public class ProductService {
     if (updated.compareTo(BigDecimal.ZERO) < 0) {
       throw new BadRequestException("Stock quantity cannot be negative.");
     }
+    if (updated.compareTo(defaultMoney(product.getReservedQty())) < 0) {
+      throw new BadRequestException("Stock quantity cannot drop below reserved quantity.");
+    }
     product.setStockQty(scale(updated));
     product.setStatus(resolveStatus(product.getStockQty(), product.getReorderLevel()));
     product.setUpdatedAt(Instant.now());
     productRepository.save(product);
+  }
+
+  @Transactional
+  public void reserveStock(ProductEntity product, BigDecimal quantity) {
+    BigDecimal requested = scale(quantity);
+    BigDecimal available = getAvailableStock(product);
+    if (available.compareTo(requested) < 0) {
+      throw new BadRequestException("Insufficient available stock.");
+    }
+    product.setReservedQty(scale(defaultMoney(product.getReservedQty()).add(requested)));
+    product.setStatus(resolveStatus(product.getStockQty(), product.getReorderLevel()));
+    product.setUpdatedAt(Instant.now());
+    productRepository.save(product);
+  }
+
+  public BigDecimal getAvailableStock(ProductEntity product) {
+    BigDecimal available = defaultMoney(product.getStockQty()).subtract(defaultMoney(product.getReservedQty()));
+    if (available.compareTo(BigDecimal.ZERO) < 0) {
+      return ZERO;
+    }
+    return scale(available);
   }
 
   private void applyFields(
@@ -292,6 +316,9 @@ public class ProductService {
     product.setPriceTier2(scaleNullable(priceTier2));
     product.setPriceTier3(scaleNullable(priceTier3));
     product.setStockQty(scale(defaultMoney(stockQty)));
+    if (product.getReservedQty() == null) {
+      product.setReservedQty(ZERO);
+    }
     product.setStatus(resolveStatus(product.getStockQty(), product.getReorderLevel()));
   }
 

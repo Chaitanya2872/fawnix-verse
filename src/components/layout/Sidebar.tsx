@@ -52,10 +52,11 @@ const ERP_NAV_SECTIONS: readonly SidebarNavSection[] = [
     ],
   },
   {
-    heading: "Operations",
+    heading: "Inventory",
     items: [
-      { label: "Inventory", to: "/inventory", icon: Boxes, permission: PERMISSIONS.PAGE_INVENTORY },
-      { label: "Quotations", to: "/sales", icon: FileText, permission: PERMISSIONS.PAGE_SALES },
+      { label: "Manage Inventory", to: "/inventory", icon: Boxes, permission: PERMISSIONS.PAGE_INVENTORY },
+      // { label: "Quotations", to: "/sales", icon: FileText, permission: PERMISSIONS.PAGE_SALES },
+      { label: "Orders", to: "/sales/orders", icon: ClipboardList, permission: PERMISSIONS.PAGE_SALES },
     ],
   },
   {

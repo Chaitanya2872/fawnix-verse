@@ -357,6 +357,21 @@ function initials(name?: string | null) {
     .toUpperCase();
 }
 
+function buildAssigneeOptions(
+  users: Array<{ id: string; name: string; email: string }>,
+  currentTask?: Pick<TaskSummary, "assignedToId" | "assignedToName"> | null
+) {
+  const options = [{ value: "", label: "Unassigned" }, ...users.map((user) => ({ value: user.id, label: user.name }))];
+  if (
+    currentTask?.assignedToId &&
+    currentTask.assignedToName &&
+    !options.some((option) => option.value === currentTask.assignedToId)
+  ) {
+    options.push({ value: currentTask.assignedToId, label: currentTask.assignedToName });
+  }
+  return options;
+}
+
 function canOpenFullTaskEditor(user: CurrentUser | null | undefined, task: TaskSummary) {
   if (!user) return false;
   if (typeof task.canEdit === "boolean") return task.canEdit;
@@ -471,12 +486,9 @@ export default function TaskManagementPage() {
   );
 
   useEffect(() => {
-    if (!spaces.length) return;
-    if (selectedSpaceId && spaces.some((space) => space.id === selectedSpaceId)) return;
-    const nextSpaceId = spaces[0]?.id ?? "";
-    if (nextSpaceId) {
-      setSelectedSpaceId(nextSpaceId);
-    }
+    if (!selectedSpaceId) return;
+    if (spaces.some((space) => space.id === selectedSpaceId)) return;
+    setSelectedSpaceId("");
   }, [selectedSpaceId, spaces]);
 
   useEffect(() => {
@@ -554,8 +566,10 @@ export default function TaskManagementPage() {
     [selectedScopedTasks]
   );
   const manageableSpace = canManageSpace(currentUser, selectedSpace);
+  const heroMembers = (selectedSpaceDetail?.members ?? []).slice(0, 4);
   const spaceOptions = useMemo(
     () => [
+      { value: "", label: "All Spaces" },
       ...spaces.map((space) => ({
         value: space.id,
         label: space.name,
@@ -911,9 +925,8 @@ export default function TaskManagementPage() {
       return;
     }
     createSpaceMutation.mutate(payload, {
-      onSuccess: (created) => {
+      onSuccess: () => {
         toast.success("Space created.");
-        setSelectedSpaceId(created.space.id);
         setSpaceEditorOpen(false);
       },
       onError: (error) => toast.error(error.message),
@@ -984,41 +997,60 @@ export default function TaskManagementPage() {
 
   return (
     <>
-      <div className="min-h-screen bg-slate-50">
-        <div className="mx-auto max-w-[1760px] px-4 py-4 sm:px-5 lg:px-6">
-          <div className="min-h-screen">
-            <main className="flex min-h-0 flex-col">
-              <div className="border-b border-slate-200/80 px-4 py-4 sm:px-5">
-                <div className="flex flex-col gap-4">
-                  <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                    <div className="flex items-start gap-3">
-                      <div>
-                        <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
-                          <FolderKanban className="h-3.5 w-3.5" />
-                          Space
-                        </div>
-                        <div className="mt-2 w-full max-w-[320px]">
-                          <FloatingSelect
-                            value={selectedSpaceId}
-                            onChange={handleSpaceSelect}
-                            options={spaceOptions}
-                            triggerClassName="border-slate-200 bg-white text-base font-semibold text-slate-950 shadow-none backdrop-blur-0"
-                          />
-                        </div>
-                        <p className="mt-1 max-w-3xl text-sm text-slate-500">
-                          Pending, in progress, completed, and overdue work now stays scoped inside the selected space.
-                        </p>
-                        <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-slate-500">
-                          <span className="font-medium text-slate-700">Execution OS</span>
-                          <span>/</span>
-                          <span>{selectedSpace?.name || filter.projectRef || detail?.task.projectRef || "All Execution"}</span>
-                          <span>/</span>
-                          <span>{filter.moduleRef || detail?.task.moduleRef || "All Modules"}</span>
-                        </div>
-                      </div>
+      <div className="min-h-screen bg-[#f6f7fb]">
+        <div className="mx-auto max-w-[1700px] px-4 py-5 sm:px-6">
+          <main className="flex min-h-0 flex-col gap-5">
+            <section className="rounded-[32px] border border-slate-200/80 bg-white px-5 py-5 sm:px-6">
+              <div className="flex flex-col gap-5">
+                <div className="flex flex-wrap items-center gap-2 text-sm text-slate-400">
+                  <span>Team spaces</span>
+                  <span>/</span>
+                  <span>{selectedSpace?.name || filter.projectRef || detail?.task.projectRef || "All execution"}</span>
+                  <span>/</span>
+                  <span>{filter.moduleRef || detail?.task.moduleRef || "Tasks"}</span>
+                </div>
+
+                <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
+                      <FolderKanban className="h-3.5 w-3.5" />
+                      Space
                     </div>
+                    <div className="mt-2 w-full max-w-[320px]">
+                      <FloatingSelect
+                        value={selectedSpaceId}
+                        onChange={handleSpaceSelect}
+                        options={spaceOptions}
+                        triggerClassName="rounded-2xl border-slate-200 bg-white text-base font-semibold text-slate-950"
+                      />
+                    </div>
+                    <h1 className="mt-5 text-3xl font-semibold tracking-tight text-slate-950">Tasks</h1>
+                    <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
+                      Pending, in progress, completed, and overdue work stays scoped inside the selected space while the task stream remains visible and compact.
+                    </p>
+                  </div>
+
+                  <div className="flex flex-col items-start gap-4 xl:items-end">
+                    {heroMembers.length ? (
+                      <div className="flex items-center gap-2">
+                        <div className="flex -space-x-2">
+                          {heroMembers.map((member) => (
+                            <span
+                              key={member.id}
+                              className="inline-flex h-9 w-9 items-center justify-center rounded-full border-2 border-white bg-slate-900 text-[11px] font-semibold text-white"
+                              title={member.userName}
+                            >
+                              {initials(member.userName)}
+                            </span>
+                          ))}
+                        </div>
+                        {selectedSpaceDetail && selectedSpaceDetail.members.length > heroMembers.length ? (
+                          <span className="text-sm font-medium text-slate-500">+{selectedSpaceDetail.members.length - heroMembers.length}</span>
+                        ) : null}
+                      </div>
+                    ) : null}
+
                     <div className="flex flex-wrap items-center gap-2">
-                      <ViewSwitch value={view} onChange={setView} />
                       {selectedSpace && manageableSpace ? (
                         <>
                           <button
@@ -1049,8 +1081,41 @@ export default function TaskManagementPage() {
                       </button>
                     </div>
                   </div>
+                </div>
 
-                  <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+                <div className="flex flex-col gap-4 border-t border-slate-200 pt-4">
+                  <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+                    <ViewSwitch value={view} onChange={setView} />
+                    <div className="flex flex-wrap items-center gap-2">
+                      <div className="inline-flex rounded-2xl border border-slate-200 bg-slate-50 p-1">
+                        {(["all", "my", "team"] as TaskScope[]).map((item) => (
+                          <button
+                            key={item}
+                            type="button"
+                            onClick={() => setScope(item)}
+                            className={`rounded-xl px-3 py-1.5 text-sm font-medium transition ${
+                              scope === item ? "bg-white text-slate-900" : "text-slate-500"
+                            }`}
+                          >
+                            {item === "all" ? "All work" : item === "my" ? "My queue" : "Team lane"}
+                          </button>
+                        ))}
+                      </div>
+                      <FloatingSelect
+                        value={grouping}
+                        onChange={(value) => setGrouping(value as TaskGrouping)}
+                        options={[
+                          { value: "status", label: "Group by status" },
+                          { value: "priority", label: "Group by priority" },
+                          { value: "project", label: "Group by project" },
+                          { value: "module", label: "Group by module" },
+                        ]}
+                        className="min-w-[210px]"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
                     <MetricStrip
                       label="Total"
                       value={selectedSpace ? selectedSpaceCounts.total : dashboard?.kpis.totalTasks ?? 0}
@@ -1091,7 +1156,7 @@ export default function TaskManagementPage() {
                           value={filter.search}
                           onChange={(event) => setFilter((prev) => ({ ...prev, search: event.target.value }))}
                           placeholder="Search title, code, assignee, project, module"
-                          className="w-full rounded-2xl border border-slate-200 bg-white px-10 py-2.5 text-sm text-slate-700 outline-none transition focus:border-sky-400"
+                          className="w-full rounded-2xl border border-slate-200 bg-white px-10 py-2.5 text-sm text-slate-700 outline-none transition focus:border-slate-300"
                         />
                       </label>
                       <FloatingSelect
@@ -1128,36 +1193,10 @@ export default function TaskManagementPage() {
                       </button>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-2">
-                      <div className="inline-flex rounded-2xl border border-slate-200 bg-slate-50 p-1">
-                        {(["all", "my", "team"] as TaskScope[]).map((item) => (
-                          <button
-                            key={item}
-                            type="button"
-                            onClick={() => setScope(item)}
-                            className={`rounded-xl px-3 py-1.5 text-sm font-medium transition ${
-                              scope === item ? "bg-white text-slate-900 shadow-sm" : "text-slate-500"
-                            }`}
-                          >
-                            {item === "all" ? "All work" : item === "my" ? "My queue" : "Team lane"}
-                          </button>
-                        ))}
-                      </div>
-                      <FloatingSelect
-                        value={grouping}
-                        onChange={(value) => setGrouping(value as TaskGrouping)}
-                        options={[
-                          { value: "status", label: "Group by status" },
-                          { value: "priority", label: "Group by priority" },
-                          { value: "project", label: "Group by project" },
-                          { value: "module", label: "Group by module" },
-                        ]}
-                        className="min-w-[210px]"
-                      />
-                    </div>
+                    <p className="text-sm text-slate-500">Switch between views and filters without leaving the current workspace.</p>
                   </div>
 
-                  <div className="flex flex-col gap-2 rounded-2xl border border-slate-200 bg-slate-50/80 px-3 py-3 sm:flex-row sm:items-center">
+                  <div className="flex flex-col gap-2 rounded-[24px] border border-slate-200 bg-slate-50 px-3.5 py-3 sm:flex-row sm:items-center">
                     <div className="flex flex-1 items-center gap-2 text-sm text-slate-500">
                       <Settings2 className="h-4 w-4 text-slate-400" />
                       Quick capture keeps the work stream moving without leaving the workspace.
@@ -1173,7 +1212,7 @@ export default function TaskManagementPage() {
                       <button
                         type="button"
                         onClick={handleQuickCreate}
-                        className="inline-flex items-center gap-2 rounded-2xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white"
+                        className="inline-flex items-center gap-2 rounded-2xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white"
                       >
                         <Plus className="h-4 w-4" />
                         Add
@@ -1182,8 +1221,9 @@ export default function TaskManagementPage() {
                   </div>
                 </div>
               </div>
+            </section>
 
-              <div className="min-h-0 flex-1 px-3 py-3 sm:px-4">
+            <div className="min-h-0 flex-1 px-1 py-1 sm:px-0">
                 {treeQuery.isLoading ? (
                   <PanelState icon={<Loader2 className="h-5 w-5 animate-spin" />} title="Loading workspace" body="Syncing task streams, activity, and workspace structure." />
                 ) : treeQuery.error ? (
@@ -1197,7 +1237,7 @@ export default function TaskManagementPage() {
                 ) : view === "list" ? (
                   <div className="space-y-3">
                     {groupedSections.map((section) => (
-                      <section key={section.key} className="overflow-hidden rounded-[26px] border border-slate-200 bg-white">
+                      <section key={section.key} className="overflow-hidden rounded-[28px] border border-slate-200 bg-white">
                         <button
                           type="button"
                           onClick={() => toggleGroup(section.key)}
@@ -1238,8 +1278,8 @@ export default function TaskManagementPage() {
                               </button>
                             </div>
 
-                            <div className="overflow-hidden rounded-2xl border border-slate-200">
-                              <div className="hidden grid-cols-[minmax(0,2.6fr)_140px_150px_130px_130px_120px_110px] items-center gap-3 border-b border-slate-200 bg-slate-50 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 lg:grid">
+                            <div className="overflow-hidden rounded-[22px] border border-slate-200">
+                              <div className="hidden grid-cols-[minmax(0,2.6fr)_140px_150px_130px_130px_120px_110px] items-center gap-3 border-b border-slate-200 bg-slate-50/80 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 lg:grid">
                                 <span>Task</span>
                                 <span>Status</span>
                                 <span>Assignee</span>
@@ -1278,9 +1318,9 @@ export default function TaskManagementPage() {
                     ))}
                   </div>
                 ) : view === "board" ? (
-                  <div className="grid gap-3 xl:grid-cols-4">
+                  <div className="grid gap-4 xl:grid-cols-4">
                     {boardColumns.map((column) => (
-                      <section key={column.status} className="rounded-[26px] border border-slate-200 bg-slate-50/80 p-3">
+                      <section key={column.status} className="rounded-[30px] border border-slate-200 bg-[#f8f9fc] p-3.5">
                         <div className="mb-3 flex items-center justify-between">
                           <div className="flex items-center gap-2">
                             <span className={`h-2.5 w-2.5 rounded-full ${statusDot(column.status)}`} />
@@ -1296,25 +1336,31 @@ export default function TaskManagementPage() {
                               key={task.id}
                               type="button"
                               onClick={() => setDetailTaskId(task.id)}
-                              className="w-full rounded-2xl border border-slate-200 bg-white p-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300"
+                              className="w-full rounded-[24px] border border-slate-200 bg-white p-4 text-left transition hover:border-slate-300"
                             >
                               <div className="flex items-start justify-between gap-3">
                                 <div>
-                                  <p className="text-sm font-semibold text-slate-900">{task.title}</p>
-                                  <p className="mt-1 text-xs text-slate-500">
-                                    {task.taskCode} � {task.projectRef || "General"} � {task.moduleRef || "Unsorted"}
+                                  <span className={`inline-flex rounded-full px-2 py-1 text-[10px] font-semibold ${statusTone(task.status)}`}>
+                                    {toLabel(task.status)}
+                                  </span>
+                                  <p className="mt-3 text-[15px] font-semibold leading-6 text-slate-900">{task.title}</p>
+                                  <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500">
+                                    {task.description || "Execution notes and delivery context will appear here for the selected task."}
                                   </p>
                                 </div>
-                                <span className={`rounded-full border px-2 py-1 text-[10px] font-semibold ${priorityTone(task.priority)}`}>
-                                  {toLabel(task.priority)}
+                                <MoreHorizontal className="h-4 w-4 text-slate-400" />
+                              </div>
+                              <div className="mt-4 flex items-center justify-between text-xs text-slate-500">
+                                <span className="inline-flex items-center gap-2">
+                                  <Avatar name={task.assignedToName} />
+                                  <span>{task.assignedToName || "Unassigned"}</span>
                                 </span>
+                                <span className={`rounded-full border px-2 py-1 font-semibold ${priorityTone(task.priority)}`}>{toLabel(task.priority)}</span>
                               </div>
-                              <div className="mt-3 flex items-center justify-between text-xs text-slate-500">
-                                <span>{task.assignedToName || "Unassigned"}</span>
+                              <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3 text-xs text-slate-500">
                                 <span>{formatDate(task.dueDate)}</span>
-                              </div>
-                              <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-100">
-                                <div className="h-full rounded-full bg-sky-500" style={{ width: `${task.progressPercent}%` }} />
+                                <span>{task.checklistCompleted}/{task.checklistTotal || 0} checklist</span>
+                                <span>{task.progressPercent}%</span>
                               </div>
                             </button>
                           ))}
@@ -1341,7 +1387,7 @@ export default function TaskManagementPage() {
                         </div>
                         <p className="mt-3 text-base font-semibold text-slate-900">{task.title}</p>
                         <p className="mt-1 text-sm text-slate-500">
-                          {task.projectRef || "General"} � {task.moduleRef || "Unsorted"}
+                          {task.projectRef || "General"} • {task.moduleRef || "Unsorted"}
                         </p>
                         <div className="mt-4 flex items-center gap-2 text-xs text-slate-500">
                           <Avatar name={task.assignedToName} />
@@ -1362,7 +1408,7 @@ export default function TaskManagementPage() {
                         <div className="lg:w-64">
                           <p className="text-sm font-semibold text-slate-900">{task.title}</p>
                           <p className="mt-1 text-xs text-slate-500">
-                            {task.taskCode} � {task.projectRef || "General"} � {task.moduleRef || "Unsorted"}
+                            {task.taskCode} • {task.projectRef || "General"} • {task.moduleRef || "Unsorted"}
                           </p>
                         </div>
                         <div className="grid flex-1 gap-3 md:grid-cols-3">
@@ -1374,9 +1420,8 @@ export default function TaskManagementPage() {
                     ))}
                   </div>
                 )}
-              </div>
-            </main>
-          </div>
+            </div>
+          </main>
         </div>
       </div>
 
@@ -1402,22 +1447,24 @@ export default function TaskManagementPage() {
         />
       </Drawer>
 
-      <Drawer open={memberPanelOpen} title={selectedSpace ? `${selectedSpace.name} Members` : "Space Members"} onClose={() => setMemberPanelOpen(false)} maxWidth="max-w-xl">
-        <SpaceMembersPanel
-          detail={selectedSpaceDetail}
-          users={users}
-          inviteUserId={inviteUserId}
-          inviteRole={inviteRole}
-          inviteMessage={inviteMessage}
-          setInviteUserId={setInviteUserId}
-          setInviteRole={setInviteRole}
-          setInviteMessage={setInviteMessage}
-          onInvite={handleInviteMember}
-          onRoleChange={handleMemberRoleUpdate}
-          onRemoveMember={handleRemoveMember}
-          canManage={manageableSpace}
-        />
-      </Drawer>
+      {selectedSpace && (
+        <Drawer open={memberPanelOpen} title={`${selectedSpace.name} Members`} onClose={() => setMemberPanelOpen(false)} maxWidth="max-w-xl">
+          <SpaceMembersPanel
+            detail={selectedSpaceDetail}
+            users={users}
+            inviteUserId={inviteUserId}
+            inviteRole={inviteRole}
+            inviteMessage={inviteMessage}
+            setInviteUserId={setInviteUserId}
+            setInviteRole={setInviteRole}
+            setInviteMessage={setInviteMessage}
+            onInvite={handleInviteMember}
+            onRoleChange={handleMemberRoleUpdate}
+            onRemoveMember={handleRemoveMember}
+            canManage={manageableSpace}
+          />
+        </Drawer>
+      )}
 
       <Drawer open={Boolean(detailTaskId)} title={detail?.task.title ?? "Task"} onClose={() => setDetailTaskId(null)} maxWidth="max-w-full md:max-w-[72vw] xl:max-w-[42vw]">
         <DetailPanel
@@ -1600,7 +1647,7 @@ function FloatingSelect({
         ref={triggerRef}
         type="button"
         onClick={() => setOpen((prev) => !prev)}
-        className={`inline-flex w-full items-center justify-between gap-2 rounded-2xl border border-white/60 bg-white/75 px-3 py-2.5 text-left text-sm text-slate-700 shadow-[0_10px_24px_rgba(15,23,42,0.08)] backdrop-blur-md transition hover:border-slate-200 hover:bg-white/90 ${triggerClassName}`}
+        className={`inline-flex w-full items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-left text-sm text-slate-700 transition hover:border-slate-300 ${triggerClassName}`}
         aria-haspopup="listbox"
         aria-expanded={open}
       >
@@ -1613,7 +1660,7 @@ function FloatingSelect({
             <div
               ref={panelRef}
               style={panelStyle}
-              className="overflow-hidden rounded-2xl border border-white/60 bg-white/78 shadow-[0_24px_60px_rgba(15,23,42,0.18)] backdrop-blur-xl ring-1 ring-slate-200/60"
+              className="overflow-hidden rounded-2xl border border-slate-200 bg-white/95 backdrop-blur-md ring-1 ring-slate-200/70"
             >
               <div className="max-h-72 overflow-y-auto p-1.5">
                 {options.map((option, index) => {
@@ -1630,7 +1677,7 @@ function FloatingSelect({
                       }}
                       className={`flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-sm transition ${
                         selected
-                          ? "bg-sky-500 text-white shadow-sm"
+                          ? "bg-slate-900 text-white"
                           : highlighted
                             ? "bg-slate-100 text-slate-900"
                             : "text-slate-700 hover:bg-slate-100"
@@ -1666,14 +1713,14 @@ function ViewSwitch({
     { id: "timeline", label: "Timeline", icon: <Workflow className="h-4 w-4" /> },
   ];
   return (
-    <div className="inline-flex rounded-2xl border border-slate-200 bg-slate-50 p-1">
+    <div className="inline-flex items-center gap-1 border-b border-slate-200">
       {options.map((option) => (
         <button
           key={option.id}
           type="button"
           onClick={() => onChange(option.id)}
-          className={`inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition ${
-            value === option.id ? "bg-white text-slate-900 shadow-sm" : "text-slate-500"
+          className={`inline-flex items-center gap-2 border-b-2 px-3 py-3 text-sm font-medium transition ${
+            value === option.id ? "border-slate-900 text-slate-950" : "border-transparent text-slate-500 hover:text-slate-700"
           }`}
         >
           {option.icon}
@@ -1696,18 +1743,18 @@ function MetricStrip({
   tone: "slate" | "sky" | "fuchsia" | "emerald" | "rose";
 }) {
   const accents = {
-    slate: "border-slate-200 bg-slate-50 text-slate-700",
-    sky: "border-sky-200 bg-sky-50 text-sky-700",
-    fuchsia: "border-fuchsia-200 bg-fuchsia-50 text-fuchsia-700",
-    emerald: "border-emerald-200 bg-emerald-50 text-emerald-700",
-    rose: "border-rose-200 bg-rose-50 text-rose-700",
+    slate: "border-slate-200 bg-white text-slate-700",
+    sky: "border-slate-200 bg-white text-slate-700",
+    fuchsia: "border-slate-200 bg-white text-slate-700",
+    emerald: "border-slate-200 bg-white text-slate-700",
+    rose: "border-slate-200 bg-white text-slate-700",
   }[tone];
   return (
-    <div className={`rounded-2xl border px-3 py-3 ${accents}`}>
-      <p className="text-[11px] font-semibold uppercase tracking-[0.2em]">{label}</p>
-      <div className="mt-2 flex items-end justify-between gap-2">
-        <p className="text-2xl font-semibold tracking-tight">{value}</p>
-        <p className="text-right text-xs opacity-80">{hint}</p>
+    <div className={`rounded-[24px] border px-4 py-3.5 ${accents}`}>
+      <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-400">{label}</p>
+      <div className="mt-3 flex items-end justify-between gap-3">
+        <p className="text-[28px] font-semibold tracking-tight text-slate-950">{value}</p>
+        <p className="max-w-[110px] text-right text-xs text-slate-500">{hint}</p>
       </div>
     </div>
   );
@@ -1761,7 +1808,7 @@ function TaskRow({
         event.preventDefault();
       }}
       onDrop={() => onDropOnTask(task)}
-      className={`group px-3 py-2 transition sm:px-4 ${active ? "bg-sky-50/80" : "hover:bg-slate-50/80"} ${
+      className={`group px-3 py-2.5 transition sm:px-4 ${active ? "bg-slate-100/80" : "hover:bg-slate-50/80"} ${
         dragTaskId === task.id ? "opacity-60" : ""
       }`}
     >
@@ -1799,11 +1846,11 @@ function TaskRow({
             </div>
             <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
               <span>{task.taskCode}</span>
-              <span>�</span>
+              <span>•</span>
               <span>{task.projectRef || "General"}</span>
-              <span>�</span>
+              <span>•</span>
               <span>{task.moduleRef || "Unsorted"}</span>
-              <span>�</span>
+              <span>•</span>
               <span>{task.tags.length ? task.tags.join(", ") : "No tags"}</span>
             </div>
           </button>
@@ -1815,7 +1862,7 @@ function TaskRow({
             onChange={(value) => onStatusUpdate(task, value as TaskStatus, "Status updated.")}
             options={TASK_STATUSES.map((status) => ({ value: status, label: toLabel(status) }))}
             className="w-full min-w-[140px]"
-            triggerClassName="text-xs font-medium"
+            triggerClassName="rounded-xl text-xs font-medium"
           />
         ) : (
           <div className="text-xs font-medium text-slate-600">
@@ -1826,16 +1873,13 @@ function TaskRow({
         <div className="flex items-center gap-2">
           <Avatar name={task.assignedToName} />
           {canEditTask ? (
-            <FloatingSelect
-              value={task.assignedToId ?? ""}
-              onChange={(value) => onAssign(task, value)}
-              options={[
-                { value: "", label: "Unassigned" },
-                ...users.map((user) => ({ value: user.id, label: user.name })),
-              ]}
-              className="min-w-0 flex-1"
-              triggerClassName="text-xs font-medium"
-            />
+          <FloatingSelect
+            value={task.assignedToId ?? ""}
+            onChange={(value) => onAssign(task, value)}
+            options={buildAssigneeOptions(users, task)}
+            className="min-w-0 flex-1"
+            triggerClassName="rounded-xl text-xs font-medium"
+          />
           ) : (
             <span className="text-xs font-medium text-slate-700">{task.assignedToName || "Unassigned"}</span>
           )}
@@ -1858,7 +1902,7 @@ function TaskRow({
             onChange={(value) => onInlineUpdate(task, { priority: value as TaskPriority }, "Priority updated.")}
             options={TASK_PRIORITIES.map((priority) => ({ value: priority, label: toLabel(priority) }))}
             className="w-full min-w-[130px]"
-            triggerClassName="text-xs font-medium"
+            triggerClassName="rounded-xl text-xs font-medium"
           />
         ) : (
           <div className="text-xs font-medium text-slate-600">
@@ -1954,9 +1998,11 @@ function DetailPanel({
 }) {
   const [nestedDraft, setNestedDraft] = useState("");
   const [metadataEditMode, setMetadataEditMode] = useState(false);
+  const [detailTab, setDetailTab] = useState<"activity" | "remarks" | "checklist" | "subtasks">("activity");
 
   useEffect(() => {
     setMetadataEditMode(false);
+    setDetailTab("activity");
   }, [detail?.task.id]);
 
   if (loading) {
@@ -1973,13 +2019,13 @@ function DetailPanel({
 
   return (
     <div className="flex h-full flex-col">
-      <div className="border-b border-slate-200 px-4 py-4">
+      <div className="border-b border-slate-200 px-4 py-5">
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">{detail.task.taskCode}</p>
             <h2 className="mt-1 text-xl font-semibold tracking-tight text-slate-950">{detail.task.title}</h2>
             <p className="mt-1 text-sm text-slate-500">
-              {detail.task.projectRef || "General"} � {detail.task.moduleRef || "Unsorted"} � Updated {formatRelativeDate(detail.task.updatedAt)}
+              {detail.task.projectRef || "General"} • {detail.task.moduleRef || "Unsorted"} • Updated {formatRelativeDate(detail.task.updatedAt)}
             </p>
           </div>
           <button type="button" onClick={onClose} className="rounded-xl p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
@@ -1987,7 +2033,7 @@ function DetailPanel({
           </button>
         </div>
 
-        <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-slate-600">
+        <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-slate-600">
           <InlineMeta icon={<UserRound className="h-4 w-4 text-slate-400" />} value={detail.task.assignedToName || "Unassigned"} />
           <InlineMeta icon={<CalendarDays className="h-4 w-4 text-slate-400" />} value={formatLongDate(detail.task.dueDate)} />
           <InlineMeta icon={<Clock3 className="h-4 w-4 text-slate-400" />} value={`${detail.task.estimatedHours.toFixed(2)}h`} />
@@ -2038,10 +2084,7 @@ function DetailPanel({
                   <FloatingSelect
                     value={detail.task.assignedToId ?? ""}
                     onChange={(value) => onAssign(detail.task, value)}
-                    options={[
-                      { value: "", label: "Unassigned" },
-                      ...users.map((user) => ({ value: user.id, label: user.name })),
-                    ]}
+                    options={buildAssigneeOptions(users, detail.task)}
                     className="w-full"
                   />
                 </CompactEditField>
@@ -2092,6 +2135,27 @@ function DetailPanel({
           )}
         </section>
 
+        <div className="flex items-center gap-1 border-b border-slate-200">
+          {([
+            { key: "activity", label: "Activity" },
+            { key: "remarks", label: "Remarks" },
+            { key: "checklist", label: "Checklist" },
+            { key: "subtasks", label: "Subtasks" },
+          ] as const).map((tab) => (
+            <button
+              key={tab.key}
+              type="button"
+              onClick={() => setDetailTab(tab.key)}
+              className={`border-b-2 px-3 py-2 text-sm font-medium transition ${
+                detailTab === tab.key ? "border-slate-900 text-slate-950" : "border-transparent text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {detailTab === "checklist" ? (
         <DetailSection title="Checklist" icon={<CheckCheck className="h-4 w-4 text-slate-500" />}>
           <div className="space-y-2">
             {detail.checklistItems.map((item) => (
@@ -2124,7 +2188,9 @@ function DetailPanel({
             ) : null}
           </div>
         </DetailSection>
+        ) : null}
 
+        {detailTab === "subtasks" ? (
         <DetailSection title="Subtasks" icon={<Workflow className="h-4 w-4 text-slate-500" />}>
           <div className="space-y-2">
             {detail.subtasks.map((task) => (
@@ -2156,7 +2222,7 @@ function DetailPanel({
                         <p className={`text-sm font-semibold ${task.status === "COMPLETED" ? "text-emerald-800 line-through" : "text-slate-900"}`}>{task.title}</p>
                       )}
                       <p className="mt-1 text-xs text-slate-500">
-                        {task.taskCode} � Level {task.hierarchyLevel} � {task.progressPercent}%
+                        {task.taskCode} • Level {task.hierarchyLevel} • {task.progressPercent}%
                       </p>
                     </div>
                     <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${statusTone(task.status)}`}>{toLabel(task.status)}</span>
@@ -2187,7 +2253,9 @@ function DetailPanel({
             ) : null}
           </div>
         </DetailSection>
+        ) : null}
 
+        {detailTab === "remarks" ? (
         <DetailSection title="Remarks" icon={<MessageSquareText className="h-4 w-4 text-slate-500" />}>
           <div className="space-y-3">
             {detail.comments.map((comment) => (
@@ -2220,7 +2288,9 @@ function DetailPanel({
             ) : null}
           </div>
         </DetailSection>
+        ) : null}
 
+        {detailTab === "activity" ? (
         <DetailSection title="Activity" icon={<Timer className="h-4 w-4 text-slate-500" />}>
           <div className="space-y-3">
             {detail.activity.map((activity) => (
@@ -2229,13 +2299,14 @@ function DetailPanel({
                 <div className="min-w-0">
                   <p className="text-sm text-slate-800">{activity.message}</p>
                   <p className="mt-1 text-xs text-slate-500">
-                    {activity.actorName || "System"} � {formatLongDate(activity.createdAt)}
+                    {activity.actorName || "System"} • {formatLongDate(activity.createdAt)}
                   </p>
                 </div>
               </div>
             ))}
           </div>
         </DetailSection>
+        ) : null}
 
         <DetailSection title="Attachments & Time" icon={<Clock3 className="h-4 w-4 text-slate-500" />}>
           <div className="flex flex-wrap gap-2 text-sm text-slate-600">
@@ -2322,10 +2393,15 @@ function TaskEditor({
           <FloatingSelect
             value={form.assignedToId}
             onChange={(value) => setForm((prev) => ({ ...prev, assignedToId: value }))}
-            options={[
-              { value: "", label: "Unassigned" },
-              ...users.map((user) => ({ value: user.id, label: user.name })),
-            ]}
+            options={buildAssigneeOptions(
+              users,
+              form.assignedToId
+                ? {
+                    assignedToId: form.assignedToId,
+                    assignedToName: users.find((user) => user.id === form.assignedToId)?.name ?? "Assigned user",
+                  }
+                : null
+            )}
             className="w-full"
           />
         </Field>

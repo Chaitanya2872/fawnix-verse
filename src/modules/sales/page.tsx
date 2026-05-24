@@ -35,6 +35,7 @@ import { type Lead } from "@/modules/crm/leads/types";
 import { useProducts } from "@/modules/inventory/hooks";
 import type { Product } from "@/modules/inventory/types";
 import { useCreateQuote, useQuote, useQuotes, useUpdateQuote, useUpdateQuoteStatus } from "./hooks";
+import { useConvertQuoteToOrder } from "./orders/hooks";
 import { QuotationDocument } from "./QuotationDocument";
 import {
   DiscountType,
@@ -850,6 +851,7 @@ export default function SalesPage() {
   const createQuote = useCreateQuote();
   const updateQuote = useUpdateQuote();
   const updateQuoteStatus = useUpdateQuoteStatus();
+  const convertQuoteToOrder = useConvertQuoteToOrder();
   const quotes = data?.data ?? [];
   const activeQuote = useQuote(activeQuoteId ?? "");
   const previewQuote = useQuote(previewQuoteId ?? "");
@@ -1120,6 +1122,20 @@ export default function SalesPage() {
     });
     setActiveQuoteId(null);
     setShowBuilder(true);
+  }
+
+  async function handleConvertActiveQuote() {
+    if (!activeQuote.data) {
+      return;
+    }
+    try {
+      const order = await convertQuoteToOrder.mutateAsync(activeQuote.data.id);
+      setActiveQuoteId(null);
+      toast.success(`Order ${order.orderNumber} is ready.`);
+      navigate("/sales/orders");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to convert quotation.");
+    }
   }
 
   function validateForm(): string | null {
@@ -1581,6 +1597,16 @@ export default function SalesPage() {
                   >
                     <Pencil className="h-3.5 w-3.5" />
                     Edit Draft
+                  </button>
+                ) : null}
+                {activeQuote.data && [QuoteStatus.SENT, QuoteStatus.ACCEPTED].includes(activeQuote.data.status) ? (
+                  <button
+                    onClick={handleConvertActiveQuote}
+                    disabled={convertQuoteToOrder.isPending}
+                    className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-60"
+                  >
+                    <ArrowRight className="h-3.5 w-3.5" />
+                    {convertQuoteToOrder.isPending ? "Converting..." : "Convert to Order"}
                   </button>
                 ) : null}
                 <button

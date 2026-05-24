@@ -19,6 +19,7 @@ import ReportsPage from "@/modules/reports/page";
 import UsersPage from "@/modules/users/page";
 import AccessRequestsPage from "@/modules/access/page";
 import SalesPage from "@/modules/sales/page";
+import SalesOrdersPage from "@/modules/sales/orders/page";
 import TaskManagementPage from "@/modules/task-management/page";
 import HiringRequestsPage from "@/modules/recruitment/HiringRequestsPage";
 import HiringRequestDetailPage from "@/modules/recruitment/HiringRequestDetailPage";
@@ -135,6 +136,14 @@ export const router = createBrowserRouter([
             element: (
               <RequirePermission permission={PERMISSIONS.PAGE_SALES}>
                 <SalesPage />
+              </RequirePermission>
+            ),
+          },
+          {
+            path: "sales/orders",
+            element: (
+              <RequirePermission permission={PERMISSIONS.PAGE_SALES}>
+                <SalesOrdersPage />
               </RequirePermission>
             ),
           },
