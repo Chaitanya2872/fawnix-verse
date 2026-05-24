@@ -52,6 +52,31 @@ export type CreateSalesOrderInput = {
   items: CreateSalesOrderLineItemInput[];
 };
 
+export type ManualOrderItemDraft = {
+  key: string;
+  name: string;
+  make: string;
+  description: string;
+  utility: string;
+  quantity: string;
+  unit: string;
+  unitPrice: string;
+};
+
+export type ManualOrderFormState = {
+  customerName: string;
+  company: string;
+  email: string;
+  phone: string;
+  billingAddress: string;
+  shippingAddress: string;
+  currency: string;
+  status: SalesOrderStatus;
+  taxRate: string;
+  notes: string;
+  items: ManualOrderItemDraft[];
+};
+
 export type SalesOrderSummary = {
   id: string;
   orderNumber: string;

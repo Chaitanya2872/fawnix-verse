@@ -1,10 +1,22 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
-import { ArrowRightLeft, ClipboardList, Loader2, Plus, Search, Trash2 } from "lucide-react";
+import { useMemo, useState } from "react";
+import { PackageCheck, ReceiptText, Sparkles, TrendingUp, Truck } from "lucide-react";
 import { toast } from "sonner";
 import { useQuotes } from "@/modules/sales/hooks";
 import { QuoteStatus, type QuoteFilter } from "@/modules/sales/types";
+import {
+  AcceptedQuotesCard,
+  ActivityTimelineCard,
+  CreateOrderDrawer,
+  fmtCurrency,
+  OrderDetailDrawer,
+  PendingApprovalsCard,
+  QuickStatsCard,
+  SalesOrdersHero,
+  SalesOrdersKpis,
+  SalesOrdersQueueCard,
+} from "./components";
 import {
   useConvertQuoteToOrder,
   useCreateSalesOrder,
@@ -12,12 +24,18 @@ import {
   useSalesOrders,
   useUpdateSalesOrderStatus,
 } from "./hooks";
-import { SalesOrderStatus, type CreateSalesOrderInput, type SalesOrderFilter, type SalesOrderSummary } from "./types";
+import {
+  SalesOrderStatus,
+  type CreateSalesOrderInput,
+  type ManualOrderFormState,
+  type ManualOrderItemDraft,
+  type SalesOrderFilter,
+  type SalesOrderSummary,
+} from "./types";
 
 const PAGE_SIZE = 50;
 
-const STATUS_OPTIONS: Array<SalesOrderStatus | "ALL"> = [
-  "ALL",
+const DRAWER_STATUS_OPTIONS: SalesOrderStatus[] = [
   SalesOrderStatus.DRAFT,
   SalesOrderStatus.PENDING_APPROVAL,
   SalesOrderStatus.APPROVED,
@@ -29,62 +47,15 @@ const STATUS_OPTIONS: Array<SalesOrderStatus | "ALL"> = [
   SalesOrderStatus.CANCELLED,
 ];
 
-const STATUS_TONE: Record<SalesOrderStatus, string> = {
-  DRAFT: "bg-slate-100 text-slate-700",
-  PENDING_APPROVAL: "bg-amber-100 text-amber-700",
-  APPROVED: "bg-indigo-100 text-indigo-700",
-  PROCESSING: "bg-sky-100 text-sky-700",
-  PACKED: "bg-violet-100 text-violet-700",
-  SHIPPED: "bg-cyan-100 text-cyan-700",
-  DELIVERED: "bg-emerald-100 text-emerald-700",
-  CLOSED: "bg-emerald-200 text-emerald-800",
-  CANCELLED: "bg-rose-100 text-rose-700",
-};
+const QUEUE_TABS = [
+  { key: "ALL", label: "All" },
+  { key: "DRAFT", label: "Draft" },
+  { key: "PROCESSING", label: "Processing" },
+  { key: "COMPLETED", label: "Completed" },
+  { key: "CANCELLED", label: "Cancelled" },
+] as const;
 
-type ManualOrderItemDraft = {
-  key: string;
-  name: string;
-  make: string;
-  description: string;
-  utility: string;
-  quantity: string;
-  unit: string;
-  unitPrice: string;
-};
-
-type ManualOrderFormState = {
-  customerName: string;
-  company: string;
-  email: string;
-  phone: string;
-  billingAddress: string;
-  shippingAddress: string;
-  currency: string;
-  status: SalesOrderStatus;
-  taxRate: string;
-  notes: string;
-  items: ManualOrderItemDraft[];
-};
-
-function toLabel(value: string) {
-  return value.toLowerCase().replace(/_/g, " ");
-}
-
-function fmtCurrency(value: number, currency = "INR") {
-  return new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency,
-    maximumFractionDigits: 2,
-  }).format(value);
-}
-
-function fmtDate(value: string) {
-  return new Date(value).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
+type QueueTabKey = (typeof QUEUE_TABS)[number]["key"];
 
 function createDraftItem(): ManualOrderItemDraft {
   return {
@@ -120,6 +91,26 @@ function cleanOptional(value: string) {
   return trimmed ? trimmed : undefined;
 }
 
+function orderMatchesTab(order: SalesOrderSummary, tab: QueueTabKey) {
+  switch (tab) {
+    case "DRAFT":
+      return [SalesOrderStatus.DRAFT, SalesOrderStatus.PENDING_APPROVAL].includes(order.status);
+    case "PROCESSING":
+      return [
+        SalesOrderStatus.APPROVED,
+        SalesOrderStatus.PROCESSING,
+        SalesOrderStatus.PACKED,
+        SalesOrderStatus.SHIPPED,
+      ].includes(order.status);
+    case "COMPLETED":
+      return [SalesOrderStatus.DELIVERED, SalesOrderStatus.CLOSED].includes(order.status);
+    case "CANCELLED":
+      return order.status === SalesOrderStatus.CANCELLED;
+    default:
+      return true;
+  }
+}
+
 export default function SalesOrdersPage() {
   const [filter, setFilter] = useState<SalesOrderFilter>({
     search: "",
@@ -127,14 +118,16 @@ export default function SalesOrdersPage() {
     page: 1,
     pageSize: PAGE_SIZE,
   });
+  const [activeTab, setActiveTab] = useState<QueueTabKey>("ALL");
   const [detailId, setDetailId] = useState("");
+  const [isCreateDrawerOpen, setCreateDrawerOpen] = useState(false);
   const [manualForm, setManualForm] = useState<ManualOrderFormState>(() => createInitialManualForm());
 
   const acceptedQuotesFilter: QuoteFilter = {
     search: "",
     status: QuoteStatus.ACCEPTED,
     page: 1,
-    pageSize: 12,
+    pageSize: 6,
   };
 
   const ordersQuery = useSalesOrders(filter);
@@ -147,6 +140,126 @@ export default function SalesOrdersPage() {
   const orders = ordersQuery.data?.data ?? [];
   const acceptedQuotes = acceptedQuotesQuery.data?.data ?? [];
   const detail = detailQuery.data ?? null;
+
+  const tabCounts = useMemo(
+    () =>
+      QUEUE_TABS.map((tab) => ({
+        key: tab.key,
+        label: tab.label,
+        count: orders.filter((order) => orderMatchesTab(order, tab.key)).length,
+      })),
+    [orders]
+  );
+
+  const visibleOrders = useMemo(() => orders.filter((order) => orderMatchesTab(order, activeTab)), [activeTab, orders]);
+
+  const totalRevenue = orders.reduce((sum, order) => sum + order.total, 0);
+  const openFlowCount = orders.filter((order) =>
+    ![SalesOrderStatus.DELIVERED, SalesOrderStatus.CLOSED, SalesOrderStatus.CANCELLED].includes(order.status)
+  ).length;
+  const pendingDeliveries = orders.filter((order) =>
+    [SalesOrderStatus.APPROVED, SalesOrderStatus.PROCESSING, SalesOrderStatus.PACKED, SalesOrderStatus.SHIPPED].includes(order.status)
+  ).length;
+  const averageOrderValue = orders.length ? totalRevenue / orders.length : 0;
+  const manualOrderCount = orders.filter((order) => !order.quoteId).length;
+  const pendingApprovalOrders = orders
+    .filter((order) => order.status === SalesOrderStatus.PENDING_APPROVAL)
+    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+
+  const recentActivity = useMemo(() => {
+    const orderActivity = orders.slice(0, 6).map((order) => ({
+      id: `order-${order.id}`,
+      title: `${order.orderNumber} is ${order.status.toLowerCase().replace(/_/g, " ")}`,
+      subtitle: `${order.customerName} • ${fmtCurrency(order.total)}`,
+      timestamp: order.updatedAt,
+      kind:
+        order.status === SalesOrderStatus.SHIPPED || order.status === SalesOrderStatus.DELIVERED ? ("delivery" as const) : ("order" as const),
+    }));
+
+    const quoteActivity = acceptedQuotes.slice(0, 3).map((quote) => ({
+      id: `quote-${quote.id}`,
+      title: `${quote.quoteNumber} accepted`,
+      subtitle: `${quote.customerName} is ready for conversion`,
+      timestamp: quote.updatedAt,
+      kind: "quote" as const,
+    }));
+
+    return [...orderActivity, ...quoteActivity]
+      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+      .slice(0, 6);
+  }, [acceptedQuotes, orders]);
+
+  const kpiMetrics = [
+    {
+      key: "orders",
+      label: "Orders",
+      value: String(ordersQuery.data?.total ?? 0),
+      trend: `${visibleOrders.length} visible now`,
+      hint: "Live order queue",
+      icon: ReceiptText,
+      tone: "bg-[linear-gradient(135deg,rgba(248,250,252,0.92),rgba(255,255,255,0))] dark:bg-[linear-gradient(135deg,rgba(30,41,59,0.6),rgba(15,23,42,0))]",
+      bars: [42, 60, 54, 72, 86, 64],
+    },
+    {
+      key: "quotes",
+      label: "Accepted Quotes",
+      value: String(acceptedQuotes.length),
+      trend: `${acceptedQuotes.length ? "Ready to convert" : "No backlog"}`,
+      hint: "Presales handoff",
+      icon: Sparkles,
+      tone: "bg-[linear-gradient(135deg,rgba(236,253,245,0.96),rgba(255,255,255,0))] dark:bg-[linear-gradient(135deg,rgba(6,78,59,0.36),rgba(15,23,42,0))]",
+      bars: [32, 48, 62, 78, 68, 84],
+    },
+    {
+      key: "open-flow",
+      label: "Open Flow",
+      value: String(openFlowCount),
+      trend: `${pendingApprovalOrders.length} awaiting approvals`,
+      hint: "Active O2C workload",
+      icon: PackageCheck,
+      tone: "bg-[linear-gradient(135deg,rgba(239,246,255,0.96),rgba(255,255,255,0))] dark:bg-[linear-gradient(135deg,rgba(7,89,133,0.3),rgba(15,23,42,0))]",
+      bars: [36, 44, 66, 72, 65, 88],
+    },
+    {
+      key: "revenue",
+      label: "Revenue",
+      value: fmtCurrency(totalRevenue || 0),
+      trend: `${fmtCurrency(averageOrderValue || 0)} avg`,
+      hint: "Current queue value",
+      icon: TrendingUp,
+      tone: "bg-[linear-gradient(135deg,rgba(245,243,255,0.96),rgba(255,255,255,0))] dark:bg-[linear-gradient(135deg,rgba(67,56,202,0.28),rgba(15,23,42,0))]",
+      bars: [28, 40, 58, 76, 92, 78],
+    },
+    {
+      key: "deliveries",
+      label: "Pending Deliveries",
+      value: String(pendingDeliveries),
+      trend: `${manualOrderCount} manual orders`,
+      hint: "Fulfillment handoff",
+      icon: Truck,
+      tone: "bg-[linear-gradient(135deg,rgba(236,254,255,0.96),rgba(255,255,255,0))] dark:bg-[linear-gradient(135deg,rgba(8,145,178,0.26),rgba(15,23,42,0))]",
+      bars: [30, 36, 52, 59, 74, 66],
+    },
+  ];
+
+  const quickStats = [
+    {
+      label: "Manual intake",
+      value: `${manualOrderCount}`,
+      helper: "Orders created outside quote conversion",
+    },
+    {
+      label: "Reserved inventory",
+      value: `${orders.filter((order) => order.inventoryReserved).length}`,
+      helper: "Orders already matched with stock",
+    },
+    {
+      label: "Average value",
+      value: fmtCurrency(averageOrderValue || 0),
+      helper: "Per visible order in the queue",
+    },
+  ];
+
   const manualSubtotal = manualForm.items.reduce((sum, item) => {
     const quantity = Number(item.quantity) || 0;
     const unitPrice = Number(item.unitPrice) || 0;
@@ -154,33 +267,6 @@ export default function SalesOrdersPage() {
   }, 0);
   const manualTaxRate = Number(manualForm.taxRate) || 0;
   const manualTotal = manualSubtotal + (manualSubtotal * manualTaxRate) / 100;
-
-  function handleConvert(quoteId: string) {
-    convertMutation.mutate(quoteId, {
-      onSuccess: (created) => {
-        toast.success(`Order ${created.orderNumber} created.`);
-        setDetailId(created.id);
-      },
-      onError: (error) => {
-        toast.error(error instanceof Error ? error.message : "Could not convert quote.");
-      },
-    });
-  }
-
-  function handleStatusUpdate(order: SalesOrderSummary, status: SalesOrderStatus) {
-    statusMutation.mutate(
-      { id: order.id, status },
-      {
-        onSuccess: () => {
-          toast.success("Order status updated.");
-          setDetailId(order.id);
-        },
-        onError: (error) => {
-          toast.error(error instanceof Error ? error.message : "Could not update status.");
-        },
-      }
-    );
-  }
 
   function updateManualField<K extends keyof ManualOrderFormState>(field: K, value: ManualOrderFormState[K]) {
     setManualForm((prev) => ({ ...prev, [field]: value }));
@@ -208,7 +294,19 @@ export default function SalesOrdersPage() {
     setManualForm(createInitialManualForm());
   }
 
-  function handleManualSubmit() {
+  function handleConvert(quoteId: string) {
+    convertMutation.mutate(quoteId, {
+      onSuccess: (created) => {
+        toast.success(`Order ${created.orderNumber} created from quote.`);
+        setDetailId(created.id);
+      },
+      onError: (error) => {
+        toast.error(error instanceof Error ? error.message : "Could not convert quote.");
+      },
+    });
+  }
+
+  function handleCreateOrder() {
     const customerName = manualForm.customerName.trim();
     if (!customerName) {
       toast.error("Customer name is required.");
@@ -255,6 +353,7 @@ export default function SalesOrdersPage() {
     createMutation.mutate(payload, {
       onSuccess: (created) => {
         toast.success(`Order ${created.orderNumber} created.`);
+        setCreateDrawerOpen(false);
         resetManualForm();
         setDetailId(created.id);
       },
@@ -264,483 +363,130 @@ export default function SalesOrdersPage() {
     });
   }
 
+  function handleStatusChange(status: SalesOrderStatus) {
+    if (!detail) {
+      return;
+    }
+
+    statusMutation.mutate(
+      { id: detail.id, status },
+      {
+        onSuccess: () => {
+          toast.success("Order status updated.");
+        },
+        onError: (error) => {
+          toast.error(error instanceof Error ? error.message : "Could not update status.");
+        },
+      }
+    );
+  }
+
+  function handleExport() {
+    const rows = visibleOrders.map((order) => ({
+      orderNumber: order.orderNumber,
+      customerName: order.customerName,
+      company: order.company ?? "",
+      status: order.status,
+      total: order.total,
+      updatedAt: order.updatedAt,
+      source: order.quoteId ? "Quote conversion" : "Manual",
+    }));
+
+    const csv = [
+      ["Order Number", "Customer", "Company", "Status", "Total", "Updated At", "Source"],
+      ...rows.map((row) => [
+        row.orderNumber,
+        row.customerName,
+        row.company,
+        row.status,
+        row.total.toString(),
+        row.updatedAt,
+        row.source,
+      ]),
+    ]
+      .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","))
+      .join("\n");
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "sales-orders.csv";
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
   return (
-    <div className="min-h-screen bg-slate-50">
-      <div className="w-full px-4 py-6 sm:px-6 xl:px-8">
-        <div className="flex flex-col gap-6">
-          <section className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">Sales</p>
-                <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Sales Orders</h1>
-                <p className="mt-2 max-w-2xl text-sm text-slate-500">
-                  Create manual sales orders, convert accepted quotes, and move every order through the O2C flow.
-                </p>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-3">
-                <MetricCard label="Orders" value={String(ordersQuery.data?.total ?? 0)} />
-                <MetricCard label="Accepted Quotes" value={String(acceptedQuotes.length)} />
-                <MetricCard
-                  label="Open Flow"
-                  value={String(orders.filter((order) => !["DELIVERED", "CLOSED", "CANCELLED"].includes(order.status)).length)}
-                />
-              </div>
-            </div>
-          </section>
+    <div className="space-y-6 text-slate-900 dark:text-slate-100">
+      <SalesOrdersHero orderCount={visibleOrders.length} onCreateOrder={() => setCreateDrawerOpen(true)} onExport={handleExport} />
 
-          <div className="grid gap-6 xl:grid-cols-[minmax(0,1.45fr)_minmax(360px,0.95fr)]">
-            <section className="space-y-4">
-              <div className="rounded-[28px] border border-slate-200 bg-white p-4 shadow-sm">
-                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                  <label className="relative flex-1">
-                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                    <input
-                      value={filter.search}
-                      onChange={(event) => setFilter((prev) => ({ ...prev, search: event.target.value, page: 1 }))}
-                      placeholder="Search order number, customer, company"
-                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-10 py-2.5 text-sm text-slate-700 outline-none transition focus:border-sky-400"
-                    />
-                  </label>
-                  <select
-                    value={filter.status}
-                    onChange={(event) => setFilter((prev) => ({ ...prev, status: event.target.value as SalesOrderStatus | "ALL", page: 1 }))}
-                    className="rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700"
-                  >
-                    {STATUS_OPTIONS.map((status) => (
-                      <option key={status} value={status}>
-                        {status === "ALL" ? "All statuses" : toLabel(status)}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
+      <SalesOrdersKpis metrics={kpiMetrics} isLoading={ordersQuery.isLoading} />
 
-              <div className="rounded-[28px] border border-slate-200 bg-white shadow-sm">
-                <div className="border-b border-slate-200 px-4 py-3">
-                  <h2 className="text-sm font-semibold text-slate-900">Order Queue</h2>
-                </div>
-                {ordersQuery.isLoading ? (
-                  <ListState icon={<Loader2 className="h-5 w-5 animate-spin" />} label="Loading orders..." />
-                ) : !orders.length ? (
-                  <ListState icon={<ClipboardList className="h-5 w-5" />} label="No sales orders yet." />
-                ) : (
-                  <div className="divide-y divide-slate-100">
-                    {orders.map((order) => (
-                      <button
-                        key={order.id}
-                        type="button"
-                        onClick={() => setDetailId(order.id)}
-                        className={`flex w-full flex-col gap-3 px-4 py-4 text-left transition hover:bg-slate-50 ${
-                          detailId === order.id ? "bg-sky-50/70" : ""
-                        }`}
-                      >
-                        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                          <div>
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span className="text-sm font-semibold text-slate-900">{order.orderNumber}</span>
-                              <span className={`rounded-full px-2 py-1 text-[10px] font-semibold ${STATUS_TONE[order.status]}`}>
-                                {toLabel(order.status)}
-                              </span>
-                            </div>
-                            <p className="mt-1 text-sm text-slate-700">{order.customerName}</p>
-                            <p className="mt-1 text-xs text-slate-500">
-                              {order.company || "No company"} | Updated {fmtDate(order.updatedAt)}
-                            </p>
-                          </div>
-                          <div className="flex flex-wrap items-center gap-2">
-                            <select
-                              value={order.status}
-                              onChange={(event) => {
-                                event.stopPropagation();
-                                handleStatusUpdate(order, event.target.value as SalesOrderStatus);
-                              }}
-                              className="rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-xs font-medium text-slate-700"
-                            >
-                              {STATUS_OPTIONS.filter((status) => status !== "ALL").map((status) => (
-                                <option key={status} value={status}>
-                                  {toLabel(status)}
-                                </option>
-                              ))}
-                            </select>
-                            <span className="text-sm font-semibold text-slate-900">{fmtCurrency(order.total)}</span>
-                          </div>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </section>
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.75fr)_minmax(330px,0.95fr)]">
+        <div className="min-w-0">
+          <SalesOrdersQueueCard
+            orders={visibleOrders}
+            search={filter.search}
+            onSearchChange={(value) => setFilter((prev) => ({ ...prev, search: value, page: 1 }))}
+            tabs={tabCounts}
+            activeTab={activeTab}
+            onTabChange={(value) => setActiveTab(value as QueueTabKey)}
+            isLoading={ordersQuery.isLoading}
+            onOpenOrder={setDetailId}
+            onCreateOrder={() => setCreateDrawerOpen(true)}
+          />
+        </div>
 
-            <section className="space-y-4">
-              <div className="rounded-[28px] border border-slate-200 bg-white p-4 shadow-sm">
-                <div className="flex items-center gap-2">
-                  <Plus className="h-4 w-4 text-slate-400" />
-                  <h2 className="text-sm font-semibold text-slate-900">Create Manual Order</h2>
-                </div>
-                <p className="mt-2 text-sm text-slate-500">
-                  Add direct orders here when they do not originate from a quote conversion.
-                </p>
-
-                <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                  <label className="space-y-1 text-xs font-medium text-slate-600">
-                    <span>Customer name</span>
-                    <input
-                      value={manualForm.customerName}
-                      onChange={(event) => updateManualField("customerName", event.target.value)}
-                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-sky-400"
-                    />
-                  </label>
-                  <label className="space-y-1 text-xs font-medium text-slate-600">
-                    <span>Company</span>
-                    <input
-                      value={manualForm.company}
-                      onChange={(event) => updateManualField("company", event.target.value)}
-                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-sky-400"
-                    />
-                  </label>
-                  <label className="space-y-1 text-xs font-medium text-slate-600">
-                    <span>Email</span>
-                    <input
-                      value={manualForm.email}
-                      onChange={(event) => updateManualField("email", event.target.value)}
-                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-sky-400"
-                    />
-                  </label>
-                  <label className="space-y-1 text-xs font-medium text-slate-600">
-                    <span>Phone</span>
-                    <input
-                      value={manualForm.phone}
-                      onChange={(event) => updateManualField("phone", event.target.value)}
-                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-sky-400"
-                    />
-                  </label>
-                  <label className="space-y-1 text-xs font-medium text-slate-600">
-                    <span>Currency</span>
-                    <input
-                      value={manualForm.currency}
-                      onChange={(event) => updateManualField("currency", event.target.value.toUpperCase())}
-                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm uppercase text-slate-700 outline-none transition focus:border-sky-400"
-                    />
-                  </label>
-                  <label className="space-y-1 text-xs font-medium text-slate-600">
-                    <span>Status</span>
-                    <select
-                      value={manualForm.status}
-                      onChange={(event) => updateManualField("status", event.target.value as SalesOrderStatus)}
-                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-sky-400"
-                    >
-                      {STATUS_OPTIONS.filter((status) => status !== "ALL").map((status) => (
-                        <option key={status} value={status}>
-                          {toLabel(status)}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="space-y-1 text-xs font-medium text-slate-600 sm:col-span-2">
-                    <span>Billing address</span>
-                    <textarea
-                      value={manualForm.billingAddress}
-                      onChange={(event) => updateManualField("billingAddress", event.target.value)}
-                      rows={2}
-                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-sky-400"
-                    />
-                  </label>
-                  <label className="space-y-1 text-xs font-medium text-slate-600 sm:col-span-2">
-                    <span>Shipping address</span>
-                    <textarea
-                      value={manualForm.shippingAddress}
-                      onChange={(event) => updateManualField("shippingAddress", event.target.value)}
-                      rows={2}
-                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-sky-400"
-                    />
-                  </label>
-                </div>
-
-                <div className="mt-4 rounded-2xl border border-slate-200">
-                  <div className="flex items-center justify-between border-b border-slate-200 px-3 py-3">
-                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Line items</p>
-                    <button
-                      type="button"
-                      onClick={addManualItem}
-                      className="inline-flex items-center gap-1 rounded-xl border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-700"
-                    >
-                      <Plus className="h-3.5 w-3.5" />
-                      Add item
-                    </button>
-                  </div>
-                  <div className="space-y-3 p-3">
-                    {manualForm.items.map((item, index) => (
-                      <div key={item.key} className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                        <div className="mb-3 flex items-center justify-between">
-                          <p className="text-sm font-semibold text-slate-900">Item {index + 1}</p>
-                          <button
-                            type="button"
-                            onClick={() => removeManualItem(item.key)}
-                            disabled={manualForm.items.length === 1}
-                            className="rounded-xl p-2 text-slate-500 transition hover:bg-white disabled:opacity-40"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        </div>
-                        <div className="grid gap-3 sm:grid-cols-2">
-                          <label className="space-y-1 text-xs font-medium text-slate-600">
-                            <span>Item name</span>
-                            <input
-                              value={item.name}
-                              onChange={(event) => updateManualItem(item.key, "name", event.target.value)}
-                              className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-sky-400"
-                            />
-                          </label>
-                          <label className="space-y-1 text-xs font-medium text-slate-600">
-                            <span>Make</span>
-                            <input
-                              value={item.make}
-                              onChange={(event) => updateManualItem(item.key, "make", event.target.value)}
-                              className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-sky-400"
-                            />
-                          </label>
-                          <label className="space-y-1 text-xs font-medium text-slate-600">
-                            <span>Quantity</span>
-                            <input
-                              type="number"
-                              min="0.01"
-                              step="0.01"
-                              value={item.quantity}
-                              onChange={(event) => updateManualItem(item.key, "quantity", event.target.value)}
-                              className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-sky-400"
-                            />
-                          </label>
-                          <label className="space-y-1 text-xs font-medium text-slate-600">
-                            <span>Unit price</span>
-                            <input
-                              type="number"
-                              min="0"
-                              step="0.01"
-                              value={item.unitPrice}
-                              onChange={(event) => updateManualItem(item.key, "unitPrice", event.target.value)}
-                              className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-sky-400"
-                            />
-                          </label>
-                          <label className="space-y-1 text-xs font-medium text-slate-600">
-                            <span>Unit</span>
-                            <input
-                              value={item.unit}
-                              onChange={(event) => updateManualItem(item.key, "unit", event.target.value)}
-                              className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-sky-400"
-                            />
-                          </label>
-                          <label className="space-y-1 text-xs font-medium text-slate-600">
-                            <span>Utility</span>
-                            <input
-                              value={item.utility}
-                              onChange={(event) => updateManualItem(item.key, "utility", event.target.value)}
-                              className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-sky-400"
-                            />
-                          </label>
-                          <label className="space-y-1 text-xs font-medium text-slate-600 sm:col-span-2">
-                            <span>Description</span>
-                            <textarea
-                              value={item.description}
-                              onChange={(event) => updateManualItem(item.key, "description", event.target.value)}
-                              rows={2}
-                              className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-sky-400"
-                            />
-                          </label>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                  <label className="space-y-1 text-xs font-medium text-slate-600">
-                    <span>Tax rate (%)</span>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={manualForm.taxRate}
-                      onChange={(event) => updateManualField("taxRate", event.target.value)}
-                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-sky-400"
-                    />
-                  </label>
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Estimated total</p>
-                    <p className="mt-1 text-lg font-semibold text-slate-950">
-                      {fmtCurrency(manualTotal, manualForm.currency || "INR")}
-                    </p>
-                    <p className="mt-1 text-xs text-slate-500">
-                      Subtotal {fmtCurrency(manualSubtotal, manualForm.currency || "INR")}
-                    </p>
-                  </div>
-                  <label className="space-y-1 text-xs font-medium text-slate-600 sm:col-span-2">
-                    <span>Notes</span>
-                    <textarea
-                      value={manualForm.notes}
-                      onChange={(event) => updateManualField("notes", event.target.value)}
-                      rows={3}
-                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-sky-400"
-                    />
-                  </label>
-                </div>
-
-                <div className="mt-4 flex flex-wrap justify-end gap-2">
-                  <button
-                    type="button"
-                    onClick={resetManualForm}
-                    className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700"
-                  >
-                    Reset
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleManualSubmit}
-                    disabled={createMutation.isPending}
-                    className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
-                  >
-                    {createMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                    Create order
-                  </button>
-                </div>
-              </div>
-
-              <div className="rounded-[28px] border border-slate-200 bg-white p-4 shadow-sm">
-                <div className="flex items-center gap-2">
-                  <ArrowRightLeft className="h-4 w-4 text-slate-400" />
-                  <h2 className="text-sm font-semibold text-slate-900">Accepted Quotes Ready For Conversion</h2>
-                </div>
-                <div className="mt-4 space-y-3">
-                  {acceptedQuotesQuery.isLoading ? (
-                    <ListState icon={<Loader2 className="h-5 w-5 animate-spin" />} label="Loading accepted quotes..." compact />
-                  ) : !acceptedQuotes.length ? (
-                    <ListState icon={<ClipboardList className="h-5 w-5" />} label="No accepted quotes available." compact />
-                  ) : (
-                    acceptedQuotes.map((quote) => (
-                      <div key={quote.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <p className="text-sm font-semibold text-slate-900">{quote.quoteNumber}</p>
-                            <p className="mt-1 text-sm text-slate-700">{quote.customerName}</p>
-                            <p className="mt-1 text-xs text-slate-500">{quote.company || "No company"} | {fmtDate(quote.updatedAt)}</p>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => handleConvert(quote.id)}
-                            disabled={convertMutation.isPending}
-                            className="rounded-xl bg-slate-950 px-3 py-2 text-xs font-semibold text-white disabled:opacity-60"
-                          >
-                            Convert
-                          </button>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-
-              <div className="rounded-[28px] border border-slate-200 bg-white shadow-sm">
-                <div className="border-b border-slate-200 px-4 py-3">
-                  <h2 className="text-sm font-semibold text-slate-900">Order Detail</h2>
-                </div>
-                {!detailId ? (
-                  <ListState icon={<ClipboardList className="h-5 w-5" />} label="Select an order to inspect line items and billing details." compact />
-                ) : detailQuery.isLoading ? (
-                  <ListState icon={<Loader2 className="h-5 w-5 animate-spin" />} label="Loading order detail..." compact />
-                ) : detail ? (
-                  <div className="space-y-4 p-4">
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <div>
-                        <p className="text-lg font-semibold text-slate-950">{detail.orderNumber}</p>
-                        <p className="mt-1 text-sm text-slate-500">
-                          {detail.customerName} | {detail.company || "No company"}
-                        </p>
-                      </div>
-                      <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${STATUS_TONE[detail.status]}`}>
-                        {toLabel(detail.status)}
-                      </span>
-                    </div>
-
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <InfoCard label="Quote" value={detail.quoteId || "Manual order"} />
-                      <InfoCard label="Currency" value={detail.currency} />
-                      <InfoCard label="Subtotal" value={fmtCurrency(detail.subtotal, detail.currency)} />
-                      <InfoCard label="Total" value={fmtCurrency(detail.total, detail.currency)} />
-                    </div>
-
-                    <div className="rounded-2xl border border-slate-200">
-                      <div className="border-b border-slate-200 px-3 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                        Line items
-                      </div>
-                      <div className="divide-y divide-slate-100">
-                        {detail.items.map((item) => (
-                          <div key={item.id} className="flex items-center justify-between gap-3 px-3 py-3">
-                            <div>
-                              <p className="text-sm font-semibold text-slate-900">{item.name}</p>
-                              <p className="mt-1 text-xs text-slate-500">
-                                {item.quantity} {item.unit || "units"} | {item.make || "Standard"}
-                              </p>
-                            </div>
-                            <p className="text-sm font-semibold text-slate-900">
-                              {fmtCurrency(item.lineTotal, detail.currency)}
-                            </p>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
-                      <p className="font-semibold text-slate-900">Billing</p>
-                      <p className="mt-1">{detail.billingAddress || "No billing address"}</p>
-                      <p className="mt-3 font-semibold text-slate-900">Shipping</p>
-                      <p className="mt-1">{detail.shippingAddress || "No shipping address"}</p>
-                    </div>
-                  </div>
-                ) : (
-                  <ListState icon={<ClipboardList className="h-5 w-5" />} label="Order detail unavailable." compact />
-                )}
-              </div>
-            </section>
-          </div>
+        <div className="space-y-6">
+          <AcceptedQuotesCard
+            quotes={acceptedQuotes}
+            isLoading={acceptedQuotesQuery.isLoading}
+            isConverting={convertMutation.isPending}
+            onConvert={handleConvert}
+          />
+          <QuickStatsCard stats={quickStats} />
+          <PendingApprovalsCard
+            approvals={pendingApprovalOrders.slice(0, 4).map((order) => ({
+              id: order.id,
+              orderNumber: order.orderNumber,
+              customerName: order.customerName,
+              total: order.total,
+              updatedAt: order.updatedAt,
+            }))}
+            onOpenOrder={setDetailId}
+          />
+          <ActivityTimelineCard items={recentActivity} />
         </div>
       </div>
-    </div>
-  );
-}
 
-function MetricCard({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">{label}</p>
-      <p className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">{value}</p>
-    </div>
-  );
-}
+      <CreateOrderDrawer
+        open={isCreateDrawerOpen}
+        onOpenChange={setCreateDrawerOpen}
+        form={manualForm}
+        subtotal={manualSubtotal}
+        total={manualTotal}
+        pending={createMutation.isPending}
+        onFieldChange={updateManualField}
+        onItemChange={updateManualItem}
+        onAddItem={addManualItem}
+        onRemoveItem={removeManualItem}
+        onReset={resetManualForm}
+        onSubmit={handleCreateOrder}
+      />
 
-function InfoCard({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">{label}</p>
-      <p className="mt-1 text-sm font-semibold text-slate-900">{value}</p>
-    </div>
-  );
-}
-
-function ListState({
-  icon,
-  label,
-  compact = false,
-}: {
-  icon: ReactNode;
-  label: string;
-  compact?: boolean;
-}) {
-  return (
-    <div className={`flex items-center justify-center ${compact ? "p-6" : "p-10"}`}>
-      <div className="flex flex-col items-center text-center text-slate-500">
-        <div className="rounded-2xl bg-slate-100 p-3 text-slate-400">{icon}</div>
-        <p className="mt-3 text-sm">{label}</p>
-      </div>
+      <OrderDetailDrawer
+        open={Boolean(detailId)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDetailId("");
+          }
+        }}
+        order={detail}
+        loading={detailQuery.isLoading}
+        statusOptions={DRAWER_STATUS_OPTIONS}
+        onStatusChange={handleStatusChange}
+        statusPending={statusMutation.isPending}
+      />
     </div>
   );
 }
