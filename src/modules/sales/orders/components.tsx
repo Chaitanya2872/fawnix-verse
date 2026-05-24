@@ -98,6 +98,13 @@ type QuickStat = {
   helper: string;
 };
 
+type OpsStat = {
+  label: string;
+  value: string;
+  helper: string;
+  tone?: string;
+};
+
 type PendingApproval = {
   id: string;
   orderNumber: string;
@@ -163,41 +170,41 @@ export function fmtDate(value: string) {
 
 export function SalesOrdersHero({ orderCount, onCreateOrder, onExport }: HeroProps) {
   return (
-    <section className="relative overflow-hidden rounded-[30px] border border-slate-200/80 bg-white/85 shadow-[0_18px_60px_-28px_rgba(15,23,42,0.32)] backdrop-blur-xl dark:border-slate-800 dark:bg-slate-900/80">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(56,189,248,0.18),_transparent_34%),radial-gradient(circle_at_top_right,_rgba(129,140,248,0.12),_transparent_28%),linear-gradient(180deg,_rgba(255,255,255,0.82),_rgba(248,250,252,0.9))] dark:bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.18),_transparent_30%),radial-gradient(circle_at_top_right,_rgba(99,102,241,0.16),_transparent_28%),linear-gradient(180deg,_rgba(15,23,42,0.94),_rgba(15,23,42,0.86))]" />
-      <div className="relative flex flex-col gap-6 px-6 py-6 lg:flex-row lg:items-end lg:justify-between lg:px-8">
-        <div className="max-w-3xl">
-          <div className="inline-flex items-center gap-2 rounded-full border border-white/70 bg-white/75 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500 shadow-sm dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-400">
+    <section className="rounded-[20px] border border-slate-200 bg-[#FCFCFD] shadow-[0_8px_24px_-18px_rgba(16,24,40,0.18)] dark:border-slate-800 dark:bg-slate-900">
+      <div className="flex flex-col gap-5 px-5 py-5 lg:flex-row lg:items-end lg:justify-between lg:px-6">
+        <div className="min-w-0 max-w-3xl">
+          <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-400">
             <span>Sales</span>
             <ChevronRight className="h-3.5 w-3.5 opacity-70" />
             <span>Order-to-Cash</span>
           </div>
-          <div className="mt-4 space-y-3">
-            <h1 className="text-3xl font-semibold tracking-tight text-slate-950 sm:text-4xl dark:text-white">Sales Orders</h1>
-            <p className="max-w-2xl text-sm leading-6 text-slate-600 dark:text-slate-300">
-              Orchestrate quote conversion, manual order creation, fulfillment readiness, and handoff decisions from one premium control surface.
+          <div className="mt-3 space-y-1.5">
+            <h1 className="text-3xl font-semibold tracking-[-0.03em] text-[#101828] sm:text-4xl dark:text-white">Sales Orders</h1>
+            <p className="max-w-2xl text-sm text-[#667085] dark:text-slate-400">
+              Manage quote conversions, direct order intake, and execution status from one operational control surface.
             </p>
           </div>
         </div>
 
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <div className="rounded-2xl border border-white/70 bg-white/75 px-4 py-3 shadow-sm dark:border-slate-700 dark:bg-slate-900/70">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Live queue</p>
-            <p className="mt-1 text-lg font-semibold text-slate-950 dark:text-white">{orderCount} active records</p>
+        <div className="flex flex-wrap items-center gap-2.5">
+          <div className="inline-flex h-11 items-center gap-2 rounded-full border border-[#EAECF0] bg-white px-4 text-sm text-[#667085] shadow-[0_1px_2px_rgba(16,24,40,0.05)] dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#98A2B3] dark:text-slate-500">Live Queue</span>
+            <span className="h-1 w-1 rounded-full bg-[#98A2B3] dark:bg-slate-600" />
+            <span className="font-semibold text-[#101828] dark:text-white">{orderCount} active</span>
           </div>
           <Button
             type="button"
             variant="outline"
             onClick={onExport}
-            className="h-11 rounded-2xl border-white/70 bg-white/65 px-4 text-slate-700 shadow-sm backdrop-blur hover:bg-white dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-200 dark:hover:bg-slate-900"
+            className="h-11 rounded-xl border-[#EAECF0] bg-white px-4 text-[#344054] shadow-none hover:bg-[#F2F4F7] hover:text-[#101828] dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
           >
             <Download className="h-4 w-4" />
-            Export CSV
+            Export
           </Button>
           <Button
             type="button"
             onClick={onCreateOrder}
-            className="h-11 rounded-2xl bg-slate-950 px-5 text-white shadow-[0_18px_35px_-20px_rgba(15,23,42,0.95)] hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200"
+            className="h-11 rounded-xl bg-[#0F172A] px-5 text-white shadow-[0_6px_16px_-10px_rgba(15,23,42,0.45)] hover:bg-[#111827] dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200"
           >
             <Plus className="h-4 w-4" />
             Create Order
@@ -214,38 +221,38 @@ export function SalesOrdersKpis({ metrics, isLoading }: { metrics: KpiMetric[]; 
       {metrics.map((metric) => (
         <article
           key={metric.key}
-          className="group relative overflow-hidden rounded-[24px] border border-slate-200/70 bg-white/80 p-5 shadow-[0_12px_30px_-24px_rgba(15,23,42,0.45)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_24px_50px_-26px_rgba(15,23,42,0.3)] dark:border-slate-800 dark:bg-slate-900/80"
+          className="group relative overflow-hidden rounded-[20px] border border-[#EAECF0] bg-white p-4 shadow-[0_1px_2px_rgba(16,24,40,0.05)] transition-all duration-200 hover:border-slate-300 hover:bg-[#FCFCFD] dark:border-slate-800 dark:bg-slate-900 dark:hover:border-slate-700 dark:hover:bg-slate-900"
         >
-          <div className={cn("absolute inset-0 opacity-80", metric.tone)} />
-          <div className="relative space-y-4">
-            <div className="flex items-start justify-between">
-              <div className="space-y-1">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">{metric.label}</p>
+          <div className={cn("absolute inset-x-0 top-0 h-px opacity-60", metric.tone)} />
+          <div className="relative space-y-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0 space-y-1">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#98A2B3] dark:text-slate-500">{metric.label}</p>
                 {isLoading ? (
-                  <div className="h-9 w-28 animate-pulse rounded-2xl bg-slate-200/80 dark:bg-slate-800" />
+                  <div className="h-8 w-24 animate-pulse rounded-xl bg-slate-200/80 dark:bg-slate-800" />
                 ) : (
-                  <p className="text-3xl font-semibold tracking-tight text-slate-950 dark:text-white">{metric.value}</p>
+                  <p className="text-[28px] font-semibold leading-none tracking-[-0.03em] text-[#101828] dark:text-white">{metric.value}</p>
                 )}
               </div>
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/70 bg-white/70 text-slate-700 shadow-sm dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-100">
-                <metric.icon className="h-5 w-5" />
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-[#EAECF0] bg-[#F8FAFC] text-[#667085] dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300">
+                <metric.icon className="h-4 w-4" />
               </div>
             </div>
 
             <div className="flex items-end justify-between gap-3">
               <div className="space-y-1">
-                <div className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 dark:text-emerald-400">
-                  <ArrowUpRight className="h-3.5 w-3.5" />
+                <div className="inline-flex items-center gap-1 text-xs font-medium text-[#12B76A] dark:text-emerald-400">
+                  <ArrowUpRight className="h-3 w-3" />
                   {metric.trend}
                 </div>
-                <p className="text-xs text-slate-500 dark:text-slate-400">{metric.hint}</p>
+                <p className="text-xs text-[#667085] dark:text-slate-400">{metric.hint}</p>
               </div>
-              <div className="flex h-9 items-end gap-1 rounded-2xl border border-white/70 bg-white/65 px-2.5 py-2 dark:border-slate-700 dark:bg-slate-900/65">
+              <div className="flex h-7 items-end gap-1 rounded-xl bg-[#F8FAFC] px-2 py-1.5 ring-1 ring-[#EAECF0] dark:bg-slate-950 dark:ring-slate-800">
                 {metric.bars.map((bar, index) => (
                   <span
                     key={`${metric.key}-${index}`}
-                    className="w-1.5 rounded-full bg-slate-900/75 dark:bg-white/80"
-                    style={{ height: `${bar}%` }}
+                    className="w-1 rounded-full bg-slate-400 dark:bg-slate-500"
+                    style={{ height: `${Math.max(24, Math.round(bar * 0.7))}%` }}
                   />
                 ))}
               </div>
@@ -471,6 +478,35 @@ export function QuickStatsCard({ stats }: { stats: QuickStat[] }) {
             <div className="flex items-center justify-between gap-3">
               <p className="text-sm font-medium text-slate-600 dark:text-slate-300">{stat.label}</p>
               <p className="text-lg font-semibold text-slate-950 dark:text-white">{stat.value}</p>
+            </div>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{stat.helper}</p>
+          </div>
+        ))}
+      </div>
+    </SurfaceCard>
+  );
+}
+
+export function OperationsSnapshotCard({
+  title,
+  subtitle,
+  stats,
+}: {
+  title: string;
+  subtitle: string;
+  stats: OpsStat[];
+}) {
+  return (
+    <SurfaceCard title={title} subtitle={subtitle}>
+      <div className="space-y-3">
+        {stats.map((stat) => (
+          <div
+            key={stat.label}
+            className="rounded-[22px] border border-slate-200/70 bg-slate-50/85 px-4 py-3 dark:border-slate-800 dark:bg-slate-950/55"
+          >
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm font-medium text-slate-600 dark:text-slate-300">{stat.label}</p>
+              <p className={cn("text-lg font-semibold text-slate-950 dark:text-white", stat.tone)}>{stat.value}</p>
             </div>
             <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{stat.helper}</p>
           </div>

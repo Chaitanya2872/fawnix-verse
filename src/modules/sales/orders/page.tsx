@@ -11,6 +11,7 @@ import {
   CreateOrderDrawer,
   fmtCurrency,
   OrderDetailDrawer,
+  OperationsSnapshotCard,
   PendingApprovalsCard,
   QuickStatsCard,
   SalesOrdersHero,
@@ -170,7 +171,7 @@ export default function SalesOrdersPage() {
     const orderActivity = orders.slice(0, 6).map((order) => ({
       id: `order-${order.id}`,
       title: `${order.orderNumber} is ${order.status.toLowerCase().replace(/_/g, " ")}`,
-      subtitle: `${order.customerName} • ${fmtCurrency(order.total)}`,
+      subtitle: `${order.customerName} | ${fmtCurrency(order.total)}`,
       timestamp: order.updatedAt,
       kind:
         order.status === SalesOrderStatus.SHIPPED || order.status === SalesOrderStatus.DELIVERED ? ("delivery" as const) : ("order" as const),
@@ -197,7 +198,7 @@ export default function SalesOrdersPage() {
       trend: `${visibleOrders.length} visible now`,
       hint: "Live order queue",
       icon: ReceiptText,
-      tone: "bg-[linear-gradient(135deg,rgba(248,250,252,0.92),rgba(255,255,255,0))] dark:bg-[linear-gradient(135deg,rgba(30,41,59,0.6),rgba(15,23,42,0))]",
+      tone: "bg-slate-300 dark:bg-slate-700",
       bars: [42, 60, 54, 72, 86, 64],
     },
     {
@@ -207,7 +208,7 @@ export default function SalesOrdersPage() {
       trend: `${acceptedQuotes.length ? "Ready to convert" : "No backlog"}`,
       hint: "Presales handoff",
       icon: Sparkles,
-      tone: "bg-[linear-gradient(135deg,rgba(236,253,245,0.96),rgba(255,255,255,0))] dark:bg-[linear-gradient(135deg,rgba(6,78,59,0.36),rgba(15,23,42,0))]",
+      tone: "bg-emerald-300 dark:bg-emerald-700",
       bars: [32, 48, 62, 78, 68, 84],
     },
     {
@@ -217,7 +218,7 @@ export default function SalesOrdersPage() {
       trend: `${pendingApprovalOrders.length} awaiting approvals`,
       hint: "Active O2C workload",
       icon: PackageCheck,
-      tone: "bg-[linear-gradient(135deg,rgba(239,246,255,0.96),rgba(255,255,255,0))] dark:bg-[linear-gradient(135deg,rgba(7,89,133,0.3),rgba(15,23,42,0))]",
+      tone: "bg-sky-300 dark:bg-sky-700",
       bars: [36, 44, 66, 72, 65, 88],
     },
     {
@@ -227,7 +228,7 @@ export default function SalesOrdersPage() {
       trend: `${fmtCurrency(averageOrderValue || 0)} avg`,
       hint: "Current queue value",
       icon: TrendingUp,
-      tone: "bg-[linear-gradient(135deg,rgba(245,243,255,0.96),rgba(255,255,255,0))] dark:bg-[linear-gradient(135deg,rgba(67,56,202,0.28),rgba(15,23,42,0))]",
+      tone: "bg-violet-300 dark:bg-violet-700",
       bars: [28, 40, 58, 76, 92, 78],
     },
     {
@@ -237,7 +238,7 @@ export default function SalesOrdersPage() {
       trend: `${manualOrderCount} manual orders`,
       hint: "Fulfillment handoff",
       icon: Truck,
-      tone: "bg-[linear-gradient(135deg,rgba(236,254,255,0.96),rgba(255,255,255,0))] dark:bg-[linear-gradient(135deg,rgba(8,145,178,0.26),rgba(15,23,42,0))]",
+      tone: "bg-cyan-300 dark:bg-cyan-700",
       bars: [30, 36, 52, 59, 74, 66],
     },
   ];
@@ -257,6 +258,68 @@ export default function SalesOrdersPage() {
       label: "Average value",
       value: fmtCurrency(averageOrderValue || 0),
       helper: "Per visible order in the queue",
+    },
+  ];
+
+  const deliveryStats = [
+    {
+      label: "Ready to dispatch",
+      value: String(
+        orders.filter((order) =>
+          [SalesOrderStatus.APPROVED, SalesOrderStatus.PROCESSING, SalesOrderStatus.PACKED].includes(order.status)
+        ).length
+      ),
+      helper: "Approved or being prepared for shipment",
+      tone: "text-sky-700 dark:text-sky-300",
+    },
+    {
+      label: "Shipped",
+      value: String(orders.filter((order) => order.status === SalesOrderStatus.SHIPPED).length),
+      helper: "In transit to the customer",
+      tone: "text-cyan-700 dark:text-cyan-300",
+    },
+    {
+      label: "Delivered",
+      value: String(orders.filter((order) => order.status === SalesOrderStatus.DELIVERED).length),
+      helper: "Completed delivery handoff",
+      tone: "text-emerald-700 dark:text-emerald-300",
+    },
+    {
+      label: "Inventory reserved",
+      value: String(orders.filter((order) => order.inventoryReserved).length),
+      helper: "Orders already linked to reserved stock",
+      tone: "text-violet-700 dark:text-violet-300",
+    },
+  ];
+
+  const billingStats = [
+    {
+      label: "Commercial backlog",
+      value: fmtCurrency(
+        orders
+          .filter((order) => ![SalesOrderStatus.CLOSED, SalesOrderStatus.CANCELLED].includes(order.status))
+          .reduce((sum, order) => sum + order.total, 0)
+      ),
+      helper: "Active order value still moving through billing or fulfillment",
+      tone: "text-slate-700 dark:text-slate-200",
+    },
+    {
+      label: "Quote-converted",
+      value: String(orders.filter((order) => Boolean(order.quoteId)).length),
+      helper: "Orders inherited from accepted commercial quotes",
+      tone: "text-emerald-700 dark:text-emerald-300",
+    },
+    {
+      label: "Manual orders",
+      value: String(manualOrderCount),
+      helper: "Often need invoice follow-up outside quote flow",
+      tone: "text-amber-700 dark:text-amber-300",
+    },
+    {
+      label: "Pending approvals",
+      value: String(pendingApprovalOrders.length),
+      helper: "Orders likely waiting for billing or dispatch sign-off",
+      tone: "text-sky-700 dark:text-sky-300",
     },
   ];
 
@@ -445,6 +508,8 @@ export default function SalesOrdersPage() {
             onConvert={handleConvert}
           />
           <QuickStatsCard stats={quickStats} />
+          <OperationsSnapshotCard title="Delivery Operations" subtitle="Dispatch and fulfillment signals" stats={deliveryStats} />
+          <OperationsSnapshotCard title="Billing & Commercial" subtitle="Order value and invoicing-adjacent signals" stats={billingStats} />
           <PendingApprovalsCard
             approvals={pendingApprovalOrders.slice(0, 4).map((order) => ({
               id: order.id,
