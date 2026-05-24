@@ -8,8 +8,12 @@ import { QuoteStatus, type QuoteFilter } from "@/modules/sales/types";
 import {
   AcceptedQuotesCard,
   ActivityTimelineCard,
+  CreateDeliveryDrawer,
+  CreateInvoiceDrawer,
   CreateOrderDrawer,
+  DeliveryBoardCard,
   fmtCurrency,
+  InvoiceBoardCard,
   OrderDetailDrawer,
   OperationsSnapshotCard,
   PendingApprovalsCard,
@@ -20,13 +24,23 @@ import {
 } from "./components";
 import {
   useConvertQuoteToOrder,
+  useCreateSalesDelivery,
+  useCreateSalesInvoice,
   useCreateSalesOrder,
+  useSalesDeliveries,
+  useSalesInvoices,
   useSalesOrder,
   useSalesOrders,
+  useUpdateSalesDeliveryStatus,
+  useUpdateSalesInvoiceStatus,
   useUpdateSalesOrderStatus,
 } from "./hooks";
 import {
+  SalesDeliveryStatus,
+  SalesInvoiceStatus,
   SalesOrderStatus,
+  type CreateSalesDeliveryInput,
+  type CreateSalesInvoiceInput,
   type CreateSalesOrderInput,
   type ManualOrderFormState,
   type ManualOrderItemDraft,
@@ -122,7 +136,11 @@ export default function SalesOrdersPage() {
   const [activeTab, setActiveTab] = useState<QueueTabKey>("ALL");
   const [detailId, setDetailId] = useState("");
   const [isCreateDrawerOpen, setCreateDrawerOpen] = useState(false);
+  const [isCreateDeliveryDrawerOpen, setCreateDeliveryDrawerOpen] = useState(false);
+  const [isCreateInvoiceDrawerOpen, setCreateInvoiceDrawerOpen] = useState(false);
   const [manualForm, setManualForm] = useState<ManualOrderFormState>(() => createInitialManualForm());
+  const [deliveryForm, setDeliveryForm] = useState<CreateSalesDeliveryInput>({ salesOrderId: "" });
+  const [invoiceForm, setInvoiceForm] = useState<CreateSalesInvoiceInput>({ salesOrderId: "" });
 
   const acceptedQuotesFilter: QuoteFilter = {
     search: "",
@@ -134,13 +152,25 @@ export default function SalesOrdersPage() {
   const ordersQuery = useSalesOrders(filter);
   const detailQuery = useSalesOrder(detailId);
   const acceptedQuotesQuery = useQuotes(acceptedQuotesFilter);
+  const deliveriesQuery = useSalesDeliveries();
+  const invoicesQuery = useSalesInvoices();
   const convertMutation = useConvertQuoteToOrder();
+  const createDeliveryMutation = useCreateSalesDelivery();
+  const createInvoiceMutation = useCreateSalesInvoice();
   const createMutation = useCreateSalesOrder();
+  const updateDeliveryStatusMutation = useUpdateSalesDeliveryStatus();
+  const updateInvoiceStatusMutation = useUpdateSalesInvoiceStatus();
   const statusMutation = useUpdateSalesOrderStatus();
 
   const orders = ordersQuery.data?.data ?? [];
   const acceptedQuotes = acceptedQuotesQuery.data?.data ?? [];
   const detail = detailQuery.data ?? null;
+  const deliveries = deliveriesQuery.data?.data ?? [];
+  const invoices = invoicesQuery.data?.data ?? [];
+  const orderOptions = orders.map((order) => ({
+    id: order.id,
+    label: `${order.orderNumber} | ${order.customerName}`,
+  }));
 
   const tabCounts = useMemo(
     () =>
@@ -357,6 +387,14 @@ export default function SalesOrdersPage() {
     setManualForm(createInitialManualForm());
   }
 
+  function resetDeliveryForm() {
+    setDeliveryForm({ salesOrderId: "" });
+  }
+
+  function resetInvoiceForm() {
+    setInvoiceForm({ salesOrderId: "" });
+  }
+
   function handleConvert(quoteId: string) {
     convertMutation.mutate(quoteId, {
       onSuccess: (created) => {
@@ -444,6 +482,66 @@ export default function SalesOrdersPage() {
     );
   }
 
+  function handleCreateDelivery() {
+    if (!deliveryForm.salesOrderId) {
+      toast.error("Select a sales order for the delivery.");
+      return;
+    }
+    createDeliveryMutation.mutate(deliveryForm, {
+      onSuccess: (created) => {
+        toast.success(`Delivery ${created.deliveryNumber} created.`);
+        setCreateDeliveryDrawerOpen(false);
+        resetDeliveryForm();
+      },
+      onError: (error) => {
+        toast.error(error instanceof Error ? error.message : "Could not create delivery.");
+      },
+    });
+  }
+
+  function handleCreateInvoice() {
+    if (!invoiceForm.salesOrderId) {
+      toast.error("Select a sales order for the invoice.");
+      return;
+    }
+    createInvoiceMutation.mutate(invoiceForm, {
+      onSuccess: (created) => {
+        toast.success(`Invoice ${created.invoiceNumber} created.`);
+        setCreateInvoiceDrawerOpen(false);
+        resetInvoiceForm();
+      },
+      onError: (error) => {
+        toast.error(error instanceof Error ? error.message : "Could not create invoice.");
+      },
+    });
+  }
+
+  function handleDeliveryStatusChange(id: string, status: SalesDeliveryStatus) {
+    updateDeliveryStatusMutation.mutate(
+      { id, status },
+      {
+        onError: (error) => {
+          toast.error(error instanceof Error ? error.message : "Could not update delivery status.");
+        },
+      }
+    );
+  }
+
+  function handleInvoiceStatusChange(id: string, status: SalesInvoiceStatus) {
+    updateInvoiceStatusMutation.mutate(
+      {
+        id,
+        status,
+        balanceDue: status === SalesInvoiceStatus.PAID ? 0 : undefined,
+      },
+      {
+        onError: (error) => {
+          toast.error(error instanceof Error ? error.message : "Could not update invoice status.");
+        },
+      }
+    );
+  }
+
   function handleExport() {
     const rows = visibleOrders.map((order) => ({
       orderNumber: order.orderNumber,
@@ -509,7 +607,21 @@ export default function SalesOrdersPage() {
           />
           <QuickStatsCard stats={quickStats} />
           <OperationsSnapshotCard title="Delivery Operations" subtitle="Dispatch and fulfillment signals" stats={deliveryStats} />
+          <DeliveryBoardCard
+            deliveries={deliveries}
+            isLoading={deliveriesQuery.isLoading}
+            onCreate={() => setCreateDeliveryDrawerOpen(true)}
+            onStatusChange={handleDeliveryStatusChange}
+            statusPending={updateDeliveryStatusMutation.isPending}
+          />
           <OperationsSnapshotCard title="Billing & Commercial" subtitle="Order value and invoicing-adjacent signals" stats={billingStats} />
+          <InvoiceBoardCard
+            invoices={invoices}
+            isLoading={invoicesQuery.isLoading}
+            onCreate={() => setCreateInvoiceDrawerOpen(true)}
+            onStatusChange={handleInvoiceStatusChange}
+            statusPending={updateInvoiceStatusMutation.isPending}
+          />
           <PendingApprovalsCard
             approvals={pendingApprovalOrders.slice(0, 4).map((order) => ({
               id: order.id,
@@ -537,6 +649,26 @@ export default function SalesOrdersPage() {
         onRemoveItem={removeManualItem}
         onReset={resetManualForm}
         onSubmit={handleCreateOrder}
+      />
+
+      <CreateDeliveryDrawer
+        open={isCreateDeliveryDrawerOpen}
+        onOpenChange={setCreateDeliveryDrawerOpen}
+        orderOptions={orderOptions}
+        form={deliveryForm}
+        pending={createDeliveryMutation.isPending}
+        onFieldChange={(field, value) => setDeliveryForm((prev) => ({ ...prev, [field]: value }))}
+        onSubmit={handleCreateDelivery}
+      />
+
+      <CreateInvoiceDrawer
+        open={isCreateInvoiceDrawerOpen}
+        onOpenChange={setCreateInvoiceDrawerOpen}
+        orderOptions={orderOptions}
+        form={invoiceForm}
+        pending={createInvoiceMutation.isPending}
+        onFieldChange={(field, value) => setInvoiceForm((prev) => ({ ...prev, [field]: value }))}
+        onSubmit={handleCreateInvoice}
       />
 
       <OrderDetailDrawer

@@ -22,9 +22,17 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn, getInitials, timeAgo } from "@/lib/utils";
 import type { QuoteSummary } from "@/modules/sales/types";
+import {
+  SalesDeliveryStatus,
+  SalesInvoiceStatus,
+} from "./types";
 import type {
+  CreateSalesDeliveryInput,
+  CreateSalesInvoiceInput,
   ManualOrderFormState,
   ManualOrderItemDraft,
+  SalesDelivery,
+  SalesInvoice,
   SalesOrder,
   SalesOrderStatus,
   SalesOrderSummary,
@@ -113,6 +121,11 @@ type PendingApproval = {
   updatedAt: string;
 };
 
+type SalesRecordOption = {
+  id: string;
+  label: string;
+};
+
 type DrawerShellProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -146,6 +159,42 @@ type DetailDrawerProps = {
   statusOptions: SalesOrderStatus[];
   onStatusChange: (status: SalesOrderStatus) => void;
   statusPending: boolean;
+};
+
+type DeliveryBoardProps = {
+  deliveries: SalesDelivery[];
+  isLoading: boolean;
+  onCreate: () => void;
+  onStatusChange: (id: string, status: SalesDeliveryStatus) => void;
+  statusPending: boolean;
+};
+
+type InvoiceBoardProps = {
+  invoices: SalesInvoice[];
+  isLoading: boolean;
+  onCreate: () => void;
+  onStatusChange: (id: string, status: SalesInvoiceStatus) => void;
+  statusPending: boolean;
+};
+
+type CreateDeliveryDrawerProps = {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  orderOptions: SalesRecordOption[];
+  form: CreateSalesDeliveryInput;
+  pending: boolean;
+  onFieldChange: <K extends keyof CreateSalesDeliveryInput>(field: K, value: CreateSalesDeliveryInput[K]) => void;
+  onSubmit: () => void;
+};
+
+type CreateInvoiceDrawerProps = {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  orderOptions: SalesRecordOption[];
+  form: CreateSalesInvoiceInput;
+  pending: boolean;
+  onFieldChange: <K extends keyof CreateSalesInvoiceInput>(field: K, value: CreateSalesInvoiceInput[K]) => void;
+  onSubmit: () => void;
 };
 
 export function toLabel(value: string) {
@@ -516,6 +565,114 @@ export function OperationsSnapshotCard({
   );
 }
 
+export function DeliveryBoardCard({
+  deliveries,
+  isLoading,
+  onCreate,
+  onStatusChange,
+  statusPending,
+}: DeliveryBoardProps) {
+  return (
+    <SurfaceCard title="Deliveries" subtitle="Dispatch and handoff records">
+      <div className="mb-4 flex justify-end">
+        <Button type="button" onClick={onCreate} className="h-9 rounded-xl bg-[#0F172A] px-4 text-white hover:bg-[#111827] dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200">
+          <Plus className="h-4 w-4" />
+          Create delivery
+        </Button>
+      </div>
+      <div className="space-y-3">
+        {isLoading ? (
+          Array.from({ length: 3 }).map((_, index) => (
+            <div key={index} className="h-24 animate-pulse rounded-[22px] border border-slate-200/70 bg-slate-50/80 dark:border-slate-800 dark:bg-slate-900/60" />
+          ))
+        ) : deliveries.length ? (
+          deliveries.slice(0, 4).map((delivery) => (
+            <div key={delivery.id} className="rounded-[22px] border border-slate-200/70 bg-slate-50/80 p-4 dark:border-slate-800 dark:bg-slate-950/55">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-slate-950 dark:text-white">{delivery.deliveryNumber}</p>
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{delivery.salesOrderNumber} | {delivery.customerName}</p>
+                  <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                    {delivery.carrier || "Carrier pending"}{delivery.trackingNumber ? ` | ${delivery.trackingNumber}` : ""}
+                  </p>
+                </div>
+                <select
+                  value={delivery.status}
+                  onChange={(event) => onStatusChange(delivery.id, event.target.value as SalesDeliveryStatus)}
+                  disabled={statusPending}
+                  className="h-9 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                >
+                  {Object.values(SalesDeliveryStatus).map((status) => (
+                    <option key={status} value={status}>
+                      {toLabel(status)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          ))
+        ) : (
+          <EmptyMiniState icon={<PackageCheck className="h-5 w-5" />} label="No delivery records yet. Create the first dispatch handoff." />
+        )}
+      </div>
+    </SurfaceCard>
+  );
+}
+
+export function InvoiceBoardCard({
+  invoices,
+  isLoading,
+  onCreate,
+  onStatusChange,
+  statusPending,
+}: InvoiceBoardProps) {
+  return (
+    <SurfaceCard title="Billing / Invoices" subtitle="Commercial billing records">
+      <div className="mb-4 flex justify-end">
+        <Button type="button" onClick={onCreate} className="h-9 rounded-xl bg-[#0F172A] px-4 text-white hover:bg-[#111827] dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200">
+          <Plus className="h-4 w-4" />
+          Create invoice
+        </Button>
+      </div>
+      <div className="space-y-3">
+        {isLoading ? (
+          Array.from({ length: 3 }).map((_, index) => (
+            <div key={index} className="h-24 animate-pulse rounded-[22px] border border-slate-200/70 bg-slate-50/80 dark:border-slate-800 dark:bg-slate-900/60" />
+          ))
+        ) : invoices.length ? (
+          invoices.slice(0, 4).map((invoice) => (
+            <div key={invoice.id} className="rounded-[22px] border border-slate-200/70 bg-slate-50/80 p-4 dark:border-slate-800 dark:bg-slate-950/55">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-slate-950 dark:text-white">{invoice.invoiceNumber}</p>
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{invoice.salesOrderNumber} | {invoice.customerName}</p>
+                  <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                    {fmtCurrency(invoice.balanceDue, invoice.currency)} due{invoice.dueDate ? ` | due ${invoice.dueDate}` : ""}
+                  </p>
+                </div>
+                <select
+                  value={invoice.status}
+                  onChange={(event) => onStatusChange(invoice.id, event.target.value as SalesInvoiceStatus)}
+                  disabled={statusPending}
+                  className="h-9 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                >
+                  {Object.values(SalesInvoiceStatus).map((status) => (
+                    <option key={status} value={status}>
+                      {toLabel(status)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          ))
+        ) : (
+          <EmptyMiniState icon={<ReceiptText className="h-5 w-5" />} label="No billing records yet. Create the first customer invoice." />
+        )}
+      </div>
+    </SurfaceCard>
+  );
+}
+
 export function PendingApprovalsCard({
   approvals,
   onOpenOrder,
@@ -859,6 +1016,128 @@ export function OrderDetailDrawer({
       ) : (
         <EmptyMiniState icon={<ClipboardList className="h-5 w-5" />} label="Select an order to inspect details." />
       )}
+    </DrawerShell>
+  );
+}
+
+export function CreateDeliveryDrawer({
+  open,
+  onOpenChange,
+  orderOptions,
+  form,
+  pending,
+  onFieldChange,
+  onSubmit,
+}: CreateDeliveryDrawerProps) {
+  return (
+    <DrawerShell
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Create Delivery"
+      description="Create a dispatch record linked to a sales order."
+      footer={
+        <>
+          <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} className="rounded-2xl px-4 text-slate-600 dark:text-slate-300">
+            Cancel
+          </Button>
+          <Button type="button" onClick={onSubmit} disabled={pending} className="rounded-2xl bg-[#0F172A] px-5 text-white hover:bg-[#111827] dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200">
+            {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+            Create delivery
+          </Button>
+        </>
+      }
+      widthClassName="max-w-[500px]"
+    >
+      <div className="space-y-6">
+        <DrawerSection title="Delivery Record" description="Connect dispatch planning to a live order" icon={<PackageCheck className="h-4 w-4" />}>
+          <div className="grid gap-4">
+            <DrawerField label="Sales order">
+              <select
+                value={form.salesOrderId}
+                onChange={(event) => onFieldChange("salesOrderId", event.target.value)}
+                className={drawerSelectClassName}
+              >
+                <option value="">Select order</option>
+                {orderOptions.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </DrawerField>
+            <DrawerField label="Scheduled date">
+              <Input type="date" value={form.scheduledDate ?? ""} onChange={(event) => onFieldChange("scheduledDate", event.target.value || undefined)} className={drawerInputClassName} />
+            </DrawerField>
+            <DrawerField label="Carrier">
+              <Input value={form.carrier ?? ""} onChange={(event) => onFieldChange("carrier", event.target.value || undefined)} className={drawerInputClassName} />
+            </DrawerField>
+            <DrawerField label="Tracking number">
+              <Input value={form.trackingNumber ?? ""} onChange={(event) => onFieldChange("trackingNumber", event.target.value || undefined)} className={drawerInputClassName} />
+            </DrawerField>
+            <DrawerField label="Notes">
+              <textarea rows={4} value={form.notes ?? ""} onChange={(event) => onFieldChange("notes", event.target.value || undefined)} className={drawerTextareaClassName} />
+            </DrawerField>
+          </div>
+        </DrawerSection>
+      </div>
+    </DrawerShell>
+  );
+}
+
+export function CreateInvoiceDrawer({
+  open,
+  onOpenChange,
+  orderOptions,
+  form,
+  pending,
+  onFieldChange,
+  onSubmit,
+}: CreateInvoiceDrawerProps) {
+  return (
+    <DrawerShell
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Create Invoice"
+      description="Generate a customer billing record from a sales order."
+      footer={
+        <>
+          <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} className="rounded-2xl px-4 text-slate-600 dark:text-slate-300">
+            Cancel
+          </Button>
+          <Button type="button" onClick={onSubmit} disabled={pending} className="rounded-2xl bg-[#0F172A] px-5 text-white hover:bg-[#111827] dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200">
+            {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+            Create invoice
+          </Button>
+        </>
+      }
+      widthClassName="max-w-[500px]"
+    >
+      <div className="space-y-6">
+        <DrawerSection title="Billing Record" description="Create an invoice from an operational order" icon={<ReceiptText className="h-4 w-4" />}>
+          <div className="grid gap-4">
+            <DrawerField label="Sales order">
+              <select
+                value={form.salesOrderId}
+                onChange={(event) => onFieldChange("salesOrderId", event.target.value)}
+                className={drawerSelectClassName}
+              >
+                <option value="">Select order</option>
+                {orderOptions.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </DrawerField>
+            <DrawerField label="Due date">
+              <Input type="date" value={form.dueDate ?? ""} onChange={(event) => onFieldChange("dueDate", event.target.value || undefined)} className={drawerInputClassName} />
+            </DrawerField>
+            <DrawerField label="Notes">
+              <textarea rows={4} value={form.notes ?? ""} onChange={(event) => onFieldChange("notes", event.target.value || undefined)} className={drawerTextareaClassName} />
+            </DrawerField>
+          </div>
+        </DrawerSection>
+      </div>
     </DrawerShell>
   );
 }

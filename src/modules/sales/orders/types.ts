@@ -130,3 +130,87 @@ export type PaginatedSalesOrders = {
   pageSize: number;
   totalPages: number;
 };
+
+export const SalesDeliveryStatus = {
+  DRAFT: "DRAFT",
+  READY_TO_DISPATCH: "READY_TO_DISPATCH",
+  DISPATCHED: "DISPATCHED",
+  DELIVERED: "DELIVERED",
+  CANCELLED: "CANCELLED",
+} as const;
+
+export type SalesDeliveryStatus = (typeof SalesDeliveryStatus)[keyof typeof SalesDeliveryStatus];
+
+export const SalesInvoiceStatus = {
+  DRAFT: "DRAFT",
+  ISSUED: "ISSUED",
+  PARTIALLY_PAID: "PARTIALLY_PAID",
+  PAID: "PAID",
+  OVERDUE: "OVERDUE",
+  CANCELLED: "CANCELLED",
+} as const;
+
+export type SalesInvoiceStatus = (typeof SalesInvoiceStatus)[keyof typeof SalesInvoiceStatus];
+
+export type SalesDelivery = {
+  id: string;
+  deliveryNumber: string;
+  salesOrderId: string;
+  salesOrderNumber: string;
+  customerName: string;
+  company: string | null;
+  shippingAddress: string | null;
+  status: SalesDeliveryStatus;
+  scheduledDate: string | null;
+  dispatchedAt: string | null;
+  deliveredAt: string | null;
+  carrier: string | null;
+  trackingNumber: string | null;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type SalesInvoice = {
+  id: string;
+  invoiceNumber: string;
+  salesOrderId: string;
+  salesOrderNumber: string;
+  customerName: string;
+  company: string | null;
+  billingAddress: string | null;
+  currency: string;
+  status: SalesInvoiceStatus;
+  dueDate: string | null;
+  issuedAt: string | null;
+  paidAt: string | null;
+  subtotal: number;
+  taxTotal: number;
+  total: number;
+  balanceDue: number;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type SalesDeliveryListResponse = {
+  data: SalesDelivery[];
+};
+
+export type SalesInvoiceListResponse = {
+  data: SalesInvoice[];
+};
+
+export type CreateSalesDeliveryInput = {
+  salesOrderId: string;
+  scheduledDate?: string;
+  carrier?: string;
+  trackingNumber?: string;
+  notes?: string;
+};
+
+export type CreateSalesInvoiceInput = {
+  salesOrderId: string;
+  dueDate?: string;
+  notes?: string;
+};
