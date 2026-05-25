@@ -361,13 +361,13 @@ function buildAssigneeOptions(
   users: Array<{ id: string; name: string; email: string }>,
   currentTask?: Pick<TaskSummary, "assignedToId" | "assignedToName"> | null
 ) {
-  const options = [{ value: "", label: "Unassigned" }, ...users.map((user) => ({ value: user.id, label: user.name }))];
-  if (
-    currentTask?.assignedToId &&
-    currentTask.assignedToName &&
-    !options.some((option) => option.value === currentTask.assignedToId)
-  ) {
-    options.push({ value: currentTask.assignedToId, label: currentTask.assignedToName });
+  const options: AssigneeOption[] = [
+    { value: "", label: "Unassigned", email: null },
+    ...users.map((user) => ({ value: user.id, label: user.name, email: user.email })),
+  ];
+  const currentAssignee = resolveAssigneeIdentity(currentTask?.assignedToId, currentTask?.assignedToName, users);
+  if (currentAssignee.id && currentAssignee.name && !options.some((option) => option.value === currentAssignee.id)) {
+    options.push({ value: currentAssignee.id, label: currentAssignee.name, email: currentAssignee.email });
   }
   return options;
 }
@@ -734,6 +734,7 @@ export default function TaskManagementPage() {
   }
 
   function handleInlineUpdate(task: TaskSummary, patch: Partial<TaskRequest>, message: string) {
+    const resolvedAssignee = resolveAssigneeIdentity(task.assignedToId, task.assignedToName, users);
     updateTaskMutation.mutate(
       {
         id: task.id,
@@ -750,7 +751,8 @@ export default function TaskManagementPage() {
           estimatedHours: task.estimatedHours,
           spaceId: task.spaceId,
           assignedToId: task.assignedToId,
-          assignedToName: task.assignedToName,
+          assignedToName: resolvedAssignee.name || null,
+          assignedToEmail: resolvedAssignee.email,
           parentTaskId: task.parentTaskId,
           orderIndex: task.orderIndex,
           tags: task.tags.map((name) => ({ name })),
@@ -1352,8 +1354,8 @@ export default function TaskManagementPage() {
                               </div>
                               <div className="mt-4 flex items-center justify-between text-xs text-slate-500">
                                 <span className="inline-flex items-center gap-2">
-                                  <Avatar name={task.assignedToName} />
-                                  <span>{task.assignedToName || "Unassigned"}</span>
+                                  <Avatar name={resolveAssigneeIdentity(task.assignedToId, task.assignedToName, users).name} />
+                                  <span>{resolveAssigneeIdentity(task.assignedToId, task.assignedToName, users).name || "Unassigned"}</span>
                                 </span>
                                 <span className={`rounded-full border px-2 py-1 font-semibold ${priorityTone(task.priority)}`}>{toLabel(task.priority)}</span>
                               </div>
@@ -1390,8 +1392,8 @@ export default function TaskManagementPage() {
                           {task.projectRef || "General"} • {task.moduleRef || "Unsorted"}
                         </p>
                         <div className="mt-4 flex items-center gap-2 text-xs text-slate-500">
-                          <Avatar name={task.assignedToName} />
-                          {task.assignedToName || "Unassigned"}
+                          <Avatar name={resolveAssigneeIdentity(task.assignedToId, task.assignedToName, users).name} />
+                          {resolveAssigneeIdentity(task.assignedToId, task.assignedToName, users).name || "Unassigned"}
                         </div>
                       </button>
                     ))}
@@ -1545,6 +1547,25 @@ type FloatingOption = {
   label: string;
 };
 
+type AssigneeOption = {
+  value: string;
+  label: string;
+  email?: string | null;
+};
+
+function resolveAssigneeIdentity(
+  assignedToId: string | null | undefined,
+  assignedToName: string | null | undefined,
+  users: Array<{ id: string; name: string; email: string }>
+) {
+  const matchedUser = assignedToId ? users.find((user) => user.id === assignedToId) : null;
+  return {
+    id: assignedToId ?? matchedUser?.id ?? "",
+    name: matchedUser?.name?.trim() || assignedToName?.trim() || "",
+    email: matchedUser?.email ?? null,
+  };
+}
+
 function FloatingSelect({
   value,
   onChange,
@@ -1690,6 +1711,220 @@ function FloatingSelect({
                     </button>
                   );
                 })}
+              </div>
+            </div>,
+            document.body
+          )
+        : null}
+    </div>
+  );
+}
+
+function AssigneeSelect({
+  value,
+  onChange,
+  options,
+  className = "",
+  triggerClassName = "",
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  options: AssigneeOption[];
+  className?: string;
+  triggerClassName?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [highlightedIndex, setHighlightedIndex] = useState(0);
+  const [query, setQuery] = useState("");
+  const [panelStyle, setPanelStyle] = useState<React.CSSProperties>({});
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  const searchRef = useRef<HTMLInputElement | null>(null);
+
+  const selectedOption =
+    options.find((option) => option.value === value) ??
+    options.find((option) => option.value === "") ??
+    options[0];
+
+  const filteredOptions = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+    if (!normalizedQuery) return options;
+    return options.filter((option) => {
+      const haystack = [option.label, option.email ?? ""].join(" ").toLowerCase();
+      return haystack.includes(normalizedQuery);
+    });
+  }, [options, query]);
+
+  const selectedIndex = Math.max(
+    0,
+    filteredOptions.findIndex((option) => option.value === value)
+  );
+
+  const updatePosition = React.useCallback(() => {
+    if (!triggerRef.current || typeof window === "undefined") return;
+    const rect = triggerRef.current.getBoundingClientRect();
+    const width = Math.min(Math.max(rect.width, 320), 420);
+    const left = Math.min(Math.max(16, rect.left), window.innerWidth - width - 16);
+    const spaceBelow = window.innerHeight - rect.bottom - 16;
+    const desiredHeight = 420;
+    const shouldFlip = spaceBelow < 260 && rect.top > desiredHeight;
+    const top = shouldFlip ? Math.max(16, rect.top - desiredHeight - 8) : Math.min(rect.bottom + 8, window.innerHeight - desiredHeight - 16);
+    setPanelStyle({
+      position: "fixed",
+      top,
+      left,
+      width,
+      zIndex: 90,
+    });
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    updatePosition();
+    const handleViewport = () => updatePosition();
+    window.addEventListener("resize", handleViewport);
+    window.addEventListener("scroll", handleViewport, true);
+    return () => {
+      window.removeEventListener("resize", handleViewport);
+      window.removeEventListener("scroll", handleViewport, true);
+    };
+  }, [open, updatePosition]);
+
+  useEffect(() => {
+    if (!open) return;
+    setQuery("");
+    setHighlightedIndex(selectedIndex);
+    const timer = window.setTimeout(() => searchRef.current?.focus(), 0);
+
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (triggerRef.current?.contains(target) || panelRef.current?.contains(target)) {
+        return;
+      }
+      setOpen(false);
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setOpen(false);
+        triggerRef.current?.focus();
+        return;
+      }
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        setHighlightedIndex((prev) => (filteredOptions.length ? (prev + 1) % filteredOptions.length : 0));
+      }
+      if (event.key === "ArrowUp") {
+        event.preventDefault();
+        setHighlightedIndex((prev) => (filteredOptions.length ? (prev - 1 + filteredOptions.length) % filteredOptions.length : 0));
+      }
+      if (event.key === "Enter") {
+        event.preventDefault();
+        const option = filteredOptions[highlightedIndex];
+        if (option) {
+          onChange(option.value);
+          setOpen(false);
+        }
+      }
+    };
+
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.clearTimeout(timer);
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [filteredOptions, highlightedIndex, onChange, open, selectedIndex]);
+
+  const currentLabel = selectedOption?.value ? selectedOption.label : "Assign person";
+  const currentSubtitle = selectedOption?.value ? selectedOption.email : "Choose a teammate";
+
+  return (
+    <div className={className}>
+      <button
+        ref={triggerRef}
+        type="button"
+        onClick={() => setOpen((prev) => !prev)}
+        className={`inline-flex w-full items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-left transition hover:border-slate-300 ${triggerClassName}`}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+      >
+        <div className="flex min-w-0 items-center gap-3">
+          <Avatar name={selectedOption?.value ? selectedOption.label : null} />
+          <div className="min-w-0">
+            <p className="truncate text-sm font-medium text-slate-800">{currentLabel}</p>
+            <p className="truncate text-xs text-slate-500">{currentSubtitle}</p>
+          </div>
+        </div>
+        <ChevronDown className={`h-4 w-4 flex-shrink-0 text-slate-400 transition ${open ? "rotate-180" : ""}`} />
+      </button>
+
+      {open && typeof document !== "undefined"
+        ? createPortal(
+            <div
+              ref={panelRef}
+              style={panelStyle}
+              className="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-[0_24px_60px_rgba(15,23,42,0.14)]"
+            >
+              <div className="border-b border-slate-100 p-3">
+                <div className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5">
+                  <Search className="h-4 w-4 text-slate-400" />
+                  <input
+                    ref={searchRef}
+                    value={query}
+                    onChange={(event) => {
+                      setQuery(event.target.value);
+                      setHighlightedIndex(0);
+                    }}
+                    placeholder="Search people or enter email..."
+                    className="w-full bg-transparent text-sm text-slate-700 outline-none placeholder:text-slate-400"
+                  />
+                </div>
+              </div>
+              <div className="max-h-[320px] overflow-y-auto px-2 py-2">
+                <p className="px-3 pb-2 pt-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+                  Assignees
+                </p>
+                {filteredOptions.length ? (
+                  filteredOptions.map((option, index) => {
+                    const selected = option.value === value;
+                    const highlighted = index === highlightedIndex;
+                    return (
+                      <button
+                        key={`${option.value}-${option.label}`}
+                        type="button"
+                        onMouseEnter={() => setHighlightedIndex(index)}
+                        onClick={() => {
+                          onChange(option.value);
+                          setOpen(false);
+                        }}
+                        className={`flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left transition ${
+                          selected
+                            ? "bg-slate-100"
+                            : highlighted
+                              ? "bg-slate-50"
+                              : "hover:bg-slate-50"
+                        }`}
+                        role="option"
+                        aria-selected={selected}
+                      >
+                        <Avatar name={option.value ? option.label : null} />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-medium text-slate-800">{option.label}</p>
+                          <p className="truncate text-xs text-slate-500">
+                            {option.value ? option.email || "No email on record" : "Leave this task without an assignee"}
+                          </p>
+                        </div>
+                        {selected ? <CheckCircle2 className="h-4 w-4 flex-shrink-0 text-slate-900" /> : null}
+                      </button>
+                    );
+                  })
+                ) : (
+                  <div className="px-3 py-8 text-center text-sm text-slate-500">
+                    No matching people found.
+                  </div>
+                )}
               </div>
             </div>,
             document.body
@@ -1871,17 +2106,17 @@ function TaskRow({
         )}
 
         <div className="flex items-center gap-2">
-          <Avatar name={task.assignedToName} />
+          <Avatar name={resolveAssigneeIdentity(task.assignedToId, task.assignedToName, users).name} />
           {canEditTask ? (
-          <FloatingSelect
+          <AssigneeSelect
             value={task.assignedToId ?? ""}
             onChange={(value) => onAssign(task, value)}
             options={buildAssigneeOptions(users, task)}
             className="min-w-0 flex-1"
-            triggerClassName="rounded-xl text-xs font-medium"
+            triggerClassName="rounded-xl py-2 text-xs"
           />
           ) : (
-            <span className="text-xs font-medium text-slate-700">{task.assignedToName || "Unassigned"}</span>
+            <span className="text-xs font-medium text-slate-700">{resolveAssigneeIdentity(task.assignedToId, task.assignedToName, users).name || "Unassigned"}</span>
           )}
         </div>
 
@@ -2034,7 +2269,10 @@ function DetailPanel({
         </div>
 
         <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-slate-600">
-          <InlineMeta icon={<UserRound className="h-4 w-4 text-slate-400" />} value={detail.task.assignedToName || "Unassigned"} />
+          <InlineMeta
+            icon={<UserRound className="h-4 w-4 text-slate-400" />}
+            value={resolveAssigneeIdentity(detail.task.assignedToId, detail.task.assignedToName, users).name || "Unassigned"}
+          />
           <InlineMeta icon={<CalendarDays className="h-4 w-4 text-slate-400" />} value={formatLongDate(detail.task.dueDate)} />
           <InlineMeta icon={<Clock3 className="h-4 w-4 text-slate-400" />} value={`${detail.task.estimatedHours.toFixed(2)}h`} />
           <InlineMeta icon={<TrendingUp className="h-4 w-4 text-slate-400" />} value={`${detail.task.progressPercent}%`} />
@@ -2081,7 +2319,7 @@ function DetailPanel({
             <div className="flex flex-wrap gap-2 rounded-2xl border border-slate-200 bg-slate-50/80 p-2.5">
               {canEditTask ? (
                 <CompactEditField label="Assignee" icon={<UserRound className="h-4 w-4 text-slate-400" />}>
-                  <FloatingSelect
+                  <AssigneeSelect
                     value={detail.task.assignedToId ?? ""}
                     onChange={(value) => onAssign(detail.task, value)}
                     options={buildAssigneeOptions(users, detail.task)}
@@ -2390,7 +2628,7 @@ function TaskEditor({
           />
         </Field>
         <Field label="Assignee">
-          <FloatingSelect
+          <AssigneeSelect
             value={form.assignedToId}
             onChange={(value) => setForm((prev) => ({ ...prev, assignedToId: value }))}
             options={buildAssigneeOptions(
@@ -2789,6 +3027,13 @@ function StatusDot({ tone }: { tone: TaskStatus }) {
 }
 
 function Avatar({ name }: { name?: string | null }) {
+  if (!name) {
+    return (
+      <span className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-slate-400">
+        <UserRound className="h-3.5 w-3.5" />
+      </span>
+    );
+  }
   return (
     <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-slate-900 text-[11px] font-semibold text-white">
       {initials(name)}
