@@ -59,10 +59,23 @@ public final class TaskDtos {
       String approverName,
       String parentTaskId,
       Long orderIndex,
+      @Valid List<AssigneeRefRequest> assignees,
       @Valid List<TagRequest> tags,
       @Valid List<AttachmentRequest> attachments,
       @Valid List<DependencyRequest> dependencies,
       @Valid List<ChecklistItemCreateRequest> checklistItems
+  ) {
+  }
+
+  public record AssigneeRefRequest(
+      @NotBlank(message = "Assignee id is required.")
+      String assignedToId,
+      @NotBlank(message = "Assignee name is required.")
+      String assignedToName,
+      @Size(max = 200, message = "Assignee email must be at most 200 characters.")
+      String assignedToEmail,
+      @Size(max = 160, message = "Assigned team name must be at most 160 characters.")
+      String assignedTeamName
   ) {
   }
 
@@ -240,6 +253,7 @@ public final class TaskDtos {
       String assignedToId,
       String assignedToName,
       String assignedTeamName,
+      List<TaskAssigneeResponse> activeAssignees,
       String parentTaskId,
       int hierarchyLevel,
       String taskPath,
@@ -256,6 +270,14 @@ public final class TaskDtos {
       boolean canEdit,
       boolean canManageExecution,
       List<TaskSummaryResponse> subtasks
+  ) {
+  }
+
+  public record TaskAssigneeResponse(
+      String assignedToId,
+      String assignedToName,
+      String assignedToEmail,
+      String assignedTeamName
   ) {
   }
 

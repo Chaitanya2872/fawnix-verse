@@ -41,7 +41,6 @@ import type { CurrentUser } from "@/modules/auth/types";
 import {
   useAddChecklistItem,
   useAddTaskComment,
-  useAssignTask,
   connectTaskStream,
   spaceKeys,
   taskKeys,
@@ -102,7 +101,7 @@ type TaskFormState = {
   projectRef: string;
   moduleRef: string;
   workflowName: string;
-  assignedToId: string;
+  assignedToIds: string[];
   estimatedHours: string;
   tags: string;
   spaceId: string;
@@ -156,7 +155,7 @@ const defaultForm: TaskFormState = {
   projectRef: "",
   moduleRef: "",
   workflowName: "",
-  assignedToId: "",
+  assignedToIds: [],
   estimatedHours: "",
   tags: "",
   spaceId: "",
@@ -196,6 +195,11 @@ function formatLongDate(value?: string | null) {
   return format(parseISO(value), "dd MMM yyyy");
 }
 
+function formatTableDate(value?: string | null) {
+  if (!value) return "No due date";
+  return format(parseISO(value), "MMM dd, yyyy");
+}
+
 function formatRelativeDate(value?: string | null) {
   if (!value) return "No date";
   return formatDistanceToNowStrict(parseISO(value), { addSuffix: true });
@@ -203,10 +207,10 @@ function formatRelativeDate(value?: string | null) {
 
 function priorityTone(priority: TaskPriority) {
   return {
-    LOW: "border-slate-200 bg-slate-100 text-slate-700",
-    MEDIUM: "border-sky-200 bg-sky-50 text-sky-700",
-    HIGH: "border-amber-200 bg-amber-50 text-amber-700",
-    CRITICAL: "border-rose-200 bg-rose-50 text-rose-700",
+    LOW: "bg-slate-100 text-slate-700",
+    MEDIUM: "bg-sky-50 text-sky-700",
+    HIGH: "bg-amber-50 text-amber-700",
+    CRITICAL: "bg-rose-50 text-rose-700",
   }[priority];
 }
 
@@ -249,7 +253,7 @@ function taskToForm(task: TaskSummary | null): TaskFormState {
     projectRef: task.projectRef ?? "",
     moduleRef: task.moduleRef ?? "",
     workflowName: "",
-    assignedToId: task.assignedToId ?? "",
+    assignedToIds: task.activeAssignees?.length ? task.activeAssignees.map((assignee) => assignee.assignedToId) : task.assignedToId ? [task.assignedToId] : [],
     estimatedHours: String(task.estimatedHours ?? ""),
     tags: task.tags.join(", "),
     spaceId: task.spaceId ?? "",
@@ -263,7 +267,16 @@ function buildPayload(
   parentTaskId?: string | null,
   orderIndex?: number | null
 ): TaskRequest {
-  const assignee = users.find((user) => user.id === form.assignedToId);
+  const assignees = form.assignedToIds
+    .map((userId) => users.find((user) => user.id === userId))
+    .filter((user): user is { id: string; name: string; email: string } => Boolean(user))
+    .map((user) => ({
+      assignedToId: user.id,
+      assignedToName: user.name,
+      assignedToEmail: user.email,
+      assignedTeamName: null,
+    }));
+  const primaryAssignee = assignees[0];
   return {
     title: form.title.trim(),
     description: form.description.trim() || null,
@@ -276,9 +289,10 @@ function buildPayload(
     moduleRef: form.moduleRef.trim() || null,
     workflowName: form.workflowName.trim() || null,
     spaceId: form.spaceId || fallbackSpaceId || null,
-    assignedToId: assignee?.id ?? null,
-    assignedToName: assignee?.name ?? null,
-    assignedToEmail: assignee?.email ?? null,
+    assignedToId: primaryAssignee?.assignedToId ?? null,
+    assignedToName: primaryAssignee?.assignedToName ?? null,
+    assignedToEmail: primaryAssignee?.assignedToEmail ?? null,
+    assignees,
     estimatedHours: form.estimatedHours ? Number(form.estimatedHours) : 0,
     parentTaskId: parentTaskId ?? undefined,
     orderIndex: orderIndex ?? undefined,
@@ -375,13 +389,14 @@ function buildAssigneeOptions(
 function canOpenFullTaskEditor(user: CurrentUser | null | undefined, task: TaskSummary) {
   if (!user) return false;
   if (typeof task.canEdit === "boolean") return task.canEdit;
-  return hasPermission(user, PERMISSIONS.PAGE_TASKS) || hasPermission(user, PERMISSIONS.MODULE_TASKS);
+  return false;
 }
 
 function canManageExecution(user: CurrentUser | null | undefined, task: TaskSummary) {
   if (!user) return false;
   if (typeof task.canManageExecution === "boolean") return task.canManageExecution;
   if (user.id === task.assignedToId) return true;
+  if (task.activeAssignees?.some((assignee) => assignee.assignedToId === user.id)) return true;
   return hasPermission(user, PERMISSIONS.PAGE_TASKS) || hasPermission(user, PERMISSIONS.MODULE_TASKS);
 }
 
@@ -464,7 +479,6 @@ export default function TaskManagementPage() {
   const updateTaskStatusMutation = useUpdateTaskStatus();
   const deleteTaskMutation = useDeleteTask();
   const reorderMutation = useReorderTaskHierarchy();
-  const assignMutation = useAssignTask();
   const commentMutation = useAddTaskComment();
   const addChecklistMutation = useAddChecklistItem();
   const updateChecklistMutation = useUpdateChecklistItem();
@@ -735,6 +749,7 @@ export default function TaskManagementPage() {
 
   function handleInlineUpdate(task: TaskSummary, patch: Partial<TaskRequest>, message: string) {
     const resolvedAssignee = resolveAssigneeIdentity(task.assignedToId, task.assignedToName, users);
+    const activeAssignees = getActiveAssignees(task, users);
     updateTaskMutation.mutate(
       {
         id: task.id,
@@ -753,6 +768,7 @@ export default function TaskManagementPage() {
           assignedToId: task.assignedToId,
           assignedToName: resolvedAssignee.name || null,
           assignedToEmail: resolvedAssignee.email,
+          assignees: activeAssignees,
           parentTaskId: task.parentTaskId,
           orderIndex: task.orderIndex,
           tags: task.tags.map((name) => ({ name })),
@@ -801,29 +817,41 @@ export default function TaskManagementPage() {
     );
   }
 
-  function handleAssign(task: TaskSummary, userId: string) {
-    const assignee = users.find((user) => user.id === userId);
-    if (!assignee) {
-      handleInlineUpdate(
-        task,
-        { assignedToId: null, assignedToName: null, assignedToEmail: null, assignedTeamName: null },
-        "Task unassigned."
-      );
-      return;
-    }
-    assignMutation.mutate(
+  function handleAssign(task: TaskSummary, userIds: string[]) {
+    const selectedUsers = userIds
+      .map((userId) => users.find((user) => user.id === userId))
+      .filter((user): user is { id: string; name: string; email: string } => Boolean(user));
+    updateTaskMutation.mutate(
       {
         id: task.id,
-        reassign: Boolean(task.assignedToId),
         payload: {
-          assignedToId: assignee.id,
-          assignedToName: assignee.name,
-          assignedToEmail: assignee.email,
-          preventDuplicateActiveAssignments: true,
+          title: task.title,
+          description: task.description,
+          priority: task.priority,
+          status: task.status,
+          visibility: task.visibility,
+          startDate: task.startDate,
+          dueDate: task.dueDate,
+          projectRef: task.projectRef,
+          moduleRef: task.moduleRef,
+          estimatedHours: task.estimatedHours,
+          spaceId: task.spaceId,
+          assignedToId: selectedUsers[0]?.id ?? null,
+          assignedToName: selectedUsers[0]?.name ?? null,
+          assignedToEmail: selectedUsers[0]?.email ?? null,
+          assignees: selectedUsers.map((user) => ({
+            assignedToId: user.id,
+            assignedToName: user.name,
+            assignedToEmail: user.email,
+            assignedTeamName: null,
+          })),
+          parentTaskId: task.parentTaskId,
+          orderIndex: task.orderIndex,
+          tags: task.tags.map((name) => ({ name })),
         },
       },
       {
-        onSuccess: () => toast.success("Assignee updated."),
+        onSuccess: () => toast.success(selectedUsers.length ? "Assignees updated." : "Task unassigned."),
         onError: (error) => toast.error(error.message),
       }
     );
@@ -1280,8 +1308,8 @@ export default function TaskManagementPage() {
                               </button>
                             </div>
 
-                            <div className="overflow-hidden rounded-[22px] border border-slate-200">
-                              <div className="hidden grid-cols-[minmax(0,2.6fr)_140px_150px_130px_130px_120px_110px] items-center gap-3 border-b border-slate-200 bg-slate-50/80 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 lg:grid">
+                            <div className="overflow-hidden rounded-[22px] border border-slate-200/80 bg-white">
+                              <div className="hidden grid-cols-[minmax(0,2.8fr)_118px_180px_138px_108px_118px_110px] items-center gap-4 border-b border-slate-100 bg-slate-50/60 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 lg:grid">
                                 <span>Task</span>
                                 <span>Status</span>
                                 <span>Assignee</span>
@@ -1290,7 +1318,7 @@ export default function TaskManagementPage() {
                                 <span>Project</span>
                                 <span>Progress</span>
                               </div>
-                              <div className="divide-y divide-slate-100">
+                              <div className="divide-y divide-slate-100/80">
                                 {section.tasks.map((task) => (
                                   <TaskRow
                                     key={task.id}
@@ -1354,8 +1382,8 @@ export default function TaskManagementPage() {
                               </div>
                               <div className="mt-4 flex items-center justify-between text-xs text-slate-500">
                                 <span className="inline-flex items-center gap-2">
-                                  <Avatar name={resolveAssigneeIdentity(task.assignedToId, task.assignedToName, users).name} />
-                                  <span>{resolveAssigneeIdentity(task.assignedToId, task.assignedToName, users).name || "Unassigned"}</span>
+                                  <Avatar name={getActiveAssignees(task, users)[0]?.assignedToName} />
+                                  <span>{getActiveAssignees(task, users).length ? getActiveAssignees(task, users).map((assignee) => assignee.assignedToName).join(", ") : "Unassigned"}</span>
                                 </span>
                                 <span className={`rounded-full border px-2 py-1 font-semibold ${priorityTone(task.priority)}`}>{toLabel(task.priority)}</span>
                               </div>
@@ -1392,8 +1420,8 @@ export default function TaskManagementPage() {
                           {task.projectRef || "General"} • {task.moduleRef || "Unsorted"}
                         </p>
                         <div className="mt-4 flex items-center gap-2 text-xs text-slate-500">
-                          <Avatar name={resolveAssigneeIdentity(task.assignedToId, task.assignedToName, users).name} />
-                          {resolveAssigneeIdentity(task.assignedToId, task.assignedToName, users).name || "Unassigned"}
+                          <Avatar name={getActiveAssignees(task, users)[0]?.assignedToName} />
+                          {getActiveAssignees(task, users).length ? getActiveAssignees(task, users).map((assignee) => assignee.assignedToName).join(", ") : "Unassigned"}
                         </div>
                       </button>
                     ))}
@@ -1564,6 +1592,29 @@ function resolveAssigneeIdentity(
     name: matchedUser?.name?.trim() || assignedToName?.trim() || "",
     email: matchedUser?.email ?? null,
   };
+}
+
+function getActiveAssignees(
+  task: Pick<TaskSummary, "activeAssignees" | "assignedToId" | "assignedToName" | "assignedTeamName">,
+  users: Array<{ id: string; name: string; email: string }>
+) {
+  if (task.activeAssignees?.length) {
+    return task.activeAssignees.map((assignee) => ({
+      ...assignee,
+      assignedToName: resolveAssigneeIdentity(assignee.assignedToId, assignee.assignedToName, users).name || assignee.assignedToName,
+    }));
+  }
+  const resolved = resolveAssigneeIdentity(task.assignedToId, task.assignedToName, users);
+  return resolved.id
+    ? [
+        {
+          assignedToId: resolved.id,
+          assignedToName: resolved.name,
+          assignedToEmail: resolved.email,
+          assignedTeamName: task.assignedTeamName ?? null,
+        },
+      ]
+    : [];
 }
 
 function FloatingSelect({
@@ -1934,6 +1985,156 @@ function AssigneeSelect({
   );
 }
 
+function AssigneeMultiSelect({
+  values,
+  onChange,
+  options,
+  className = "",
+}: {
+  values: string[];
+  onChange: (values: string[]) => void;
+  options: AssigneeOption[];
+  className?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [panelStyle, setPanelStyle] = useState<React.CSSProperties>({});
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  const searchRef = useRef<HTMLInputElement | null>(null);
+
+  const selectedOptions = options.filter((option) => option.value && values.includes(option.value));
+  const filteredOptions = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+    return options.filter((option) => {
+      if (!option.value) return false;
+      if (!normalizedQuery) return true;
+      return [option.label, option.email ?? ""].join(" ").toLowerCase().includes(normalizedQuery);
+    });
+  }, [options, query]);
+
+  const updatePosition = React.useCallback(() => {
+    if (!triggerRef.current || typeof window === "undefined") return;
+    const rect = triggerRef.current.getBoundingClientRect();
+    const width = Math.min(Math.max(rect.width, 340), 440);
+    const left = Math.min(Math.max(16, rect.left), window.innerWidth - width - 16);
+    const top = Math.min(rect.bottom + 8, window.innerHeight - 460);
+    setPanelStyle({
+      position: "fixed",
+      top,
+      left,
+      width,
+      zIndex: 90,
+    });
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    updatePosition();
+    const handleViewport = () => updatePosition();
+    window.addEventListener("resize", handleViewport);
+    window.addEventListener("scroll", handleViewport, true);
+    return () => {
+      window.removeEventListener("resize", handleViewport);
+      window.removeEventListener("scroll", handleViewport, true);
+    };
+  }, [open, updatePosition]);
+
+  useEffect(() => {
+    if (!open) return;
+    const timer = window.setTimeout(() => searchRef.current?.focus(), 0);
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (triggerRef.current?.contains(target) || panelRef.current?.contains(target)) return;
+      setOpen(false);
+    };
+    document.addEventListener("mousedown", handlePointerDown);
+    return () => {
+      window.clearTimeout(timer);
+      document.removeEventListener("mousedown", handlePointerDown);
+    };
+  }, [open]);
+
+  return (
+    <div className={className}>
+      <button
+        ref={triggerRef}
+        type="button"
+        onClick={() => setOpen((prev) => !prev)}
+        className="flex w-full items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-left transition hover:border-slate-300"
+      >
+        <div className="min-w-0">
+          <div className="flex min-w-0 items-center gap-2">
+            <div className="flex -space-x-2">
+              {selectedOptions.slice(0, 3).map((option) => (
+                <Avatar key={option.value} name={option.label} />
+              ))}
+            </div>
+            <span className="truncate text-sm font-medium text-slate-800">
+              {selectedOptions.length ? selectedOptions.map((option) => option.label).join(", ") : "Assign teammates"}
+            </span>
+          </div>
+          <p className="mt-1 text-xs text-slate-500">
+            {selectedOptions.length ? `${selectedOptions.length} assignee${selectedOptions.length > 1 ? "s" : ""} selected` : "Choose one or more people"}
+          </p>
+        </div>
+        <ChevronDown className={`h-4 w-4 flex-shrink-0 text-slate-400 transition ${open ? "rotate-180" : ""}`} />
+      </button>
+
+      {open && typeof document !== "undefined"
+        ? createPortal(
+            <div
+              ref={panelRef}
+              style={panelStyle}
+              className="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-[0_24px_60px_rgba(15,23,42,0.14)]"
+            >
+              <div className="border-b border-slate-100 p-3">
+                <div className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5">
+                  <Search className="h-4 w-4 text-slate-400" />
+                  <input
+                    ref={searchRef}
+                    value={query}
+                    onChange={(event) => setQuery(event.target.value)}
+                    placeholder="Search people..."
+                    className="w-full bg-transparent text-sm text-slate-700 outline-none placeholder:text-slate-400"
+                  />
+                </div>
+              </div>
+              <div className="max-h-[320px] overflow-y-auto px-2 py-2">
+                <p className="px-3 pb-2 pt-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">Assignees</p>
+                {filteredOptions.map((option) => {
+                  const selected = values.includes(option.value);
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() =>
+                        onChange(
+                          selected ? values.filter((value) => value !== option.value) : [...values, option.value]
+                        )
+                      }
+                      className={`flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left transition ${
+                        selected ? "bg-slate-100" : "hover:bg-slate-50"
+                      }`}
+                    >
+                      <Avatar name={option.label} />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium text-slate-800">{option.label}</p>
+                        <p className="truncate text-xs text-slate-500">{option.email || "No email on record"}</p>
+                      </div>
+                      {selected ? <CheckCircle2 className="h-4 w-4 flex-shrink-0 text-slate-900" /> : null}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>,
+            document.body
+          )
+        : null}
+    </div>
+  );
+}
+
 function ViewSwitch({
   value,
   onChange,
@@ -2021,7 +2222,7 @@ function TaskRow({
   active: boolean;
   onOpen: () => void;
   onToggleExpand: (taskId: string) => void;
-  onAssign: (task: TaskSummary, userId: string) => void;
+  onAssign: (task: TaskSummary, userIds: string[]) => void;
   onStatusUpdate: (task: TaskSummary, status: TaskStatus, message: string) => void;
   onInlineUpdate: (task: TaskSummary, patch: Partial<TaskRequest>, message: string) => void;
   onPromote: (task: TaskSummary) => void;
@@ -2031,30 +2232,38 @@ function TaskRow({
   onDragStart: (taskId: string | null) => void;
 }) {
   const expanded = expandedIds.has(task.id);
-  const canUpdateExecution = canManageExecution(currentUser, task);
-  const canEditTask = canOpenFullTaskEditor(currentUser, task);
+  const activeAssignees = getActiveAssignees(task, users);
 
   return (
     <div
       draggable
+      onClick={onOpen}
       onDragStart={() => onDragStart(task.id)}
       onDragEnd={() => onDragStart(null)}
       onDragOver={(event) => {
         event.preventDefault();
       }}
       onDrop={() => onDropOnTask(task)}
-      className={`group px-3 py-2.5 transition sm:px-4 ${active ? "bg-slate-100/80" : "hover:bg-slate-50/80"} ${
+      className={`group cursor-pointer px-3 py-2 transition sm:px-4 ${active ? "bg-slate-100/80" : "hover:bg-slate-50/70"} ${
         dragTaskId === task.id ? "opacity-60" : ""
       }`}
     >
-      <div className="flex flex-col gap-3 lg:grid lg:grid-cols-[minmax(0,2.6fr)_140px_150px_130px_130px_120px_110px] lg:items-center lg:gap-3">
-        <div className="flex min-w-0 items-start gap-3">
-          <button type="button" className="mt-0.5 cursor-grab rounded-lg p-1 text-slate-300 transition group-hover:text-slate-500">
+      <div className="flex flex-col gap-2.5 lg:grid lg:grid-cols-[minmax(0,2.8fr)_118px_180px_138px_108px_118px_110px] lg:items-center lg:gap-4">
+        <div className="flex min-w-0 items-start gap-2.5">
+          <button
+            type="button"
+            onClick={(event) => event.stopPropagation()}
+            className="mt-0.5 cursor-grab rounded-lg p-1 text-slate-300 transition group-hover:text-slate-500"
+          >
             <GripVertical className="h-4 w-4" />
           </button>
           <button
             type="button"
-            onClick={() => (task.childCount ? onToggleExpand(task.id) : onOpen())}
+            onClick={(event) => {
+              event.stopPropagation();
+              if (task.childCount) onToggleExpand(task.id);
+              else onOpen();
+            }}
             className="mt-0.5 rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
           >
             {task.childCount ? expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" /> : <CircleDashed className="h-4 w-4" />}
@@ -2067,19 +2276,19 @@ function TaskRow({
           >
             <div className="flex flex-wrap items-center gap-2">
               <span className={`h-2.5 w-2.5 rounded-full ${statusDot(task.status)}`} />
-              <span className="truncate text-sm font-semibold text-slate-900">{task.title}</span>
+              <span className="truncate text-[13.5px] font-semibold text-slate-900">{task.title}</span>
               {task.overdue ? (
-                <span className="rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-[10px] font-semibold text-rose-700">
+                <span className="rounded-full bg-rose-50 px-2 py-0.5 text-[10px] font-semibold text-rose-700">
                   Overdue
                 </span>
               ) : null}
               {task.childCount ? (
-                <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-semibold text-slate-500">
+                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500">
                   {task.childCount} subtasks
                 </span>
               ) : null}
             </div>
-            <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+            <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
               <span>{task.taskCode}</span>
               <span>•</span>
               <span>{task.projectRef || "General"}</span>
@@ -2091,61 +2300,37 @@ function TaskRow({
           </button>
         </div>
 
-        {canUpdateExecution ? (
-          <FloatingSelect
-            value={task.status}
-            onChange={(value) => onStatusUpdate(task, value as TaskStatus, "Status updated.")}
-            options={TASK_STATUSES.map((status) => ({ value: status, label: toLabel(status) }))}
-            className="w-full min-w-[140px]"
-            triggerClassName="rounded-xl text-xs font-medium"
-          />
-        ) : (
-          <div className="text-xs font-medium text-slate-600">
-            <span className={`rounded-full border px-2 py-1 ${statusTone(task.status)}`}>{toLabel(task.status)}</span>
-          </div>
-        )}
-
-        <div className="flex items-center gap-2">
-          <Avatar name={resolveAssigneeIdentity(task.assignedToId, task.assignedToName, users).name} />
-          {canEditTask ? (
-          <AssigneeSelect
-            value={task.assignedToId ?? ""}
-            onChange={(value) => onAssign(task, value)}
-            options={buildAssigneeOptions(users, task)}
-            className="min-w-0 flex-1"
-            triggerClassName="rounded-xl py-2 text-xs"
-          />
-          ) : (
-            <span className="text-xs font-medium text-slate-700">{resolveAssigneeIdentity(task.assignedToId, task.assignedToName, users).name || "Unassigned"}</span>
-          )}
+        <div className="text-xs font-medium text-slate-600">
+          <span className={`inline-flex rounded-full px-2.5 py-1 ${statusTone(task.status)}`}>{toLabel(task.status)}</span>
         </div>
 
-        {canEditTask ? (
-          <input
-            type="date"
-            value={task.dueDate ?? ""}
-            onChange={(event) => onInlineUpdate(task, { dueDate: event.target.value || null }, "Due date updated.")}
-            className="rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-xs font-medium text-slate-700"
-          />
-        ) : (
-          <div className="text-xs font-medium text-slate-700">{formatDate(task.dueDate)}</div>
-        )}
-
-        {canEditTask ? (
-          <FloatingSelect
-            value={task.priority}
-            onChange={(value) => onInlineUpdate(task, { priority: value as TaskPriority }, "Priority updated.")}
-            options={TASK_PRIORITIES.map((priority) => ({ value: priority, label: toLabel(priority) }))}
-            className="w-full min-w-[130px]"
-            triggerClassName="rounded-xl text-xs font-medium"
-          />
-        ) : (
-          <div className="text-xs font-medium text-slate-600">
-            <span className={`rounded-full border px-2 py-1 ${priorityTone(task.priority)}`}>{toLabel(task.priority)}</span>
+        <div className="flex min-w-0 items-center gap-2">
+          <div className="flex -space-x-2">
+            {(activeAssignees.length ? activeAssignees : [{ assignedToId: "", assignedToName: "", assignedToEmail: null, assignedTeamName: null }]).slice(0, 3).map((assignee, index) => (
+              <span key={`${assignee.assignedToId || "unassigned"}-${index}`} className="ring-2 ring-white">
+                <Avatar name={assignee.assignedToName} />
+              </span>
+            ))}
           </div>
-        )}
+          <span className="truncate text-xs font-medium text-slate-700">
+            {activeAssignees.length
+              ? activeAssignees.map((assignee) => assignee.assignedToName).join(", ")
+              : "Unassigned"}
+          </span>
+        </div>
 
-        <div className="text-xs text-slate-500">
+        <div className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600">
+          <CalendarDays className="h-3.5 w-3.5 text-slate-400" />
+          <span>{formatTableDate(task.dueDate)}</span>
+        </div>
+
+        <div className="text-xs font-medium text-slate-600">
+          <span className={`inline-flex rounded-full px-2.5 py-1 ${priorityTone(task.priority)}`}>
+            {task.priority === "CRITICAL" ? "urgent" : toLabel(task.priority)}
+          </span>
+        </div>
+
+        <div className="text-[11px] text-slate-500">
           <p className="font-medium text-slate-700">{task.projectRef || "General"}</p>
           <p className="mt-0.5">{task.moduleRef || "Unsorted"}</p>
         </div>
@@ -2158,33 +2343,16 @@ function TaskRow({
         </div>
       </div>
 
-      <div className="mt-2 flex flex-wrap items-center justify-between gap-2 pl-11">
-        <div className="flex flex-wrap gap-1">
-          <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${statusTone(task.status)}`}>{toLabel(task.status)}</span>
-          <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${priorityTone(task.priority)}`}>{toLabel(task.priority)}</span>
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-2 pl-10">
+        <div className="flex flex-wrap items-center gap-2">
           {task.checklistTotal ? (
-            <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
+            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
               {task.checklistCompleted}/{task.checklistTotal} checklist
             </span>
           ) : null}
+          <span className="text-[11px] text-slate-500">Updated {formatRelativeDate(task.updatedAt)}</span>
         </div>
-        <div className="flex flex-wrap items-center gap-2 opacity-100 transition lg:opacity-0 lg:group-hover:opacity-100">
-          {canEditTask ? (
-            <button type="button" onClick={() => onEdit(task)} className="rounded-xl border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-700">
-              Edit
-            </button>
-          ) : null}
-          {task.parentTaskId ? (
-            <button type="button" onClick={() => onPromote(task)} className="rounded-xl border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-700">
-              Promote
-            </button>
-          ) : null}
-          {canEditTask ? (
-            <button type="button" onClick={() => onDelete(task.id)} className="rounded-xl border border-rose-200 px-2.5 py-1.5 text-xs font-semibold text-rose-700">
-              Delete
-            </button>
-          ) : null}
-        </div>
+        <span className="text-[11px] font-medium text-slate-400">Open for details</span>
       </div>
     </div>
   );
@@ -2226,7 +2394,7 @@ function DetailPanel({
   onQuickCompleteSubtask: (task: TaskSummary) => void;
   onPromote: (task: TaskSummary) => void;
   onOpenEdit: (task: TaskSummary) => void;
-  onAssign: (task: TaskSummary, userId: string) => void;
+  onAssign: (task: TaskSummary, userIds: string[]) => void;
   onStatusUpdate: (task: TaskSummary, status: TaskStatus, message: string) => void;
   onInlineUpdate: (task: TaskSummary, patch: Partial<TaskRequest>, message: string) => void;
   onClose: () => void;
@@ -2271,7 +2439,9 @@ function DetailPanel({
         <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-slate-600">
           <InlineMeta
             icon={<UserRound className="h-4 w-4 text-slate-400" />}
-            value={resolveAssigneeIdentity(detail.task.assignedToId, detail.task.assignedToName, users).name || "Unassigned"}
+            value={getActiveAssignees(detail.task, users).length
+              ? getActiveAssignees(detail.task, users).map((assignee) => assignee.assignedToName).join(", ")
+              : "Unassigned"}
           />
           <InlineMeta icon={<CalendarDays className="h-4 w-4 text-slate-400" />} value={formatLongDate(detail.task.dueDate)} />
           <InlineMeta icon={<Clock3 className="h-4 w-4 text-slate-400" />} value={`${detail.task.estimatedHours.toFixed(2)}h`} />
@@ -2319,9 +2489,9 @@ function DetailPanel({
             <div className="flex flex-wrap gap-2 rounded-2xl border border-slate-200 bg-slate-50/80 p-2.5">
               {canEditTask ? (
                 <CompactEditField label="Assignee" icon={<UserRound className="h-4 w-4 text-slate-400" />}>
-                  <AssigneeSelect
-                    value={detail.task.assignedToId ?? ""}
-                    onChange={(value) => onAssign(detail.task, value)}
+                  <AssigneeMultiSelect
+                    values={getActiveAssignees(detail.task, users).map((assignee) => assignee.assignedToId)}
+                    onChange={(values) => onAssign(detail.task, values)}
                     options={buildAssigneeOptions(users, detail.task)}
                     className="w-full"
                   />
@@ -2628,18 +2798,10 @@ function TaskEditor({
           />
         </Field>
         <Field label="Assignee">
-          <AssigneeSelect
-            value={form.assignedToId}
-            onChange={(value) => setForm((prev) => ({ ...prev, assignedToId: value }))}
-            options={buildAssigneeOptions(
-              users,
-              form.assignedToId
-                ? {
-                    assignedToId: form.assignedToId,
-                    assignedToName: users.find((user) => user.id === form.assignedToId)?.name ?? "Assigned user",
-                  }
-                : null
-            )}
+          <AssigneeMultiSelect
+            values={form.assignedToIds}
+            onChange={(values) => setForm((prev) => ({ ...prev, assignedToIds: values }))}
+            options={buildAssigneeOptions(users)}
             className="w-full"
           />
         </Field>

@@ -62,6 +62,7 @@ export type TaskSummary = {
   assignedToId: string | null;
   assignedToName: string | null;
   assignedTeamName: string | null;
+  activeAssignees: TaskAssignee[];
   parentTaskId: string | null;
   hierarchyLevel: number;
   taskPath: string;
@@ -78,6 +79,13 @@ export type TaskSummary = {
   canEdit: boolean;
   canManageExecution: boolean;
   subtasks: TaskSummary[];
+};
+
+export type TaskAssignee = {
+  assignedToId: string;
+  assignedToName: string;
+  assignedToEmail: string | null;
+  assignedTeamName: string | null;
 };
 
 export type TaskComment = {
@@ -239,6 +247,7 @@ export type TaskRequest = {
   approverName?: string | null;
   parentTaskId?: string | null;
   orderIndex?: number | null;
+  assignees?: TaskAssignee[];
   tags?: Array<{ name: string }>;
   attachments?: Array<{
     fileName: string;

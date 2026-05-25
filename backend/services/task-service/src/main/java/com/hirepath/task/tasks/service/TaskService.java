@@ -196,6 +196,7 @@ public class TaskService {
     ensureEditAccess(user, task);
     validateTaskDates(request.startDate(), request.dueDate());
     validateAssignee(request.assignedToId(), request.assignedToName());
+    List<NormalizedAssignee> normalizedAssignees = normalizeAssignees(request);
     TaskSpaceEntity targetSpace = resolveManagedSpace(request.spaceId(), user);
 
     TaskStatus previousStatus = task.getStatus();
@@ -216,12 +217,9 @@ public class TaskService {
     if (request.projectRef() != null) task.setProjectRef(trimToNull(request.projectRef()));
     if (request.moduleRef() != null) task.setModuleRef(trimToNull(request.moduleRef()));
     if (request.spaceId() != null) task.setSpaceId(targetSpace == null ? null : targetSpace.getId());
-    if (request.assignedToId() != null || request.assignedToName() != null) {
-      if (StringUtils.hasText(request.assignedToId())) {
-        task.setAssignedToId(request.assignedToId().trim());
-        task.setAssignedToName(request.assignedToName().trim());
-        if (request.assignedToEmail() != null) task.setAssignedToEmail(trimToNull(request.assignedToEmail()));
-        if (request.assignedTeamName() != null) task.setAssignedTeamName(trimToNull(request.assignedTeamName()));
+    if (request.assignees() != null || request.assignedToId() != null || request.assignedToName() != null) {
+      if (!normalizedAssignees.isEmpty()) {
+        applyPrimaryAssignee(task, normalizedAssignees.get(0), user);
       } else {
         clearAssignee(task);
       }
@@ -258,14 +256,18 @@ public class TaskService {
     if (!Objects.equals(previousParent, task.getParentTaskId())) {
       logActivity(task, TaskActivityType.UPDATED, user, task.getParentTaskId() == null ? "Converted item to top-level task." : "Converted item into nested subtask.");
     }
-    if (!equalsNullable(previousAssignee, task.getAssignedToId()) && StringUtils.hasText(task.getAssignedToId())) {
-      reassignInternal(task, user, new TaskDtos.AssignmentRequest(
-          task.getAssignedToId(),
-          task.getAssignedToName(),
-          task.getAssignedToEmail(),
-          task.getAssignedTeamName(),
-          true
-      ), true);
+    if (request.assignees() != null || request.assignedToId() != null || request.assignedToName() != null) {
+      boolean assigneesChanged = syncActiveAssignments(task, user, normalizedAssignees);
+      if (assigneesChanged) {
+        logActivity(task, TaskActivityType.REASSIGNED, user,
+            normalizedAssignees.isEmpty()
+                ? "Cleared task assignees."
+                : "Updated assignees: " + normalizedAssignees.stream().map(NormalizedAssignee::name).collect(Collectors.joining(", ")) + ".");
+      } else if (previousStatus != task.getStatus() || previousPriority != task.getPriority() || !Objects.equals(previousParent, task.getParentTaskId())) {
+        logActivity(task, TaskActivityType.UPDATED, user, "Task updated.");
+      }
+    } else if (!equalsNullable(previousAssignee, task.getAssignedToId()) && StringUtils.hasText(task.getAssignedToId())) {
+      syncActiveAssignments(task, user, normalizeAssignees(request));
     } else {
       logActivity(task, TaskActivityType.UPDATED, user, "Task updated.");
     }
@@ -740,6 +742,7 @@ public class TaskService {
   private TaskDtos.TaskDetailResponse createTaskInternal(TaskDtos.TaskRequest request, AppUserDetails user, String parentTaskId) {
     validateTaskDates(request.startDate(), request.dueDate());
     validateAssignee(request.assignedToId(), request.assignedToName());
+    List<NormalizedAssignee> normalizedAssignees = normalizeAssignees(request);
     Instant now = Instant.now();
     TaskEntity parent = parentTaskId == null ? null : requireTask(parentTaskId);
     TaskSpaceEntity space = resolveManagedSpace(request.spaceId(), user);
@@ -767,10 +770,11 @@ public class TaskService {
     task.setParentTaskId(parent == null ? null : parent.getId());
     task.setAssignedById(user.getUserId());
     task.setAssignedByName(user.getFullName());
-    task.setAssignedToId(trimToNull(request.assignedToId()));
-    task.setAssignedToName(trimToNull(request.assignedToName()));
-    task.setAssignedToEmail(trimToNull(request.assignedToEmail()));
-    task.setAssignedTeamName(trimToNull(request.assignedTeamName()));
+    if (!normalizedAssignees.isEmpty()) {
+      applyPrimaryAssignee(task, normalizedAssignees.get(0), user);
+    } else {
+      clearAssignee(task);
+    }
     task.setApproverId(trimToNull(request.approverId()));
     task.setApproverName(trimToNull(request.approverName()));
     task.setCreatedById(user.getUserId());
@@ -789,8 +793,8 @@ public class TaskService {
     syncChildCollections(task, request, user, now);
 
     taskRepository.save(task);
-    if (StringUtils.hasText(task.getAssignedToId())) {
-      saveAssignment(task, user, task.getAssignedToId(), task.getAssignedToName(), task.getAssignedToEmail(), task.getAssignedTeamName(), true, now);
+    for (NormalizedAssignee assignee : normalizedAssignees) {
+      saveAssignment(task, user, assignee.id(), assignee.name(), assignee.email(), assignee.teamName(), true, now);
     }
     logActivity(task, TaskActivityType.CREATED, user, parent == null ? "Task created." : "Subtask created.");
     refreshHierarchyMetadata(task);
@@ -865,6 +869,15 @@ public class TaskService {
   private TreeContext buildTreeContext(Collection<TaskEntity> tasks, AppUserDetails user) {
     Map<String, TaskEntity> byId = tasks.stream().collect(Collectors.toMap(TaskEntity::getId, task -> task));
     Map<String, List<TaskEntity>> childrenByParent = new LinkedHashMap<>();
+    List<String> taskIds = tasks.stream().map(TaskEntity::getId).toList();
+    Map<String, List<TaskAssignmentEntity>> activeAssignmentsByTaskId = taskIds.isEmpty()
+        ? Map.of()
+        : assignmentRepository.findByTask_IdInAndActiveTrueOrderByAssignedAtDesc(taskIds).stream()
+            .collect(Collectors.groupingBy(
+                assignment -> assignment.getTask().getId(),
+                LinkedHashMap::new,
+                Collectors.toList()
+            ));
     Map<String, TaskSpaceEntity> spacesById = taskSpaceRepository.findAll().stream()
         .collect(Collectors.toMap(TaskSpaceEntity::getId, space -> space));
     Map<String, TaskSpaceMemberEntity> membershipBySpaceId = user == null
@@ -878,7 +891,7 @@ public class TaskService {
     childrenByParent.values().forEach(list -> list.sort(Comparator
         .comparingLong(TaskEntity::getOrderIndex)
         .thenComparing(TaskEntity::getCreatedAt)));
-    return new TreeContext(byId, childrenByParent, new HashMap<>(), user, spacesById, membershipBySpaceId);
+    return new TreeContext(byId, childrenByParent, new HashMap<>(), user, spacesById, membershipBySpaceId, activeAssignmentsByTaskId);
   }
 
   private List<TaskDtos.TaskSummaryResponse> flattenSummaries(TreeContext context, String parentTaskId) {
@@ -930,6 +943,7 @@ public class TaskService {
     List<TaskDtos.TaskSummaryResponse> subtasks = buildSummaries(context, task.getId());
     TaskSpaceEntity space = context.spacesById().get(task.getSpaceId());
     AppUserDetails user = context.user();
+    List<TaskDtos.TaskAssigneeResponse> activeAssignees = activeAssignees(task, context);
     return new TaskDtos.TaskSummaryResponse(
         task.getId(),
         task.getTaskCode(),
@@ -949,6 +963,7 @@ public class TaskService {
         task.getAssignedToId(),
         task.getAssignedToName(),
         task.getAssignedTeamName(),
+        activeAssignees,
         task.getParentTaskId(),
         task.getHierarchyLevel(),
         task.getTaskPath(),
@@ -966,6 +981,29 @@ public class TaskService {
         user != null && canManageExecution(user, task),
         subtasks
     );
+  }
+
+  private List<TaskDtos.TaskAssigneeResponse> activeAssignees(TaskEntity task, TreeContext context) {
+    List<TaskAssignmentEntity> activeAssignments = context.activeAssignmentsByTaskId().getOrDefault(task.getId(), List.of());
+    if (!activeAssignments.isEmpty()) {
+      return activeAssignments.stream()
+          .map(assignment -> new TaskDtos.TaskAssigneeResponse(
+              assignment.getAssignedToId(),
+              assignment.getAssignedToName(),
+              assignment.getAssignedToEmail(),
+              assignment.getAssignedTeamName()
+          ))
+          .toList();
+    }
+    if (StringUtils.hasText(task.getAssignedToId()) && StringUtils.hasText(task.getAssignedToName())) {
+      return List.of(new TaskDtos.TaskAssigneeResponse(
+          task.getAssignedToId(),
+          task.getAssignedToName(),
+          task.getAssignedToEmail(),
+          task.getAssignedTeamName()
+      ));
+    }
+    return List.of();
   }
 
   private int progressPercent(TaskEntity task, TreeContext context) {
@@ -1045,25 +1083,28 @@ public class TaskService {
     validateAssignee(request.assignedToId(), request.assignedToName());
     Instant now = Instant.now();
     if (Boolean.TRUE.equals(request.preventDuplicateActiveAssignments())) {
-      assignmentRepository.findFirstByTask_IdAndActiveTrueOrderByAssignedAtDesc(task.getId())
+      assignmentRepository.findByTask_IdAndActiveTrueOrderByAssignedAtDesc(task.getId()).stream()
           .filter(existing -> existing.getAssignedToId().equals(request.assignedToId()))
+          .findFirst()
           .ifPresent(existing -> {
             throw new BadRequestException("An active assignment already exists for this assignee.");
           });
     }
 
-    assignmentRepository.findFirstByTask_IdAndActiveTrueOrderByAssignedAtDesc(task.getId()).ifPresent(active -> {
-      active.setActive(false);
-      active.setEndedAt(now);
-      assignmentRepository.save(active);
-    });
+    if (reassign) {
+      assignmentRepository.findByTask_IdAndActiveTrueOrderByAssignedAtDesc(task.getId()).forEach(active -> {
+        active.setActive(false);
+        active.setEndedAt(now);
+        assignmentRepository.save(active);
+      });
+    }
 
-    task.setAssignedById(user.getUserId());
-    task.setAssignedByName(user.getFullName());
-    task.setAssignedToId(request.assignedToId().trim());
-    task.setAssignedToName(request.assignedToName().trim());
-    task.setAssignedToEmail(trimToNull(request.assignedToEmail()));
-    task.setAssignedTeamName(trimToNull(request.assignedTeamName()));
+    applyPrimaryAssignee(task, new NormalizedAssignee(
+        request.assignedToId().trim(),
+        request.assignedToName().trim(),
+        trimToNull(request.assignedToEmail()),
+        trimToNull(request.assignedTeamName())
+    ), user);
     task.setStatus(task.getStatus() == TaskStatus.PENDING ? TaskStatus.ASSIGNED : task.getStatus());
     task.setUpdatedAt(now);
     taskRepository.save(task);
@@ -1095,6 +1136,84 @@ public class TaskService {
     assignment.setActive(active);
     assignment.setAssignedAt(when);
     assignmentRepository.save(assignment);
+  }
+
+  private List<NormalizedAssignee> normalizeAssignees(TaskDtos.TaskRequest request) {
+    List<NormalizedAssignee> normalized = new ArrayList<>();
+    if (request.assignees() != null) {
+      for (TaskDtos.AssigneeRefRequest assignee : request.assignees()) {
+        if (!StringUtils.hasText(assignee.assignedToId()) && !StringUtils.hasText(assignee.assignedToName())) {
+          continue;
+        }
+        if (!StringUtils.hasText(assignee.assignedToId()) || !StringUtils.hasText(assignee.assignedToName())) {
+          throw new BadRequestException("Each assignee must include both id and name.");
+        }
+        normalized.add(new NormalizedAssignee(
+            assignee.assignedToId().trim(),
+            assignee.assignedToName().trim(),
+            trimToNull(assignee.assignedToEmail()),
+            trimToNull(assignee.assignedTeamName())
+        ));
+      }
+    } else if (StringUtils.hasText(request.assignedToId()) && StringUtils.hasText(request.assignedToName())) {
+      normalized.add(new NormalizedAssignee(
+          request.assignedToId().trim(),
+          request.assignedToName().trim(),
+          trimToNull(request.assignedToEmail()),
+          trimToNull(request.assignedTeamName())
+      ));
+    }
+
+    Map<String, NormalizedAssignee> deduped = new LinkedHashMap<>();
+    for (NormalizedAssignee assignee : normalized) {
+      deduped.putIfAbsent(assignee.id(), assignee);
+    }
+    return new ArrayList<>(deduped.values());
+  }
+
+  private void applyPrimaryAssignee(TaskEntity task, NormalizedAssignee assignee, AppUserDetails user) {
+    task.setAssignedById(user.getUserId());
+    task.setAssignedByName(user.getFullName());
+    task.setAssignedToId(assignee.id());
+    task.setAssignedToName(assignee.name());
+    task.setAssignedToEmail(assignee.email());
+    task.setAssignedTeamName(assignee.teamName());
+  }
+
+  private boolean syncActiveAssignments(TaskEntity task, AppUserDetails user, List<NormalizedAssignee> nextAssignees) {
+    Instant now = Instant.now();
+    List<TaskAssignmentEntity> currentActive = assignmentRepository.findByTask_IdAndActiveTrueOrderByAssignedAtDesc(task.getId());
+    Map<String, TaskAssignmentEntity> currentById = currentActive.stream()
+        .collect(Collectors.toMap(TaskAssignmentEntity::getAssignedToId, assignment -> assignment, (left, right) -> left, LinkedHashMap::new));
+    Map<String, NormalizedAssignee> nextById = nextAssignees.stream()
+        .collect(Collectors.toMap(NormalizedAssignee::id, assignee -> assignee, (left, right) -> left, LinkedHashMap::new));
+
+    boolean changed = false;
+    for (TaskAssignmentEntity active : currentActive) {
+      if (!nextById.containsKey(active.getAssignedToId())) {
+        active.setActive(false);
+        active.setEndedAt(now);
+        assignmentRepository.save(active);
+        changed = true;
+      }
+    }
+
+    for (NormalizedAssignee assignee : nextAssignees) {
+      if (!currentById.containsKey(assignee.id())) {
+        saveAssignment(task, user, assignee.id(), assignee.name(), assignee.email(), assignee.teamName(), true, now);
+        changed = true;
+      }
+    }
+
+    if (!nextAssignees.isEmpty()) {
+      applyPrimaryAssignee(task, nextAssignees.get(0), user);
+      task.setStatus(task.getStatus() == TaskStatus.PENDING ? TaskStatus.ASSIGNED : task.getStatus());
+    } else {
+      clearAssignee(task);
+    }
+    task.setUpdatedAt(now);
+    taskRepository.save(task);
+    return changed;
   }
 
   private void validateAssignee(String assignedToId, String assignedToName) {
@@ -1392,15 +1511,7 @@ public class TaskService {
   }
 
   private boolean canEdit(AppUserDetails user, TaskEntity task) {
-    if (hasPrivilegedRole(user)
-        || equalsNullable(user.getUserId(), task.getCreatedById())
-        || equalsNullable(user.getUserId(), task.getAssignedById())) {
-      return true;
-    }
-    if (!StringUtils.hasText(task.getSpaceId())) {
-      return false;
-    }
-    return hasSpacePermission(task.getSpaceId(), user.getUserId(), TaskSpacePermission.EDIT_TASKS);
+    return equalsNullable(user.getUserId(), task.getCreatedById());
   }
 
   private boolean canManageExecution(AppUserDetails user, TaskEntity task) {
@@ -1668,7 +1779,16 @@ public class TaskService {
       Map<String, Integer> progressMemo,
       AppUserDetails user,
       Map<String, TaskSpaceEntity> spacesById,
-      Map<String, TaskSpaceMemberEntity> membershipBySpaceId
+      Map<String, TaskSpaceMemberEntity> membershipBySpaceId,
+      Map<String, List<TaskAssignmentEntity>> activeAssignmentsByTaskId
+  ) {
+  }
+
+  private record NormalizedAssignee(
+      String id,
+      String name,
+      String email,
+      String teamName
   ) {
   }
 }
