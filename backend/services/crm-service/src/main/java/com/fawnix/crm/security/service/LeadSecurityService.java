@@ -18,11 +18,7 @@ public class LeadSecurityService {
       return false;
     }
 
-    boolean adminLike = details.getRoleNames().stream()
-        .anyMatch(role -> role.equals("ROLE_ADMIN")
-            || role.equals("ROLE_REPORTING_MANAGER")
-            || role.equals("ROLE_SALES_MANAGER"));
-    if (adminLike) {
+    if (isAdminLike(details)) {
       return true;
     }
 
@@ -30,5 +26,27 @@ public class LeadSecurityService {
         .map(lead -> lead.getAssignedToUserId() != null
             && lead.getAssignedToUserId().equalsIgnoreCase(details.getUserId()))
         .orElse(false);
+  }
+
+  public boolean canAssignLead(Authentication authentication, String leadId) {
+    if (authentication == null || !(authentication.getPrincipal() instanceof AppUserDetails details)) {
+      return false;
+    }
+
+    return canAssignAnyLead(details);
+  }
+
+  private boolean isAdminLike(AppUserDetails details) {
+    return details.getRoleNames().stream()
+        .anyMatch(role -> role.equals("ROLE_ADMIN")
+            || role.equals("ROLE_REPORTING_MANAGER")
+            || role.equals("ROLE_SALES_MANAGER"));
+  }
+
+  private boolean canAssignAnyLead(AppUserDetails details) {
+    return details.getRoleNames().stream()
+        .anyMatch(role -> role.equals("ROLE_ADMIN")
+            || role.equals("ROLE_MASTER")
+            || role.equals("ROLE_SALES_MANAGER"));
   }
 }

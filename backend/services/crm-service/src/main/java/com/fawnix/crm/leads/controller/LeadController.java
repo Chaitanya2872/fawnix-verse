@@ -158,7 +158,7 @@ public class LeadController {
   }
 
   @PatchMapping("/{id}/assign")
-  @PreAuthorize("hasAnyRole('ADMIN','SALES_MANAGER') or @leadSecurityService.canManageLead(authentication, #id)")
+  @PreAuthorize("hasAnyRole('ADMIN','SALES_MANAGER') or @leadSecurityService.canAssignLead(authentication, #id)")
   public LeadDtos.LeadResponse assignLead(
       @PathVariable String id,
       @Valid @RequestBody LeadDtos.AssignLeadRequest request,
