@@ -7,7 +7,7 @@ import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
 import java.security.Key;
 import java.time.Instant;
-import java.time.temporal.ChronoUnit;
+import java.util.Base64;
 import java.util.Date;
 import java.util.List;
 import org.springframework.stereotype.Service;
@@ -23,13 +23,14 @@ public class JwtService {
 
   public String generateAccessToken(AppUserDetails userDetails) {
     Instant now = Instant.now();
-    Instant expiry = now.plus(jwtProperties.getAccessTokenExpirationMinutes(), ChronoUnit.MINUTES);
+    Instant expiry = getAccessTokenExpiry();
 
     return Jwts.builder()
-        .subject(userDetails.getUsername())
+        .subject(userDetails.getUserId())
         .issuer(jwtProperties.getIssuer())
         .issuedAt(Date.from(now))
         .expiration(Date.from(expiry))
+        .claim("email", userDetails.getUsername())
         .claim("name", userDetails.getFullName())
         .claim("roles", userDetails.getRoleNames())
         .signWith(getSigningKey())
@@ -37,30 +38,40 @@ public class JwtService {
   }
 
   public Instant getAccessTokenExpiry() {
-    return Instant.now().plus(jwtProperties.getAccessTokenExpirationMinutes(), ChronoUnit.MINUTES);
+    return Instant.now().plusSeconds((long) jwtProperties.getAccessTokenExpirationMinutes() * 60);
   }
 
   public Instant getRefreshTokenExpiry() {
-    return Instant.now().plus(jwtProperties.getRefreshTokenExpirationDays(), ChronoUnit.DAYS);
+    return Instant.now().plusSeconds((long) jwtProperties.getRefreshTokenExpirationDays() * 24 * 60 * 60);
   }
 
-  public String extractUsername(String token) {
-    return extractClaims(token).getSubject();
+  public AppUserDetails toUserDetails(String token) {
+    Claims claims = extractClaims(token);
+    return new AppUserDetails(
+        claims.getSubject(),
+        String.valueOf(claims.get("email")),
+        String.valueOf(claims.get("name")),
+        "",
+        true,
+        extractRoles(claims)
+    );
+  }
+
+  public boolean isTokenValid(String token) {
+    try {
+      return extractClaims(token).getExpiration().toInstant().isAfter(Instant.now());
+    } catch (Exception exception) {
+      return false;
+    }
   }
 
   @SuppressWarnings("unchecked")
-  public List<String> extractRoles(String token) {
-    Object rawRoles = extractClaims(token).get("roles");
+  private List<String> extractRoles(Claims claims) {
+    Object rawRoles = claims.get("roles");
     if (rawRoles instanceof List<?> roles) {
       return roles.stream().map(String::valueOf).toList();
     }
     return List.of();
-  }
-
-  public boolean isTokenValid(String token, AppUserDetails userDetails) {
-    Claims claims = extractClaims(token);
-    return claims.getSubject().equalsIgnoreCase(userDetails.getUsername())
-        && claims.getExpiration().toInstant().isAfter(Instant.now());
   }
 
   private Claims extractClaims(String token) {
@@ -72,10 +83,8 @@ public class JwtService {
   }
 
   private Key getSigningKey() {
-    return Keys.hmacShaKeyFor(Decoders.BASE64.decode(toBase64Secret(jwtProperties.getSecret())));
-  }
-
-  private String toBase64Secret(String secret) {
-    return java.util.Base64.getEncoder().encodeToString(secret.getBytes());
+    return Keys.hmacShaKeyFor(Decoders.BASE64.decode(Base64.getEncoder().encodeToString(
+        jwtProperties.getSecret().getBytes()
+    )));
   }
 }

@@ -2,7 +2,6 @@ package com.fawnix.verse.security.filter;
 
 import com.fawnix.verse.security.jwt.JwtService;
 import com.fawnix.verse.security.service.AppUserDetails;
-import com.fawnix.verse.security.service.AppUserDetailsService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -18,14 +17,9 @@ import org.springframework.web.filter.OncePerRequestFilter;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
   private final JwtService jwtService;
-  private final AppUserDetailsService userDetailsService;
 
-  public JwtAuthenticationFilter(
-      JwtService jwtService,
-      AppUserDetailsService userDetailsService
-  ) {
+  public JwtAuthenticationFilter(JwtService jwtService) {
     this.jwtService = jwtService;
-    this.userDetailsService = userDetailsService;
   }
 
   @Override
@@ -47,9 +41,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     }
 
     try {
-      String username = jwtService.extractUsername(token);
-      AppUserDetails userDetails = userDetailsService.loadByEmail(username);
-      if (jwtService.isTokenValid(token, userDetails)) {
+      AppUserDetails userDetails = jwtService.toUserDetails(token);
+      if (jwtService.isTokenValid(token)) {
         UsernamePasswordAuthenticationToken authentication =
             new UsernamePasswordAuthenticationToken(
                 userDetails,
