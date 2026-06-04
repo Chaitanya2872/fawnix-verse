@@ -201,6 +201,7 @@ export type TaskReportFilters = {
   toDate: string;
   spaceId?: string;
   projectRef?: string;
+  assigneeId?: string;
 };
 
 export type TaskReportSummary = {
@@ -225,6 +226,8 @@ export type TaskReportResponse = {
     spaceId: string | null;
     spaceName: string | null;
     projectRef: string | null;
+    assigneeId: string | null;
+    assigneeName: string | null;
   };
   summary: TaskReportSummary;
   rows: TaskReportRow[];

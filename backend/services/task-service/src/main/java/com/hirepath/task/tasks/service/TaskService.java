@@ -527,6 +527,7 @@ public class TaskService {
       LocalDate toDate,
       String spaceId,
       String projectRef,
+      String assigneeId,
       AppUserDetails user
   ) {
     if (fromDate != null && toDate != null && toDate.isBefore(fromDate)) {
@@ -535,6 +536,7 @@ public class TaskService {
 
     String normalizedSpaceId = trimToNull(spaceId);
     String normalizedProjectRef = trimToNull(projectRef);
+    String normalizedAssigneeId = trimToNull(assigneeId);
     TaskSpaceEntity selectedSpace = null;
     if (normalizedSpaceId != null) {
       selectedSpace = requireSpace(normalizedSpaceId);
@@ -544,6 +546,7 @@ public class TaskService {
     List<TaskEntity> scopedTasks = visibleTasks(user).stream()
         .filter(task -> normalizedSpaceId == null || normalizedSpaceId.equals(task.getSpaceId()))
         .filter(task -> normalizedProjectRef == null || normalizedProjectRef.equalsIgnoreCase(String.valueOf(task.getProjectRef())))
+        .filter(task -> normalizedAssigneeId == null || matchesAssignee(task, normalizedAssigneeId))
         .toList();
 
     List<TaskEntity> completedTasks = scopedTasks.stream()
@@ -577,7 +580,9 @@ public class TaskService {
             toDate,
             normalizedSpaceId,
             selectedSpace == null ? null : selectedSpace.getName(),
-            normalizedProjectRef
+            normalizedProjectRef,
+            normalizedAssigneeId,
+            resolveAssigneeName(scopedTasks, normalizedAssigneeId)
         ),
         new TaskDtos.TaskReportSummaryResponse(
             totalTasks,
@@ -589,6 +594,22 @@ public class TaskService {
         ),
         rows
     );
+  }
+
+  private boolean matchesAssignee(TaskEntity task, String assigneeId) {
+    return equalsNullable(task.getAssignedToId(), assigneeId)
+        || assignmentRepository.existsByTask_IdAndAssignedToIdAndActiveTrue(task.getId(), assigneeId);
+  }
+
+  private String resolveAssigneeName(List<TaskEntity> tasks, String assigneeId) {
+    if (!StringUtils.hasText(assigneeId)) {
+      return null;
+    }
+    return tasks.stream()
+        .filter(task -> assigneeId.equals(task.getAssignedToId()) && StringUtils.hasText(task.getAssignedToName()))
+        .map(TaskEntity::getAssignedToName)
+        .findFirst()
+        .orElse(assigneeId);
   }
 
   public List<TaskDtos.SpaceSummaryResponse> listSpaces(AppUserDetails user) {

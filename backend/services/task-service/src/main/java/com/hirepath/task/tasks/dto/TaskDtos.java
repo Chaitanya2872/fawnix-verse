@@ -483,7 +483,9 @@ public final class TaskDtos {
       LocalDate toDate,
       String spaceId,
       String spaceName,
-      String projectRef
+      String projectRef,
+      String assigneeId,
+      String assigneeName
   ) {
   }
 

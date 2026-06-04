@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/purity */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable react-hooks/set-state-in-effect */
 "use client";
@@ -496,6 +497,7 @@ function exportTaskReportPdf(report: TaskReportResponse) {
     `To date: ${formatReportDate(report.filters.toDate)}`,
     `Space: ${report.filters.spaceName ?? "All spaces"}`,
     `Project: ${report.filters.projectRef ?? "All projects"}`,
+    `User: ${report.filters.assigneeName ?? "All users"}`,
   ].forEach((line) => {
     doc.text(line, marginX, cursorY);
     cursorY += 14;
@@ -711,6 +713,7 @@ export default function TaskManagementPage() {
       toDate: reportDates.toDate,
       spaceId: selectedSpaceId || undefined,
       projectRef: filter.projectRef || undefined,
+      assigneeId: filter.assigneeId || undefined,
     },
     activePanel?.type === "task-report" && Boolean(reportDates.fromDate) && Boolean(reportDates.toDate)
   );
@@ -1058,9 +1061,16 @@ export default function TaskManagementPage() {
   }
 
   function handleAssign(task: TaskSummary, userIds: string[]) {
-    const selectedUsers = userIds
-      .map((userId) => users.find((user) => user.id === userId))
-      .filter((user): user is { id: string; name: string; email: string } => Boolean(user));
+    const selectedUsers = userIds.reduce(
+      (acc: { id: string; name: string; email: string }[], userId) => {
+        const user = users.find((user) => user.id === userId);
+        if (user) {
+          acc.push(user);
+        }
+        return acc;
+      },
+      []
+    );
     updateTaskMutation.mutate(
       {
         id: task.id,
@@ -1474,6 +1484,15 @@ export default function TaskManagementPage() {
                         ]}
                         className="min-w-[180px]"
                       />
+                      <FloatingSelect
+                        value={filter.assigneeId}
+                        onChange={(value) => setFilter((prev) => ({ ...prev, assigneeId: value }))}
+                        options={buildAssigneeOptions(users).map((option) => ({
+                          value: option.value,
+                          label: option.value ? option.label : "All users",
+                        }))}
+                        className="min-w-[180px]"
+                      />
                       <button
                         type="button"
                         onClick={() =>
@@ -1786,6 +1805,8 @@ export default function TaskManagementPage() {
           onDatesChange={setReportDates}
           selectedSpace={selectedSpace}
           projectRef={filter.projectRef}
+          assigneeId={filter.assigneeId}
+          users={users}
           report={reportQuery.data ?? null}
           loading={reportQuery.isLoading}
           error={reportQuery.error instanceof Error ? reportQuery.error.message : null}
@@ -3290,6 +3311,8 @@ function TaskReportPanel({
   onDatesChange,
   selectedSpace,
   projectRef,
+  assigneeId,
+  users,
   report,
   loading,
   error,
@@ -3298,6 +3321,8 @@ function TaskReportPanel({
   onDatesChange: React.Dispatch<React.SetStateAction<{ fromDate: string; toDate: string }>>;
   selectedSpace: TaskSpaceSummary | null;
   projectRef: string;
+  assigneeId: string;
+  users: TaskUser[];
   report: TaskReportResponse | null;
   loading: boolean;
   error: string | null;
@@ -3312,6 +3337,9 @@ function TaskReportPanel({
 
   const summary = report?.summary;
   const rows = report?.rows ?? [];
+  const selectedUserName =
+    report?.filters.assigneeName ??
+    (assigneeId ? users.find((candidate) => candidate.id === assigneeId)?.name ?? assigneeId : "All users");
 
   return (
     <div className="space-y-5">
@@ -3357,6 +3385,7 @@ function TaskReportPanel({
           <InfoCard label="To date" value={formatReportDate(report?.filters.toDate ?? dates.toDate)} />
           <InfoCard label="Space" value={report?.filters.spaceName ?? selectedSpace?.name ?? "All spaces"} />
           <InfoCard label="Project" value={report?.filters.projectRef ?? (projectRef || "All projects")} />
+          <InfoCard label="User" value={selectedUserName} />
         </div>
       </section>
 

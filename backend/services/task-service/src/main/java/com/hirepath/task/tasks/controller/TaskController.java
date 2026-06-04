@@ -240,9 +240,10 @@ public class TaskController {
       @RequestParam(required = false) java.time.LocalDate toDate,
       @RequestParam(required = false) String spaceId,
       @RequestParam(required = false) String projectRef,
+      @RequestParam(required = false) String assigneeId,
       @AuthenticationPrincipal AppUserDetails user
   ) {
-    return taskService.completionReport(fromDate, toDate, spaceId, projectRef, user);
+    return taskService.completionReport(fromDate, toDate, spaceId, projectRef, assigneeId, user);
   }
 
   @GetMapping("/spaces")

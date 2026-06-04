@@ -40,6 +40,7 @@ export async function fetchTaskCompletionReport(filters: TaskReportFilters): Pro
         toDate: filters.toDate || undefined,
         spaceId: filters.spaceId || undefined,
         projectRef: filters.projectRef || undefined,
+        assigneeId: filters.assigneeId || undefined,
       },
     });
     return response.data;
