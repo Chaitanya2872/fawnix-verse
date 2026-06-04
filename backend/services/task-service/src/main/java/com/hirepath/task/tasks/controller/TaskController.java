@@ -250,11 +250,24 @@ public class TaskController {
       @RequestParam(required = false) java.time.LocalDate fromDate,
       @RequestParam(required = false) java.time.LocalDate toDate,
       @RequestParam(required = false) String spaceId,
+      @RequestParam(required = false) String projectId,
       @RequestParam(required = false) String projectRef,
+      @RequestParam(required = false) String memberId,
       @RequestParam(required = false) String assigneeId,
       @AuthenticationPrincipal AppUserDetails user
   ) {
-    return taskService.completionReport(fromDate, toDate, spaceId, projectRef, assigneeId, user);
+    return taskService.completionReport(
+        fromDate,
+        toDate,
+        spaceId,
+        firstNonBlank(projectId, projectRef),
+        firstNonBlank(memberId, assigneeId),
+        user
+    );
+  }
+
+  private String firstNonBlank(String preferred, String fallback) {
+    return org.springframework.util.StringUtils.hasText(preferred) ? preferred : fallback;
   }
 
   @GetMapping("/spaces")

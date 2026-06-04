@@ -499,8 +499,8 @@ public final class TaskDtos {
       String spaceId,
       String spaceName,
       String projectRef,
-      String assigneeId,
-      String assigneeName
+      String memberId,
+      String memberName
   ) {
   }
 
@@ -510,6 +510,7 @@ public final class TaskDtos {
       long pendingTasks,
       long inProgressTasks,
       long overdueTasks,
+      long totalSubtasks,
       int completionPercentage
   ) {
   }
@@ -521,10 +522,21 @@ public final class TaskDtos {
   ) {
   }
 
+  public record TaskReportTaskRowResponse(
+      String taskTitle,
+      String project,
+      String assignedMember,
+      TaskStatus status,
+      long subtaskCount,
+      LocalDate completedDate
+  ) {
+  }
+
   public record TaskReportResponse(
       TaskReportFiltersResponse filters,
       TaskReportSummaryResponse summary,
-      List<TaskReportRowResponse> rows
+      List<TaskReportRowResponse> rows,
+      List<TaskReportTaskRowResponse> tasks
   ) {
   }
 

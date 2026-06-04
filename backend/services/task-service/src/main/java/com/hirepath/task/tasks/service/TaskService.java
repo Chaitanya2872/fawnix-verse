@@ -6,6 +6,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
@@ -660,17 +661,26 @@ public class TaskService {
         .filter(task -> normalizedAssigneeId == null || matchesAssignee(task, normalizedAssigneeId))
         .toList();
 
+    Map<String, List<TaskAssignmentEntity>> activeAssignmentsByTaskId = scopedTasks.isEmpty()
+        ? Map.of()
+        : assignmentRepository.findByTask_IdInAndActiveTrueOrderByAssignedAtDesc(scopedTasks.stream().map(TaskEntity::getId).toList()).stream()
+            .collect(Collectors.groupingBy(assignment -> assignment.getTask().getId(), LinkedHashMap::new, Collectors.toList()));
+    Map<String, Long> subtaskCountsByParentId = scopedTasks.stream()
+        .filter(task -> StringUtils.hasText(task.getParentTaskId()))
+        .collect(Collectors.groupingBy(TaskEntity::getParentTaskId, Collectors.counting()));
+
     List<TaskEntity> completedTasks = scopedTasks.stream()
         .filter(task -> task.getStatus() == TaskStatus.COMPLETED)
-        .filter(task -> isWithinDateRange(task.getCompletionDate(), fromDate, toDate))
+        .filter(task -> isWithinDateRange(resolveCompletionDate(task), fromDate, toDate))
         .toList();
 
     Map<String, Map<LocalDate, Long>> groupedCounts = completedTasks.stream()
-        .filter(task -> task.getCompletionDate() != null)
+        .map(task -> Map.entry(task, resolveCompletionDate(task)))
+        .filter(entry -> entry.getValue() != null)
         .collect(Collectors.groupingBy(
-            task -> StringUtils.hasText(task.getProjectRef()) ? task.getProjectRef().trim() : "General",
+            entry -> StringUtils.hasText(entry.getKey().getProjectRef()) ? entry.getKey().getProjectRef().trim() : "General",
             TreeMap::new,
-            Collectors.groupingBy(TaskEntity::getCompletionDate, TreeMap::new, Collectors.counting())
+            Collectors.groupingBy(Map.Entry::getValue, TreeMap::new, Collectors.counting())
         ));
 
     List<TaskDtos.TaskReportRowResponse> rows = new ArrayList<>();
@@ -678,11 +688,27 @@ public class TaskService {
         byDate.forEach((date, count) -> rows.add(new TaskDtos.TaskReportRowResponse(project, date, count)))
     );
 
+    List<TaskDtos.TaskReportTaskRowResponse> taskRows = scopedTasks.stream()
+        .sorted(Comparator
+            .comparing(this::resolveCompletionDate, Comparator.nullsLast(Comparator.reverseOrder()))
+            .thenComparing(TaskEntity::getUpdatedAt, Comparator.nullsLast(Comparator.reverseOrder()))
+            .thenComparing(TaskEntity::getTitle, Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER)))
+        .map(task -> new TaskDtos.TaskReportTaskRowResponse(
+            task.getTitle(),
+            StringUtils.hasText(task.getProjectRef()) ? task.getProjectRef().trim() : "General",
+            resolveAssignedMembers(task, activeAssignmentsByTaskId),
+            task.getStatus(),
+            subtaskCountsByParentId.getOrDefault(task.getId(), 0L),
+            resolveCompletionDate(task)
+        ))
+        .toList();
+
     long totalTasks = scopedTasks.size();
     long completedCount = completedTasks.size();
     long pendingCount = countByStatus(scopedTasks, TaskStatus.PENDING, TaskStatus.ASSIGNED);
     long inProgressCount = countByStatus(scopedTasks, TaskStatus.IN_PROGRESS, TaskStatus.UNDER_REVIEW, TaskStatus.ON_HOLD, TaskStatus.BLOCKED);
     long overdueCount = scopedTasks.stream().filter(this::isOverdue).count();
+    long totalSubtasks = scopedTasks.stream().filter(task -> StringUtils.hasText(task.getParentTaskId())).count();
     int completionPercentage = totalTasks == 0 ? 0 : (int) Math.round((completedCount * 100.0) / totalTasks);
 
     return new TaskDtos.TaskReportResponse(
@@ -693,7 +719,7 @@ public class TaskService {
             selectedSpace == null ? null : selectedSpace.getName(),
             normalizedProjectRef,
             normalizedAssigneeId,
-            resolveAssigneeName(scopedTasks, normalizedAssigneeId)
+            resolveAssigneeName(scopedTasks, activeAssignmentsByTaskId, normalizedAssigneeId)
         ),
         new TaskDtos.TaskReportSummaryResponse(
             totalTasks,
@@ -701,9 +727,11 @@ public class TaskService {
             pendingCount,
             inProgressCount,
             overdueCount,
+            totalSubtasks,
             completionPercentage
         ),
-        rows
+        rows,
+        taskRows
     );
   }
 
@@ -712,15 +740,52 @@ public class TaskService {
         || assignmentRepository.existsByTask_IdAndAssignedToIdAndActiveTrue(task.getId(), assigneeId);
   }
 
-  private String resolveAssigneeName(List<TaskEntity> tasks, String assigneeId) {
+  private String resolveAssigneeName(
+      List<TaskEntity> tasks,
+      Map<String, List<TaskAssignmentEntity>> activeAssignmentsByTaskId,
+      String assigneeId
+  ) {
     if (!StringUtils.hasText(assigneeId)) {
       return null;
     }
-    return tasks.stream()
-        .filter(task -> assigneeId.equals(task.getAssignedToId()) && StringUtils.hasText(task.getAssignedToName()))
-        .map(TaskEntity::getAssignedToName)
+    return activeAssignmentsByTaskId.values().stream()
+        .flatMap(Collection::stream)
+        .filter(assignment -> assigneeId.equals(assignment.getAssignedToId()) && StringUtils.hasText(assignment.getAssignedToName()))
+        .map(TaskAssignmentEntity::getAssignedToName)
         .findFirst()
-        .orElse(assigneeId);
+        .orElseGet(() -> tasks.stream()
+            .filter(task -> assigneeId.equals(task.getAssignedToId()) && StringUtils.hasText(task.getAssignedToName()))
+            .map(TaskEntity::getAssignedToName)
+            .findFirst()
+            .orElse(assigneeId));
+  }
+
+  private String resolveAssignedMembers(TaskEntity task, Map<String, List<TaskAssignmentEntity>> activeAssignmentsByTaskId) {
+    List<TaskAssignmentEntity> assignments = activeAssignmentsByTaskId.getOrDefault(task.getId(), List.of());
+    if (!assignments.isEmpty()) {
+      String joined = assignments.stream()
+          .map(TaskAssignmentEntity::getAssignedToName)
+          .filter(StringUtils::hasText)
+          .distinct()
+          .collect(Collectors.joining(", "));
+      if (StringUtils.hasText(joined)) {
+        return joined;
+      }
+    }
+    if (StringUtils.hasText(task.getAssignedToName())) {
+      return task.getAssignedToName().trim();
+    }
+    return "Unassigned";
+  }
+
+  private LocalDate resolveCompletionDate(TaskEntity task) {
+    if (task.getCompletionDate() != null) {
+      return task.getCompletionDate();
+    }
+    if (task.getCompletedAt() != null) {
+      return task.getCompletedAt().atZone(ZoneId.systemDefault()).toLocalDate();
+    }
+    return null;
   }
 
   public List<TaskDtos.SpaceSummaryResponse> listSpaces(AppUserDetails user) {

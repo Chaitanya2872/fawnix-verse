@@ -138,6 +138,13 @@ type TaskImportFormState = {
   notes: string;
 };
 
+type TaskReportDraftState = {
+  fromDate: string;
+  toDate: string;
+  projectId: string;
+  memberId: string;
+};
+
 type TaskUser = {
   id: string;
   name: string;
@@ -210,6 +217,16 @@ const defaultTaskImportForm: TaskImportFormState = {
   assignedToIds: [],
   notes: "",
 };
+
+function createDefaultReportDraft(): TaskReportDraftState {
+  const today = format(new Date(), "yyyy-MM-dd");
+  return {
+    fromDate: today,
+    toDate: today,
+    projectId: "",
+    memberId: "",
+  };
+}
 
 function defaultPermissionsForRole(role: TaskSpaceMemberRole): TaskSpacePermission[] {
   if (role === "OWNER" || role === "ADMIN" || role === "PROJECT_MANAGER") {
@@ -462,72 +479,106 @@ function exportTaskReportPdf(report: TaskReportResponse) {
   const doc = new jsPDF({ unit: "pt", format: "a4" });
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
-  const marginX = 42;
+  const marginX = 40;
+  const bottomMargin = 42;
   const contentWidth = pageWidth - marginX * 2;
-  const summaryGap = 12;
-  const summaryCardWidth = (contentWidth - summaryGap) / 2;
-  const summaryCardHeight = 48;
-  const rowHeight = 24;
-  const headerHeight = 26;
-  const tableWidths = [contentWidth * 0.46, contentWidth * 0.28, contentWidth * 0.26];
-  let cursorY = 46;
+  const cardGap = 10;
+  const cardWidth = (contentWidth - cardGap * 2) / 3;
+  const cardHeight = 50;
+  const sectionGap = 18;
+  let cursorY = 44;
 
-  const ensurePageSpace = (requiredHeight: number) => {
-    if (cursorY + requiredHeight <= pageHeight - 42) {
+  const drawPageHeader = () => {
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(12);
+    doc.setTextColor(37, 99, 235);
+    doc.text("Fawnix Verse", marginX, cursorY);
+    doc.setFontSize(20);
+    doc.setTextColor(15, 23, 42);
+    doc.text("Task Completion Report", marginX, cursorY + 24);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.setTextColor(100, 116, 139);
+    doc.text(`Generated on ${format(new Date(), "dd MMM yyyy, hh:mm a")}`, marginX, cursorY + 42);
+    cursorY += 58;
+  };
+
+  const ensurePageSpace = (requiredHeight: number, redrawHeader = false) => {
+    if (cursorY + requiredHeight <= pageHeight - bottomMargin) {
       return;
     }
     doc.addPage();
-    cursorY = 46;
+    cursorY = 44;
+    drawPageHeader();
+    if (redrawHeader) {
+      cursorY += 6;
+    }
   };
 
-  const drawTableHeader = () => {
+  const drawTableHeader = (labels: string[], widths: number[]) => {
+    ensurePageSpace(28);
     doc.setFillColor(241, 245, 249);
     doc.setDrawColor(226, 232, 240);
-    doc.rect(marginX, cursorY, contentWidth, headerHeight, "FD");
+    doc.rect(marginX, cursorY, contentWidth, 28, "FD");
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(10);
+    doc.setFontSize(9);
     doc.setTextColor(15, 23, 42);
-    let currentX = marginX;
-    ["Project", "Date", "Completed Task Count"].forEach((label, index) => {
-      doc.text(label, currentX + 10, cursorY + 17);
-      currentX += tableWidths[index];
+    let cellX = marginX;
+    labels.forEach((label, index) => {
+      doc.text(label, cellX + 8, cursorY + 17, { maxWidth: widths[index] - 16 });
+      cellX += widths[index];
     });
-    cursorY += headerHeight;
+    cursorY += 28;
   };
 
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(18);
-  doc.text("Task Completion Report", marginX, cursorY);
-  cursorY += 18;
+  const drawWrappedRow = (values: string[], widths: number[]) => {
+    const paddingX = 8;
+    const paddingY = 8;
+    const lineHeight = 11;
+    const cellLines = values.map((value, index) => doc.splitTextToSize(value || "-", Math.max(18, widths[index] - paddingX * 2)));
+    const maxLines = Math.max(...cellLines.map((lines) => lines.length), 1);
+    const rowHeight = paddingY * 2 + maxLines * lineHeight;
+    ensurePageSpace(rowHeight + 2, true);
+    doc.setDrawColor(226, 232, 240);
+    doc.rect(marginX, cursorY, contentWidth, rowHeight);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(15, 23, 42);
+    let cellX = marginX;
+    cellLines.forEach((lines, index) => {
+      doc.text(lines, cellX + paddingX, cursorY + paddingY + 8);
+      cellX += widths[index];
+    });
+    cursorY += rowHeight;
+  };
 
-  doc.setFont("helvetica", "normal");
+  drawPageHeader();
+
+  const filterLines = [
+    `Date range: ${formatReportDate(report.filters.fromDate)} to ${formatReportDate(report.filters.toDate)}`,
+    report.filters.projectRef ? `Project: ${report.filters.projectRef}` : null,
+    report.filters.memberName ? `Member: ${report.filters.memberName}` : null,
+  ].filter((line): line is string => Boolean(line));
+
+  doc.setDrawColor(219, 234, 254);
+  doc.setFillColor(248, 250, 252);
+  const filterHeight = 22 + filterLines.length * 14;
+  doc.roundedRect(marginX, cursorY, contentWidth, filterHeight, 12, 12, "FD");
+  doc.setFont("helvetica", "bold");
   doc.setFontSize(10);
+  doc.setTextColor(15, 23, 42);
+  doc.text("Filters", marginX + 12, cursorY + 16);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
   doc.setTextColor(71, 85, 105);
-  doc.text(`Generated on ${format(new Date(), "dd MMM yyyy, hh:mm a")}`, marginX, cursorY);
-  cursorY += 24;
+  filterLines.forEach((line, index) => {
+    doc.text(line, marginX + 12, cursorY + 30 + index * 14);
+  });
+  cursorY += filterHeight + sectionGap;
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(11);
   doc.setTextColor(15, 23, 42);
-  doc.text("Filters", marginX, cursorY);
-  cursorY += 12;
-
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(10);
-  [
-    `From date: ${formatReportDate(report.filters.fromDate)}`,
-    `To date: ${formatReportDate(report.filters.toDate)}`,
-    `Space: ${report.filters.spaceName ?? "All spaces"}`,
-    `Project: ${report.filters.projectRef ?? "All projects"}`,
-    `User: ${report.filters.assigneeName ?? "All users"}`,
-  ].forEach((line) => {
-    doc.text(line, marginX, cursorY);
-    cursorY += 14;
-  });
-
-  cursorY += 12;
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(11);
   doc.text("Overall Summary", marginX, cursorY);
   cursorY += 14;
 
@@ -537,62 +588,84 @@ function exportTaskReportPdf(report: TaskReportResponse) {
     ["Pending Tasks", String(report.summary.pendingTasks)],
     ["In-progress Tasks", String(report.summary.inProgressTasks)],
     ["Overdue Tasks", String(report.summary.overdueTasks)],
-    ["Completion Percentage", `${report.summary.completionPercentage}%`],
+    ["Subtasks", String(report.summary.totalSubtasks)],
+    ["Completion %", `${report.summary.completionPercentage}%`],
   ];
 
   summaryCards.forEach(([label, value], index) => {
-    const column = index % 2;
-    const row = Math.floor(index / 2);
-    const x = marginX + column * (summaryCardWidth + summaryGap);
-    const y = cursorY + row * 60;
+    const column = index % 3;
+    const row = Math.floor(index / 3);
+    const x = marginX + column * (cardWidth + cardGap);
+    const y = cursorY + row * (cardHeight + cardGap);
+    ensurePageSpace(cardHeight + cardGap);
     doc.setDrawColor(226, 232, 240);
-    doc.setFillColor(248, 250, 252);
-    doc.roundedRect(x, y, summaryCardWidth, summaryCardHeight, 12, 12, "FD");
+    doc.setFillColor(255, 255, 255);
+    doc.roundedRect(x, y, cardWidth, cardHeight, 10, 10, "FD");
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(9);
+    doc.setFontSize(8);
     doc.setTextColor(100, 116, 139);
-    doc.text(label, x + 12, y + 17);
+    doc.text(label, x + 10, y + 16);
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(16);
+    doc.setFontSize(15);
     doc.setTextColor(15, 23, 42);
-    doc.text(value, x + 12, y + 35);
+    doc.text(value, x + 10, y + 35);
   });
 
-  cursorY += Math.ceil(summaryCards.length / 2) * 60 + 8;
-  ensurePageSpace(120);
+  cursorY += Math.ceil(summaryCards.length / 3) * (cardHeight + cardGap) + sectionGap;
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(11);
   doc.setTextColor(15, 23, 42);
-  doc.text("Project-wise Completion", marginX, cursorY);
+  doc.text("Project-wise and Date-wise Completion Count", marginX, cursorY);
   cursorY += 16;
-  drawTableHeader();
 
+  const summaryTableWidths = [contentWidth * 0.42, contentWidth * 0.26, contentWidth * 0.32];
+  drawTableHeader(["Project", "Date", "Completed Task Count"], summaryTableWidths);
   if (!report.rows.length) {
-    doc.setDrawColor(226, 232, 240);
-    doc.rect(marginX, cursorY, contentWidth, rowHeight);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(10);
-    doc.setTextColor(100, 116, 139);
-    doc.text("No completed tasks found for the selected filters.", marginX + 10, cursorY + 16);
-    cursorY += rowHeight;
+    drawWrappedRow(["No completed tasks found for the selected filters.", "", ""], summaryTableWidths);
   } else {
     report.rows.forEach((row) => {
-      ensurePageSpace(rowHeight + 8);
-      if (cursorY === 46) {
-        drawTableHeader();
-      }
-      doc.setDrawColor(226, 232, 240);
-      doc.rect(marginX, cursorY, contentWidth, rowHeight);
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(10);
-      doc.setTextColor(15, 23, 42);
-      let currentX = marginX;
-      [row.project, formatReportDate(row.date), String(row.completedTaskCount)].forEach((value, index) => {
-        doc.text(value, currentX + 10, cursorY + 16, { maxWidth: tableWidths[index] - 20 });
-        currentX += tableWidths[index];
-      });
-      cursorY += rowHeight;
+      drawWrappedRow(
+        [row.project || "General", formatReportDate(row.date), String(row.completedTaskCount)],
+        summaryTableWidths
+      );
+    });
+  }
+
+  cursorY += sectionGap;
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(11);
+  doc.setTextColor(15, 23, 42);
+  doc.text("Detailed Task List", marginX, cursorY);
+  cursorY += 16;
+
+  const taskTableWidths = [
+    contentWidth * 0.25,
+    contentWidth * 0.16,
+    contentWidth * 0.2,
+    contentWidth * 0.14,
+    contentWidth * 0.1,
+    contentWidth * 0.15,
+  ];
+  drawTableHeader(
+    ["Task Title", "Project", "Assigned Member", "Status", "Subtasks", "Completed Date"],
+    taskTableWidths
+  );
+  if (!report.tasks.length) {
+    drawWrappedRow(["No tasks matched the selected filters.", "", "", "", "", ""], taskTableWidths);
+  } else {
+    report.tasks.forEach((task) => {
+      drawWrappedRow(
+        [
+          task.taskTitle || "Untitled task",
+          task.project || "General",
+          task.assignedMember || "Unassigned",
+          toLabel(task.status),
+          String(task.subtaskCount ?? 0),
+          task.completedDate ? formatReportDate(task.completedDate) : "-",
+        ],
+        taskTableWidths
+      );
     });
   }
 
@@ -679,10 +752,9 @@ export default function TaskManagementPage() {
   const [dragTaskId, setDragTaskId] = useState<string | null>(null);
   const [boardDragTaskId, setBoardDragTaskId] = useState<string | null>(null);
   const [boardDropStatus, setBoardDropStatus] = useState<TaskStatus | null>(null);
-  const [reportDates, setReportDates] = useState(() => {
-    const today = format(new Date(), "yyyy-MM-dd");
-    return { fromDate: today, toDate: today };
-  });
+  const [reportDraft, setReportDraft] = useState<TaskReportDraftState>(() => createDefaultReportDraft());
+  const [appliedReportFilters, setAppliedReportFilters] = useState<TaskReportDraftState>(() => createDefaultReportDraft());
+  const [hasAppliedReport, setHasAppliedReport] = useState(false);
   const [taskImportForm, setTaskImportForm] = useState<TaskImportFormState>(defaultTaskImportForm);
   const [taskImportFile, setTaskImportFile] = useState<File | null>(null);
   const [form, setForm] = useState<TaskFormState>(defaultForm);
@@ -734,13 +806,15 @@ export default function TaskManagementPage() {
   );
   const reportQuery = useTaskCompletionReport(
     {
-      fromDate: reportDates.fromDate,
-      toDate: reportDates.toDate,
-      spaceId: selectedSpaceId || undefined,
-      projectRef: filter.projectRef || undefined,
-      assigneeId: filter.assigneeId || undefined,
+      fromDate: appliedReportFilters.fromDate,
+      toDate: appliedReportFilters.toDate,
+      projectId: appliedReportFilters.projectId || undefined,
+      memberId: appliedReportFilters.memberId || undefined,
     },
-    activePanel?.type === "task-report" && Boolean(reportDates.fromDate) && Boolean(reportDates.toDate)
+    activePanel?.type === "task-report"
+      && hasAppliedReport
+      && Boolean(appliedReportFilters.fromDate)
+      && Boolean(appliedReportFilters.toDate)
   );
 
   useEffect(() => {
@@ -821,6 +895,11 @@ export default function TaskManagementPage() {
         .sort((left, right) => left.localeCompare(right)),
     [allFlatTasks]
   );
+  const reportFiltersDirty =
+    reportDraft.fromDate !== appliedReportFilters.fromDate
+    || reportDraft.toDate !== appliedReportFilters.toDate
+    || reportDraft.projectId !== appliedReportFilters.projectId
+    || reportDraft.memberId !== appliedReportFilters.memberId;
   const selectedScopedTasks = useMemo(() => activeSpaceTasks(allFlatTasks, selectedSpaceId), [allFlatTasks, selectedSpaceId]);
   const selectedSpaceCounts = useMemo(
     () => ({
@@ -889,7 +968,17 @@ export default function TaskManagementPage() {
   }
 
   function openReportPanel() {
+    setReportDraft((prev) => ({
+      ...prev,
+      projectId: prev.projectId || filter.projectRef || "",
+      memberId: prev.memberId || filter.assigneeId || "",
+    }));
     setActivePanel({ type: "task-report" });
+  }
+
+  function applyReportFilters() {
+    setAppliedReportFilters({ ...reportDraft });
+    setHasAppliedReport(true);
   }
 
   function openImportPanel() {
@@ -1898,14 +1987,16 @@ export default function TaskManagementPage() {
 
       <Drawer open={activePanel?.type === "task-report"} title="Task Report" onClose={closeActivePanel} maxWidth="max-w-3xl">
         <TaskReportPanel
-          dates={reportDates}
-          onDatesChange={setReportDates}
-          selectedSpace={selectedSpace}
-          projectRef={filter.projectRef}
-          assigneeId={filter.assigneeId}
+          draftFilters={reportDraft}
+          onDraftFiltersChange={setReportDraft}
+          onApplyFilters={applyReportFilters}
+          onGenerateReport={applyReportFilters}
+          hasAppliedReport={hasAppliedReport}
+          filtersDirty={reportFiltersDirty}
+          projectOptions={projectOptions}
           users={users}
           report={reportQuery.data ?? null}
-          loading={reportQuery.isLoading}
+          loading={reportQuery.isLoading && !reportQuery.data}
           error={reportQuery.error instanceof Error ? reportQuery.error.message : null}
         />
       </Drawer>
@@ -3532,129 +3623,308 @@ function TaskImportPanel({
 }
 
 function TaskReportPanel({
-  dates,
-  onDatesChange,
-  selectedSpace,
-  projectRef,
-  assigneeId,
+  draftFilters,
+  onDraftFiltersChange,
+  onApplyFilters,
+  onGenerateReport,
+  hasAppliedReport,
+  filtersDirty,
+  projectOptions,
   users,
   report,
   loading,
   error,
 }: {
-  dates: { fromDate: string; toDate: string };
-  onDatesChange: React.Dispatch<React.SetStateAction<{ fromDate: string; toDate: string }>>;
-  selectedSpace: TaskSpaceSummary | null;
-  projectRef: string;
-  assigneeId: string;
+  draftFilters: TaskReportDraftState;
+  onDraftFiltersChange: React.Dispatch<React.SetStateAction<TaskReportDraftState>>;
+  onApplyFilters: () => void;
+  onGenerateReport: () => void;
+  hasAppliedReport: boolean;
+  filtersDirty: boolean;
+  projectOptions: string[];
   users: TaskUser[];
   report: TaskReportResponse | null;
   loading: boolean;
   error: string | null;
 }) {
-  if (loading) {
-    return <PanelState icon={<Loader2 className="h-5 w-5 animate-spin" />} title="Preparing report" body="Collecting summary and completion counts for the selected range." padded />;
-  }
-
-  if (error) {
-    return <PanelState icon={<AlertTriangle className="h-5 w-5 text-rose-500" />} title="Report unavailable" body={error} padded />;
-  }
-
   const summary = report?.summary;
   const rows = report?.rows ?? [];
-  const selectedUserName =
-    report?.filters.assigneeName ??
-    (assigneeId ? users.find((candidate) => candidate.id === assigneeId)?.name ?? assigneeId : "All users");
+  const tasks = report?.tasks ?? [];
+  const projectSelectOptions = useMemo(
+    () => [
+      { value: "", label: "All projects" },
+      ...projectOptions.map((project) => ({ value: project, label: project })),
+    ],
+    [projectOptions]
+  );
+  const memberSelectOptions = useMemo(
+    () => [
+      { value: "", label: "All members" },
+      ...users
+        .map((user) => ({
+          value: user.id,
+          label: user.name,
+        }))
+        .sort((left, right) => left.label.localeCompare(right.label)),
+    ],
+    [users]
+  );
+  const selectedProjectLabel = report?.filters.projectRef || draftFilters.projectId || "All projects";
+  const selectedMemberLabel =
+    report?.filters.memberName
+    ?? (draftFilters.memberId ? users.find((candidate) => candidate.id === draftFilters.memberId)?.name ?? draftFilters.memberId : "All members");
+  const showEmptyState = hasAppliedReport && !loading && !error && summary?.totalTasks === 0 && rows.length === 0 && tasks.length === 0;
 
   return (
     <div className="space-y-5">
-      <section className="space-y-4 rounded-[28px] border border-slate-200 bg-slate-50/80 p-4">
-        <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
+      <section className="overflow-hidden rounded-[30px] border border-slate-200 bg-white shadow-sm">
+        <div className="border-b border-slate-200 bg-[linear-gradient(135deg,#eff6ff_0%,#ffffff_65%)] px-5 py-5">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="space-y-2">
+              <div className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-white/80 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-sky-700">
+                <CalendarDays className="h-3.5 w-3.5" />
+                Report Workspace
+              </div>
+              <div>
+                <p className="text-xl font-semibold tracking-tight text-slate-950">Task Completion Report</p>
+                <p className="mt-1 text-sm text-slate-500">
+                  Choose a date range, optionally narrow by project or member, then preview and export a clean PDF report.
+                </p>
+              </div>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-3">
+              <button
+                type="button"
+                onClick={onApplyFilters}
+                className="inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
+              >
+                Apply Filter
+              </button>
+              <button
+                type="button"
+                onClick={onGenerateReport}
+                className="inline-flex items-center justify-center rounded-2xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
+              >
+                Generate Report
+              </button>
+              <button
+                type="button"
+                onClick={() => report && exportTaskReportPdf(report)}
+                disabled={!report || filtersDirty || loading}
+                className="inline-flex items-center justify-center rounded-2xl border border-sky-200 bg-sky-50 px-4 py-2.5 text-sm font-semibold text-sky-700 transition hover:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Export PDF
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-4 px-5 py-5">
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <Field label="From Date">
+              <input
+                type="date"
+                value={draftFilters.fromDate}
+                onChange={(event) => onDraftFiltersChange((prev) => ({ ...prev, fromDate: event.target.value }))}
+                className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm outline-none transition focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
+              />
+            </Field>
+            <Field label="To Date">
+              <input
+                type="date"
+                value={draftFilters.toDate}
+                onChange={(event) => onDraftFiltersChange((prev) => ({ ...prev, toDate: event.target.value }))}
+                className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm outline-none transition focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
+              />
+            </Field>
+            <Field label="Select Project">
+              <FloatingSelect
+                value={draftFilters.projectId}
+                onChange={(value) => onDraftFiltersChange((prev) => ({ ...prev, projectId: value }))}
+                options={projectSelectOptions}
+                className="w-full"
+              />
+            </Field>
+            <Field label="Select Member">
+              <FloatingSelect
+                value={draftFilters.memberId}
+                onChange={(value) => onDraftFiltersChange((prev) => ({ ...prev, memberId: value }))}
+                options={memberSelectOptions}
+                className="w-full"
+              />
+            </Field>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-3">
+            <InfoCard label="Date Range" value={`${formatReportDate(report?.filters.fromDate ?? draftFilters.fromDate)} - ${formatReportDate(report?.filters.toDate ?? draftFilters.toDate)}`} />
+            <InfoCard label="Project" value={selectedProjectLabel} />
+            <InfoCard label="Member" value={selectedMemberLabel} />
+          </div>
+
+          {filtersDirty ? (
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              Filters changed. Click <span className="font-semibold">Apply Filter</span> or <span className="font-semibold">Generate Report</span> to refresh the preview before exporting.
+            </div>
+          ) : null}
+        </div>
+      </section>
+
+      <section className="space-y-4">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          <ReportMetricTile icon={<FolderKanban className="h-4 w-4" />} label="Total Tasks" value={summary?.totalTasks ?? 0} hint="Tasks in the selected scope" />
+          <ReportMetricTile icon={<CheckCircle2 className="h-4 w-4" />} label="Completed" value={summary?.completedTasks ?? 0} hint="Closed in the chosen period" />
+          <ReportMetricTile icon={<CircleDashed className="h-4 w-4" />} label="Pending" value={summary?.pendingTasks ?? 0} hint="Waiting to be started" />
+          <ReportMetricTile icon={<Timer className="h-4 w-4" />} label="In Progress" value={summary?.inProgressTasks ?? 0} hint="Work actively moving" />
+          <ReportMetricTile icon={<AlertTriangle className="h-4 w-4" />} label="Overdue" value={summary?.overdueTasks ?? 0} hint="Needs immediate follow-up" />
+          <ReportMetricTile icon={<CheckCheck className="h-4 w-4" />} label="Subtasks" value={summary?.totalSubtasks ?? 0} hint="Nested work items in scope" />
+        </div>
+        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
           <div>
-            <p className="text-lg font-semibold text-slate-950">Task completion report</p>
-            <p className="mt-1 text-sm text-slate-500">
-              Export a clean PDF summary with project-wise completion counts for the selected date range.
-            </p>
+            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">Completion Percentage</p>
+            <div className="mt-3 flex items-center justify-between gap-4">
+              <p className="text-3xl font-semibold tracking-tight text-slate-950">{summary?.completionPercentage ?? 0}%</p>
+              <div className="h-2.5 w-full max-w-xs overflow-hidden rounded-full bg-slate-100">
+                <div className="h-full rounded-full bg-sky-500 transition-all" style={{ width: `${Math.max(0, Math.min(summary?.completionPercentage ?? 0, 100))}%` }} />
+              </div>
+            </div>
           </div>
-          <button
-            type="button"
-            onClick={() => report && exportTaskReportPdf(report)}
-            disabled={!report}
-            className="inline-flex items-center justify-center rounded-2xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            Export PDF
-          </button>
-        </div>
-
-        <div className="grid gap-3 md:grid-cols-2">
-          <Field label="From date">
-            <input
-              type="date"
-              value={dates.fromDate}
-              onChange={(event) => onDatesChange((prev) => ({ ...prev, fromDate: event.target.value }))}
-              className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm"
-            />
-          </Field>
-          <Field label="To date">
-            <input
-              type="date"
-              value={dates.toDate}
-              onChange={(event) => onDatesChange((prev) => ({ ...prev, toDate: event.target.value }))}
-              className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm"
-            />
-          </Field>
-        </div>
-
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <InfoCard label="From date" value={formatReportDate(report?.filters.fromDate ?? dates.fromDate)} />
-          <InfoCard label="To date" value={formatReportDate(report?.filters.toDate ?? dates.toDate)} />
-          <InfoCard label="Space" value={report?.filters.spaceName ?? selectedSpace?.name ?? "All spaces"} />
-          <InfoCard label="Project" value={report?.filters.projectRef ?? (projectRef || "All projects")} />
-          <InfoCard label="User" value={selectedUserName} />
         </div>
       </section>
 
-      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        <MetricStrip label="Total" value={summary?.totalTasks ?? 0} hint="Tasks in scope" tone="slate" />
-        <MetricStrip label="Completed" value={summary?.completedTasks ?? 0} hint="Closed in range" tone="emerald" />
-        <MetricStrip label="Pending" value={summary?.pendingTasks ?? 0} hint="Open backlog" tone="slate" />
-        <MetricStrip label="In Progress" value={summary?.inProgressTasks ?? 0} hint="Actively moving" tone="sky" />
-        <MetricStrip label="Overdue" value={summary?.overdueTasks ?? 0} hint="Needs follow-up" tone="rose" />
-        <MetricStrip label="Completion %" value={summary?.completionPercentage ?? 0} hint="Completed vs total" tone="fuchsia" />
-      </section>
-
-      <section className="overflow-hidden rounded-[28px] border border-slate-200 bg-white">
-        <div className="border-b border-slate-200 px-4 py-3">
-          <p className="text-sm font-semibold text-slate-950">Project-wise and date-wise completion count</p>
-          <p className="mt-1 text-xs text-slate-500">Project | Date | Completed Task Count</p>
+      <section className="relative overflow-hidden rounded-[30px] border border-slate-200 bg-white shadow-sm">
+        <div className="border-b border-slate-200 px-5 py-4">
+          <p className="text-base font-semibold text-slate-950">Project-wise and Date-wise Completion Count</p>
+          <p className="mt-1 text-sm text-slate-500">Project | Date | Completed Task Count</p>
         </div>
-        {rows.length ? (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-slate-200 text-sm">
-              <thead className="bg-slate-50">
-                <tr>
-                  <th className="px-4 py-3 text-left font-semibold text-slate-600">Project</th>
-                  <th className="px-4 py-3 text-left font-semibold text-slate-600">Date</th>
-                  <th className="px-4 py-3 text-left font-semibold text-slate-600">Completed Task Count</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {rows.map((row) => (
-                  <tr key={`${row.project}-${row.date}`}>
-                    <td className="px-4 py-3 text-slate-800">{row.project}</td>
-                    <td className="px-4 py-3 text-slate-600">{formatReportDate(row.date)}</td>
-                    <td className="px-4 py-3 font-semibold text-slate-900">{row.completedTaskCount}</td>
+        <div className="min-h-[220px]">
+          {loading ? (
+            <div className="flex min-h-[220px] items-center justify-center px-5 py-12">
+              <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                <Loader2 className="h-4 w-4 animate-spin text-slate-500" />
+                Refreshing report data for the selected filters.
+              </div>
+            </div>
+          ) : error ? (
+            <PanelState icon={<AlertTriangle className="h-5 w-5 text-rose-500" />} title="Report unavailable" body={error} padded />
+          ) : !hasAppliedReport ? (
+            <PanelState icon={<Filter className="h-5 w-5" />} title="Ready to generate" body="Select a date range, optionally choose a project or member, then apply the filters to preview the report." padded />
+          ) : showEmptyState ? (
+            <PanelState icon={<FolderKanban className="h-5 w-5" />} title="No tasks found" body="No accessible tasks matched the selected date range, project, and member filters." padded />
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-slate-200 text-sm">
+                <thead className="bg-slate-50">
+                  <tr>
+                    <th className="px-5 py-3 text-left font-semibold text-slate-600">Project</th>
+                    <th className="px-5 py-3 text-left font-semibold text-slate-600">Date</th>
+                    <th className="px-5 py-3 text-left font-semibold text-slate-600">Completed Task Count</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <div className="px-4 py-10 text-center text-sm text-slate-500">
-            No completed tasks were found for the selected filters.
-          </div>
-        )}
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {rows.length ? rows.map((row, index) => (
+                    <tr key={`${row.project}-${row.date}-${index}`} className="align-top">
+                      <td className="px-5 py-3 font-medium text-slate-900">{row.project || "General"}</td>
+                      <td className="px-5 py-3 text-slate-600">{formatReportDate(row.date)}</td>
+                      <td className="px-5 py-3 font-semibold text-slate-900">{row.completedTaskCount}</td>
+                    </tr>
+                  )) : (
+                    <tr>
+                      <td colSpan={3} className="px-5 py-10 text-center text-sm text-slate-500">
+                        No completed tasks were found for the selected filters.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       </section>
+
+      <section className="relative overflow-hidden rounded-[30px] border border-slate-200 bg-white shadow-sm">
+        <div className="border-b border-slate-200 px-5 py-4">
+          <p className="text-base font-semibold text-slate-950">Detailed Task List</p>
+          <p className="mt-1 text-sm text-slate-500">Task Title | Project | Member | Status | Subtasks | Completed Date</p>
+        </div>
+        <div className="min-h-[240px]">
+          {loading ? (
+            <div className="flex min-h-[240px] items-center justify-center px-5 py-12">
+              <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                <Loader2 className="h-4 w-4 animate-spin text-slate-500" />
+                Updating the detailed task preview.
+              </div>
+            </div>
+          ) : error || !hasAppliedReport || showEmptyState ? null : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-slate-200 text-sm">
+                <thead className="bg-slate-50">
+                  <tr>
+                    <th className="px-5 py-3 text-left font-semibold text-slate-600">Task Title</th>
+                    <th className="px-5 py-3 text-left font-semibold text-slate-600">Project</th>
+                    <th className="px-5 py-3 text-left font-semibold text-slate-600">Member</th>
+                    <th className="px-5 py-3 text-left font-semibold text-slate-600">Status</th>
+                    <th className="px-5 py-3 text-left font-semibold text-slate-600">Subtasks</th>
+                    <th className="px-5 py-3 text-left font-semibold text-slate-600">Completed Date</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {tasks.length ? tasks.map((task, index) => (
+                    <tr key={`${task.taskTitle}-${task.project}-${index}`} className="align-top">
+                      <td className="px-5 py-3">
+                        <div className="max-w-[280px]">
+                          <p className="font-medium text-slate-900">{task.taskTitle || "Untitled task"}</p>
+                        </div>
+                      </td>
+                      <td className="px-5 py-3 text-slate-600">{task.project || "General"}</td>
+                      <td className="px-5 py-3 text-slate-600">{task.assignedMember || "Unassigned"}</td>
+                      <td className="px-5 py-3">
+                        <span className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold ${statusTone(task.status)}`}>
+                          {toLabel(task.status)}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3 font-medium text-slate-800">{task.subtaskCount ?? 0}</td>
+                      <td className="px-5 py-3 text-slate-600">{task.completedDate ? formatReportDate(task.completedDate) : "-"}</td>
+                    </tr>
+                  )) : (
+                    <tr>
+                      <td colSpan={6} className="px-5 py-10 text-center text-sm text-slate-500">
+                        No task rows are available for the selected filters.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function ReportMetricTile({
+  icon,
+  label,
+  value,
+  hint,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: number;
+  hint: string;
+}) {
+  return (
+    <div className="rounded-[24px] border border-slate-200 bg-white px-4 py-3.5 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">{label}</p>
+          <p className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">{value}</p>
+        </div>
+        <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-slate-600">
+          {icon}
+        </div>
+      </div>
+      <p className="mt-2 text-xs leading-5 text-slate-500">{hint}</p>
     </div>
   );
 }

@@ -40,9 +40,8 @@ export async function fetchTaskCompletionReport(filters: TaskReportFilters): Pro
       params: {
         fromDate: filters.fromDate || undefined,
         toDate: filters.toDate || undefined,
-        spaceId: filters.spaceId || undefined,
-        projectRef: filters.projectRef || undefined,
-        assigneeId: filters.assigneeId || undefined,
+        projectId: filters.projectId || undefined,
+        memberId: filters.memberId || undefined,
       },
     });
     return response.data;

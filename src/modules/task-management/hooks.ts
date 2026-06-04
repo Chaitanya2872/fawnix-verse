@@ -77,6 +77,7 @@ export function useTaskCompletionReport(filters: TaskReportFilters, enabled = tr
     queryKey: [...taskKeys.all, "report", filters] as const,
     queryFn: () => fetchTaskCompletionReport(filters),
     enabled,
+    placeholderData: keepPreviousData,
     staleTime: 15_000,
   });
 }

@@ -199,9 +199,8 @@ export type TaskDashboard = {
 export type TaskReportFilters = {
   fromDate: string;
   toDate: string;
-  spaceId?: string;
-  projectRef?: string;
-  assigneeId?: string;
+  projectId?: string;
+  memberId?: string;
 };
 
 export type TaskReportSummary = {
@@ -210,6 +209,7 @@ export type TaskReportSummary = {
   pendingTasks: number;
   inProgressTasks: number;
   overdueTasks: number;
+  totalSubtasks: number;
   completionPercentage: number;
 };
 
@@ -223,14 +223,20 @@ export type TaskReportResponse = {
   filters: {
     fromDate: string | null;
     toDate: string | null;
-    spaceId: string | null;
-    spaceName: string | null;
     projectRef: string | null;
-    assigneeId: string | null;
-    assigneeName: string | null;
+    memberId: string | null;
+    memberName: string | null;
   };
   summary: TaskReportSummary;
   rows: TaskReportRow[];
+  tasks: Array<{
+    taskTitle: string;
+    project: string;
+    assignedMember: string;
+    status: TaskStatus;
+    subtaskCount: number;
+    completedDate: string | null;
+  }>;
 };
 
 export type TaskListResponse = {
