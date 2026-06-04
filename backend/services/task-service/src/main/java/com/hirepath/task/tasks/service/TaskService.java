@@ -19,6 +19,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.UUID;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -233,7 +234,7 @@ public class TaskService {
     if (request.reminderMinutesBefore() != null) task.setReminderMinutesBefore(request.reminderMinutesBefore());
     if (request.startDate() != null || task.getStartDate() == null) task.setStartDate(request.startDate());
     if (request.dueDate() != null || task.getDueDate() == null) task.setDueDate(request.dueDate());
-    task.setCompletionDate(resolveCompletionDate(task.getStatus(), task.getCompletionDate()));
+    syncCompletionFields(task, task.getStatus());
     task.setUpdatedAt(Instant.now());
     syncChildCollections(task, request, user, Instant.now());
 
@@ -277,20 +278,37 @@ public class TaskService {
 
   public TaskDtos.TaskDetailResponse updateTaskStatus(String id, TaskDtos.TaskStatusUpdateRequest request, AppUserDetails user) {
     TaskEntity task = requireTask(id);
-    ensureExecutionAccess(user, task);
+    ensureStatusAccess(user, task);
 
     TaskStatus nextStatus = request.status();
     TaskStatus previousStatus = task.getStatus();
-    if (previousStatus == nextStatus) {
+    String nextParentTaskId = request.parentTaskId() == null ? task.getParentTaskId() : trimToNull(request.parentTaskId());
+    boolean parentChanged = !Objects.equals(task.getParentTaskId(), nextParentTaskId);
+    boolean orderChanged = request.orderIndex() != null && task.getOrderIndex() != request.orderIndex();
+    if (parentChanged) {
+      ensureEditAccess(user, task);
+    }
+    if (previousStatus == nextStatus && !parentChanged && !orderChanged) {
       return getTask(id, user);
     }
 
     task.setStatus(nextStatus);
-    task.setCompletionDate(resolveCompletionDate(nextStatus, task.getCompletionDate()));
+    syncCompletionFields(task, nextStatus);
+    if (parentChanged) {
+      reparent(task, nextParentTaskId);
+    }
+    if (request.orderIndex() != null) {
+      task.setOrderIndex(request.orderIndex());
+    }
     task.setUpdatedAt(Instant.now());
     taskRepository.save(task);
+    refreshHierarchyMetadata(task);
 
-    logActivity(task, TaskActivityType.STATUS_CHANGED, user, "Status changed to " + readable(nextStatus.name()) + ".");
+    if (previousStatus != nextStatus) {
+      logActivity(task, TaskActivityType.STATUS_CHANGED, user, "Status changed to " + readable(nextStatus.name()) + ".");
+    } else {
+      logActivity(task, TaskActivityType.UPDATED, user, "Task moved on the board.");
+    }
     return getTask(id, user);
   }
 
@@ -314,7 +332,7 @@ public class TaskService {
 
   public TaskDtos.CommentResponse addComment(String taskId, TaskDtos.CommentCreateRequest request, AppUserDetails user) {
     TaskEntity task = requireTask(taskId);
-    ensureExecutionAccess(user, task);
+    ensureCommentAccess(user, task);
     TaskCommentEntity comment = new TaskCommentEntity();
     comment.setId(UUID.randomUUID().toString());
     comment.setTask(task);
@@ -335,7 +353,7 @@ public class TaskService {
 
   public TaskDtos.ChecklistItemResponse addChecklistItem(String taskId, TaskDtos.ChecklistItemCreateRequest request, AppUserDetails user) {
     TaskEntity task = requireTask(taskId);
-    ensureEditAccess(user, task);
+    ensureChecklistAccess(user, task);
     TaskChecklistItemEntity item = new TaskChecklistItemEntity();
     item.setId(UUID.randomUUID().toString());
     item.setTask(task);
@@ -355,7 +373,7 @@ public class TaskService {
       AppUserDetails user
   ) {
     TaskEntity task = requireTask(taskId);
-    ensureExecutionAccess(user, task);
+    ensureChecklistAccess(user, task);
     TaskChecklistItemEntity item = checklistRepository.findByIdAndTask_Id(itemId, taskId)
         .orElseThrow(() -> new ResourceNotFoundException("Checklist item not found."));
     item.setLabel(request.label().trim());
@@ -385,8 +403,8 @@ public class TaskService {
         : Boolean.TRUE.equals(request.reworkRequested()) ? TaskApprovalStatus.REWORK_REQUESTED : TaskApprovalStatus.REJECTED);
     if (approved && task.getStatus() == TaskStatus.UNDER_REVIEW) {
       task.setStatus(TaskStatus.COMPLETED);
-      task.setCompletionDate(LocalDate.now());
     }
+    syncCompletionFields(task, task.getStatus());
     task.setUpdatedAt(Instant.now());
     taskRepository.save(task);
     logActivity(task, approved ? TaskActivityType.APPROVED : TaskActivityType.REJECTED, user,
@@ -502,6 +520,75 @@ public class TaskService {
     );
 
     return new TaskDtos.DashboardResponse(kpis, distribution, recentActivity, upcomingDeadlines, workload, metrics);
+  }
+
+  public TaskDtos.TaskReportResponse completionReport(
+      LocalDate fromDate,
+      LocalDate toDate,
+      String spaceId,
+      String projectRef,
+      AppUserDetails user
+  ) {
+    if (fromDate != null && toDate != null && toDate.isBefore(fromDate)) {
+      throw new BadRequestException("To date cannot be before from date.");
+    }
+
+    String normalizedSpaceId = trimToNull(spaceId);
+    String normalizedProjectRef = trimToNull(projectRef);
+    TaskSpaceEntity selectedSpace = null;
+    if (normalizedSpaceId != null) {
+      selectedSpace = requireSpace(normalizedSpaceId);
+      ensureSpaceMember(user, selectedSpace);
+    }
+
+    List<TaskEntity> scopedTasks = visibleTasks(user).stream()
+        .filter(task -> normalizedSpaceId == null || normalizedSpaceId.equals(task.getSpaceId()))
+        .filter(task -> normalizedProjectRef == null || normalizedProjectRef.equalsIgnoreCase(String.valueOf(task.getProjectRef())))
+        .toList();
+
+    List<TaskEntity> completedTasks = scopedTasks.stream()
+        .filter(task -> task.getStatus() == TaskStatus.COMPLETED)
+        .filter(task -> isWithinDateRange(task.getCompletionDate(), fromDate, toDate))
+        .toList();
+
+    Map<String, Map<LocalDate, Long>> groupedCounts = completedTasks.stream()
+        .filter(task -> task.getCompletionDate() != null)
+        .collect(Collectors.groupingBy(
+            task -> StringUtils.hasText(task.getProjectRef()) ? task.getProjectRef().trim() : "General",
+            TreeMap::new,
+            Collectors.groupingBy(TaskEntity::getCompletionDate, TreeMap::new, Collectors.counting())
+        ));
+
+    List<TaskDtos.TaskReportRowResponse> rows = new ArrayList<>();
+    groupedCounts.forEach((project, byDate) ->
+        byDate.forEach((date, count) -> rows.add(new TaskDtos.TaskReportRowResponse(project, date, count)))
+    );
+
+    long totalTasks = scopedTasks.size();
+    long completedCount = completedTasks.size();
+    long pendingCount = countByStatus(scopedTasks, TaskStatus.PENDING, TaskStatus.ASSIGNED);
+    long inProgressCount = countByStatus(scopedTasks, TaskStatus.IN_PROGRESS, TaskStatus.UNDER_REVIEW, TaskStatus.ON_HOLD, TaskStatus.BLOCKED);
+    long overdueCount = scopedTasks.stream().filter(this::isOverdue).count();
+    int completionPercentage = totalTasks == 0 ? 0 : (int) Math.round((completedCount * 100.0) / totalTasks);
+
+    return new TaskDtos.TaskReportResponse(
+        new TaskDtos.TaskReportFiltersResponse(
+            fromDate,
+            toDate,
+            normalizedSpaceId,
+            selectedSpace == null ? null : selectedSpace.getName(),
+            normalizedProjectRef
+        ),
+        new TaskDtos.TaskReportSummaryResponse(
+            totalTasks,
+            completedCount,
+            pendingCount,
+            inProgressCount,
+            overdueCount,
+            completionPercentage
+        ),
+        rows
+    );
   }
 
   public List<TaskDtos.SpaceSummaryResponse> listSpaces(AppUserDetails user) {
@@ -784,7 +871,7 @@ public class TaskService {
     task.setReminderMinutesBefore(request.reminderMinutesBefore());
     task.setStartDate(request.startDate());
     task.setDueDate(request.dueDate());
-    task.setCompletionDate(resolveCompletionDate(task.getStatus(), null));
+    syncCompletionFields(task, task.getStatus());
     task.setHierarchyLevel(parent == null ? 0 : parent.getHierarchyLevel() + 1);
     task.setTaskPath(parent == null ? task.getId() : parent.getTaskPath() + "/" + task.getId());
     task.setOrderIndex(request.orderIndex() == null ? nextOrderIndex(task.getParentTaskId()) : request.orderIndex());
@@ -956,6 +1043,7 @@ public class TaskService {
         task.getStartDate(),
         task.getDueDate(),
         task.getCompletionDate(),
+        task.getCompletedAt(),
         task.getSpaceId(),
         space == null ? null : space.getName(),
         task.getProjectRef(),
@@ -1323,13 +1411,25 @@ public class TaskService {
     if (hasPrivilegedRole(user)) {
       return true;
     }
-    if (StringUtils.hasText(task.getSpaceId()) && !isActiveSpaceMember(task.getSpaceId(), user.getUserId())) {
-      return false;
+    boolean creator = equalsNullable(user.getUserId(), task.getCreatedById());
+    boolean assigned = isAssignedUser(user, task);
+    boolean approver = equalsNullable(user.getUserId(), task.getApproverId());
+    boolean manager = isTaskManager(user, task);
+    boolean activeSpaceMember = StringUtils.hasText(task.getSpaceId()) && isActiveSpaceMember(task.getSpaceId(), user.getUserId());
+
+    if (task.getVisibility() == TaskVisibility.PRIVATE) {
+      return creator || assigned || approver || manager;
     }
-    return equalsNullable(user.getUserId(), task.getCreatedById())
-        || equalsNullable(user.getUserId(), task.getAssignedToId())
-        || equalsNullable(user.getUserId(), task.getApproverId())
-        || StringUtils.hasText(task.getSpaceId());
+
+    if (task.getVisibility() == TaskVisibility.TEAM) {
+      return creator || assigned || approver || manager || activeSpaceMember;
+    }
+
+    if (StringUtils.hasText(task.getSpaceId())) {
+      return activeSpaceMember || creator || assigned || approver || manager;
+    }
+
+    return creator || assigned || approver || manager;
   }
 
   private boolean canApprove(AppUserDetails user, TaskEntity task) {
@@ -1510,16 +1610,69 @@ public class TaskService {
     throw new ForbiddenOperationException("You do not have permission to update this task status.");
   }
 
+  private void ensureStatusAccess(AppUserDetails user, TaskEntity task) {
+    ensureExecutionAccess(user, task);
+  }
+
+  private void ensureCommentAccess(AppUserDetails user, TaskEntity task) {
+    if (canComment(user, task)) {
+      return;
+    }
+    throw new ForbiddenOperationException("You do not have permission to comment on this task.");
+  }
+
+  private void ensureChecklistAccess(AppUserDetails user, TaskEntity task) {
+    if (canUpdateChecklist(user, task)) {
+      return;
+    }
+    throw new ForbiddenOperationException("You do not have permission to update this checklist.");
+  }
+
   private boolean canEdit(AppUserDetails user, TaskEntity task) {
-    return equalsNullable(user.getUserId(), task.getCreatedById());
+    return hasPrivilegedRole(user)
+        || equalsNullable(user.getUserId(), task.getCreatedById())
+        || isTaskManager(user, task)
+        || hasSpacePermission(task.getSpaceId(), user.getUserId(), TaskSpacePermission.EDIT_TASKS);
   }
 
   private boolean canManageExecution(AppUserDetails user, TaskEntity task) {
     return canEdit(user, task)
-        || equalsNullable(user.getUserId(), task.getAssignedToId())
-        || hasSpacePermission(task.getSpaceId(), user.getUserId(), TaskSpacePermission.UPDATE_STATUS)
-        || hasSpacePermission(task.getSpaceId(), user.getUserId(), TaskSpacePermission.ADD_COMMENTS)
+        || isAssignedUser(user, task)
+        || hasSpacePermission(task.getSpaceId(), user.getUserId(), TaskSpacePermission.UPDATE_STATUS);
+  }
+
+  private boolean canComment(AppUserDetails user, TaskEntity task) {
+    return canEdit(user, task)
+        || isAssignedUser(user, task)
+        || hasSpacePermission(task.getSpaceId(), user.getUserId(), TaskSpacePermission.ADD_COMMENTS);
+  }
+
+  private boolean canUpdateChecklist(AppUserDetails user, TaskEntity task) {
+    return canEdit(user, task)
         || hasSpacePermission(task.getSpaceId(), user.getUserId(), TaskSpacePermission.UPDATE_CHECKLIST);
+  }
+
+  private boolean isAssignedUser(AppUserDetails user, TaskEntity task) {
+    return equalsNullable(user.getUserId(), task.getAssignedToId())
+        || assignmentRepository.existsByTask_IdAndAssignedToIdAndActiveTrue(task.getId(), user.getUserId());
+  }
+
+  private boolean isTaskManager(AppUserDetails user, TaskEntity task) {
+    if (hasPrivilegedRole(user)) {
+      return true;
+    }
+    if (!StringUtils.hasText(task.getSpaceId())) {
+      return false;
+    }
+    if (equalsNullable(user.getUserId(), requireSpace(task.getSpaceId()).getOwnerUserId())) {
+      return true;
+    }
+    return findActiveSpaceMember(task.getSpaceId(), user.getUserId())
+        .map(member -> member.getRole() == TaskSpaceMemberRole.OWNER
+            || member.getRole() == TaskSpaceMemberRole.ADMIN
+            || member.getRole() == TaskSpaceMemberRole.PROJECT_MANAGER
+            || parsePermissions(member.getPermissions(), member.getRole()).contains(TaskSpacePermission.EDIT_TASKS))
+        .orElse(false);
   }
 
   private boolean hasSpacePermission(String spaceId, String userId, TaskSpacePermission permission) {
@@ -1733,11 +1886,31 @@ public class TaskService {
     }
   }
 
-  private LocalDate resolveCompletionDate(TaskStatus status, LocalDate currentValue) {
+  private void syncCompletionFields(TaskEntity task, TaskStatus status) {
     if (status == TaskStatus.COMPLETED) {
-      return currentValue == null ? LocalDate.now() : currentValue;
+      if (task.getCompletionDate() == null) {
+        task.setCompletionDate(LocalDate.now());
+      }
+      if (task.getCompletedAt() == null) {
+        task.setCompletedAt(Instant.now());
+      }
+      return;
     }
-    return null;
+    task.setCompletionDate(null);
+    task.setCompletedAt(null);
+  }
+
+  private boolean isWithinDateRange(LocalDate value, LocalDate fromDate, LocalDate toDate) {
+    if (value == null) {
+      return fromDate == null && toDate == null;
+    }
+    if (fromDate != null && value.isBefore(fromDate)) {
+      return false;
+    }
+    if (toDate != null && value.isAfter(toDate)) {
+      return false;
+    }
+    return true;
   }
 
   private BigDecimal durationHours(Instant startedAt, Instant endedAt) {

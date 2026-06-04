@@ -11,6 +11,7 @@ import {
   deleteTask,
   deleteTaskSpace,
   fetchTask,
+  fetchTaskCompletionReport,
   fetchTaskDashboard,
   fetchTaskSpace,
   fetchTaskSpaces,
@@ -30,9 +31,11 @@ import {
   updateTaskSpace,
   updateTaskSpaceMember,
   updateTaskStatus,
+  updateTaskStatusWithPayload,
 } from "./api";
 import type {
   TaskFilter,
+  TaskReportFilters,
   TaskRequest,
   TaskSpaceInvitationRequest,
   TaskSpaceInvitationStatus,
@@ -64,6 +67,15 @@ export function useTaskDashboard() {
     queryKey: taskKeys.dashboard(),
     queryFn: fetchTaskDashboard,
     staleTime: 30_000,
+  });
+}
+
+export function useTaskCompletionReport(filters: TaskReportFilters, enabled = true) {
+  return useQuery({
+    queryKey: [...taskKeys.all, "report", filters] as const,
+    queryFn: () => fetchTaskCompletionReport(filters),
+    enabled,
+    staleTime: 15_000,
   });
 }
 
@@ -258,7 +270,17 @@ export function useUpdateTask() {
 export function useUpdateTaskStatus() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, status }: { id: string; status: TaskStatus }) => updateTaskStatus(id, status),
+    mutationFn: ({
+      id,
+      status,
+      parentTaskId,
+      orderIndex,
+    }: {
+      id: string;
+      status: TaskStatus;
+      parentTaskId?: string | null;
+      orderIndex?: number | null;
+    }) => updateTaskStatusWithPayload(id, { status, parentTaskId, orderIndex }),
     onSuccess: (_, variables) => invalidateTasks(queryClient, variables.id),
   });
 }

@@ -55,6 +55,7 @@ export type TaskSummary = {
   startDate: string | null;
   dueDate: string | null;
   completionDate: string | null;
+  completedAt: string | null;
   spaceId: string | null;
   spaceName: string | null;
   projectRef: string | null;
@@ -193,6 +194,40 @@ export type TaskDashboard = {
     assigned: number;
     completed: number;
   };
+};
+
+export type TaskReportFilters = {
+  fromDate: string;
+  toDate: string;
+  spaceId?: string;
+  projectRef?: string;
+};
+
+export type TaskReportSummary = {
+  totalTasks: number;
+  completedTasks: number;
+  pendingTasks: number;
+  inProgressTasks: number;
+  overdueTasks: number;
+  completionPercentage: number;
+};
+
+export type TaskReportRow = {
+  project: string;
+  date: string;
+  completedTaskCount: number;
+};
+
+export type TaskReportResponse = {
+  filters: {
+    fromDate: string | null;
+    toDate: string | null;
+    spaceId: string | null;
+    spaceName: string | null;
+    projectRef: string | null;
+  };
+  summary: TaskReportSummary;
+  rows: TaskReportRow[];
 };
 
 export type TaskListResponse = {

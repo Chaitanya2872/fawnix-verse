@@ -234,6 +234,17 @@ public class TaskController {
     return taskService.dashboard(user);
   }
 
+  @GetMapping("/reports/completion")
+  public TaskDtos.TaskReportResponse completionReport(
+      @RequestParam(required = false) java.time.LocalDate fromDate,
+      @RequestParam(required = false) java.time.LocalDate toDate,
+      @RequestParam(required = false) String spaceId,
+      @RequestParam(required = false) String projectRef,
+      @AuthenticationPrincipal AppUserDetails user
+  ) {
+    return taskService.completionReport(fromDate, toDate, spaceId, projectRef, user);
+  }
+
   @GetMapping("/spaces")
   public java.util.List<TaskDtos.SpaceSummaryResponse> listSpaces(@AuthenticationPrincipal AppUserDetails user) {
     return taskService.listSpaces(user);

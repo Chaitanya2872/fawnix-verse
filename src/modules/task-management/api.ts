@@ -6,6 +6,8 @@ import type {
   TaskDetail,
   TaskFilter,
   TaskListResponse,
+  TaskReportFilters,
+  TaskReportResponse,
   TaskRequest,
   TaskStatus,
   TaskComment,
@@ -27,6 +29,23 @@ const API_BASE_URL = import.meta.env.VITE_API_URL ?? "/api";
 
 function rethrow(error: unknown, fallback: string): never {
   throw new Error(getApiErrorMessage(error, fallback));
+}
+
+export async function fetchTaskCompletionReport(filters: TaskReportFilters): Promise<TaskReportResponse> {
+  try {
+    await ensureApiSession();
+    const response = await api.get<TaskReportResponse>("/tasks/reports/completion", {
+      params: {
+        fromDate: filters.fromDate || undefined,
+        toDate: filters.toDate || undefined,
+        spaceId: filters.spaceId || undefined,
+        projectRef: filters.projectRef || undefined,
+      },
+    });
+    return response.data;
+  } catch (error) {
+    rethrow(error, "Failed to load task report.");
+  }
 }
 
 export async function fetchTaskDashboard(): Promise<TaskDashboard> {
@@ -130,9 +149,16 @@ export async function updateTask(id: string, payload: TaskRequest): Promise<Task
 }
 
 export async function updateTaskStatus(id: string, status: TaskStatus): Promise<TaskDetail> {
+  return updateTaskStatusWithPayload(id, { status });
+}
+
+export async function updateTaskStatusWithPayload(
+  id: string,
+  payload: { status: TaskStatus; parentTaskId?: string | null; orderIndex?: number | null }
+): Promise<TaskDetail> {
   try {
     await ensureApiSession();
-    const response = await api.put<TaskDetail>(`/tasks/${id}/status`, { status });
+    const response = await api.put<TaskDetail>(`/tasks/${id}/status`, payload);
     return response.data;
   } catch (error) {
     rethrow(error, "Failed to update task status.");

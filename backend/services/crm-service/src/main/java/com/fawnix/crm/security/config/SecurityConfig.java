@@ -1,12 +1,10 @@
 package com.fawnix.crm.security.config;
 
-import com.fawnix.crm.security.filter.JwtAuthenticationFilter;
-import com.fawnix.crm.security.handler.RestAccessDeniedHandler;
-import com.fawnix.crm.security.handler.RestAuthenticationEntryPoint;
 import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.cloud.client.loadbalancer.LoadBalanced;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.context.annotation.Primary;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -14,6 +12,10 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.client.RestTemplate;
+
+import com.fawnix.crm.security.filter.JwtAuthenticationFilter;
+import com.fawnix.crm.security.handler.RestAccessDeniedHandler;
+import com.fawnix.crm.security.handler.RestAuthenticationEntryPoint;
 
 @Configuration
 @EnableMethodSecurity
@@ -24,7 +26,7 @@ public class SecurityConfig {
   private final RestAccessDeniedHandler accessDeniedHandler;
 
   public SecurityConfig(
-      JwtAuthenticationFilter jwtAuthenticationFilter,
+      @Lazy JwtAuthenticationFilter jwtAuthenticationFilter,
       RestAuthenticationEntryPoint authenticationEntryPoint,
       RestAccessDeniedHandler accessDeniedHandler
   ) {
@@ -42,7 +44,7 @@ public class SecurityConfig {
             .authenticationEntryPoint(authenticationEntryPoint)
             .accessDeniedHandler(accessDeniedHandler))
         .authorizeHttpRequests(auth -> auth
-            .requestMatchers("/actuator/health", "/actuator/info").permitAll()
+            .requestMatchers("/actuator/health", "/actuator/health/**", "/actuator/info").permitAll()
             .requestMatchers("/api/integrations/meta/webhook", "/api/integrations/whatsapp/webhook").permitAll()
             .anyRequest().authenticated())
         .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

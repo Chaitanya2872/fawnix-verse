@@ -117,7 +117,9 @@ public final class TaskDtos {
 
   public record TaskStatusUpdateRequest(
       @NotNull(message = "Task status is required.")
-      TaskStatus status
+      TaskStatus status,
+      String parentTaskId,
+      Long orderIndex
   ) {
   }
 
@@ -246,6 +248,7 @@ public final class TaskDtos {
       LocalDate startDate,
       LocalDate dueDate,
       LocalDate completionDate,
+      Instant completedAt,
       String spaceId,
       String spaceName,
       String projectRef,
@@ -472,6 +475,39 @@ public final class TaskDtos {
   public record AssignedCompletedMetricsResponse(
       long assigned,
       long completed
+  ) {
+  }
+
+  public record TaskReportFiltersResponse(
+      LocalDate fromDate,
+      LocalDate toDate,
+      String spaceId,
+      String spaceName,
+      String projectRef
+  ) {
+  }
+
+  public record TaskReportSummaryResponse(
+      long totalTasks,
+      long completedTasks,
+      long pendingTasks,
+      long inProgressTasks,
+      long overdueTasks,
+      int completionPercentage
+  ) {
+  }
+
+  public record TaskReportRowResponse(
+      String project,
+      LocalDate date,
+      long completedTaskCount
+  ) {
+  }
+
+  public record TaskReportResponse(
+      TaskReportFiltersResponse filters,
+      TaskReportSummaryResponse summary,
+      List<TaskReportRowResponse> rows
   ) {
   }
 }

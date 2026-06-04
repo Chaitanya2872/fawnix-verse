@@ -4,6 +4,7 @@
 
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { jsPDF } from "jspdf";
 import {
   AlertTriangle,
   CalendarDays,
@@ -56,6 +57,7 @@ import {
   useReorderTaskHierarchy,
   useTask,
   useTaskDashboard,
+  useTaskCompletionReport,
   useTaskTree,
   useTaskUsers,
   useUpdateTaskSpace,
@@ -72,6 +74,7 @@ import {
   type TaskDetail,
   type TaskFilter,
   type TaskPriority,
+  type TaskReportResponse,
   type TaskRequest,
   type TaskStatus,
   type TaskSummary,
@@ -85,6 +88,7 @@ import {
   TASK_SPACE_PERMISSIONS,
   TASK_SPACE_VISIBILITIES,
 } from "./types";
+import { getRoleLabel } from "@/modules/users/types";
 
 type TaskView = "list" | "board" | "calendar" | "timeline";
 type TaskScope = "all" | "my" | "team";
@@ -120,6 +124,21 @@ type SpaceMemberDraft = {
   role: TaskSpaceMemberRole;
   permissions: TaskSpacePermission[];
 };
+
+type TaskUser = {
+  id: string;
+  name: string;
+  email: string;
+  roles?: string[];
+};
+
+type TaskPanelState =
+  | { type: "task-editor"; task: TaskSummary | null }
+  | { type: "space-editor"; space: TaskSpaceSummary | null }
+  | { type: "space-members" }
+  | { type: "task-detail"; taskId: string }
+  | { type: "task-report" }
+  | null;
 
 type GroupSection = {
   key: string;
@@ -372,18 +391,188 @@ function initials(name?: string | null) {
 }
 
 function buildAssigneeOptions(
-  users: Array<{ id: string; name: string; email: string }>,
+  users: TaskUser[],
   currentTask?: Pick<TaskSummary, "assignedToId" | "assignedToName"> | null
 ) {
   const options: AssigneeOption[] = [
     { value: "", label: "Unassigned", email: null },
-    ...users.map((user) => ({ value: user.id, label: user.name, email: user.email })),
+    ...users.map((user) => ({
+      value: user.id,
+      label: user.name,
+      email: user.email,
+      roleLabel: getRoleLabel(user.roles ?? []),
+      searchValue: [user.name, user.email, user.id, getRoleLabel(user.roles ?? [])].filter(Boolean).join(" "),
+    })),
   ];
   const currentAssignee = resolveAssigneeIdentity(currentTask?.assignedToId, currentTask?.assignedToName, users);
   if (currentAssignee.id && currentAssignee.name && !options.some((option) => option.value === currentAssignee.id)) {
     options.push({ value: currentAssignee.id, label: currentAssignee.name, email: currentAssignee.email });
   }
   return options;
+}
+
+function buildAssigneeSearchText(option: AssigneeOption) {
+  return [option.label, option.email ?? "", option.value, option.roleLabel ?? "", option.searchValue ?? ""]
+    .join(" ")
+    .toLowerCase();
+}
+
+function filterAssigneeOptions(options: AssigneeOption[], query: string, selectedValues: string[] = []) {
+  const normalizedQuery = query.trim().toLowerCase();
+  if (!normalizedQuery) {
+    return options.filter((option) => option.value);
+  }
+
+  const selected = options.filter((option) => option.value && selectedValues.includes(option.value));
+  const matches = options.filter((option) => option.value && buildAssigneeSearchText(option).includes(normalizedQuery));
+  const merged = [...selected, ...matches];
+
+  return merged.filter((option, index) => merged.findIndex((candidate) => candidate.value === option.value) === index);
+}
+
+function formatReportDate(value?: string | null) {
+  if (!value) return "All dates";
+  return format(parseISO(value), "dd MMM yyyy");
+}
+
+function exportTaskReportPdf(report: TaskReportResponse) {
+  const doc = new jsPDF({ unit: "pt", format: "a4" });
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const marginX = 42;
+  const contentWidth = pageWidth - marginX * 2;
+  const summaryGap = 12;
+  const summaryCardWidth = (contentWidth - summaryGap) / 2;
+  const summaryCardHeight = 48;
+  const rowHeight = 24;
+  const headerHeight = 26;
+  const tableWidths = [contentWidth * 0.46, contentWidth * 0.28, contentWidth * 0.26];
+  let cursorY = 46;
+
+  const ensurePageSpace = (requiredHeight: number) => {
+    if (cursorY + requiredHeight <= pageHeight - 42) {
+      return;
+    }
+    doc.addPage();
+    cursorY = 46;
+  };
+
+  const drawTableHeader = () => {
+    doc.setFillColor(241, 245, 249);
+    doc.setDrawColor(226, 232, 240);
+    doc.rect(marginX, cursorY, contentWidth, headerHeight, "FD");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.setTextColor(15, 23, 42);
+    let currentX = marginX;
+    ["Project", "Date", "Completed Task Count"].forEach((label, index) => {
+      doc.text(label, currentX + 10, cursorY + 17);
+      currentX += tableWidths[index];
+    });
+    cursorY += headerHeight;
+  };
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(18);
+  doc.text("Task Completion Report", marginX, cursorY);
+  cursorY += 18;
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(10);
+  doc.setTextColor(71, 85, 105);
+  doc.text(`Generated on ${format(new Date(), "dd MMM yyyy, hh:mm a")}`, marginX, cursorY);
+  cursorY += 24;
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(11);
+  doc.setTextColor(15, 23, 42);
+  doc.text("Filters", marginX, cursorY);
+  cursorY += 12;
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(10);
+  [
+    `From date: ${formatReportDate(report.filters.fromDate)}`,
+    `To date: ${formatReportDate(report.filters.toDate)}`,
+    `Space: ${report.filters.spaceName ?? "All spaces"}`,
+    `Project: ${report.filters.projectRef ?? "All projects"}`,
+  ].forEach((line) => {
+    doc.text(line, marginX, cursorY);
+    cursorY += 14;
+  });
+
+  cursorY += 12;
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(11);
+  doc.text("Overall Summary", marginX, cursorY);
+  cursorY += 14;
+
+  const summaryCards = [
+    ["Total Tasks", String(report.summary.totalTasks)],
+    ["Completed Tasks", String(report.summary.completedTasks)],
+    ["Pending Tasks", String(report.summary.pendingTasks)],
+    ["In-progress Tasks", String(report.summary.inProgressTasks)],
+    ["Overdue Tasks", String(report.summary.overdueTasks)],
+    ["Completion Percentage", `${report.summary.completionPercentage}%`],
+  ];
+
+  summaryCards.forEach(([label, value], index) => {
+    const column = index % 2;
+    const row = Math.floor(index / 2);
+    const x = marginX + column * (summaryCardWidth + summaryGap);
+    const y = cursorY + row * 60;
+    doc.setDrawColor(226, 232, 240);
+    doc.setFillColor(248, 250, 252);
+    doc.roundedRect(x, y, summaryCardWidth, summaryCardHeight, 12, 12, "FD");
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(100, 116, 139);
+    doc.text(label, x + 12, y + 17);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(16);
+    doc.setTextColor(15, 23, 42);
+    doc.text(value, x + 12, y + 35);
+  });
+
+  cursorY += Math.ceil(summaryCards.length / 2) * 60 + 8;
+  ensurePageSpace(120);
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(11);
+  doc.setTextColor(15, 23, 42);
+  doc.text("Project-wise Completion", marginX, cursorY);
+  cursorY += 16;
+  drawTableHeader();
+
+  if (!report.rows.length) {
+    doc.setDrawColor(226, 232, 240);
+    doc.rect(marginX, cursorY, contentWidth, rowHeight);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.setTextColor(100, 116, 139);
+    doc.text("No completed tasks found for the selected filters.", marginX + 10, cursorY + 16);
+    cursorY += rowHeight;
+  } else {
+    report.rows.forEach((row) => {
+      ensurePageSpace(rowHeight + 8);
+      if (cursorY === 46) {
+        drawTableHeader();
+      }
+      doc.setDrawColor(226, 232, 240);
+      doc.rect(marginX, cursorY, contentWidth, rowHeight);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(10);
+      doc.setTextColor(15, 23, 42);
+      let currentX = marginX;
+      [row.project, formatReportDate(row.date), String(row.completedTaskCount)].forEach((value, index) => {
+        doc.text(value, currentX + 10, cursorY + 16, { maxWidth: tableWidths[index] - 20 });
+        currentX += tableWidths[index];
+      });
+      cursorY += rowHeight;
+    });
+  }
+
+  doc.save(`task-completion-report-${report.filters.fromDate ?? "all"}-${report.filters.toDate ?? "all"}.pdf`);
 }
 
 function canOpenFullTaskEditor(user: CurrentUser | null | undefined, task: TaskSummary) {
@@ -398,6 +587,16 @@ function canManageExecution(user: CurrentUser | null | undefined, task: TaskSumm
   if (user.id === task.assignedToId) return true;
   if (task.activeAssignees?.some((assignee) => assignee.assignedToId === user.id)) return true;
   return hasPermission(user, PERMISSIONS.PAGE_TASKS) || hasPermission(user, PERMISSIONS.MODULE_TASKS);
+}
+
+function canViewTaskOnClient(user: CurrentUser | null | undefined, task: TaskSummary) {
+  if (!user) return false;
+  if (task.visibility === "PRIVATE") {
+    if (task.canEdit || task.canManageExecution) return true;
+    if (user.id === task.assignedToId) return true;
+    return task.activeAssignees?.some((assignee) => assignee.assignedToId === user.id) ?? false;
+  }
+  return true;
 }
 
 function activeSpaceTasks(tasks: TaskSummary[], spaceId: string) {
@@ -438,14 +637,11 @@ export default function TaskManagementPage() {
   const [scope, setScope] = useState<TaskScope>("all");
   const [grouping, setGrouping] = useState<TaskGrouping>("status");
   const [filter, setFilter] = useState<TaskFilter>(defaultFilter);
+  const [activePanel, setActivePanel] = useState<TaskPanelState>(null);
   const [selectedSpaceId, setSelectedSpaceId] = useState("");
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
-  const [detailTaskId, setDetailTaskId] = useState<string | null>(null);
-  const [editorOpen, setEditorOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<TaskSummary | null>(null);
-  const [spaceEditorOpen, setSpaceEditorOpen] = useState(false);
-  const [memberPanelOpen, setMemberPanelOpen] = useState(false);
   const [editingSpace, setEditingSpace] = useState<TaskSpaceSummary | null>(null);
   const [spaceForm, setSpaceForm] = useState<SpaceFormState>(defaultSpaceForm);
   const [spaceMembersDraft, setSpaceMembersDraft] = useState<SpaceMemberDraft[]>([]);
@@ -457,6 +653,12 @@ export default function TaskManagementPage() {
   const [commentDraft, setCommentDraft] = useState("");
   const [checklistDraft, setChecklistDraft] = useState("");
   const [dragTaskId, setDragTaskId] = useState<string | null>(null);
+  const [boardDragTaskId, setBoardDragTaskId] = useState<string | null>(null);
+  const [boardDropStatus, setBoardDropStatus] = useState<TaskStatus | null>(null);
+  const [reportDates, setReportDates] = useState(() => {
+    const today = format(new Date(), "yyyy-MM-dd");
+    return { fromDate: today, toDate: today };
+  });
   const [form, setForm] = useState<TaskFormState>(defaultForm);
 
   const { data: currentUser } = useCurrentUser();
@@ -464,6 +666,7 @@ export default function TaskManagementPage() {
   const spacesQuery = useTaskSpaces();
   const spaceDetailQuery = useTaskSpace(selectedSpaceId || null);
   const treeQuery = useTaskTree(filter);
+  const detailTaskId = activePanel?.type === "task-detail" ? activePanel.taskId : null;
   const detailQuery = useTask(detailTaskId);
   const usersQuery = useTaskUsers();
 
@@ -487,7 +690,10 @@ export default function TaskManagementPage() {
   const spaces = spacesQuery.data ?? [];
   const selectedSpace = spaces.find((space) => space.id === selectedSpaceId) ?? null;
   const selectedSpaceDetail = spaceDetailQuery.data ?? null;
-  const taskTree = treeQuery.data?.data ?? [];
+  const taskTree = useMemo(
+    () => (treeQuery.data?.data ?? []).filter((task) => canViewTaskOnClient(currentUser, task)),
+    [currentUser, treeQuery.data?.data]
+  );
   const detail = detailQuery.data ?? null;
   const users = useMemo(
     () =>
@@ -495,8 +701,18 @@ export default function TaskManagementPage() {
         id: user.id,
         name: user.name,
         email: user.email,
+        roles: user.roles ?? [],
       })),
     [usersQuery.data]
+  );
+  const reportQuery = useTaskCompletionReport(
+    {
+      fromDate: reportDates.fromDate,
+      toDate: reportDates.toDate,
+      spaceId: selectedSpaceId || undefined,
+      projectRef: filter.projectRef || undefined,
+    },
+    activePanel?.type === "task-report" && Boolean(reportDates.fromDate) && Boolean(reportDates.toDate)
   );
 
   useEffect(() => {
@@ -542,7 +758,10 @@ export default function TaskManagementPage() {
   }, [queryClient]);
 
   const visibleTreeRows = useMemo(() => collectVisibleTasks(taskTree, expandedIds), [taskTree, expandedIds]);
-  const allFlatTasks = useMemo(() => collectVisibleTasks(taskTree, new Set(taskTree.map((task) => task.id))), [taskTree]);
+  const allFlatTasks = useMemo(
+    () => collectVisibleTasks(taskTree, new Set(taskTree.map((task) => task.id))).filter((task) => canViewTaskOnClient(currentUser, task)),
+    [currentUser, taskTree]
+  );
   const groupedSections = useMemo(() => groupTasks(visibleTreeRows, grouping), [grouping, visibleTreeRows]);
   const boardColumns = useMemo(
     () =>
@@ -617,14 +836,30 @@ export default function TaskManagementPage() {
       ...taskToForm(task ?? null),
       spaceId: task?.spaceId ?? selectedSpaceId,
     });
-    setEditorOpen(true);
+    setActivePanel({ type: "task-editor", task: task ?? null });
   }
 
   function openSpaceEditor(space?: TaskSpaceSummary | null) {
     setEditingSpace(space ?? null);
     setSpaceForm(toSpaceForm(space ?? null));
     setSpaceMembersDraft([]);
-    setSpaceEditorOpen(true);
+    setActivePanel({ type: "space-editor", space: space ?? null });
+  }
+
+  function openMembersPanel() {
+    setActivePanel({ type: "space-members" });
+  }
+
+  function openTaskDetail(taskId: string) {
+    setActivePanel({ type: "task-detail", taskId });
+  }
+
+  function openReportPanel() {
+    setActivePanel({ type: "task-report" });
+  }
+
+  function closeActivePanel() {
+    setActivePanel(null);
   }
 
   function handleSpaceSelect(value: string) {
@@ -710,7 +945,7 @@ export default function TaskManagementPage() {
         {
           onSuccess: () => {
             toast.success("Task updated.");
-            setEditorOpen(false);
+            closeActivePanel();
           },
           onError: (error) => toast.error(error.message),
         }
@@ -720,7 +955,7 @@ export default function TaskManagementPage() {
     createTaskMutation.mutate(payload, {
       onSuccess: () => {
         toast.success("Task created.");
-        setEditorOpen(false);
+        closeActivePanel();
       },
       onError: (error) => toast.error(error.message),
     });
@@ -782,9 +1017,14 @@ export default function TaskManagementPage() {
     );
   }
 
-  function handleStatusUpdate(task: TaskSummary, status: TaskStatus, message: string) {
+  function handleStatusUpdate(
+    task: TaskSummary,
+    status: TaskStatus,
+    message: string,
+    options?: { parentTaskId?: string | null; orderIndex?: number | null }
+  ) {
     updateTaskStatusMutation.mutate(
-      { id: task.id, status },
+      { id: task.id, status, parentTaskId: options?.parentTaskId, orderIndex: options?.orderIndex },
       {
         onSuccess: () => toast.success(message),
         onError: (error) => toast.error(error.message),
@@ -857,11 +1097,30 @@ export default function TaskManagementPage() {
     );
   }
 
+  function handleBoardDrop(status: TaskStatus) {
+    if (!boardDragTaskId) return;
+    const draggedTask = allFlatTasks.find((task) => task.id === boardDragTaskId);
+    if (!draggedTask) {
+      setBoardDragTaskId(null);
+      setBoardDropStatus(null);
+      return;
+    }
+
+    handleStatusUpdate(
+      draggedTask,
+      status,
+      status === "COMPLETED" && draggedTask.status !== "COMPLETED" ? "Task completed." : "Task moved.",
+      { orderIndex: Date.now() }
+    );
+    setBoardDragTaskId(null);
+    setBoardDropStatus(null);
+  }
+
   function handleDelete(taskId: string) {
     deleteTaskMutation.mutate(taskId, {
       onSuccess: () => {
         toast.success("Task deleted.");
-        if (detailTaskId === taskId) setDetailTaskId(null);
+        if (detailTaskId === taskId) closeActivePanel();
       },
       onError: (error) => toast.error(error.message),
     });
@@ -947,7 +1206,7 @@ export default function TaskManagementPage() {
         {
           onSuccess: () => {
             toast.success("Space updated.");
-            setSpaceEditorOpen(false);
+            closeActivePanel();
           },
           onError: (error) => toast.error(error.message),
         }
@@ -957,7 +1216,7 @@ export default function TaskManagementPage() {
     createSpaceMutation.mutate(payload, {
       onSuccess: () => {
         toast.success("Space created.");
-        setSpaceEditorOpen(false);
+        closeActivePanel();
       },
       onError: (error) => toast.error(error.message),
     });
@@ -967,7 +1226,7 @@ export default function TaskManagementPage() {
     deleteSpaceMutation.mutate(space.id, {
       onSuccess: () => {
         toast.success("Space deleted.");
-        setSpaceEditorOpen(false);
+        closeActivePanel();
       },
       onError: (error) => toast.error(error.message),
     });
@@ -1085,7 +1344,7 @@ export default function TaskManagementPage() {
                         <>
                           <button
                             type="button"
-                            onClick={() => setMemberPanelOpen(true)}
+                            onClick={openMembersPanel}
                             className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700"
                           >
                             <UserPlus className="h-4 w-4" />
@@ -1101,6 +1360,14 @@ export default function TaskManagementPage() {
                           </button>
                         </>
                       ) : null}
+                      <button
+                        type="button"
+                        onClick={openReportPanel}
+                        className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700"
+                      >
+                        <TrendingUp className="h-4 w-4" />
+                        Report
+                      </button>
                       <button
                         type="button"
                         onClick={() => openEditor(null)}
@@ -1328,7 +1595,7 @@ export default function TaskManagementPage() {
                                     expandedIds={expandedIds}
                                     dragTaskId={dragTaskId}
                                     active={detailTaskId === task.id}
-                                    onOpen={() => setDetailTaskId(task.id)}
+                                    onOpen={() => openTaskDetail(task.id)}
                                     onToggleExpand={toggleExpand}
                                     onAssign={handleAssign}
                                     onStatusUpdate={handleStatusUpdate}
@@ -1350,7 +1617,18 @@ export default function TaskManagementPage() {
                 ) : view === "board" ? (
                   <div className="grid gap-4 xl:grid-cols-4">
                     {boardColumns.map((column) => (
-                      <section key={column.status} className="rounded-[30px] border border-slate-200 bg-[#f8f9fc] p-3.5">
+                      <section
+                        key={column.status}
+                        onDragOver={(event) => {
+                          event.preventDefault();
+                          setBoardDropStatus(column.status);
+                        }}
+                        onDragLeave={() => setBoardDropStatus((prev) => (prev === column.status ? null : prev))}
+                        onDrop={() => handleBoardDrop(column.status)}
+                        className={`rounded-[30px] border bg-[#f8f9fc] p-3.5 transition ${
+                          boardDropStatus === column.status ? "border-sky-300 ring-2 ring-sky-100" : "border-slate-200"
+                        }`}
+                      >
                         <div className="mb-3 flex items-center justify-between">
                           <div className="flex items-center gap-2">
                             <span className={`h-2.5 w-2.5 rounded-full ${statusDot(column.status)}`} />
@@ -1365,7 +1643,13 @@ export default function TaskManagementPage() {
                             <button
                               key={task.id}
                               type="button"
-                              onClick={() => setDetailTaskId(task.id)}
+                              draggable={canManageExecution(currentUser, task)}
+                              onDragStart={() => setBoardDragTaskId(task.id)}
+                              onDragEnd={() => {
+                                setBoardDragTaskId(null);
+                                setBoardDropStatus(null);
+                              }}
+                              onClick={() => openTaskDetail(task.id)}
                               className="w-full rounded-[24px] border border-slate-200 bg-white p-4 text-left transition hover:border-slate-300"
                             >
                               <div className="flex items-start justify-between gap-3">
@@ -1404,7 +1688,7 @@ export default function TaskManagementPage() {
                       <button
                         key={task.id}
                         type="button"
-                        onClick={() => setDetailTaskId(task.id)}
+                        onClick={() => openTaskDetail(task.id)}
                         className="rounded-[26px] border border-slate-200 bg-white p-4 text-left transition hover:border-slate-300"
                       >
                         <div className="flex items-center justify-between">
@@ -1432,7 +1716,7 @@ export default function TaskManagementPage() {
                       <button
                         key={task.id}
                         type="button"
-                        onClick={() => setDetailTaskId(task.id)}
+                        onClick={() => openTaskDetail(task.id)}
                         className="flex w-full flex-col gap-3 rounded-[26px] border border-slate-200 bg-white p-4 text-left transition hover:border-slate-300 lg:flex-row lg:items-center"
                       >
                         <div className="lg:w-64">
@@ -1455,11 +1739,11 @@ export default function TaskManagementPage() {
         </div>
       </div>
 
-      <Drawer open={editorOpen} title={editingTask ? "Edit Task" : "Create Task"} onClose={() => setEditorOpen(false)} maxWidth="max-w-xl">
-        <TaskEditor form={form} setForm={setForm} users={users} spaces={spaces} onSubmit={handleSaveTask} onClose={() => setEditorOpen(false)} />
+      <Drawer open={activePanel?.type === "task-editor"} title={editingTask ? "Edit Task" : "Create Task"} onClose={closeActivePanel} maxWidth="max-w-xl">
+        <TaskEditor form={form} setForm={setForm} users={users} spaces={spaces} onSubmit={handleSaveTask} onClose={closeActivePanel} />
       </Drawer>
 
-      <Drawer open={spaceEditorOpen} title={editingSpace ? "Edit Space" : "Create Space"} onClose={() => setSpaceEditorOpen(false)} maxWidth="max-w-lg">
+      <Drawer open={activePanel?.type === "space-editor"} title={editingSpace ? "Edit Space" : "Create Space"} onClose={closeActivePanel} maxWidth="max-w-lg">
         <SpaceEditor
           form={spaceForm}
           setForm={setSpaceForm}
@@ -1473,12 +1757,12 @@ export default function TaskManagementPage() {
           onSubmit={handleSaveSpace}
           editingSpace={editingSpace}
           onDelete={() => editingSpace && handleDeleteSpace(editingSpace)}
-          onClose={() => setSpaceEditorOpen(false)}
+          onClose={closeActivePanel}
         />
       </Drawer>
 
       {selectedSpace && (
-        <Drawer open={memberPanelOpen} title={`${selectedSpace.name} Members`} onClose={() => setMemberPanelOpen(false)} maxWidth="max-w-xl">
+        <Drawer open={activePanel?.type === "space-members"} title={`${selectedSpace.name} Members`} onClose={closeActivePanel} maxWidth="max-w-xl">
           <SpaceMembersPanel
             detail={selectedSpaceDetail}
             users={users}
@@ -1496,7 +1780,19 @@ export default function TaskManagementPage() {
         </Drawer>
       )}
 
-      <Drawer open={Boolean(detailTaskId)} title={detail?.task.title ?? "Task"} onClose={() => setDetailTaskId(null)} maxWidth="max-w-full md:max-w-[72vw] xl:max-w-[42vw]">
+      <Drawer open={activePanel?.type === "task-report"} title="Task Report" onClose={closeActivePanel} maxWidth="max-w-3xl">
+        <TaskReportPanel
+          dates={reportDates}
+          onDatesChange={setReportDates}
+          selectedSpace={selectedSpace}
+          projectRef={filter.projectRef}
+          report={reportQuery.data ?? null}
+          loading={reportQuery.isLoading}
+          error={reportQuery.error instanceof Error ? reportQuery.error.message : null}
+        />
+      </Drawer>
+
+      <Drawer open={activePanel?.type === "task-detail"} title={detail?.task.title ?? "Task"} onClose={closeActivePanel} maxWidth="max-w-full md:max-w-[72vw] xl:max-w-[42vw]">
         <DetailPanel
           detail={detail}
           loading={detailQuery.isLoading}
@@ -1531,7 +1827,7 @@ export default function TaskManagementPage() {
           onAssign={handleAssign}
           onStatusUpdate={handleStatusUpdate}
           onInlineUpdate={handleInlineUpdate}
-          onClose={() => setDetailTaskId(null)}
+          onClose={closeActivePanel}
         />
       </Drawer>
     </>
@@ -1579,12 +1875,14 @@ type AssigneeOption = {
   value: string;
   label: string;
   email?: string | null;
+  roleLabel?: string | null;
+  searchValue?: string;
 };
 
 function resolveAssigneeIdentity(
   assignedToId: string | null | undefined,
   assignedToName: string | null | undefined,
-  users: Array<{ id: string; name: string; email: string }>
+  users: TaskUser[]
 ) {
   const matchedUser = assignedToId ? users.find((user) => user.id === assignedToId) : null;
   return {
@@ -1596,7 +1894,7 @@ function resolveAssigneeIdentity(
 
 function getActiveAssignees(
   task: Pick<TaskSummary, "activeAssignees" | "assignedToId" | "assignedToName" | "assignedTeamName">,
-  users: Array<{ id: string; name: string; email: string }>
+  users: TaskUser[]
 ) {
   if (task.activeAssignees?.length) {
     return task.activeAssignees.map((assignee) => ({
@@ -1798,12 +2096,9 @@ function AssigneeSelect({
     options[0];
 
   const filteredOptions = useMemo(() => {
-    const normalizedQuery = query.trim().toLowerCase();
-    if (!normalizedQuery) return options;
-    return options.filter((option) => {
-      const haystack = [option.label, option.email ?? ""].join(" ").toLowerCase();
-      return haystack.includes(normalizedQuery);
-    });
+    const emptyOption = options.find((option) => option.value === "");
+    const matchedOptions = filterAssigneeOptions(options, query, value ? [value] : []);
+    return emptyOption ? [emptyOption, ...matchedOptions] : matchedOptions;
   }, [options, query]);
 
   const selectedIndex = Math.max(
@@ -1889,7 +2184,9 @@ function AssigneeSelect({
   }, [filteredOptions, highlightedIndex, onChange, open, selectedIndex]);
 
   const currentLabel = selectedOption?.value ? selectedOption.label : "Assign person";
-  const currentSubtitle = selectedOption?.value ? selectedOption.email : "Choose a teammate";
+  const currentSubtitle = selectedOption?.value
+    ? [selectedOption.email || "No email on record", selectedOption.roleLabel].filter(Boolean).join(" | ")
+    : "Choose a teammate";
 
   return (
     <div className={className}>
@@ -1928,7 +2225,7 @@ function AssigneeSelect({
                       setQuery(event.target.value);
                       setHighlightedIndex(0);
                     }}
-                    placeholder="Search people or enter email..."
+                    placeholder="Search by name, code, email, or role"
                     className="w-full bg-transparent text-sm text-slate-700 outline-none placeholder:text-slate-400"
                   />
                 </div>
@@ -1964,7 +2261,9 @@ function AssigneeSelect({
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-sm font-medium text-slate-800">{option.label}</p>
                           <p className="truncate text-xs text-slate-500">
-                            {option.value ? option.email || "No email on record" : "Leave this task without an assignee"}
+                            {option.value
+                              ? [option.email || "No email on record", option.roleLabel].filter(Boolean).join(" | ")
+                              : "Leave this task without an assignee"}
                           </p>
                         </div>
                         {selected ? <CheckCircle2 className="h-4 w-4 flex-shrink-0 text-slate-900" /> : null}
@@ -2005,12 +2304,7 @@ function AssigneeMultiSelect({
 
   const selectedOptions = options.filter((option) => option.value && values.includes(option.value));
   const filteredOptions = useMemo(() => {
-    const normalizedQuery = query.trim().toLowerCase();
-    return options.filter((option) => {
-      if (!option.value) return false;
-      if (!normalizedQuery) return true;
-      return [option.label, option.email ?? ""].join(" ").toLowerCase().includes(normalizedQuery);
-    });
+    return filterAssigneeOptions(options, query, values);
   }, [options, query]);
 
   const updatePosition = React.useCallback(() => {
@@ -2095,7 +2389,7 @@ function AssigneeMultiSelect({
                     ref={searchRef}
                     value={query}
                     onChange={(event) => setQuery(event.target.value)}
-                    placeholder="Search people..."
+                    placeholder="Search by name, code, email, or role"
                     className="w-full bg-transparent text-sm text-slate-700 outline-none placeholder:text-slate-400"
                   />
                 </div>
@@ -2120,7 +2414,9 @@ function AssigneeMultiSelect({
                       <Avatar name={option.label} />
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium text-slate-800">{option.label}</p>
-                        <p className="truncate text-xs text-slate-500">{option.email || "No email on record"}</p>
+                        <p className="truncate text-xs text-slate-500">
+                          {[option.email || "No email on record", option.roleLabel].filter(Boolean).join(" | ")}
+                        </p>
                       </div>
                       {selected ? <CheckCircle2 className="h-4 w-4 flex-shrink-0 text-slate-900" /> : null}
                     </button>
@@ -2233,17 +2529,20 @@ function TaskRow({
 }) {
   const expanded = expandedIds.has(task.id);
   const activeAssignees = getActiveAssignees(task, users);
+  const canReorderHierarchy = canOpenFullTaskEditor(currentUser, task);
 
   return (
     <div
-      draggable
+      draggable={canReorderHierarchy}
       onClick={onOpen}
-      onDragStart={() => onDragStart(task.id)}
+      onDragStart={() => canReorderHierarchy && onDragStart(task.id)}
       onDragEnd={() => onDragStart(null)}
       onDragOver={(event) => {
-        event.preventDefault();
+        if (canReorderHierarchy) {
+          event.preventDefault();
+        }
       }}
-      onDrop={() => onDropOnTask(task)}
+      onDrop={() => canReorderHierarchy && onDropOnTask(task)}
       className={`group cursor-pointer px-3 py-2 transition sm:px-4 ${active ? "bg-slate-100/80" : "hover:bg-slate-50/70"} ${
         dragTaskId === task.id ? "opacity-60" : ""
       }`}
@@ -2253,7 +2552,9 @@ function TaskRow({
           <button
             type="button"
             onClick={(event) => event.stopPropagation()}
-            className="mt-0.5 cursor-grab rounded-lg p-1 text-slate-300 transition group-hover:text-slate-500"
+            className={`mt-0.5 rounded-lg p-1 text-slate-300 transition group-hover:text-slate-500 ${
+              canReorderHierarchy ? "cursor-grab" : "cursor-not-allowed opacity-60"
+            }`}
           >
             <GripVertical className="h-4 w-4" />
           </button>
@@ -2981,6 +3282,126 @@ function SpaceEditor({
         </div>
       </div>
     </form>
+  );
+}
+
+function TaskReportPanel({
+  dates,
+  onDatesChange,
+  selectedSpace,
+  projectRef,
+  report,
+  loading,
+  error,
+}: {
+  dates: { fromDate: string; toDate: string };
+  onDatesChange: React.Dispatch<React.SetStateAction<{ fromDate: string; toDate: string }>>;
+  selectedSpace: TaskSpaceSummary | null;
+  projectRef: string;
+  report: TaskReportResponse | null;
+  loading: boolean;
+  error: string | null;
+}) {
+  if (loading) {
+    return <PanelState icon={<Loader2 className="h-5 w-5 animate-spin" />} title="Preparing report" body="Collecting summary and completion counts for the selected range." padded />;
+  }
+
+  if (error) {
+    return <PanelState icon={<AlertTriangle className="h-5 w-5 text-rose-500" />} title="Report unavailable" body={error} padded />;
+  }
+
+  const summary = report?.summary;
+  const rows = report?.rows ?? [];
+
+  return (
+    <div className="space-y-5">
+      <section className="space-y-4 rounded-[28px] border border-slate-200 bg-slate-50/80 p-4">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
+          <div>
+            <p className="text-lg font-semibold text-slate-950">Task completion report</p>
+            <p className="mt-1 text-sm text-slate-500">
+              Export a clean PDF summary with project-wise completion counts for the selected date range.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => report && exportTaskReportPdf(report)}
+            disabled={!report}
+            className="inline-flex items-center justify-center rounded-2xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Export PDF
+          </button>
+        </div>
+
+        <div className="grid gap-3 md:grid-cols-2">
+          <Field label="From date">
+            <input
+              type="date"
+              value={dates.fromDate}
+              onChange={(event) => onDatesChange((prev) => ({ ...prev, fromDate: event.target.value }))}
+              className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm"
+            />
+          </Field>
+          <Field label="To date">
+            <input
+              type="date"
+              value={dates.toDate}
+              onChange={(event) => onDatesChange((prev) => ({ ...prev, toDate: event.target.value }))}
+              className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm"
+            />
+          </Field>
+        </div>
+
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <InfoCard label="From date" value={formatReportDate(report?.filters.fromDate ?? dates.fromDate)} />
+          <InfoCard label="To date" value={formatReportDate(report?.filters.toDate ?? dates.toDate)} />
+          <InfoCard label="Space" value={report?.filters.spaceName ?? selectedSpace?.name ?? "All spaces"} />
+          <InfoCard label="Project" value={report?.filters.projectRef ?? (projectRef || "All projects")} />
+        </div>
+      </section>
+
+      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        <MetricStrip label="Total" value={summary?.totalTasks ?? 0} hint="Tasks in scope" tone="slate" />
+        <MetricStrip label="Completed" value={summary?.completedTasks ?? 0} hint="Closed in range" tone="emerald" />
+        <MetricStrip label="Pending" value={summary?.pendingTasks ?? 0} hint="Open backlog" tone="slate" />
+        <MetricStrip label="In Progress" value={summary?.inProgressTasks ?? 0} hint="Actively moving" tone="sky" />
+        <MetricStrip label="Overdue" value={summary?.overdueTasks ?? 0} hint="Needs follow-up" tone="rose" />
+        <MetricStrip label="Completion %" value={summary?.completionPercentage ?? 0} hint="Completed vs total" tone="fuchsia" />
+      </section>
+
+      <section className="overflow-hidden rounded-[28px] border border-slate-200 bg-white">
+        <div className="border-b border-slate-200 px-4 py-3">
+          <p className="text-sm font-semibold text-slate-950">Project-wise and date-wise completion count</p>
+          <p className="mt-1 text-xs text-slate-500">Project | Date | Completed Task Count</p>
+        </div>
+        {rows.length ? (
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-slate-200 text-sm">
+              <thead className="bg-slate-50">
+                <tr>
+                  <th className="px-4 py-3 text-left font-semibold text-slate-600">Project</th>
+                  <th className="px-4 py-3 text-left font-semibold text-slate-600">Date</th>
+                  <th className="px-4 py-3 text-left font-semibold text-slate-600">Completed Task Count</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {rows.map((row) => (
+                  <tr key={`${row.project}-${row.date}`}>
+                    <td className="px-4 py-3 text-slate-800">{row.project}</td>
+                    <td className="px-4 py-3 text-slate-600">{formatReportDate(row.date)}</td>
+                    <td className="px-4 py-3 font-semibold text-slate-900">{row.completedTaskCount}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="px-4 py-10 text-center text-sm text-slate-500">
+            No completed tasks were found for the selected filters.
+          </div>
+        )}
+      </section>
+    </div>
   );
 }
 

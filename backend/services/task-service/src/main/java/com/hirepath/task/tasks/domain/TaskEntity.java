@@ -123,6 +123,9 @@ public class TaskEntity {
   @Column(name = "completion_date")
   private LocalDate completionDate;
 
+  @Column(name = "completed_at")
+  private Instant completedAt;
+
   @Column(name = "created_at", nullable = false)
   private Instant createdAt;
 
@@ -407,6 +410,14 @@ public class TaskEntity {
 
   public void setCompletionDate(LocalDate completionDate) {
     this.completionDate = completionDate;
+  }
+
+  public Instant getCompletedAt() {
+    return completedAt;
+  }
+
+  public void setCompletedAt(Instant completedAt) {
+    this.completedAt = completedAt;
   }
 
   public Instant getCreatedAt() {
