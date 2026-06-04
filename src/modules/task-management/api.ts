@@ -8,6 +8,8 @@ import type {
   TaskListResponse,
   TaskReportFilters,
   TaskReportResponse,
+  TaskNotesImportRequest,
+  TaskNotesImportResponse,
   TaskRequest,
   TaskStatus,
   TaskComment,
@@ -126,6 +128,31 @@ export async function createTask(payload: TaskRequest): Promise<TaskDetail> {
     return response.data;
   } catch (error) {
     rethrow(error, "Failed to create task.");
+  }
+}
+
+export async function importTasksFromNotes(
+  payload: TaskNotesImportRequest,
+  file?: File | null
+): Promise<TaskNotesImportResponse> {
+  try {
+    await ensureApiSession();
+    const formData = new FormData();
+    formData.append(
+      "request",
+      new Blob([JSON.stringify(payload)], { type: "application/json" })
+    );
+    if (file) {
+      formData.append("file", file);
+    }
+    const response = await api.post<TaskNotesImportResponse>("/tasks/import-notes", formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    });
+    return response.data;
+  } catch (error) {
+    rethrow(error, "Failed to import tasks from notes.");
   }
 }
 

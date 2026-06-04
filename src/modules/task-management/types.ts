@@ -302,6 +302,21 @@ export type TaskRequest = {
   checklistItems?: Array<{ label: string }>;
 };
 
+export type TaskNotesImportRequest = {
+  notes?: string;
+  projectRef: string;
+  moduleRef?: string | null;
+  spaceId?: string | null;
+  visibility?: TaskVisibility;
+  assignees: TaskAssignee[];
+};
+
+export type TaskNotesImportResponse = {
+  createdTopLevelTasks: number;
+  createdTotalTasks: number;
+  tasks: TaskSummary[];
+};
+
 export type TaskSpaceSummary = {
   id: string;
   spaceKey: string;

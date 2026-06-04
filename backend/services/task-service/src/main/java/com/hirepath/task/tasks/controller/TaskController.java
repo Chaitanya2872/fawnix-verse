@@ -15,8 +15,10 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 @RestController
@@ -36,6 +38,15 @@ public class TaskController {
       @AuthenticationPrincipal AppUserDetails user
   ) {
     return taskService.createTask(request, user);
+  }
+
+  @PostMapping(value = "/import-notes", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+  public TaskDtos.TaskNotesImportResponse importTasksFromNotes(
+      @Valid @RequestPart("request") TaskDtos.TaskNotesImportRequest request,
+      @RequestPart(value = "file", required = false) MultipartFile file,
+      @AuthenticationPrincipal AppUserDetails user
+  ) {
+    return taskService.importTasksFromNotes(request, file, user);
   }
 
   @GetMapping

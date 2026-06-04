@@ -659,6 +659,10 @@ services:
       TASK_DB_URL: jdbc:postgresql://postgres:5432/fawnix_tasks
       TASK_DB_USERNAME: ${POSTGRES_USER:-postgres}
       TASK_DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      TASK_AI_IMPORT_ENABLED: ${TASK_AI_IMPORT_ENABLED:-false}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      TASK_AI_MODEL: ${TASK_AI_MODEL:-gpt-4o-mini}
+      TASK_AI_TEMPERATURE: ${TASK_AI_TEMPERATURE:-0.2}
     ports:
       - "8094:8094"
     healthcheck:

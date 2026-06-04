@@ -16,6 +16,7 @@ import {
   fetchTaskSpace,
   fetchTaskSpaces,
   fetchTaskTree,
+  importTasksFromNotes,
   fetchMyTaskInvitations,
   fetchTasks,
   fetchTaskUsers,
@@ -36,6 +37,7 @@ import {
 import type {
   TaskFilter,
   TaskReportFilters,
+  TaskNotesImportRequest,
   TaskRequest,
   TaskSpaceInvitationRequest,
   TaskSpaceInvitationStatus,
@@ -152,6 +154,15 @@ export function useCreateTask() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (payload: TaskRequest) => createTask(payload),
+    onSuccess: () => invalidateTasks(queryClient),
+  });
+}
+
+export function useImportTasksFromNotes() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ payload, file }: { payload: TaskNotesImportRequest; file?: File | null }) =>
+      importTasksFromNotes(payload, file),
     onSuccess: () => invalidateTasks(queryClient),
   });
 }

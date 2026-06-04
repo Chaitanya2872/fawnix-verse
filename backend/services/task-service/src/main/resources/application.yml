@@ -39,3 +39,9 @@ app:
       refresh-token-expiration-days: 14
       secret: ${JWT_SECRET:change-this-local-dev-secret-change-this-local-dev-secret}
     internal-service-secret: ${INTERNAL_SERVICE_SECRET:fawnix-internal-secret}
+  ai:
+    task-import:
+      enabled: ${TASK_AI_IMPORT_ENABLED:false}
+      api-key: ${OPENAI_API_KEY:}
+      model: ${TASK_AI_MODEL:gpt-4o-mini}
+      temperature: ${TASK_AI_TEMPERATURE:0.2}

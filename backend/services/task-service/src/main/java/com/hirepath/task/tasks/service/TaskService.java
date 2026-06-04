@@ -2,6 +2,7 @@ package com.hirepath.task.tasks.service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -26,6 +27,7 @@ import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import com.hirepath.task.common.exception.BadRequestException;
@@ -94,6 +96,7 @@ public class TaskService {
   private final TaskSpaceInvitationRepository taskSpaceInvitationRepository;
   private final TaskSpaceNotificationService taskSpaceNotificationService;
   private final TaskSpaceStreamService taskSpaceStreamService;
+  private final TaskNotesImportAiService taskNotesImportAiService;
 
   public TaskService(
       TaskRepository taskRepository,
@@ -106,7 +109,8 @@ public class TaskService {
       TaskSpaceMemberRepository taskSpaceMemberRepository,
       TaskSpaceInvitationRepository taskSpaceInvitationRepository,
       TaskSpaceNotificationService taskSpaceNotificationService,
-      TaskSpaceStreamService taskSpaceStreamService
+      TaskSpaceStreamService taskSpaceStreamService,
+      TaskNotesImportAiService taskNotesImportAiService
   ) {
     this.taskRepository = taskRepository;
     this.commentRepository = commentRepository;
@@ -119,16 +123,123 @@ public class TaskService {
     this.taskSpaceInvitationRepository = taskSpaceInvitationRepository;
     this.taskSpaceNotificationService = taskSpaceNotificationService;
     this.taskSpaceStreamService = taskSpaceStreamService;
+    this.taskNotesImportAiService = taskNotesImportAiService;
   }
 
   public TaskDtos.TaskDetailResponse createTask(TaskDtos.TaskRequest request, AppUserDetails user) {
     return createTaskInternal(request, user, request.parentTaskId());
   }
 
+  public TaskDtos.TaskNotesImportResponse importTasksFromNotes(
+      TaskDtos.TaskNotesImportRequest request,
+      MultipartFile file,
+      AppUserDetails user
+  ) {
+    String notes = mergeNotes(request.notes(), file);
+    TaskNotesImportAiService.NotesImportPlan plan = taskNotesImportAiService.generatePlan(request, notes);
+    List<TaskDtos.TaskSummaryResponse> createdTasks = new ArrayList<>();
+    AssignmentRoundRobin assignmentRoundRobin = new AssignmentRoundRobin(request.assignees());
+    int totalCreated = 0;
+
+    for (TaskNotesImportAiService.ImportedTask importedTask : plan.tasks()) {
+      TaskDtos.TaskDetailResponse created = createImportedTask(request, importedTask, null, assignmentRoundRobin, user);
+      createdTasks.add(created.task());
+      totalCreated += countImportedTasks(importedTask);
+    }
+
+    return new TaskDtos.TaskNotesImportResponse(createdTasks.size(), totalCreated, createdTasks);
+  }
+
   public TaskDtos.TaskDetailResponse addSubtask(String taskId, TaskDtos.TaskRequest request, AppUserDetails user) {
     TaskEntity parent = requireTask(taskId);
     ensureEditAccess(user, parent);
     return createTaskInternal(request, user, parent.getId());
+  }
+
+  private TaskDtos.TaskDetailResponse createImportedTask(
+      TaskDtos.TaskNotesImportRequest importRequest,
+      TaskNotesImportAiService.ImportedTask importedTask,
+      String parentTaskId,
+      AssignmentRoundRobin assignmentRoundRobin,
+      AppUserDetails user
+  ) {
+    if (importedTask == null || !StringUtils.hasText(importedTask.title())) {
+      throw new BadRequestException("AI task import returned a task without a title.");
+    }
+
+    TaskDtos.AssigneeRefRequest assignee = assignmentRoundRobin.resolve(importedTask.assigneeId());
+    TaskDtos.TaskRequest request = new TaskDtos.TaskRequest(
+        importedTask.title().trim(),
+        trimToNull(importedTask.description()),
+        importedTask.normalizedPriority(),
+        TaskStatus.PENDING,
+        null,
+        null,
+        trimToNull(importRequest.projectRef()),
+        trimToNull(importRequest.moduleRef()),
+        BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP),
+        false,
+        null,
+        importRequest.visibility() == null ? TaskVisibility.TEAM : importRequest.visibility(),
+        null,
+        null,
+        trimToNull(importRequest.spaceId()),
+        assignee == null ? null : assignee.assignedToId(),
+        assignee == null ? null : assignee.assignedToName(),
+        assignee == null ? null : trimToNull(assignee.assignedToEmail()),
+        assignee == null ? null : trimToNull(assignee.assignedTeamName()),
+        null,
+        null,
+        parentTaskId,
+        null,
+        assignee == null ? List.of() : List.of(assignee),
+        List.of(),
+        List.of(),
+        List.of(),
+        List.of()
+    );
+
+    TaskDtos.TaskDetailResponse created = createTaskInternal(request, user, parentTaskId);
+    if (importedTask.subtasks() != null) {
+      for (TaskNotesImportAiService.ImportedTask subtask : importedTask.subtasks()) {
+        createImportedTask(importRequest, subtask, created.task().id(), assignmentRoundRobin, user);
+      }
+    }
+    return getTask(created.task().id(), user);
+  }
+
+  private int countImportedTasks(TaskNotesImportAiService.ImportedTask task) {
+    int count = 1;
+    if (task.subtasks() != null) {
+      for (TaskNotesImportAiService.ImportedTask subtask : task.subtasks()) {
+        count += countImportedTasks(subtask);
+      }
+    }
+    return count;
+  }
+
+  private String mergeNotes(String inlineNotes, MultipartFile file) {
+    StringBuilder combined = new StringBuilder();
+    if (StringUtils.hasText(inlineNotes)) {
+      combined.append(inlineNotes.trim());
+    }
+    if (file != null && !file.isEmpty()) {
+      try {
+        String fileText = new String(file.getBytes(), StandardCharsets.UTF_8).trim();
+        if (StringUtils.hasText(fileText)) {
+          if (combined.length() > 0) {
+            combined.append("\n\n");
+          }
+          combined.append(fileText);
+        }
+      } catch (Exception exception) {
+        throw new BadRequestException("Unable to read the uploaded notes file.");
+      }
+    }
+    if (!StringUtils.hasText(combined.toString())) {
+      throw new BadRequestException("Paste notes or upload a text file.");
+    }
+    return combined.toString();
   }
 
   public TaskDtos.TaskListResponse listTasks(
@@ -1965,6 +2076,32 @@ public class TaskService {
 
   private String readable(String value) {
     return value.toLowerCase(Locale.ROOT).replace('_', ' ');
+  }
+
+  private static final class AssignmentRoundRobin {
+
+    private final List<TaskDtos.AssigneeRefRequest> assignees;
+    private int cursor = 0;
+
+    private AssignmentRoundRobin(List<TaskDtos.AssigneeRefRequest> assignees) {
+      this.assignees = assignees == null ? List.of() : assignees.stream().filter(Objects::nonNull).toList();
+    }
+
+    private TaskDtos.AssigneeRefRequest resolve(String preferredAssigneeId) {
+      if (StringUtils.hasText(preferredAssigneeId)) {
+        for (TaskDtos.AssigneeRefRequest assignee : assignees) {
+          if (preferredAssigneeId.trim().equals(assignee.assignedToId())) {
+            return assignee;
+          }
+        }
+      }
+      if (assignees.isEmpty()) {
+        return null;
+      }
+      TaskDtos.AssigneeRefRequest assignee = assignees.get(cursor % assignees.size());
+      cursor += 1;
+      return assignee;
+    }
   }
 
   private record TreeContext(

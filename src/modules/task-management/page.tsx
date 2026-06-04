@@ -29,6 +29,7 @@ import {
   SquareKanban,
   Timer,
   TrendingUp,
+  Upload,
   UserPlus,
   UserRound,
   Workflow,
@@ -51,6 +52,7 @@ import {
   useTaskSpaces,
   useDeleteTaskSpace,
   useInviteToTaskSpace,
+  useImportTasksFromNotes,
   useCreateSubtask,
   useCreateTask,
   useDeleteTask,
@@ -74,6 +76,7 @@ import {
   type TaskChecklistItem,
   type TaskDetail,
   type TaskFilter,
+  type TaskNotesImportRequest,
   type TaskPriority,
   type TaskReportResponse,
   type TaskRequest,
@@ -126,6 +129,15 @@ type SpaceMemberDraft = {
   permissions: TaskSpacePermission[];
 };
 
+type TaskImportFormState = {
+  projectRef: string;
+  moduleRef: string;
+  spaceId: string;
+  visibility: TaskVisibility;
+  assignedToIds: string[];
+  notes: string;
+};
+
 type TaskUser = {
   id: string;
   name: string;
@@ -139,6 +151,7 @@ type TaskPanelState =
   | { type: "space-members" }
   | { type: "task-detail"; taskId: string }
   | { type: "task-report" }
+  | { type: "task-import" }
   | null;
 
 type GroupSection = {
@@ -187,6 +200,15 @@ const defaultSpaceForm: SpaceFormState = {
   iconName: "space",
   colorHex: "#0f172a",
   visibility: "PRIVATE",
+};
+
+const defaultTaskImportForm: TaskImportFormState = {
+  projectRef: "",
+  moduleRef: "",
+  spaceId: "",
+  visibility: "TEAM",
+  assignedToIds: [],
+  notes: "",
 };
 
 function defaultPermissionsForRole(role: TaskSpaceMemberRole): TaskSpacePermission[] {
@@ -661,6 +683,8 @@ export default function TaskManagementPage() {
     const today = format(new Date(), "yyyy-MM-dd");
     return { fromDate: today, toDate: today };
   });
+  const [taskImportForm, setTaskImportForm] = useState<TaskImportFormState>(defaultTaskImportForm);
+  const [taskImportFile, setTaskImportFile] = useState<File | null>(null);
   const [form, setForm] = useState<TaskFormState>(defaultForm);
 
   const { data: currentUser } = useCurrentUser();
@@ -673,6 +697,7 @@ export default function TaskManagementPage() {
   const usersQuery = useTaskUsers();
 
   const createTaskMutation = useCreateTask();
+  const importTasksMutation = useImportTasksFromNotes();
   const createSpaceMutation = useCreateTaskSpace();
   const createSubtaskMutation = useCreateSubtask();
   const deleteSpaceMutation = useDeleteTaskSpace();
@@ -790,6 +815,12 @@ export default function TaskManagementPage() {
         .slice(0, 24),
     [allFlatTasks]
   );
+  const projectOptions = useMemo(
+    () =>
+      [...new Set(allFlatTasks.map((task) => task.projectRef).filter((value): value is string => Boolean(value && value.trim())))]
+        .sort((left, right) => left.localeCompare(right)),
+    [allFlatTasks]
+  );
   const selectedScopedTasks = useMemo(() => activeSpaceTasks(allFlatTasks, selectedSpaceId), [allFlatTasks, selectedSpaceId]);
   const selectedSpaceCounts = useMemo(
     () => ({
@@ -859,6 +890,19 @@ export default function TaskManagementPage() {
 
   function openReportPanel() {
     setActivePanel({ type: "task-report" });
+  }
+
+  function openImportPanel() {
+    setTaskImportForm({
+      projectRef: filter.projectRef || detail?.task.projectRef || "",
+      moduleRef: filter.moduleRef || detail?.task.moduleRef || "",
+      spaceId: selectedSpaceId || detail?.task.spaceId || "",
+      visibility: "TEAM",
+      assignedToIds: filter.assigneeId ? [filter.assigneeId] : [],
+      notes: "",
+    });
+    setTaskImportFile(null);
+    setActivePanel({ type: "task-import" });
   }
 
   function closeActivePanel() {
@@ -1136,6 +1180,36 @@ export default function TaskManagementPage() {
     });
   }
 
+  function handleImportTasksFromNotes() {
+    const selectedUsers = users.filter((candidate) => taskImportForm.assignedToIds.includes(candidate.id));
+    const payload: TaskNotesImportRequest = {
+      notes: taskImportForm.notes.trim() || undefined,
+      projectRef: taskImportForm.projectRef.trim(),
+      moduleRef: taskImportForm.moduleRef.trim() || null,
+      spaceId: taskImportForm.spaceId || null,
+      visibility: taskImportForm.visibility,
+      assignees: selectedUsers.map((selectedUser) => ({
+        assignedToId: selectedUser.id,
+        assignedToName: selectedUser.name,
+        assignedToEmail: selectedUser.email,
+        assignedTeamName: null,
+      })),
+    };
+
+    importTasksMutation.mutate(
+      { payload, file: taskImportFile },
+      {
+        onSuccess: (response) => {
+          toast.success(`Created ${response.createdTotalTasks} tasks from notes.`);
+          closeActivePanel();
+          setTaskImportForm(defaultTaskImportForm);
+          setTaskImportFile(null);
+        },
+        onError: (error) => toast.error(error.message),
+      }
+    );
+  }
+
   function handleAddComment() {
     if (!detailTaskId || !commentDraft.trim()) return;
     commentMutation.mutate(
@@ -1370,6 +1444,14 @@ export default function TaskManagementPage() {
                           </button>
                         </>
                       ) : null}
+                      <button
+                        type="button"
+                        onClick={openImportPanel}
+                        className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700"
+                      >
+                        <Upload className="h-4 w-4" />
+                        AI Import
+                      </button>
                       <button
                         type="button"
                         onClick={openReportPanel}
@@ -1798,6 +1880,21 @@ export default function TaskManagementPage() {
           />
         </Drawer>
       )}
+
+      <Drawer open={activePanel?.type === "task-import"} title="AI Task Import" onClose={closeActivePanel} maxWidth="max-w-2xl">
+        <TaskImportPanel
+          form={taskImportForm}
+          setForm={setTaskImportForm}
+          file={taskImportFile}
+          setFile={setTaskImportFile}
+          users={users}
+          spaces={spaces}
+          projectOptions={projectOptions}
+          loading={importTasksMutation.isPending}
+          onSubmit={handleImportTasksFromNotes}
+          onClose={closeActivePanel}
+        />
+      </Drawer>
 
       <Drawer open={activePanel?.type === "task-report"} title="Task Report" onClose={closeActivePanel} maxWidth="max-w-3xl">
         <TaskReportPanel
@@ -3303,6 +3400,134 @@ function SpaceEditor({
         </div>
       </div>
     </form>
+  );
+}
+
+function TaskImportPanel({
+  form,
+  setForm,
+  file,
+  setFile,
+  users,
+  spaces,
+  projectOptions,
+  loading,
+  onSubmit,
+  onClose,
+}: {
+  form: TaskImportFormState;
+  setForm: React.Dispatch<React.SetStateAction<TaskImportFormState>>;
+  file: File | null;
+  setFile: React.Dispatch<React.SetStateAction<File | null>>;
+  users: TaskUser[];
+  spaces: TaskSpaceSummary[];
+  projectOptions: string[];
+  loading: boolean;
+  onSubmit: () => void;
+  onClose: () => void;
+}) {
+  return (
+    <div className="space-y-4">
+      <div className="rounded-[26px] border border-slate-200 bg-slate-50/80 p-4">
+        <p className="text-sm font-semibold text-slate-900">Paste planning notes or upload a text file</p>
+        <p className="mt-1 text-xs leading-6 text-slate-500">
+          AI will break the notes into tasks and subtasks, then assign them only to the selected members.
+        </p>
+      </div>
+
+      <div className="grid gap-3 md:grid-cols-2">
+        <Field label="Project">
+          <>
+            <input
+              list="task-project-options"
+              value={form.projectRef}
+              onChange={(event) => setForm((prev) => ({ ...prev, projectRef: event.target.value }))}
+              placeholder="Select or enter project"
+              className="w-full rounded-2xl border border-slate-200 px-3 py-2.5 text-sm"
+            />
+            <datalist id="task-project-options">
+              {projectOptions.map((project) => (
+                <option key={project} value={project} />
+              ))}
+            </datalist>
+          </>
+        </Field>
+        <Field label="Module">
+          <input
+            value={form.moduleRef}
+            onChange={(event) => setForm((prev) => ({ ...prev, moduleRef: event.target.value }))}
+            placeholder="Optional module"
+            className="w-full rounded-2xl border border-slate-200 px-3 py-2.5 text-sm"
+          />
+        </Field>
+        <Field label="Space">
+          <FloatingSelect
+            value={form.spaceId}
+            onChange={(value) => setForm((prev) => ({ ...prev, spaceId: value }))}
+            options={[
+              { value: "", label: "No space" },
+              ...spaces.map((space) => ({ value: space.id, label: space.name })),
+            ]}
+            className="w-full"
+          />
+        </Field>
+        <Field label="Visibility">
+          <FloatingSelect
+            value={form.visibility}
+            onChange={(value) => setForm((prev) => ({ ...prev, visibility: value as TaskVisibility }))}
+            options={TASK_VISIBILITIES.map((item) => ({ value: item, label: toLabel(item) }))}
+            className="w-full"
+          />
+        </Field>
+      </div>
+
+      <Field label="Members">
+        <AssigneeMultiSelect
+          values={form.assignedToIds}
+          onChange={(values) => setForm((prev) => ({ ...prev, assignedToIds: values }))}
+          options={buildAssigneeOptions(users)}
+          className="w-full"
+        />
+      </Field>
+
+      <Field label="Notes">
+        <textarea
+          value={form.notes}
+          onChange={(event) => setForm((prev) => ({ ...prev, notes: event.target.value }))}
+          rows={10}
+          placeholder="Paste sprint notes, meeting minutes, customer requirements, or action items"
+          className="w-full rounded-2xl border border-slate-200 px-3 py-2.5 text-sm"
+        />
+      </Field>
+
+      <Field label="Upload file">
+        <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-3 py-3">
+          <input
+            type="file"
+            accept=".txt,.md,.csv"
+            onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+            className="block w-full text-sm text-slate-600 file:mr-3 file:rounded-xl file:border-0 file:bg-slate-900 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white"
+          />
+          <p className="mt-2 text-xs text-slate-500">
+            {file ? `Selected: ${file.name}` : "Optional. Uploaded text will be combined with the pasted notes."}
+          </p>
+        </div>
+      </Field>
+
+      <div className="flex justify-end gap-3 border-t border-slate-200 pt-4">
+        <button type="button" onClick={onClose} className="rounded-2xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600">
+          Cancel
+        </button>
+        <button
+          type="button"
+          onClick={onSubmit}
+          disabled={loading || !form.projectRef.trim() || !form.assignedToIds.length || (!form.notes.trim() && !file)}
+          className="rounded-2xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {loading ? "Creating Tasks..." : "Create Tasks from Notes"}
+        </button>
+      </div>
+    </div>
   );
 }
 

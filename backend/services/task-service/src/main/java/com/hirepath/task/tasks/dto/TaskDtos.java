@@ -195,6 +195,21 @@ public final class TaskDtos {
   ) {
   }
 
+  public record TaskNotesImportRequest(
+      String notes,
+      @NotBlank(message = "Project is required.")
+      @Size(max = 120, message = "Project reference must be at most 120 characters.")
+      String projectRef,
+      @Size(max = 120, message = "Module reference must be at most 120 characters.")
+      String moduleRef,
+      String spaceId,
+      TaskVisibility visibility,
+      @NotNull(message = "Select at least one member.")
+      @Size(min = 1, message = "Select at least one member.")
+      @Valid List<AssigneeRefRequest> assignees
+  ) {
+  }
+
   public record ChecklistItemUpdateRequest(
       @NotBlank(message = "Checklist label is required.")
       String label,
@@ -510,6 +525,13 @@ public final class TaskDtos {
       TaskReportFiltersResponse filters,
       TaskReportSummaryResponse summary,
       List<TaskReportRowResponse> rows
+  ) {
+  }
+
+  public record TaskNotesImportResponse(
+      int createdTopLevelTasks,
+      int createdTotalTasks,
+      List<TaskSummaryResponse> tasks
   ) {
   }
 }
