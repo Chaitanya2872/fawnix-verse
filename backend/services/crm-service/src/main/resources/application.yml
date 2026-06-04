@@ -74,6 +74,7 @@ app:
       access-token-expiration-minutes: 30
       refresh-token-expiration-days: 14
       secret: ${JWT_SECRET:change-this-local-dev-secret-change-this-local-dev-secret}
+      fawnix-secret: ${FAWNIX_JWT_SECRET:}
   identity:
     base-url: ${IDENTITY_SERVICE_URL:http://IDENTITY-SERVICE}
     internal-service-secret: ${INTERNAL_SERVICE_SECRET:fawnix-internal-secret}

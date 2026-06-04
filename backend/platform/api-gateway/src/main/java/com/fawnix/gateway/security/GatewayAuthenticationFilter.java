@@ -19,6 +19,8 @@ public class GatewayAuthenticationFilter implements GlobalFilter, Ordered {
       "/api/auth/register",
       "/api/auth/request-otp",
       "/api/auth/verify-otp",
+      "/api/auth/fawnix/exchange",
+      "/api/auth/sso/fawnix",
       "/api/auth/refresh",
       "/api/integrations/meta/webhook",
       "/api/integrations/whatsapp/webhook",

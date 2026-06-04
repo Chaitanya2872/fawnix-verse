@@ -133,6 +133,15 @@ public class AuthService {
     return issueTokens(userDetails, user);
   }
 
+  public AuthDtos.AccessTokenResponse issueAccessTokenForUser(UserEntity user) {
+    AppUserDetails userDetails = new AppUserDetails(user);
+    return new AuthDtos.AccessTokenResponse(
+        jwtService.generateAccessToken(userDetails),
+        jwtService.getAccessTokenExpiry(),
+        authMapper.toCurrentUserResponse(userDetails)
+    );
+  }
+
   private void revokeActiveTokens(UserEntity user) {
     refreshTokenRepository.findAllByUserAndRevokedFalse(user).forEach(token -> token.setRevoked(true));
   }

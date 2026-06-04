@@ -48,6 +48,15 @@ public class InternalUserController {
     return userService.getAssignableUserByName(name);
   }
 
+  @GetMapping("/lookup-by-email")
+  public InternalUserResponse getUserByEmail(
+      @RequestParam String email,
+      @RequestHeader("X-Internal-Service-Secret") String providedSecret
+  ) {
+    verifySecret(providedSecret);
+    return userService.getAssignableUserByEmail(email);
+  }
+
   @GetMapping("/assignees")
   public List<AssigneeResponse> getAssignees(
       @RequestHeader("X-Internal-Service-Secret") String providedSecret

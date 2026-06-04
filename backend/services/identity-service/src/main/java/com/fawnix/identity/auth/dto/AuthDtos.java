@@ -45,6 +45,13 @@ public final class AuthDtos {
   ) {
   }
 
+  public record AccessTokenResponse(
+      String accessToken,
+      Instant accessTokenExpiresAt,
+      CurrentUserResponse user
+  ) {
+  }
+
   public record CurrentUserResponse(
       String id,
       String name,

@@ -64,6 +64,8 @@ public class SecurityConfig {
                 "/api/auth/refresh",
                 "/api/auth/request-otp",
                 "/api/auth/verify-otp",
+                "/api/auth/fawnix/exchange",
+                "/api/auth/sso/fawnix",
                 "/actuator/health",
                 "/actuator/info",
                 "/internal/**"

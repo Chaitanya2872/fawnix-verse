@@ -66,6 +66,21 @@ public class FawnixOtpAuthService {
     return authService.issueTokensForUser(user);
   }
 
+  @Transactional
+  public AuthDtos.AccessTokenResponse exchangeFawnixAccessToken(String accessToken) {
+    if (accessToken == null || accessToken.isBlank()) {
+      throw new BadRequestException("Fawnix access token is required.");
+    }
+
+    FawnixOtpDtos.FawnixMeResponse meResponse = otpClient.fetchProfile(accessToken.trim());
+    if (meResponse.data() == null || Boolean.FALSE.equals(meResponse.success())) {
+      throw new BadRequestException("Unable to load employee profile.");
+    }
+
+    UserEntity user = upsertUser(meResponse.data());
+    return authService.issueAccessTokenForUser(user);
+  }
+
   private UserEntity upsertUser(FawnixOtpDtos.FawnixUser profile) {
     String email = normalizeEmail(profile.empEmail());
     if (email.isEmpty()) {

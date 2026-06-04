@@ -37,6 +37,10 @@ public class IdentityUserClient {
     return get(identityBaseUrl + "/internal/users/lookup?name={name}", IdentityUser.class, name);
   }
 
+  public IdentityUser getAssignableUserByEmail(String email) {
+    return get(identityBaseUrl + "/internal/users/lookup-by-email?email={email}", IdentityUser.class, email);
+  }
+
   public IdentityUser getDefaultAssignee() {
     try {
       ResponseEntity<List<AssigneeRecord>> response = restTemplate.exchange(

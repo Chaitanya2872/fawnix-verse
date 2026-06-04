@@ -163,6 +163,14 @@ public class UserService {
   }
 
   @Transactional(readOnly = true)
+  public InternalUserResponse getAssignableUserByEmail(String email) {
+    UserEntity user = userRepository.findByEmailIgnoreCase(normalizeEmail(email))
+        .orElseThrow(() -> new IllegalArgumentException("Assignee not found"));
+    validateAssignable(user);
+    return userMapper.toInternalUser(user);
+  }
+
+  @Transactional(readOnly = true)
   public UserSummaryResponse getUserSummary() {
     List<UserEntity> users = userRepository.findAllByOrderByFullNameAsc();
     Map<String, Integer> byRole = new HashMap<>();

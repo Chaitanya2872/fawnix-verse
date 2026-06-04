@@ -107,3 +107,4 @@ app:
   security:
     jwt:
       secret: ${JWT_SECRET:change-this-local-dev-secret-change-this-local-dev-secret}
+      fawnix-secret: ${FAWNIX_JWT_SECRET:}

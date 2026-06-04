@@ -9,6 +9,7 @@ public class JwtProperties {
   private int accessTokenExpirationMinutes;
   private int refreshTokenExpirationDays;
   private String secret;
+  private String fawnixSecret;
 
   public String getIssuer() {
     return issuer;
@@ -40,5 +41,13 @@ public class JwtProperties {
 
   public void setSecret(String secret) {
     this.secret = secret;
+  }
+
+  public String getFawnixSecret() {
+    return fawnixSecret;
+  }
+
+  public void setFawnixSecret(String fawnixSecret) {
+    this.fawnixSecret = fawnixSecret;
   }
 }
