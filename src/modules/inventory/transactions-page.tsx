@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Download, Loader2, Search } from "lucide-react";
 import { getApiErrorMessage } from "@/services/api-client";
 import { useTransactions } from "./hooks";

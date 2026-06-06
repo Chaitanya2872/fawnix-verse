@@ -10,7 +10,6 @@ import {
   Download,
   Loader2,
   Package,
-  Pencil,
   Plus,
   Search,
   Trash2,
@@ -42,8 +41,8 @@ import { exportProductsCsv } from "./export";
 type StockView = "items" | "categories";
 type StockActionMode = "consume" | "receive";
 
-type ExpandedActionState = {
-  productId: string;
+type StockActionDialogState = {
+  product: Product;
   mode: StockActionMode;
 };
 
@@ -83,15 +82,6 @@ const defaultForm: ProductFormData = {
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(value);
-}
-
-function formatDate(value?: string | null) {
-  if (!value) return "-";
-  return new Intl.DateTimeFormat("en-IN", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  }).format(new Date(value));
 }
 
 function toNumber(value: unknown) {
@@ -416,6 +406,154 @@ function DeleteDialog({
   );
 }
 
+function StockAdjustmentDialog({
+  product,
+  mode,
+  form,
+  onChange,
+  onClose,
+  onSave,
+  isLoading,
+}: {
+  product: Product | null;
+  mode: StockActionMode;
+  form: AdjustmentFormState;
+  onChange: React.Dispatch<React.SetStateAction<AdjustmentFormState>>;
+  onClose: () => void;
+  onSave: () => void;
+  isLoading?: boolean;
+}) {
+  if (!product) return null;
+
+  const isConsuming = mode === "consume";
+  const currentStock = toNumber(product.stockQty);
+  const projectedStock = currentStock + Number(form.quantity || 0) * (isConsuming ? -1 : 1);
+  const title = isConsuming ? "Consumption" : "Received Stock";
+
+  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    onSave();
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" onClick={onClose} />
+      <form
+        onSubmit={handleSubmit}
+        className="relative z-10 w-full max-w-3xl rounded-3xl border border-slate-200 bg-white shadow-2xl"
+      >
+        <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-6 py-4">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-900">{title}</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              {isConsuming
+                ? "Record consumed quantity and reduce current stock immediately."
+                : "Record received quantity and add it to current stock immediately."}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-xl p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="grid gap-4 p-6 lg:grid-cols-[1.35fr,0.65fr]">
+          <div className="space-y-4">
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-sm font-semibold text-slate-900">{product.name}</p>
+              <p className="mt-1 text-xs text-slate-500">{product.sku}</p>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Quantity
+                </label>
+                <input
+                  type="number"
+                  min={0.01}
+                  step={0.01}
+                  value={form.quantity}
+                  onChange={(event) => onChange((prev) => ({ ...prev, quantity: event.target.value }))}
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition-colors focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
+                  placeholder={isConsuming ? "Consumed quantity" : "Received quantity"}
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Date
+                </label>
+                <input
+                  type="date"
+                  required
+                  value={form.txnDate}
+                  onChange={(event) => onChange((prev) => ({ ...prev, txnDate: event.target.value }))}
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition-colors focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Current Stock
+                </label>
+                <div className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-900">
+                  {currentStock.toLocaleString("en-IN")}
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Notes
+              </label>
+              <textarea
+                rows={3}
+                value={form.notes}
+                onChange={(event) => onChange((prev) => ({ ...prev, notes: event.target.value }))}
+                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition-colors focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
+                placeholder="Optional transaction note"
+              />
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Stock Preview</p>
+            <p className="mt-1.5 text-sm text-slate-500">
+              {isConsuming ? "Submitting this form reduces available stock." : "Submitting this form increases available stock."}
+            </p>
+            <div className="mt-3 rounded-2xl bg-slate-50 p-3">
+              <p className="text-xs uppercase tracking-wide text-slate-500">Projected Stock</p>
+              <p className="mt-1 text-2xl font-bold text-slate-900">
+                {projectedStock.toLocaleString("en-IN")}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-3 border-t border-slate-200 px-6 py-4">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={isLoading}
+            className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bookmark className="h-4 w-4" />}
+            Save
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
 function buildCategorySummary(products: Product[]) {
   const grouped = new Map<string, { itemCount: number; totalStock: number; low: number; out: number }>();
 
@@ -439,7 +577,7 @@ export default function InventoryPage() {
   const [addOpen, setAddOpen] = useState(false);
   const [editProduct, setEditProduct] = useState<Product | null>(null);
   const [deleteProduct, setDeleteProduct] = useState<Product | null>(null);
-  const [expandedAction, setExpandedAction] = useState<ExpandedActionState | null>(null);
+  const [stockAction, setStockAction] = useState<StockActionDialogState | null>(null);
   const [adjustmentForm, setAdjustmentForm] = useState<AdjustmentFormState>({
     quantity: "",
     txnDate: getTodayDateValue(),
@@ -454,7 +592,7 @@ export default function InventoryPage() {
   const consumeMutation = useConsumeStock();
   const receiveMutation = useReceiveStock();
 
-  const products = productsQuery.data?.data ?? [];
+  const products = useMemo(() => productsQuery.data?.data ?? [], [productsQuery.data?.data]);
   const pageData = productsQuery.data;
   const categories = overviewQuery.data?.categories ?? buildCategorySummary(products).map((item) => ({
     category: item.category,
@@ -466,7 +604,7 @@ export default function InventoryPage() {
   }));
 
   const selectedCategory = filter.category;
-  const activeAdjustmentMutation = expandedAction?.mode === "consume" ? consumeMutation : receiveMutation;
+  const activeAdjustmentMutation = stockAction?.mode === "consume" ? consumeMutation : receiveMutation;
 
   const tableSummary = useMemo(() => {
     return {
@@ -480,10 +618,13 @@ export default function InventoryPage() {
     setAdjustmentForm({ quantity: "", txnDate: getTodayDateValue(), notes: "" });
   }
 
-  function openAction(productId: string, mode: StockActionMode) {
-    setExpandedAction((current) =>
-      current?.productId === productId && current.mode === mode ? null : { productId, mode }
-    );
+  function openAction(product: Product, mode: StockActionMode) {
+    setStockAction({ product, mode });
+    resetAdjustmentForm();
+  }
+
+  function closeStockAction() {
+    setStockAction(null);
     resetAdjustmentForm();
   }
 
@@ -528,10 +669,11 @@ export default function InventoryPage() {
     });
   }
 
-  function submitAdjustment(product: Product) {
+  function submitAdjustment() {
+    if (!stockAction) return;
+    const { product, mode } = stockAction;
     const quantity = Number(adjustmentForm.quantity);
     const txnDate = adjustmentForm.txnDate.trim();
-    if (!expandedAction) return;
     if (!Number.isFinite(quantity) || quantity <= 0) {
       toast.error("Enter a valid quantity greater than zero.");
       return;
@@ -540,7 +682,7 @@ export default function InventoryPage() {
       toast.error("Select a transaction date.");
       return;
     }
-    if (expandedAction.mode === "consume" && quantity > toNumber(product.stockQty)) {
+    if (mode === "consume" && quantity > toNumber(product.stockQty)) {
       toast.error("Consumed quantity cannot exceed available stock.");
       return;
     }
@@ -551,24 +693,23 @@ export default function InventoryPage() {
       notes: adjustmentForm.notes.trim() || undefined,
     };
 
-    const mutation = expandedAction.mode === "consume" ? consumeMutation : receiveMutation;
+    const mutation = mode === "consume" ? consumeMutation : receiveMutation;
     mutation.mutate(
       { productId: product.id, data: payload },
       {
         onSuccess: () => {
           toast.success(
-            expandedAction.mode === "consume"
+            mode === "consume"
               ? "Consumption recorded successfully."
               : "Received stock recorded successfully."
           );
-          setExpandedAction(null);
-          resetAdjustmentForm();
+          closeStockAction();
         },
         onError: (error) => {
           toast.error(
             getApiErrorMessage(
               error,
-              expandedAction.mode === "consume"
+              mode === "consume"
                 ? "Failed to consume stock."
                 : "Failed to receive stock."
             )
@@ -718,176 +859,51 @@ export default function InventoryPage() {
                       <tbody>
                         {products.length ? (
                           products.map((product) => {
-                            const isExpanded = expandedAction?.productId === product.id;
-                            const isConsuming = expandedAction?.mode === "consume";
                             const currentStock = toNumber(product.stockQty);
-                            const inlineTitle = isConsuming ? "Consumption" : "Received Stock";
 
                             return (
-                              <React.Fragment key={product.id}>
-                                <tr className="border-b border-slate-100 align-top">
-                                  <td className="px-5 py-4">
-                                    <div className="flex items-start gap-3">
-                                      <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-brand-50 text-brand-700">
-                                        <Package className="h-5 w-5" />
-                                      </div>
-                                      <div>
-                                        <p className="font-semibold text-slate-900">{product.name}</p>
-                                        <p className="mt-1 text-xs text-slate-500">{product.sku}</p>
-                                      </div>
+                              <tr key={product.id} className="border-b border-slate-100 align-top">
+                                <td className="px-5 py-4">
+                                  <div className="flex items-start gap-3">
+                                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-brand-50 text-brand-700">
+                                      <Package className="h-5 w-5" />
                                     </div>
-                                  </td>
-                                  <td className="px-5 py-4 text-slate-600">
-                                    <p>{product.category}</p>
-                                    <p className="mt-1 text-xs text-slate-400">{product.subCategory ?? product.brand ?? "-"}</p>
-                                  </td>
-                                  <td className="px-5 py-4 font-semibold text-slate-900">{currentStock.toLocaleString("en-IN")}</td>
-                                  <td className="px-5 py-4 font-semibold text-slate-900">{formatCurrency(toNumber(product.price))}</td>
-                                  <td className="px-5 py-4">
-                                    <StatusBadge status={product.status} />
-                                  </td>
-                                  <td className="px-5 py-4">
-                                    <div className="flex items-center justify-end gap-2">
-                                      <ActionButton onClick={() => setEditProduct(product)}>Edit</ActionButton>
-                                      <ActionButton
-                                        tone="brand"
-                                        onClick={() => openAction(product.id, "consume")}
-                                      >
-                                        C
-                                      </ActionButton>
-                                      <ActionButton
-                                        tone="brand"
-                                        onClick={() => openAction(product.id, "receive")}
-                                      >
-                                        R
-                                      </ActionButton>
-                                      <ActionButton tone="danger" onClick={() => setDeleteProduct(product)}>
-                                        <Trash2 className="h-3.5 w-3.5" />
-                                      </ActionButton>
+                                    <div>
+                                      <p className="font-semibold text-slate-900">{product.name}</p>
+                                      <p className="mt-1 text-xs text-slate-500">{product.sku}</p>
                                     </div>
-                                  </td>
-                                </tr>
-                                <tr className={isExpanded ? "border-b border-slate-100" : "hidden"}>
-                                  <td colSpan={6} className="px-5 pb-4 pt-0">
-                                    <div
-                                      className={`overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 transition-all duration-300 ${
-                                        isExpanded ? "max-h-[320px] opacity-100" : "max-h-0 opacity-0"
-                                      }`}
+                                  </div>
+                                </td>
+                                <td className="px-5 py-4 text-slate-600">
+                                  <p>{product.category}</p>
+                                  <p className="mt-1 text-xs text-slate-400">{product.subCategory ?? product.brand ?? "-"}</p>
+                                </td>
+                                <td className="px-5 py-4 font-semibold text-slate-900">{currentStock.toLocaleString("en-IN")}</td>
+                                <td className="px-5 py-4 font-semibold text-slate-900">{formatCurrency(toNumber(product.price))}</td>
+                                <td className="px-5 py-4">
+                                  <StatusBadge status={product.status} />
+                                </td>
+                                <td className="px-5 py-4">
+                                  <div className="flex items-center justify-end gap-2">
+                                    <ActionButton onClick={() => setEditProduct(product)}>Edit</ActionButton>
+                                    <ActionButton
+                                      tone="brand"
+                                      onClick={() => openAction(product, "consume")}
                                     >
-                                      <div className="grid gap-3 p-3 lg:grid-cols-[1.35fr,0.65fr]">
-                                        <div>
-                                          <div className="flex flex-wrap items-start justify-between gap-3">
-                                            <div>
-                                              <h4 className="text-sm font-semibold text-slate-900">{inlineTitle}</h4>
-                                              <p className="mt-1 text-sm text-slate-500">
-                                                {isConsuming
-                                                  ? "Record consumed quantity and reduce current stock immediately."
-                                                  : "Record received quantity and add it to current stock immediately."}
-                                              </p>
-                                            </div>
-                                            <button
-                                              type="button"
-                                              onClick={() => submitAdjustment(product)}
-                                              disabled={activeAdjustmentMutation.isPending}
-                                              aria-label={isConsuming ? "Save consumption" : "Save received stock"}
-                                              className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-brand-200 bg-brand-50 text-brand-700 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-brand-100 hover:text-brand-800 active:translate-y-0 active:bg-brand-200 disabled:cursor-not-allowed disabled:opacity-50"
-                                            >
-                                              {activeAdjustmentMutation.isPending ? (
-                                                <Loader2 className="h-4 w-4 animate-spin" />
-                                              ) : (
-                                                <Bookmark className="h-4 w-4" />
-                                              )}
-                                            </button>
-                                          </div>
-                                          <div className="mt-3 grid gap-3 sm:grid-cols-3">
-                                            <div>
-                                              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
-                                                Quantity
-                                              </label>
-                                              <input
-                                                type="number"
-                                                min={0.01}
-                                                step={0.01}
-                                                value={adjustmentForm.quantity}
-                                                onChange={(e) =>
-                                                  setAdjustmentForm((prev) => ({ ...prev, quantity: e.target.value }))
-                                                }
-                                                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition-colors focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
-                                                placeholder={isConsuming ? "Consumed quantity" : "Received quantity"}
-                                              />
-                                            </div>
-                                            <div>
-                                              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
-                                                Date
-                                              </label>
-                                              <input
-                                                type="date"
-                                                required
-                                                value={adjustmentForm.txnDate}
-                                                onChange={(e) =>
-                                                  setAdjustmentForm((prev) => ({ ...prev, txnDate: e.target.value }))
-                                                }
-                                                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition-colors focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
-                                              />
-                                            </div>
-                                            <div>
-                                              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
-                                                Current Stock
-                                              </label>
-                                              <div className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-900">
-                                                {currentStock.toLocaleString("en-IN")}
-                                              </div>
-                                            </div>
-                                          </div>
-                                          <div className="mt-3">
-                                            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
-                                              Notes
-                                            </label>
-                                            <textarea
-                                              rows={2}
-                                              value={adjustmentForm.notes}
-                                              onChange={(e) =>
-                                                setAdjustmentForm((prev) => ({ ...prev, notes: e.target.value }))
-                                              }
-                                              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition-colors focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
-                                              placeholder="Optional transaction note"
-                                            />
-                                          </div>
-                                        </div>
-                                        <div className="rounded-2xl border border-slate-200 bg-white p-3">
-                                          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Stock Preview</p>
-                                          <p className="mt-1.5 text-sm text-slate-500">
-                                            {isConsuming
-                                              ? "Submitting this form reduces available stock."
-                                              : "Submitting this form increases available stock."}
-                                          </p>
-                                          <div className="mt-3 rounded-2xl bg-slate-50 p-3">
-                                            <p className="text-xs uppercase tracking-wide text-slate-500">Projected Stock</p>
-                                            <p className="mt-1 text-2xl font-bold text-slate-900">
-                                              {(
-                                                currentStock +
-                                                (Number(adjustmentForm.quantity || 0) * (isConsuming ? -1 : 1))
-                                              ).toLocaleString("en-IN")}
-                                            </p>
-                                          </div>
-                                          <div className="mt-3 flex justify-end gap-3">
-                                            <button
-                                              type="button"
-                                              onClick={() => {
-                                                setExpandedAction(null);
-                                                resetAdjustmentForm();
-                                              }}
-                                              className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50"
-                                            >
-                                              Cancel
-                                            </button>
-                                          </div>
-                                        </div>
-                                      </div>
-                                    </div>
-                                  </td>
-                                </tr>
-                              </React.Fragment>
+                                      C
+                                    </ActionButton>
+                                    <ActionButton
+                                      tone="brand"
+                                      onClick={() => openAction(product, "receive")}
+                                    >
+                                      R
+                                    </ActionButton>
+                                    <ActionButton tone="danger" onClick={() => setDeleteProduct(product)}>
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                    </ActionButton>
+                                  </div>
+                                </td>
+                              </tr>
                             );
                           })
                         ) : (
@@ -1001,6 +1017,15 @@ export default function InventoryPage() {
 
       <ProductDialog open={addOpen} onClose={() => setAddOpen(false)} onSave={handleCreate} isLoading={createMutation.isPending} />
       <ProductDialog open={!!editProduct} onClose={() => setEditProduct(null)} product={editProduct} onSave={handleUpdate} isLoading={updateMutation.isPending} />
+      <StockAdjustmentDialog
+        product={stockAction?.product ?? null}
+        mode={stockAction?.mode ?? "consume"}
+        form={adjustmentForm}
+        onChange={setAdjustmentForm}
+        onClose={closeStockAction}
+        onSave={submitAdjustment}
+        isLoading={activeAdjustmentMutation.isPending}
+      />
       <DeleteDialog open={!!deleteProduct} product={deleteProduct} onClose={() => setDeleteProduct(null)} onConfirm={handleDelete} isLoading={deleteMutation.isPending} />
     </>
   );
