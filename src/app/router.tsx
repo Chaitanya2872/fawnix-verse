@@ -137,7 +137,7 @@ export const router = createBrowserRouter([
           {
             path: "inventory/bills",
             element: (
-              <RequirePermission permission={PERMISSIONS.PAGE_PURCHASES}>
+              <RequirePermission permission={PERMISSIONS.PAGE_INVENTORY}>
                 <InventoryBillsPage />
               </RequirePermission>
             ),
@@ -145,7 +145,7 @@ export const router = createBrowserRouter([
           {
             path: "inventory/invoices",
             element: (
-              <RequirePermission permission={PERMISSIONS.PAGE_SALES}>
+              <RequirePermission permission={PERMISSIONS.PAGE_INVENTORY}>
                 <InventoryInvoicesPage />
               </RequirePermission>
             ),
