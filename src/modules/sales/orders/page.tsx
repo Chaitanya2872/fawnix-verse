@@ -7,40 +7,22 @@ import { useQuotes } from "@/modules/sales/hooks";
 import { QuoteStatus, type QuoteFilter } from "@/modules/sales/types";
 import {
   AcceptedQuotesCard,
-  ActivityTimelineCard,
-  CreateDeliveryDrawer,
-  CreateInvoiceDrawer,
   CreateOrderDrawer,
-  DeliveryBoardCard,
   fmtCurrency,
-  InvoiceBoardCard,
   OrderDetailDrawer,
-  OperationsSnapshotCard,
-  PendingApprovalsCard,
-  QuickStatsCard,
   SalesOrdersHero,
   SalesOrdersKpis,
   SalesOrdersQueueCard,
 } from "./components";
 import {
   useConvertQuoteToOrder,
-  useCreateSalesDelivery,
-  useCreateSalesInvoice,
   useCreateSalesOrder,
-  useSalesDeliveries,
-  useSalesInvoices,
   useSalesOrder,
   useSalesOrders,
-  useUpdateSalesDeliveryStatus,
-  useUpdateSalesInvoiceStatus,
   useUpdateSalesOrderStatus,
 } from "./hooks";
 import {
-  SalesDeliveryStatus,
-  SalesInvoiceStatus,
   SalesOrderStatus,
-  type CreateSalesDeliveryInput,
-  type CreateSalesInvoiceInput,
   type CreateSalesOrderInput,
   type ManualOrderFormState,
   type ManualOrderItemDraft,
@@ -71,6 +53,29 @@ const QUEUE_TABS = [
 ] as const;
 
 type QueueTabKey = (typeof QUEUE_TABS)[number]["key"];
+
+const DRAFT_TAB_STATUSES: readonly SalesOrderStatus[] = [
+  SalesOrderStatus.DRAFT,
+  SalesOrderStatus.PENDING_APPROVAL,
+];
+
+const PROCESSING_TAB_STATUSES: readonly SalesOrderStatus[] = [
+  SalesOrderStatus.APPROVED,
+  SalesOrderStatus.PROCESSING,
+  SalesOrderStatus.PACKED,
+  SalesOrderStatus.SHIPPED,
+];
+
+const COMPLETED_TAB_STATUSES: readonly SalesOrderStatus[] = [
+  SalesOrderStatus.DELIVERED,
+  SalesOrderStatus.CLOSED,
+];
+
+const CLOSED_FLOW_STATUSES: readonly SalesOrderStatus[] = [
+  SalesOrderStatus.DELIVERED,
+  SalesOrderStatus.CLOSED,
+  SalesOrderStatus.CANCELLED,
+];
 
 function createDraftItem(): ManualOrderItemDraft {
   return {
@@ -109,16 +114,11 @@ function cleanOptional(value: string) {
 function orderMatchesTab(order: SalesOrderSummary, tab: QueueTabKey) {
   switch (tab) {
     case "DRAFT":
-      return [SalesOrderStatus.DRAFT, SalesOrderStatus.PENDING_APPROVAL].includes(order.status);
+      return DRAFT_TAB_STATUSES.includes(order.status);
     case "PROCESSING":
-      return [
-        SalesOrderStatus.APPROVED,
-        SalesOrderStatus.PROCESSING,
-        SalesOrderStatus.PACKED,
-        SalesOrderStatus.SHIPPED,
-      ].includes(order.status);
+      return PROCESSING_TAB_STATUSES.includes(order.status);
     case "COMPLETED":
-      return [SalesOrderStatus.DELIVERED, SalesOrderStatus.CLOSED].includes(order.status);
+      return COMPLETED_TAB_STATUSES.includes(order.status);
     case "CANCELLED":
       return order.status === SalesOrderStatus.CANCELLED;
     default:
@@ -136,11 +136,7 @@ export default function SalesOrdersPage() {
   const [activeTab, setActiveTab] = useState<QueueTabKey>("ALL");
   const [detailId, setDetailId] = useState("");
   const [isCreateDrawerOpen, setCreateDrawerOpen] = useState(false);
-  const [isCreateDeliveryDrawerOpen, setCreateDeliveryDrawerOpen] = useState(false);
-  const [isCreateInvoiceDrawerOpen, setCreateInvoiceDrawerOpen] = useState(false);
   const [manualForm, setManualForm] = useState<ManualOrderFormState>(() => createInitialManualForm());
-  const [deliveryForm, setDeliveryForm] = useState<CreateSalesDeliveryInput>({ salesOrderId: "" });
-  const [invoiceForm, setInvoiceForm] = useState<CreateSalesInvoiceInput>({ salesOrderId: "" });
 
   const acceptedQuotesFilter: QuoteFilter = {
     search: "",
@@ -152,25 +148,13 @@ export default function SalesOrdersPage() {
   const ordersQuery = useSalesOrders(filter);
   const detailQuery = useSalesOrder(detailId);
   const acceptedQuotesQuery = useQuotes(acceptedQuotesFilter);
-  const deliveriesQuery = useSalesDeliveries();
-  const invoicesQuery = useSalesInvoices();
   const convertMutation = useConvertQuoteToOrder();
-  const createDeliveryMutation = useCreateSalesDelivery();
-  const createInvoiceMutation = useCreateSalesInvoice();
   const createMutation = useCreateSalesOrder();
-  const updateDeliveryStatusMutation = useUpdateSalesDeliveryStatus();
-  const updateInvoiceStatusMutation = useUpdateSalesInvoiceStatus();
   const statusMutation = useUpdateSalesOrderStatus();
 
-  const orders = ordersQuery.data?.data ?? [];
+  const orders = useMemo(() => ordersQuery.data?.data ?? [], [ordersQuery.data?.data]);
   const acceptedQuotes = acceptedQuotesQuery.data?.data ?? [];
   const detail = detailQuery.data ?? null;
-  const deliveries = deliveriesQuery.data?.data ?? [];
-  const invoices = invoicesQuery.data?.data ?? [];
-  const orderOptions = orders.map((order) => ({
-    id: order.id,
-    label: `${order.orderNumber} | ${order.customerName}`,
-  }));
 
   const tabCounts = useMemo(
     () =>
@@ -186,39 +170,16 @@ export default function SalesOrdersPage() {
 
   const totalRevenue = orders.reduce((sum, order) => sum + order.total, 0);
   const openFlowCount = orders.filter((order) =>
-    ![SalesOrderStatus.DELIVERED, SalesOrderStatus.CLOSED, SalesOrderStatus.CANCELLED].includes(order.status)
+    !CLOSED_FLOW_STATUSES.includes(order.status)
   ).length;
   const pendingDeliveries = orders.filter((order) =>
-    [SalesOrderStatus.APPROVED, SalesOrderStatus.PROCESSING, SalesOrderStatus.PACKED, SalesOrderStatus.SHIPPED].includes(order.status)
+    PROCESSING_TAB_STATUSES.includes(order.status)
   ).length;
   const averageOrderValue = orders.length ? totalRevenue / orders.length : 0;
   const manualOrderCount = orders.filter((order) => !order.quoteId).length;
   const pendingApprovalOrders = orders
     .filter((order) => order.status === SalesOrderStatus.PENDING_APPROVAL)
     .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-
-  const recentActivity = useMemo(() => {
-    const orderActivity = orders.slice(0, 6).map((order) => ({
-      id: `order-${order.id}`,
-      title: `${order.orderNumber} is ${order.status.toLowerCase().replace(/_/g, " ")}`,
-      subtitle: `${order.customerName} | ${fmtCurrency(order.total)}`,
-      timestamp: order.updatedAt,
-      kind:
-        order.status === SalesOrderStatus.SHIPPED || order.status === SalesOrderStatus.DELIVERED ? ("delivery" as const) : ("order" as const),
-    }));
-
-    const quoteActivity = acceptedQuotes.slice(0, 3).map((quote) => ({
-      id: `quote-${quote.id}`,
-      title: `${quote.quoteNumber} accepted`,
-      subtitle: `${quote.customerName} is ready for conversion`,
-      timestamp: quote.updatedAt,
-      kind: "quote" as const,
-    }));
-
-    return [...orderActivity, ...quoteActivity]
-      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-      .slice(0, 6);
-  }, [acceptedQuotes, orders]);
 
   const kpiMetrics = [
     {
@@ -273,86 +234,6 @@ export default function SalesOrdersPage() {
     },
   ];
 
-  const quickStats = [
-    {
-      label: "Manual intake",
-      value: `${manualOrderCount}`,
-      helper: "Orders created outside quote conversion",
-    },
-    {
-      label: "Reserved inventory",
-      value: `${orders.filter((order) => order.inventoryReserved).length}`,
-      helper: "Orders already matched with stock",
-    },
-    {
-      label: "Average value",
-      value: fmtCurrency(averageOrderValue || 0),
-      helper: "Per visible order in the queue",
-    },
-  ];
-
-  const deliveryStats = [
-    {
-      label: "Ready to dispatch",
-      value: String(
-        orders.filter((order) =>
-          [SalesOrderStatus.APPROVED, SalesOrderStatus.PROCESSING, SalesOrderStatus.PACKED].includes(order.status)
-        ).length
-      ),
-      helper: "Approved or being prepared for shipment",
-      tone: "text-sky-700 dark:text-sky-300",
-    },
-    {
-      label: "Shipped",
-      value: String(orders.filter((order) => order.status === SalesOrderStatus.SHIPPED).length),
-      helper: "In transit to the customer",
-      tone: "text-cyan-700 dark:text-cyan-300",
-    },
-    {
-      label: "Delivered",
-      value: String(orders.filter((order) => order.status === SalesOrderStatus.DELIVERED).length),
-      helper: "Completed delivery handoff",
-      tone: "text-emerald-700 dark:text-emerald-300",
-    },
-    {
-      label: "Inventory reserved",
-      value: String(orders.filter((order) => order.inventoryReserved).length),
-      helper: "Orders already linked to reserved stock",
-      tone: "text-violet-700 dark:text-violet-300",
-    },
-  ];
-
-  const billingStats = [
-    {
-      label: "Commercial backlog",
-      value: fmtCurrency(
-        orders
-          .filter((order) => ![SalesOrderStatus.CLOSED, SalesOrderStatus.CANCELLED].includes(order.status))
-          .reduce((sum, order) => sum + order.total, 0)
-      ),
-      helper: "Active order value still moving through billing or fulfillment",
-      tone: "text-slate-700 dark:text-slate-200",
-    },
-    {
-      label: "Quote-converted",
-      value: String(orders.filter((order) => Boolean(order.quoteId)).length),
-      helper: "Orders inherited from accepted commercial quotes",
-      tone: "text-emerald-700 dark:text-emerald-300",
-    },
-    {
-      label: "Manual orders",
-      value: String(manualOrderCount),
-      helper: "Often need invoice follow-up outside quote flow",
-      tone: "text-amber-700 dark:text-amber-300",
-    },
-    {
-      label: "Pending approvals",
-      value: String(pendingApprovalOrders.length),
-      helper: "Orders likely waiting for billing or dispatch sign-off",
-      tone: "text-sky-700 dark:text-sky-300",
-    },
-  ];
-
   const manualSubtotal = manualForm.items.reduce((sum, item) => {
     const quantity = Number(item.quantity) || 0;
     const unitPrice = Number(item.unitPrice) || 0;
@@ -385,14 +266,6 @@ export default function SalesOrdersPage() {
 
   function resetManualForm() {
     setManualForm(createInitialManualForm());
-  }
-
-  function resetDeliveryForm() {
-    setDeliveryForm({ salesOrderId: "" });
-  }
-
-  function resetInvoiceForm() {
-    setInvoiceForm({ salesOrderId: "" });
   }
 
   function handleConvert(quoteId: string) {
@@ -482,66 +355,6 @@ export default function SalesOrdersPage() {
     );
   }
 
-  function handleCreateDelivery() {
-    if (!deliveryForm.salesOrderId) {
-      toast.error("Select a sales order for the delivery.");
-      return;
-    }
-    createDeliveryMutation.mutate(deliveryForm, {
-      onSuccess: (created) => {
-        toast.success(`Delivery ${created.deliveryNumber} created.`);
-        setCreateDeliveryDrawerOpen(false);
-        resetDeliveryForm();
-      },
-      onError: (error) => {
-        toast.error(error instanceof Error ? error.message : "Could not create delivery.");
-      },
-    });
-  }
-
-  function handleCreateInvoice() {
-    if (!invoiceForm.salesOrderId) {
-      toast.error("Select a sales order for the invoice.");
-      return;
-    }
-    createInvoiceMutation.mutate(invoiceForm, {
-      onSuccess: (created) => {
-        toast.success(`Invoice ${created.invoiceNumber} created.`);
-        setCreateInvoiceDrawerOpen(false);
-        resetInvoiceForm();
-      },
-      onError: (error) => {
-        toast.error(error instanceof Error ? error.message : "Could not create invoice.");
-      },
-    });
-  }
-
-  function handleDeliveryStatusChange(id: string, status: SalesDeliveryStatus) {
-    updateDeliveryStatusMutation.mutate(
-      { id, status },
-      {
-        onError: (error) => {
-          toast.error(error instanceof Error ? error.message : "Could not update delivery status.");
-        },
-      }
-    );
-  }
-
-  function handleInvoiceStatusChange(id: string, status: SalesInvoiceStatus) {
-    updateInvoiceStatusMutation.mutate(
-      {
-        id,
-        status,
-        balanceDue: status === SalesInvoiceStatus.PAID ? 0 : undefined,
-      },
-      {
-        onError: (error) => {
-          toast.error(error instanceof Error ? error.message : "Could not update invoice status.");
-        },
-      }
-    );
-  }
-
   function handleExport() {
     const rows = visibleOrders.map((order) => ({
       orderNumber: order.orderNumber,
@@ -605,34 +418,6 @@ export default function SalesOrdersPage() {
             isConverting={convertMutation.isPending}
             onConvert={handleConvert}
           />
-          <QuickStatsCard stats={quickStats} />
-          <OperationsSnapshotCard title="Delivery Operations" subtitle="Dispatch and fulfillment signals" stats={deliveryStats} />
-          <DeliveryBoardCard
-            deliveries={deliveries}
-            isLoading={deliveriesQuery.isLoading}
-            onCreate={() => setCreateDeliveryDrawerOpen(true)}
-            onStatusChange={handleDeliveryStatusChange}
-            statusPending={updateDeliveryStatusMutation.isPending}
-          />
-          <OperationsSnapshotCard title="Billing & Commercial" subtitle="Order value and invoicing-adjacent signals" stats={billingStats} />
-          <InvoiceBoardCard
-            invoices={invoices}
-            isLoading={invoicesQuery.isLoading}
-            onCreate={() => setCreateInvoiceDrawerOpen(true)}
-            onStatusChange={handleInvoiceStatusChange}
-            statusPending={updateInvoiceStatusMutation.isPending}
-          />
-          <PendingApprovalsCard
-            approvals={pendingApprovalOrders.slice(0, 4).map((order) => ({
-              id: order.id,
-              orderNumber: order.orderNumber,
-              customerName: order.customerName,
-              total: order.total,
-              updatedAt: order.updatedAt,
-            }))}
-            onOpenOrder={setDetailId}
-          />
-          <ActivityTimelineCard items={recentActivity} />
         </div>
       </div>
 
@@ -649,26 +434,6 @@ export default function SalesOrdersPage() {
         onRemoveItem={removeManualItem}
         onReset={resetManualForm}
         onSubmit={handleCreateOrder}
-      />
-
-      <CreateDeliveryDrawer
-        open={isCreateDeliveryDrawerOpen}
-        onOpenChange={setCreateDeliveryDrawerOpen}
-        orderOptions={orderOptions}
-        form={deliveryForm}
-        pending={createDeliveryMutation.isPending}
-        onFieldChange={(field, value) => setDeliveryForm((prev) => ({ ...prev, [field]: value }))}
-        onSubmit={handleCreateDelivery}
-      />
-
-      <CreateInvoiceDrawer
-        open={isCreateInvoiceDrawerOpen}
-        onOpenChange={setCreateInvoiceDrawerOpen}
-        orderOptions={orderOptions}
-        form={invoiceForm}
-        pending={createInvoiceMutation.isPending}
-        onFieldChange={(field, value) => setInvoiceForm((prev) => ({ ...prev, [field]: value }))}
-        onSubmit={handleCreateInvoice}
       />
 
       <OrderDetailDrawer

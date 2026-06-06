@@ -11,6 +11,8 @@ import UnauthorizedPage from "@/modules/auth/unauthorized";
 // import DashboardPage from "@/modules/dashboard/page";
 import InventoryPage from "@/modules/inventory/page";
 import InventoryTransactionsPage from "@/modules/inventory/transactions-page";
+import InventoryBillsPage from "@/modules/inventory/bills-page";
+import InventoryInvoicesPage from "@/modules/inventory/invoices-page";
 import LeadsPage from "@/modules/crm/leads/page";
 import PreSalesOverviewPage from "@/modules/crm/presales/page";
 import AccountsPage from "@/modules/crm/accounts/page";
@@ -77,7 +79,6 @@ import P2PPaymentPage from "@/modules/purchases/p2p/payment/page";
 import P2PAlertsPage from "@/modules/purchases/p2p/alerts/page";
 import P2PReportsPage from "@/modules/purchases/p2p/reports/page";
 
-// eslint-disable-next-line react-refresh/only-export-components
 function RecruitmentFormRedirect() {
   const { id } = useParams();
   return <Navigate to={id ? `/forms/${id}` : "/forms"} replace />;
@@ -130,6 +131,22 @@ export const router = createBrowserRouter([
             element: (
               <RequirePermission permission={PERMISSIONS.PAGE_INVENTORY}>
                 <InventoryTransactionsPage />
+              </RequirePermission>
+            ),
+          },
+          {
+            path: "inventory/bills",
+            element: (
+              <RequirePermission permission={PERMISSIONS.PAGE_PURCHASES}>
+                <InventoryBillsPage />
+              </RequirePermission>
+            ),
+          },
+          {
+            path: "inventory/invoices",
+            element: (
+              <RequirePermission permission={PERMISSIONS.PAGE_SALES}>
+                <InventoryInvoicesPage />
               </RequirePermission>
             ),
           },
