@@ -23,7 +23,12 @@ export const PERMISSIONS = {
   PAGE_CRM_PRESALES: "page.crm.presales",
   PAGE_CRM_OPPORTUNITIES: "page.crm.opportunities",
   PAGE_INVENTORY: "page.inventory",
+  PAGE_INVENTORY_MANAGE: "page.inventory.manage",
+  PAGE_INVENTORY_TRANSACTIONS: "page.inventory.transactions",
+  PAGE_INVENTORY_BILLS: "page.inventory.bills",
+  PAGE_INVENTORY_INVOICES: "page.inventory.invoices",
   PAGE_SALES: "page.sales",
+  PAGE_SALES_ORDERS: "page.sales.orders",
   PAGE_PURCHASES: "page.purchases",
   PAGE_ACCOUNTING: "page.accounting",
   PAGE_HRMS: "page.hrms",
@@ -63,6 +68,7 @@ export function hasPermission(
   }
   const permissions = user.permissions ?? [];
   if (permissions.includes(permission)) return true;
+  if (hasLegacyPagePermission(permissions, permission)) return true;
 
   const modulePermission = resolveModulePermission(permission);
   if (modulePermission && permissions.includes(modulePermission)) {
@@ -87,8 +93,12 @@ export function getDefaultAuthorizedPath(
   }
 
   const candidates: Array<{ path: string; permission: Permission }> = [
-    { path: "/inventory", permission: PERMISSIONS.PAGE_INVENTORY },
+    { path: "/inventory", permission: PERMISSIONS.PAGE_INVENTORY_MANAGE },
+    { path: "/inventory/transactions", permission: PERMISSIONS.PAGE_INVENTORY_TRANSACTIONS },
+    { path: "/inventory/bills", permission: PERMISSIONS.PAGE_INVENTORY_BILLS },
+    { path: "/inventory/invoices", permission: PERMISSIONS.PAGE_INVENTORY_INVOICES },
     { path: "/sales", permission: PERMISSIONS.PAGE_SALES },
+    { path: "/sales/orders", permission: PERMISSIONS.PAGE_SALES_ORDERS },
     { path: "/p2p/pr", permission: PERMISSIONS.PAGE_PURCHASES },
     { path: "/crm/leads", permission: PERMISSIONS.PAGE_CRM_LEADS },
     { path: "/crm/accounts", permission: PERMISSIONS.PAGE_CRM_ACCOUNTS },
@@ -106,6 +116,28 @@ export function getDefaultAuthorizedPath(
 
   const match = candidates.find((candidate) => hasPermission(user, candidate.permission));
   return match?.path ?? "/access/request";
+}
+
+function hasLegacyPagePermission(permissions: string[], permission: Permission): boolean {
+  if (permission.startsWith("page.inventory.") && permissions.includes(PERMISSIONS.PAGE_INVENTORY)) {
+    return true;
+  }
+  if (
+    permission === PERMISSIONS.PAGE_INVENTORY &&
+    permissions.some((item) => item === PERMISSIONS.PAGE_INVENTORY || item.startsWith("page.inventory."))
+  ) {
+    return true;
+  }
+  if (permission.startsWith("page.sales.") && permissions.includes(PERMISSIONS.PAGE_SALES)) {
+    return true;
+  }
+  if (
+    permission === PERMISSIONS.PAGE_SALES &&
+    permissions.some((item) => item === PERMISSIONS.PAGE_SALES || item.startsWith("page.sales."))
+  ) {
+    return true;
+  }
+  return false;
 }
 
 function resolveModulePermission(permission: Permission): Permission | null {

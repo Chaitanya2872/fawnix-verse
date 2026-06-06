@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { useCurrentUser } from "@/modules/auth/hooks";
 import { hasStoredSession } from "@/services/api-client";
 import { accessRequestsApi } from "@/lib/api";
+import { PermissionSelector } from "@/modules/users/PermissionSelector";
 import { PERMISSION_GROUPS } from "@/modules/users/permissions";
 
 type AccessRequest = {
@@ -166,26 +167,13 @@ export default function AccessRequestsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {PERMISSION_GROUPS.map((group) => (
-            <div key={group.heading} className="space-y-2">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                {group.heading}
-              </p>
-              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                {group.options.map((option) => (
-                  <label key={option.value} className="flex items-start gap-2 rounded-md border border-slate-200 bg-white p-3 text-sm">
-                    <input
-                      type="checkbox"
-                      className="mt-1 h-4 w-4 rounded border-slate-300"
-                      checked={selectedPermissions.includes(option.value)}
-                      onChange={() => togglePermission(option.value)}
-                    />
-                    <span>{option.label}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-          ))}
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+            <PermissionSelector
+              selectedPermissions={selectedPermissions}
+              onTogglePermission={togglePermission}
+              idPrefix="access-request-permission"
+            />
+          </div>
 
           <div className="grid gap-2">
             <Label htmlFor="request-note">Why do you need access?</Label>
@@ -294,34 +282,13 @@ export default function AccessRequestsPage() {
                         <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                           Approved Permissions
                         </p>
-                        {PERMISSION_GROUPS.map((group) => (
-                          <div key={`${request.id}-${group.heading}`} className="space-y-2">
-                            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                              {group.heading}
-                            </p>
-                            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                              {group.options.map((option) => {
-                                const selected = reviewPermissions[request.id] ?? request.permissions;
-                                return (
-                                  <label
-                                    key={`${request.id}-${option.value}`}
-                                    className="flex items-start gap-2 rounded-md border border-slate-200 bg-white p-3 text-sm"
-                                  >
-                                    <input
-                                      type="checkbox"
-                                      className="mt-1 h-4 w-4 rounded border-slate-300"
-                                      checked={selected.includes(option.value)}
-                                      onChange={() =>
-                                        toggleReviewPermission(request.id, option.value, request.permissions)
-                                      }
-                                    />
-                                    <span>{option.label}</span>
-                                  </label>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        ))}
+                        <PermissionSelector
+                          selectedPermissions={reviewPermissions[request.id] ?? request.permissions}
+                          onTogglePermission={(permission) =>
+                            toggleReviewPermission(request.id, permission, request.permissions)
+                          }
+                          idPrefix={`review-${request.id}`}
+                        />
                       </div>
                       <textarea
                         value={reviewNotes[request.id] ?? ""}

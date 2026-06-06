@@ -56,12 +56,12 @@ const ERP_NAV_SECTIONS: readonly SidebarNavSection[] = [
   {
     heading: "Inventory",
     items: [
-      { label: "Manage Inventory", to: "/inventory", icon: Boxes, end: true, permission: PERMISSIONS.PAGE_INVENTORY },
-      { label: "Transactions", to: "/inventory/transactions", icon: ArrowLeftRight, permission: PERMISSIONS.PAGE_INVENTORY },
-      { label: "Bills", to: "/inventory/bills", icon: ReceiptText, permission: PERMISSIONS.PAGE_INVENTORY },
-      { label: "Invoices", to: "/inventory/invoices", icon: FileText, permission: PERMISSIONS.PAGE_INVENTORY },
+      { label: "Manage Inventory", to: "/inventory", icon: Boxes, end: true, permission: PERMISSIONS.PAGE_INVENTORY_MANAGE },
+      { label: "Transactions", to: "/inventory/transactions", icon: ArrowLeftRight, permission: PERMISSIONS.PAGE_INVENTORY_TRANSACTIONS },
+      { label: "Bills", to: "/inventory/bills", icon: ReceiptText, permission: PERMISSIONS.PAGE_INVENTORY_BILLS },
+      { label: "Invoices", to: "/inventory/invoices", icon: FileText, permission: PERMISSIONS.PAGE_INVENTORY_INVOICES },
       // { label: "Quotations", to: "/sales", icon: FileText, permission: PERMISSIONS.PAGE_SALES },
-      { label: "Orders", to: "/sales/orders", icon: ClipboardList, permission: PERMISSIONS.PAGE_SALES },
+      { label: "Orders", to: "/sales/orders", icon: ClipboardList, permission: PERMISSIONS.PAGE_SALES_ORDERS },
     ],
   },
   {

@@ -39,7 +39,8 @@ import {
   type User,
   type UserRole,
 } from "./types";
-import { PERMISSION_GROUPS, ROLE_DEFAULT_PERMISSIONS, uniquePermissions } from "./permissions";
+import { PermissionSelector } from "./PermissionSelector";
+import { ROLE_DEFAULT_PERMISSIONS, uniquePermissions } from "./permissions";
 
 type UserFormState = {
   fullName: string;
@@ -193,27 +194,12 @@ function UserFormFields({
             Reset to Role Defaults
           </Button>
         </div>
-        <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 space-y-4">
-          {PERMISSION_GROUPS.map((group) => (
-            <div key={group.heading} className="space-y-2">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                {group.heading}
-              </p>
-              <div className="grid gap-2 sm:grid-cols-2">
-                {group.options.map((option) => (
-                  <label key={option.value} className="flex items-start gap-2 text-sm text-slate-700">
-                    <input
-                      type="checkbox"
-                      className="mt-1 h-4 w-4 rounded border-slate-300"
-                      checked={form.permissions.includes(option.value)}
-                      onChange={() => onTogglePermission(option.value)}
-                    />
-                    <span className="leading-5">{option.label}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-          ))}
+        <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+          <PermissionSelector
+            selectedPermissions={form.permissions}
+            onTogglePermission={onTogglePermission}
+            idPrefix="user-permission"
+          />
         </div>
         <p className="text-xs text-slate-500">
           Master has full access. Other roles follow the selected module and page permissions.

@@ -121,7 +121,7 @@ export const router = createBrowserRouter([
           {
             path: "inventory",
             element: (
-              <RequirePermission permission={PERMISSIONS.PAGE_INVENTORY}>
+              <RequirePermission permission={PERMISSIONS.PAGE_INVENTORY_MANAGE}>
                 <InventoryPage />
               </RequirePermission>
             ),
@@ -129,7 +129,7 @@ export const router = createBrowserRouter([
           {
             path: "inventory/transactions",
             element: (
-              <RequirePermission permission={PERMISSIONS.PAGE_INVENTORY}>
+              <RequirePermission permission={PERMISSIONS.PAGE_INVENTORY_TRANSACTIONS}>
                 <InventoryTransactionsPage />
               </RequirePermission>
             ),
@@ -137,7 +137,7 @@ export const router = createBrowserRouter([
           {
             path: "inventory/bills",
             element: (
-              <RequirePermission permission={PERMISSIONS.PAGE_INVENTORY}>
+              <RequirePermission permission={PERMISSIONS.PAGE_INVENTORY_BILLS}>
                 <InventoryBillsPage />
               </RequirePermission>
             ),
@@ -145,7 +145,7 @@ export const router = createBrowserRouter([
           {
             path: "inventory/invoices",
             element: (
-              <RequirePermission permission={PERMISSIONS.PAGE_INVENTORY}>
+              <RequirePermission permission={PERMISSIONS.PAGE_INVENTORY_INVOICES}>
                 <InventoryInvoicesPage />
               </RequirePermission>
             ),
@@ -161,7 +161,7 @@ export const router = createBrowserRouter([
           {
             path: "sales/orders",
             element: (
-              <RequirePermission permission={PERMISSIONS.PAGE_SALES}>
+              <RequirePermission permission={PERMISSIONS.PAGE_SALES_ORDERS}>
                 <SalesOrdersPage />
               </RequirePermission>
             ),
