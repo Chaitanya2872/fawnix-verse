@@ -2,6 +2,7 @@ import { useState, type FocusEvent } from "react";
 import { NavLink } from "react-router-dom";
 import type { LucideIcon } from "lucide-react";
 import {
+  ArrowLeftRight,
   BarChart3,
   Boxes,
   Briefcase,
@@ -54,7 +55,8 @@ const ERP_NAV_SECTIONS: readonly SidebarNavSection[] = [
   {
     heading: "Inventory",
     items: [
-      { label: "Manage Inventory", to: "/inventory", icon: Boxes, permission: PERMISSIONS.PAGE_INVENTORY },
+      { label: "Manage Inventory", to: "/inventory", icon: Boxes, end: true, permission: PERMISSIONS.PAGE_INVENTORY },
+      { label: "Transactions", to: "/inventory/transactions", icon: ArrowLeftRight, permission: PERMISSIONS.PAGE_INVENTORY },
       // { label: "Quotations", to: "/sales", icon: FileText, permission: PERMISSIONS.PAGE_SALES },
       { label: "Orders", to: "/sales/orders", icon: ClipboardList, permission: PERMISSIONS.PAGE_SALES },
     ],
