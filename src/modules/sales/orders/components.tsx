@@ -134,6 +134,7 @@ type DrawerShellProps = {
   children: React.ReactNode;
   footer?: React.ReactNode;
   widthClassName?: string;
+  presentation?: "drawer" | "fullPage";
 };
 
 type CreateDrawerProps = {
@@ -937,6 +938,7 @@ export function OrderDetailDrawer({
       onOpenChange={onOpenChange}
       title={order?.orderNumber ?? "Order detail"}
       description={order ? `${order.customerName} ${order.company ? `| ${order.company}` : ""}` : "Inspect order status, items, and addresses."}
+      presentation="fullPage"
       footer={
         order ? (
           <>
@@ -968,7 +970,7 @@ export function OrderDetailDrawer({
         </div>
       ) : order ? (
         <div className="space-y-6">
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <DetailStat label="Status" value={toLabel(order.status)} tone={ORDER_STATUS_TONE[order.status]} />
             <DetailStat label="Total" value={fmtCurrency(order.total, order.currency)} />
             <DetailStat label="Quote source" value={order.quoteId || "Manual order"} />
@@ -1177,15 +1179,23 @@ function DrawerShell({
   children,
   footer,
   widthClassName = "max-w-[540px]",
+  presentation = "drawer",
 }: DrawerShellProps) {
+  const isFullPage = presentation === "fullPage";
+
   return (
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
       <DialogPrimitive.Portal>
         <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-slate-950/20 backdrop-blur-sm data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0 dark:bg-slate-950/50" />
         <DialogPrimitive.Content
           className={cn(
-            "fixed inset-y-3 right-3 z-50 flex w-[calc(100vw-1.5rem)] flex-col overflow-hidden rounded-[30px] border border-slate-200/80 bg-white/95 shadow-[0_30px_80px_-28px_rgba(15,23,42,0.45)] backdrop-blur-xl outline-none data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:slide-out-to-right-full data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:slide-in-from-right-full dark:border-slate-800 dark:bg-slate-900/96",
-            widthClassName
+            "fixed z-50 flex flex-col overflow-hidden border border-slate-200/80 bg-white/95 shadow-[0_30px_80px_-28px_rgba(15,23,42,0.45)] backdrop-blur-xl outline-none data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0 dark:border-slate-800 dark:bg-slate-900/96",
+            isFullPage
+              ? "inset-0 rounded-none data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 sm:inset-4 sm:rounded-[30px]"
+              : cn(
+                  "inset-y-3 right-3 w-[calc(100vw-1.5rem)] rounded-[30px] data-[state=closed]:slide-out-to-right-full data-[state=open]:slide-in-from-right-full",
+                  widthClassName
+                )
           )}
         >
           <div className="flex items-start justify-between gap-4 border-b border-slate-200/80 px-6 py-5 dark:border-slate-800">
