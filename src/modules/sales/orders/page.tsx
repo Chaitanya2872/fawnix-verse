@@ -1,14 +1,10 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { PackageCheck, ReceiptText, TrendingUp, Truck } from "lucide-react";
 import { toast } from "sonner";
 import {
   CreateOrderDrawer,
-  fmtCurrency,
   OrderDetailDrawer,
-  SalesOrdersHero,
-  SalesOrdersKpis,
   SalesOrdersQueueCard,
 } from "./components";
 import {
@@ -65,12 +61,6 @@ const PROCESSING_TAB_STATUSES: readonly SalesOrderStatus[] = [
 const COMPLETED_TAB_STATUSES: readonly SalesOrderStatus[] = [
   SalesOrderStatus.DELIVERED,
   SalesOrderStatus.CLOSED,
-];
-
-const CLOSED_FLOW_STATUSES: readonly SalesOrderStatus[] = [
-  SalesOrderStatus.DELIVERED,
-  SalesOrderStatus.CLOSED,
-  SalesOrderStatus.CANCELLED,
 ];
 
 function createDraftItem(): ManualOrderItemDraft {
@@ -153,62 +143,6 @@ export default function SalesOrdersPage() {
   );
 
   const visibleOrders = useMemo(() => orders.filter((order) => orderMatchesTab(order, activeTab)), [activeTab, orders]);
-
-  const totalRevenue = orders.reduce((sum, order) => sum + order.total, 0);
-  const openFlowCount = orders.filter((order) =>
-    !CLOSED_FLOW_STATUSES.includes(order.status)
-  ).length;
-  const pendingDeliveries = orders.filter((order) =>
-    PROCESSING_TAB_STATUSES.includes(order.status)
-  ).length;
-  const averageOrderValue = orders.length ? totalRevenue / orders.length : 0;
-  const manualOrderCount = orders.filter((order) => !order.quoteId).length;
-  const pendingApprovalOrders = orders
-    .filter((order) => order.status === SalesOrderStatus.PENDING_APPROVAL)
-    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-
-  const kpiMetrics = [
-    {
-      key: "orders",
-      label: "Orders",
-      value: String(ordersQuery.data?.total ?? 0),
-      trend: `${visibleOrders.length} visible now`,
-      hint: "Live order queue",
-      icon: ReceiptText,
-      tone: "bg-slate-300 dark:bg-slate-700",
-      bars: [42, 60, 54, 72, 86, 64],
-    },
-    {
-      key: "open-flow",
-      label: "Open Flow",
-      value: String(openFlowCount),
-      trend: `${pendingApprovalOrders.length} awaiting approvals`,
-      hint: "Active O2C workload",
-      icon: PackageCheck,
-      tone: "bg-sky-300 dark:bg-sky-700",
-      bars: [36, 44, 66, 72, 65, 88],
-    },
-    {
-      key: "revenue",
-      label: "Revenue",
-      value: fmtCurrency(totalRevenue || 0),
-      trend: `${fmtCurrency(averageOrderValue || 0)} avg`,
-      hint: "Current queue value",
-      icon: TrendingUp,
-      tone: "bg-violet-300 dark:bg-violet-700",
-      bars: [28, 40, 58, 76, 92, 78],
-    },
-    {
-      key: "deliveries",
-      label: "Pending Deliveries",
-      value: String(pendingDeliveries),
-      trend: `${manualOrderCount} manual orders`,
-      hint: "Fulfillment handoff",
-      icon: Truck,
-      tone: "bg-cyan-300 dark:bg-cyan-700",
-      bars: [30, 36, 52, 59, 74, 66],
-    },
-  ];
 
   const manualSubtotal = manualForm.items.reduce((sum, item) => {
     const quantity = Number(item.quantity) || 0;
@@ -319,47 +253,8 @@ export default function SalesOrdersPage() {
     );
   }
 
-  function handleExport() {
-    const rows = visibleOrders.map((order) => ({
-      orderNumber: order.orderNumber,
-      customerName: order.customerName,
-      company: order.company ?? "",
-      status: order.status,
-      total: order.total,
-      updatedAt: order.updatedAt,
-      source: order.quoteId ? "Quote conversion" : "Manual",
-    }));
-
-    const csv = [
-      ["Order Number", "Customer", "Company", "Status", "Total", "Updated At", "Source"],
-      ...rows.map((row) => [
-        row.orderNumber,
-        row.customerName,
-        row.company,
-        row.status,
-        row.total.toString(),
-        row.updatedAt,
-        row.source,
-      ]),
-    ]
-      .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","))
-      .join("\n");
-
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "sales-orders.csv";
-    link.click();
-    URL.revokeObjectURL(url);
-  }
-
   return (
     <div className="space-y-6 text-slate-900 dark:text-slate-100">
-      <SalesOrdersHero orderCount={visibleOrders.length} onCreateOrder={() => setCreateDrawerOpen(true)} onExport={handleExport} />
-
-      <SalesOrdersKpis metrics={kpiMetrics} isLoading={ordersQuery.isLoading} />
-
       <SalesOrdersQueueCard
         orders={visibleOrders}
         search={filter.search}
