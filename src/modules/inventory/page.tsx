@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
-import { NavLink } from "react-router-dom";
 import {
   AlertTriangle,
   Bookmark,
@@ -760,7 +759,7 @@ export default function InventoryPage() {
               </div>
 
               {view === "items" ? (
-                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                   <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
                     <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Items</p>
                     <p className="mt-1 text-2xl font-bold text-slate-900">{tableSummary.totalItems}</p>
@@ -773,12 +772,6 @@ export default function InventoryPage() {
                     <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Out of Stock</p>
                     <p className="mt-1 text-2xl font-bold text-rose-700">{tableSummary.outOfStock}</p>
                   </div>
-                  <NavLink
-                    to="/inventory/transactions"
-                    className="inline-flex items-center justify-center rounded-2xl border border-brand-200 bg-brand-50 px-4 py-3 text-sm font-semibold text-brand-700 transition-colors hover:bg-brand-100"
-                  >
-                    View Transactions
-                  </NavLink>
                 </div>
               ) : null}
             </div>

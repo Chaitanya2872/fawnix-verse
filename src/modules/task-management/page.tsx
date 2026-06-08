@@ -1638,24 +1638,6 @@ export default function TaskManagementPage() {
                         />
                       </label>
                       <FloatingSelect
-                        value={filter.status}
-                        onChange={(value) => setFilter((prev) => ({ ...prev, status: value }))}
-                        options={[
-                          { value: "", label: "All statuses" },
-                          ...TASK_STATUSES.map((status) => ({ value: status, label: toLabel(status) })),
-                        ]}
-                        className="min-w-[180px]"
-                      />
-                      <FloatingSelect
-                        value={filter.priority}
-                        onChange={(value) => setFilter((prev) => ({ ...prev, priority: value }))}
-                        options={[
-                          { value: "", label: "All priorities" },
-                          ...TASK_PRIORITIES.map((priority) => ({ value: priority, label: toLabel(priority) })),
-                        ]}
-                        className="min-w-[180px]"
-                      />
-                      <FloatingSelect
                         value={filter.assigneeId}
                         onChange={(value) => setFilter((prev) => ({ ...prev, assigneeId: value }))}
                         options={buildAssigneeOptions(users).map((option) => ({

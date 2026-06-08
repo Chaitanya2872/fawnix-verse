@@ -1,12 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { PackageCheck, ReceiptText, Sparkles, TrendingUp, Truck } from "lucide-react";
+import { PackageCheck, ReceiptText, TrendingUp, Truck } from "lucide-react";
 import { toast } from "sonner";
-import { useQuotes } from "@/modules/sales/hooks";
-import { QuoteStatus, type QuoteFilter } from "@/modules/sales/types";
 import {
-  AcceptedQuotesCard,
   CreateOrderDrawer,
   fmtCurrency,
   OrderDetailDrawer,
@@ -15,7 +12,6 @@ import {
   SalesOrdersQueueCard,
 } from "./components";
 import {
-  useConvertQuoteToOrder,
   useCreateSalesOrder,
   useSalesOrder,
   useSalesOrders,
@@ -138,22 +134,12 @@ export default function SalesOrdersPage() {
   const [isCreateDrawerOpen, setCreateDrawerOpen] = useState(false);
   const [manualForm, setManualForm] = useState<ManualOrderFormState>(() => createInitialManualForm());
 
-  const acceptedQuotesFilter: QuoteFilter = {
-    search: "",
-    status: QuoteStatus.ACCEPTED,
-    page: 1,
-    pageSize: 6,
-  };
-
   const ordersQuery = useSalesOrders(filter);
   const detailQuery = useSalesOrder(detailId);
-  const acceptedQuotesQuery = useQuotes(acceptedQuotesFilter);
-  const convertMutation = useConvertQuoteToOrder();
   const createMutation = useCreateSalesOrder();
   const statusMutation = useUpdateSalesOrderStatus();
 
   const orders = useMemo(() => ordersQuery.data?.data ?? [], [ordersQuery.data?.data]);
-  const acceptedQuotes = acceptedQuotesQuery.data?.data ?? [];
   const detail = detailQuery.data ?? null;
 
   const tabCounts = useMemo(
@@ -191,16 +177,6 @@ export default function SalesOrdersPage() {
       icon: ReceiptText,
       tone: "bg-slate-300 dark:bg-slate-700",
       bars: [42, 60, 54, 72, 86, 64],
-    },
-    {
-      key: "quotes",
-      label: "Accepted Quotes",
-      value: String(acceptedQuotes.length),
-      trend: `${acceptedQuotes.length ? "Ready to convert" : "No backlog"}`,
-      hint: "Presales handoff",
-      icon: Sparkles,
-      tone: "bg-emerald-300 dark:bg-emerald-700",
-      bars: [32, 48, 62, 78, 68, 84],
     },
     {
       key: "open-flow",
@@ -266,18 +242,6 @@ export default function SalesOrdersPage() {
 
   function resetManualForm() {
     setManualForm(createInitialManualForm());
-  }
-
-  function handleConvert(quoteId: string) {
-    convertMutation.mutate(quoteId, {
-      onSuccess: (created) => {
-        toast.success(`Order ${created.orderNumber} created from quote.`);
-        setDetailId(created.id);
-      },
-      onError: (error) => {
-        toast.error(error instanceof Error ? error.message : "Could not convert quote.");
-      },
-    });
   }
 
   function handleCreateOrder() {
@@ -396,30 +360,17 @@ export default function SalesOrdersPage() {
 
       <SalesOrdersKpis metrics={kpiMetrics} isLoading={ordersQuery.isLoading} />
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.75fr)_minmax(330px,0.95fr)]">
-        <div className="min-w-0">
-          <SalesOrdersQueueCard
-            orders={visibleOrders}
-            search={filter.search}
-            onSearchChange={(value) => setFilter((prev) => ({ ...prev, search: value, page: 1 }))}
-            tabs={tabCounts}
-            activeTab={activeTab}
-            onTabChange={(value) => setActiveTab(value as QueueTabKey)}
-            isLoading={ordersQuery.isLoading}
-            onOpenOrder={setDetailId}
-            onCreateOrder={() => setCreateDrawerOpen(true)}
-          />
-        </div>
-
-        <div className="space-y-6">
-          <AcceptedQuotesCard
-            quotes={acceptedQuotes}
-            isLoading={acceptedQuotesQuery.isLoading}
-            isConverting={convertMutation.isPending}
-            onConvert={handleConvert}
-          />
-        </div>
-      </div>
+      <SalesOrdersQueueCard
+        orders={visibleOrders}
+        search={filter.search}
+        onSearchChange={(value) => setFilter((prev) => ({ ...prev, search: value, page: 1 }))}
+        tabs={tabCounts}
+        activeTab={activeTab}
+        onTabChange={(value) => setActiveTab(value as QueueTabKey)}
+        isLoading={ordersQuery.isLoading}
+        onOpenOrder={setDetailId}
+        onCreateOrder={() => setCreateDrawerOpen(true)}
+      />
 
       <CreateOrderDrawer
         open={isCreateDrawerOpen}
