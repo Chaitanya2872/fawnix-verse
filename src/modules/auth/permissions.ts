@@ -95,7 +95,6 @@ export function getDefaultAuthorizedPath(
   const candidates: Array<{ path: string; permission: Permission }> = [
     { path: "/inventory", permission: PERMISSIONS.PAGE_INVENTORY_MANAGE },
     { path: "/inventory/transactions", permission: PERMISSIONS.PAGE_INVENTORY_TRANSACTIONS },
-    { path: "/inventory/bills", permission: PERMISSIONS.PAGE_INVENTORY_BILLS },
     { path: "/inventory/invoices", permission: PERMISSIONS.PAGE_INVENTORY_INVOICES },
     { path: "/sales", permission: PERMISSIONS.PAGE_SALES },
     { path: "/sales/orders", permission: PERMISSIONS.PAGE_SALES_ORDERS },
@@ -120,6 +119,12 @@ export function getDefaultAuthorizedPath(
 
 function hasLegacyPagePermission(permissions: string[], permission: Permission): boolean {
   if (permission.startsWith("page.inventory.") && permissions.includes(PERMISSIONS.PAGE_INVENTORY)) {
+    return true;
+  }
+  if (
+    permission === PERMISSIONS.PAGE_INVENTORY_INVOICES &&
+    permissions.includes(PERMISSIONS.PAGE_INVENTORY_BILLS)
+  ) {
     return true;
   }
   if (

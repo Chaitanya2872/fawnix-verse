@@ -23,8 +23,7 @@ export const PERMISSION_MODULE_GROUPS: PermissionModuleGroup[] = [
     pages: [
       { value: PERMISSIONS.PAGE_INVENTORY_MANAGE, label: "Manage Inventory" },
       { value: PERMISSIONS.PAGE_INVENTORY_TRANSACTIONS, label: "Transactions" },
-      { value: PERMISSIONS.PAGE_INVENTORY_BILLS, label: "Bills" },
-      { value: PERMISSIONS.PAGE_INVENTORY_INVOICES, label: "Invoices" },
+      { value: PERMISSIONS.PAGE_INVENTORY_INVOICES, label: "Bills & Invoices" },
       { value: PERMISSIONS.PAGE_SALES_ORDERS, label: "Orders" },
     ],
   },
