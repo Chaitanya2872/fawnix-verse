@@ -219,8 +219,8 @@ export function fmtDate(value: string) {
 
 export function SalesOrdersHero({ orderCount, onCreateOrder, onExport }: HeroProps) {
   return (
-    <section className="rounded-[20px] border border-slate-200 bg-[#FCFCFD] shadow-[0_8px_24px_-18px_rgba(16,24,40,0.18)] dark:border-slate-800 dark:bg-slate-900">
-      <div className="flex flex-col gap-5 px-5 py-5 lg:flex-row lg:items-end lg:justify-between lg:px-6">
+    <section>
+      <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
         <div className="min-w-0 max-w-3xl">
           <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-400">
             <span>Sales</span>
