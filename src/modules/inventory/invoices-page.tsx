@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { Loader2, Search } from "lucide-react";
 import { getApiErrorMessage } from "@/services/api-client";
 import { useInvoices as useBills } from "@/modules/purchases/hooks";
@@ -8,6 +8,8 @@ import type { Invoice as Bill, InvoiceStatus as BillStatus } from "@/modules/pur
 import { useSalesInvoices } from "@/modules/sales/orders/hooks";
 import { SalesInvoiceStatus, type SalesInvoice } from "@/modules/sales/orders/types";
 import { InventoryLayout } from "./layout";
+
+type BillingView = "bills" | "invoices";
 
 function formatCurrency(value: number, currency = "INR") {
   return new Intl.NumberFormat("en-IN", { style: "currency", currency }).format(value);
@@ -66,6 +68,30 @@ function StatusBadge({ label, className }: { label: string; className: string })
   );
 }
 
+function UnderlineTab({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`border-b-2 px-1 pb-2 text-sm font-semibold transition-colors ${
+        active
+          ? "border-brand-600 text-brand-700"
+          : "border-transparent text-slate-500 hover:text-slate-900"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
 function matchesBillSearch(bill: Bill, search: string) {
   if (!search) return true;
   return [
@@ -93,6 +119,7 @@ function matchesInvoiceSearch(invoice: SalesInvoice, search: string) {
 }
 
 export default function InventoryInvoicesPage() {
+  const [view, setView] = useState<BillingView>("bills");
   const [search, setSearch] = useState("");
   const billsQuery = useBills();
   const invoicesQuery = useSalesInvoices();
@@ -143,10 +170,22 @@ export default function InventoryInvoicesPage() {
         <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <h2 className="text-lg font-semibold text-slate-900">Bills & Invoices</h2>
-              <p className="mt-1 text-sm text-slate-500">
-                Supplier bills and customer invoices fetched separately in one page.
-              </p>
+              <div className="space-y-3">
+                <div>
+                  <h2 className="text-lg font-semibold text-slate-900">Bills & Invoices</h2>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Supplier bills and customer invoices fetched separately in one page.
+                  </p>
+                </div>
+                <div className="flex items-center gap-5 border-b border-slate-200">
+                  <UnderlineTab active={view === "bills"} onClick={() => setView("bills")}>
+                    Bills
+                  </UnderlineTab>
+                  <UnderlineTab active={view === "invoices"} onClick={() => setView("invoices")}>
+                    Invoices
+                  </UnderlineTab>
+                </div>
+              </div>
             </div>
             <div className="grid gap-3 sm:grid-cols-4">
               <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
@@ -177,12 +216,17 @@ export default function InventoryInvoicesPage() {
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search bill, invoice, PO, order, vendor, customer, or status"
+              placeholder={
+                view === "bills"
+                  ? "Search bill, PO, vendor, matching, or status"
+                  : "Search invoice, order, customer, company, or status"
+              }
               className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-3 text-sm text-slate-900 outline-none transition-colors focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
             />
           </div>
         </div>
 
+        {view === "bills" ? (
         <div className="rounded-3xl border border-slate-200 bg-white shadow-sm">
           <div className="flex flex-col gap-2 border-b border-slate-200 p-5 sm:flex-row sm:items-end sm:justify-between">
             <div>
@@ -248,7 +292,9 @@ export default function InventoryInvoicesPage() {
             </div>
           )}
         </div>
+        ) : null}
 
+        {view === "invoices" ? (
         <div className="rounded-3xl border border-slate-200 bg-white shadow-sm">
           <div className="flex flex-col gap-2 border-b border-slate-200 p-5 sm:flex-row sm:items-end sm:justify-between">
             <div>
@@ -318,6 +364,7 @@ export default function InventoryInvoicesPage() {
             </div>
           )}
         </div>
+        ) : null}
       </div>
     </InventoryLayout>
   );
