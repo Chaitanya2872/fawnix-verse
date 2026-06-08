@@ -227,12 +227,6 @@ export function SalesOrdersHero({ orderCount, onCreateOrder, onExport }: HeroPro
             <ChevronRight className="h-3.5 w-3.5 opacity-70" />
             <span>Order-to-Cash</span>
           </div>
-          <div className="mt-3 space-y-1.5">
-            <h1 className="text-3xl font-semibold tracking-[-0.03em] text-[#101828] sm:text-4xl dark:text-white">Sales Orders</h1>
-            <p className="max-w-2xl text-sm text-[#667085] dark:text-slate-400">
-              Manage quote conversions, direct order intake, and execution status from one operational control surface.
-            </p>
-          </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
