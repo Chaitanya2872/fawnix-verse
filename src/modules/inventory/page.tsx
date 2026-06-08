@@ -3,6 +3,7 @@
 import React, { useMemo, useState } from "react";
 import {
   AlertTriangle,
+  BarChart3,
   Bookmark,
   ChevronLeft,
   ChevronRight,
@@ -731,14 +732,23 @@ export default function InventoryPage() {
     <>
       <InventoryLayout
         addProductButton={
-          <button
-            type="button"
-            onClick={() => setAddOpen(true)}
-            className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-700"
-          >
-            <Plus className="h-4 w-4" />
-            Add Item
-          </button>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <button
+              type="button"
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50"
+            >
+              <BarChart3 className="h-4 w-4" />
+              Analytics
+            </button>
+            <button
+              type="button"
+              onClick={() => setAddOpen(true)}
+              className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-700"
+            >
+              <Plus className="h-4 w-4" />
+              Add Item
+            </button>
+          </div>
         }
       >
         <div className="space-y-6">

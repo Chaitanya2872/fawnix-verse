@@ -1,10 +1,11 @@
 import {
-  Bell,
   ChevronDown,
   LogOut,
+  MessageCircle,
   Moon,
   Search,
   Settings,
+  X,
   UserCircle2,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -67,6 +68,7 @@ export function Topbar({
   const userInitials = getUserInitials(resolvedUserName) || "AU";
 
   const [lastSeenNewLeads, setLastSeenNewLeads] = useState<number | null>(null);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
   const notifications = notificationsQuery.data;
 
   useEffect(() => {
@@ -115,6 +117,18 @@ export function Topbar({
     }
   };
 
+  const openNotifications = () => {
+    if (notifications) {
+      setLastSeenNewLeads(notifications.newLeadCount);
+    }
+    setNotificationsOpen(true);
+  };
+
+  const openLeads = () => {
+    setNotificationsOpen(false);
+    navigate("/crm/leads");
+  };
+
   return (
     <header
       className={cn(
@@ -147,86 +161,22 @@ export function Topbar({
         ) : null}
 
         <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
-          <DropdownMenu
-            onOpenChange={(open) => {
-              if (open && notifications) {
-                setLastSeenNewLeads(notifications.newLeadCount);
-              }
-            }}
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="relative h-9 w-9 text-slate-500 hover:bg-blue-50 hover:text-blue-700"
+            aria-label="Open messages"
+            aria-expanded={notificationsOpen}
+            onClick={openNotifications}
           >
-            <DropdownMenuTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="relative h-9 w-9 text-slate-500 hover:bg-blue-50 hover:text-blue-700"
-                aria-label="Notifications"
-              >
-                <Bell className="h-4 w-4" aria-hidden="true" />
-                {badgeCount > 0 ? (
-                  <span className="absolute -right-1 -top-1 inline-flex min-w-[18px] items-center justify-center rounded-full bg-rose-500 px-1.5 py-0.5 text-[10px] font-semibold text-white">
-                    {badgeLabel}
-                  </span>
-                ) : null}
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-72 border-blue-100 bg-white p-0">
-              <div className="border-b border-blue-100 px-4 py-3">
-                <p className="text-sm font-semibold text-slate-900">Notifications</p>
-                <p className="text-xs text-slate-500">
-                  {notifications?.updatedAt
-                    ? `Updated ${new Date(notifications.updatedAt).toLocaleTimeString()}`
-                    : "Checking for updates..."}
-                </p>
-              </div>
-              <div className="space-y-3 px-4 py-3 text-sm text-slate-700">
-                <div className="flex items-center justify-between rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
-                      New leads
-                    </p>
-                    <p className="text-sm font-semibold text-emerald-900">
-                      {notifications?.newLeadCount ?? 0} total
-                    </p>
-                    {unreadNewLeads > 0 ? (
-                      <p className="text-xs text-emerald-700">
-                        {unreadNewLeads} new since last check
-                      </p>
-                    ) : null}
-                  </div>
-                  <button
-                    onClick={() => navigate("/crm/leads")}
-                    className="rounded-lg bg-emerald-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-emerald-700"
-                  >
-                    View
-                  </button>
-                </div>
-
-                <div className="flex items-center justify-between rounded-lg border border-amber-100 bg-amber-50 px-3 py-2">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">
-                      Follow-ups due
-                    </p>
-                    <p className="text-sm font-semibold text-amber-900">
-                      {followUpDueCount} pending
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => navigate("/crm/leads")}
-                    className="rounded-lg border border-amber-200 px-2.5 py-1 text-xs font-semibold text-amber-700 hover:bg-amber-100"
-                  >
-                    Open
-                  </button>
-                </div>
-
-                {notificationsQuery.isError ? (
-                  <div className="rounded-lg border border-rose-100 bg-rose-50 px-3 py-2 text-xs text-rose-700">
-                    Unable to load notifications.
-                  </div>
-                ) : null}
-              </div>
-            </DropdownMenuContent>
-          </DropdownMenu>
+            <MessageCircle className="h-4 w-4" aria-hidden="true" />
+            {badgeCount > 0 ? (
+              <span className="absolute -right-1 -top-1 inline-flex min-w-[18px] items-center justify-center rounded-full bg-rose-500 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                {badgeLabel}
+              </span>
+            ) : null}
+          </Button>
 
           <Button
             type="button"
@@ -292,6 +242,94 @@ export function Topbar({
           </DropdownMenu>
         </div>
       </div>
+
+      {notificationsOpen ? (
+        <div className="fixed inset-0 z-50" role="dialog" aria-modal="true" aria-labelledby="messages-panel-title">
+          <button
+            type="button"
+            className="absolute inset-0 bg-slate-950/20 backdrop-blur-[1px]"
+            aria-label="Close messages"
+            onClick={() => setNotificationsOpen(false)}
+          />
+          <aside className="absolute inset-y-0 right-0 flex w-full max-w-md flex-col border-l border-blue-100 bg-white shadow-2xl">
+            <div className="flex items-start justify-between gap-4 border-b border-blue-100 px-5 py-4">
+              <div>
+                <p id="messages-panel-title" className="text-base font-semibold text-slate-900">
+                  Messages
+                </p>
+                <p className="text-xs text-slate-500">
+                  {notifications?.updatedAt
+                    ? `Updated ${new Date(notifications.updatedAt).toLocaleTimeString()}`
+                    : "Checking for updates..."}
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9 rounded-full text-slate-500 hover:bg-blue-50 hover:text-blue-700"
+                aria-label="Close messages"
+                onClick={() => setNotificationsOpen(false)}
+              >
+                <X className="h-4 w-4" aria-hidden="true" />
+              </Button>
+            </div>
+
+            <div className="flex-1 space-y-3 overflow-y-auto px-5 py-4 text-sm text-slate-700">
+              <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
+                      New leads
+                    </p>
+                    <p className="mt-1 text-lg font-semibold text-emerald-950">
+                      {notifications?.newLeadCount ?? 0} total
+                    </p>
+                    {unreadNewLeads > 0 ? (
+                      <p className="mt-1 text-xs text-emerald-700">
+                        {unreadNewLeads} new since last check
+                      </p>
+                    ) : null}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={openLeads}
+                    className="rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700"
+                  >
+                    View
+                  </button>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-amber-100 bg-amber-50 p-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">
+                      Follow-ups due
+                    </p>
+                    <p className="mt-1 text-lg font-semibold text-amber-950">
+                      {followUpDueCount} pending
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={openLeads}
+                    className="rounded-xl border border-amber-200 px-3 py-1.5 text-xs font-semibold text-amber-700 hover:bg-amber-100"
+                  >
+                    Open
+                  </button>
+                </div>
+              </div>
+
+              {notificationsQuery.isError ? (
+                <div className="rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3 text-xs text-rose-700">
+                  Unable to load messages.
+                </div>
+              ) : null}
+            </div>
+          </aside>
+        </div>
+      ) : null}
     </header>
   );
 }
