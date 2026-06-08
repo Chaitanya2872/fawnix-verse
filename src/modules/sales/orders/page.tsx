@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import {
   CreateOrderDrawer,
   OrderDetailDrawer,
+  SalesOrdersHero,
   SalesOrdersQueueCard,
 } from "./components";
 import {
@@ -253,8 +254,45 @@ export default function SalesOrdersPage() {
     );
   }
 
+  function handleExport() {
+    const rows = visibleOrders.map((order) => ({
+      orderNumber: order.orderNumber,
+      customerName: order.customerName,
+      company: order.company ?? "",
+      status: order.status,
+      total: order.total,
+      updatedAt: order.updatedAt,
+      source: order.quoteId ? "Quote conversion" : "Manual",
+    }));
+
+    const csv = [
+      ["Order Number", "Customer", "Company", "Status", "Total", "Updated At", "Source"],
+      ...rows.map((row) => [
+        row.orderNumber,
+        row.customerName,
+        row.company,
+        row.status,
+        row.total.toString(),
+        row.updatedAt,
+        row.source,
+      ]),
+    ]
+      .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","))
+      .join("\n");
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "sales-orders.csv";
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <div className="space-y-6 text-slate-900 dark:text-slate-100">
+      <SalesOrdersHero orderCount={visibleOrders.length} onCreateOrder={() => setCreateDrawerOpen(true)} onExport={handleExport} />
+
       <SalesOrdersQueueCard
         orders={visibleOrders}
         search={filter.search}
