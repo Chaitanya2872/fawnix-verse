@@ -21,6 +21,7 @@ import {
   PRODUCT_CATEGORIES,
   PRODUCT_CATEGORY_GROUPS,
   ProductStatus,
+  type InventoryCategorySummary,
   type Product,
   type ProductCategory,
   type ProductFilter,
@@ -44,6 +45,15 @@ type StockActionMode = "consume" | "receive";
 type StockActionDialogState = {
   product: Product;
   mode: StockActionMode;
+};
+
+type InventoryAnalyticsSummary = {
+  totalItems: number;
+  totalCategories: number;
+  totalStock: number;
+  lowStock: number;
+  outOfStock: number;
+  visibleStockValue: number;
 };
 
 type AdjustmentFormState = {
@@ -170,6 +180,140 @@ function ActionButton({
     >
       {children}
     </button>
+  );
+}
+
+function InventoryAnalyticsDialog({
+  open,
+  onClose,
+  summary,
+  categories,
+  isLoading,
+}: {
+  open: boolean;
+  onClose: () => void;
+  summary: InventoryAnalyticsSummary;
+  categories: InventoryCategorySummary[];
+  isLoading?: boolean;
+}) {
+  if (!open) return null;
+
+  const maxStock = Math.max(...categories.map((category) => toNumber(category.totalStockQty)), 1);
+  const stockHealth = summary.totalItems
+    ? Math.max(0, Math.round(((summary.totalItems - summary.lowStock - summary.outOfStock) / summary.totalItems) * 100))
+    : 0;
+  const topCategories = categories
+    .slice()
+    .sort((left, right) => toNumber(right.totalStockQty) - toNumber(left.totalStockQty))
+    .slice(0, 6);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative z-10 max-h-[92vh] w-full max-w-5xl overflow-y-auto rounded-3xl border border-slate-200 bg-white shadow-2xl">
+        <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-6 py-4">
+          <div>
+            <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-brand-50 px-3 py-1 text-xs font-semibold text-brand-700">
+              <BarChart3 className="h-4 w-4" />
+              Inventory Analytics
+            </div>
+            <h2 className="text-lg font-semibold text-slate-900">Stock performance overview</h2>
+            <p className="mt-1 text-sm text-slate-500">Track inventory health, stock risk, and category distribution.</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-xl p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="space-y-6 p-6">
+          {isLoading ? (
+            <div className="flex min-h-[240px] items-center justify-center rounded-3xl border border-dashed border-slate-200 bg-slate-50 text-sm text-slate-500">
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Loading inventory analytics...
+            </div>
+          ) : (
+            <>
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                <AnalyticsMetric label="Items" value={summary.totalItems.toString()} hint="Total products" />
+                <AnalyticsMetric label="Stock Health" value={`${stockHealth}%`} hint="Healthy inventory ratio" />
+                <AnalyticsMetric label="Total Stock" value={summary.totalStock.toString()} hint="Units across categories" />
+                <AnalyticsMetric label="Visible Value" value={formatCurrency(summary.visibleStockValue)} hint="Current table items" />
+              </div>
+
+              <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+                <div className="rounded-3xl border border-slate-200 bg-slate-50/70 p-5">
+                  <div className="mb-4 flex items-center justify-between">
+                    <div>
+                      <h3 className="text-sm font-semibold text-slate-900">Category stock</h3>
+                      <p className="mt-1 text-xs text-slate-500">{summary.totalCategories} active categories</p>
+                    </div>
+                    <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600 shadow-sm">
+                      Top {topCategories.length}
+                    </span>
+                  </div>
+                  <div className="space-y-3">
+                    {topCategories.length ? (
+                      topCategories.map((category) => {
+                        const stock = toNumber(category.totalStockQty);
+                        const width = `${Math.max(6, Math.round((stock / maxStock) * 100))}%`;
+                        return (
+                          <div key={category.category}>
+                            <div className="mb-1 flex items-center justify-between gap-3 text-xs">
+                              <span className="font-semibold text-slate-700">{category.category}</span>
+                              <span className="text-slate-500">{stock} units</span>
+                            </div>
+                            <div className="h-2 rounded-full bg-white">
+                              <div className="h-2 rounded-full bg-brand-600" style={{ width }} />
+                            </div>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <p className="rounded-2xl border border-dashed border-slate-200 bg-white p-6 text-center text-sm text-slate-500">
+                        No category analytics available yet.
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="rounded-3xl border border-slate-200 bg-white p-5">
+                  <h3 className="text-sm font-semibold text-slate-900">Stock risk</h3>
+                  <p className="mt-1 text-xs text-slate-500">Items needing attention across inventory.</p>
+                  <div className="mt-4 space-y-3">
+                    <RiskRow label="Low stock" value={summary.lowStock} className="bg-amber-50 text-amber-700" />
+                    <RiskRow label="Out of stock" value={summary.outOfStock} className="bg-rose-50 text-rose-700" />
+                    <RiskRow label="Healthy stock" value={Math.max(0, summary.totalItems - summary.lowStock - summary.outOfStock)} className="bg-emerald-50 text-emerald-700" />
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AnalyticsMetric({ label, value, hint }: { label: string; value: string; hint: string }) {
+  return (
+    <div className="rounded-3xl border border-slate-200 bg-slate-50 px-4 py-4">
+      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p>
+      <p className="mt-2 text-2xl font-bold text-slate-950">{value}</p>
+      <p className="mt-1 text-xs text-slate-500">{hint}</p>
+    </div>
+  );
+}
+
+function RiskRow({ label, value, className }: { label: string; value: number; className: string }) {
+  return (
+    <div className={`flex items-center justify-between rounded-2xl px-4 py-3 ${className}`}>
+      <span className="text-sm font-semibold">{label}</span>
+      <span className="text-xl font-bold">{value}</span>
+    </div>
   );
 }
 
@@ -575,6 +719,7 @@ export default function InventoryPage() {
   const [view, setView] = useState<StockView>("items");
   const [filter, setFilter] = useState<ProductFilter>(defaultFilter);
   const [addOpen, setAddOpen] = useState(false);
+  const [analyticsOpen, setAnalyticsOpen] = useState(false);
   const [editProduct, setEditProduct] = useState<Product | null>(null);
   const [deleteProduct, setDeleteProduct] = useState<Product | null>(null);
   const [stockAction, setStockAction] = useState<StockActionDialogState | null>(null);
@@ -613,6 +758,29 @@ export default function InventoryPage() {
       outOfStock: products.filter((product) => product.status === ProductStatus.OUT_OF_STOCK).length,
     };
   }, [pageData?.total, products]);
+
+  const analyticsSummary = useMemo<InventoryAnalyticsSummary>(() => {
+    const categoryLowStock = categories.reduce((sum, category) => sum + toNumber(category.lowStockCount), 0);
+    const categoryOutOfStock = categories.reduce((sum, category) => sum + toNumber(category.outOfStockCount), 0);
+
+    return {
+      totalItems: overviewQuery.data?.totalProducts ?? tableSummary.totalItems,
+      totalCategories: overviewQuery.data?.totalCategories ?? categories.length,
+      totalStock: overviewQuery.data?.totalStockQty ?? categories.reduce((sum, category) => sum + toNumber(category.totalStockQty), 0),
+      lowStock: categoryLowStock || tableSummary.lowStock,
+      outOfStock: categoryOutOfStock || tableSummary.outOfStock,
+      visibleStockValue: products.reduce((sum, product) => sum + toNumber(product.stockQty) * toNumber(product.price), 0),
+    };
+  }, [
+    categories,
+    overviewQuery.data?.totalCategories,
+    overviewQuery.data?.totalProducts,
+    overviewQuery.data?.totalStockQty,
+    products,
+    tableSummary.lowStock,
+    tableSummary.outOfStock,
+    tableSummary.totalItems,
+  ]);
 
   function resetAdjustmentForm() {
     setAdjustmentForm({ quantity: "", txnDate: getTodayDateValue(), notes: "" });
@@ -735,6 +903,7 @@ export default function InventoryPage() {
           <div className="flex flex-wrap items-center justify-end gap-2">
             <button
               type="button"
+              onClick={() => setAnalyticsOpen(true)}
               className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50"
             >
               <BarChart3 className="h-4 w-4" />
@@ -1018,6 +1187,13 @@ export default function InventoryPage() {
         </div>
       </InventoryLayout>
 
+      <InventoryAnalyticsDialog
+        open={analyticsOpen}
+        onClose={() => setAnalyticsOpen(false)}
+        summary={analyticsSummary}
+        categories={categories}
+        isLoading={overviewQuery.isLoading}
+      />
       <ProductDialog open={addOpen} onClose={() => setAddOpen(false)} onSave={handleCreate} isLoading={createMutation.isPending} />
       <ProductDialog open={!!editProduct} onClose={() => setEditProduct(null)} product={editProduct} onSave={handleUpdate} isLoading={updateMutation.isPending} />
       <StockAdjustmentDialog

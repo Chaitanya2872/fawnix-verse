@@ -9,6 +9,7 @@ import {
   UserCircle2,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 
@@ -129,13 +130,121 @@ export function Topbar({
     navigate("/crm/leads");
   };
 
+  useEffect(() => {
+    if (!notificationsOpen) {
+      return;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setNotificationsOpen(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [notificationsOpen]);
+
+  const messagesPanel =
+    notificationsOpen && typeof document !== "undefined"
+      ? createPortal(
+          <div className="fixed inset-0 z-[100]" role="dialog" aria-modal="true" aria-labelledby="messages-panel-title">
+            <button
+              type="button"
+              className="absolute inset-0 bg-slate-950/20 backdrop-blur-[1px]"
+              aria-label="Close messages"
+              onClick={() => setNotificationsOpen(false)}
+            />
+            <aside className="absolute inset-y-0 right-0 flex w-full max-w-md flex-col border-l border-blue-100 bg-white shadow-2xl">
+              <div className="flex items-start justify-between gap-4 border-b border-blue-100 px-5 py-4">
+                <div>
+                  <p id="messages-panel-title" className="text-base font-semibold text-slate-900">
+                    Messages
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    {notifications?.updatedAt
+                      ? `Updated ${new Date(notifications.updatedAt).toLocaleTimeString()}`
+                      : "Checking for updates..."}
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-9 w-9 rounded-full text-slate-500 hover:bg-blue-50 hover:text-blue-700"
+                  aria-label="Close messages"
+                  onClick={() => setNotificationsOpen(false)}
+                >
+                  <X className="h-4 w-4" aria-hidden="true" />
+                </Button>
+              </div>
+
+              <div className="flex-1 space-y-3 overflow-y-auto px-5 py-4 text-sm text-slate-700">
+                <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
+                        New leads
+                      </p>
+                      <p className="mt-1 text-lg font-semibold text-emerald-950">
+                        {notifications?.newLeadCount ?? 0} total
+                      </p>
+                      {unreadNewLeads > 0 ? (
+                        <p className="mt-1 text-xs text-emerald-700">
+                          {unreadNewLeads} new since last check
+                        </p>
+                      ) : null}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={openLeads}
+                      className="rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700"
+                    >
+                      View
+                    </button>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-amber-100 bg-amber-50 p-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">
+                        Follow-ups due
+                      </p>
+                      <p className="mt-1 text-lg font-semibold text-amber-950">
+                        {followUpDueCount} pending
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={openLeads}
+                      className="rounded-xl border border-amber-200 px-3 py-1.5 text-xs font-semibold text-amber-700 hover:bg-amber-100"
+                    >
+                      Open
+                    </button>
+                  </div>
+                </div>
+
+                {notificationsQuery.isError ? (
+                  <div className="rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3 text-xs text-rose-700">
+                    Unable to load messages.
+                  </div>
+                ) : null}
+              </div>
+            </aside>
+          </div>,
+          document.body
+        )
+      : null;
+
   return (
-    <header
-      className={cn(
-        "sticky top-0 z-30 h-16 border-b border-blue-100 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/90",
-        className
-      )}
-    >
+    <>
+      <header
+        className={cn(
+          "sticky top-0 z-30 h-16 border-b border-blue-100 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/90",
+          className
+        )}
+      >
       <div className="flex h-full items-center gap-3 px-4 sm:gap-4 sm:px-6 lg:px-8">
         <div className="min-w-0 flex-1">
           <p className="truncate text-xs font-medium text-slate-500">{breadcrumb}</p>
@@ -243,93 +352,8 @@ export function Topbar({
         </div>
       </div>
 
-      {notificationsOpen ? (
-        <div className="fixed inset-0 z-50" role="dialog" aria-modal="true" aria-labelledby="messages-panel-title">
-          <button
-            type="button"
-            className="absolute inset-0 bg-slate-950/20 backdrop-blur-[1px]"
-            aria-label="Close messages"
-            onClick={() => setNotificationsOpen(false)}
-          />
-          <aside className="absolute inset-y-0 right-0 flex w-full max-w-md flex-col border-l border-blue-100 bg-white shadow-2xl">
-            <div className="flex items-start justify-between gap-4 border-b border-blue-100 px-5 py-4">
-              <div>
-                <p id="messages-panel-title" className="text-base font-semibold text-slate-900">
-                  Messages
-                </p>
-                <p className="text-xs text-slate-500">
-                  {notifications?.updatedAt
-                    ? `Updated ${new Date(notifications.updatedAt).toLocaleTimeString()}`
-                    : "Checking for updates..."}
-                </p>
-              </div>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="h-9 w-9 rounded-full text-slate-500 hover:bg-blue-50 hover:text-blue-700"
-                aria-label="Close messages"
-                onClick={() => setNotificationsOpen(false)}
-              >
-                <X className="h-4 w-4" aria-hidden="true" />
-              </Button>
-            </div>
-
-            <div className="flex-1 space-y-3 overflow-y-auto px-5 py-4 text-sm text-slate-700">
-              <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-4">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
-                      New leads
-                    </p>
-                    <p className="mt-1 text-lg font-semibold text-emerald-950">
-                      {notifications?.newLeadCount ?? 0} total
-                    </p>
-                    {unreadNewLeads > 0 ? (
-                      <p className="mt-1 text-xs text-emerald-700">
-                        {unreadNewLeads} new since last check
-                      </p>
-                    ) : null}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={openLeads}
-                    className="rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700"
-                  >
-                    View
-                  </button>
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-amber-100 bg-amber-50 p-4">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">
-                      Follow-ups due
-                    </p>
-                    <p className="mt-1 text-lg font-semibold text-amber-950">
-                      {followUpDueCount} pending
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={openLeads}
-                    className="rounded-xl border border-amber-200 px-3 py-1.5 text-xs font-semibold text-amber-700 hover:bg-amber-100"
-                  >
-                    Open
-                  </button>
-                </div>
-              </div>
-
-              {notificationsQuery.isError ? (
-                <div className="rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3 text-xs text-rose-700">
-                  Unable to load messages.
-                </div>
-              ) : null}
-            </div>
-          </aside>
-        </div>
-      ) : null}
-    </header>
+      </header>
+      {messagesPanel}
+    </>
   );
 }
