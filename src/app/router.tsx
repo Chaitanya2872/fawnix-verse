@@ -23,6 +23,7 @@ import AccessRequestsPage from "@/modules/access/page";
 import SalesPage from "@/modules/sales/page";
 import SalesOrdersPage from "@/modules/sales/orders/page";
 import TaskManagementPage from "@/modules/task-management/page";
+import TaskWorkspacePage from "@/modules/task-management/workspace-page";
 import HiringRequestsPage from "@/modules/recruitment/HiringRequestsPage";
 import HiringRequestDetailPage from "@/modules/recruitment/HiringRequestDetailPage";
 import NewHiringRequestPage from "@/modules/recruitment/NewHiringRequestPage";
@@ -166,6 +167,14 @@ export const router = createBrowserRouter([
             element: (
               <RequirePermission permission={PERMISSIONS.PAGE_TASKS}>
                 <TaskManagementPage />
+              </RequirePermission>
+            ),
+          },
+          {
+            path: "tasks/workspace",
+            element: (
+              <RequirePermission permission={PERMISSIONS.PAGE_TASKS}>
+                <TaskWorkspacePage />
               </RequirePermission>
             ),
           },

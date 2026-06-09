@@ -13,6 +13,7 @@ import {
   Calculator,
   FileCheck2,
   FileText,
+  Inbox,
   KeyRound,
   LayoutDashboard,
   Network,
@@ -66,7 +67,8 @@ const ERP_NAV_SECTIONS: readonly SidebarNavSection[] = [
   {
     heading: "Task Management",
     items: [
-      { label: "Task Management", to: "/tasks", icon: CheckSquare, permission: PERMISSIONS.PAGE_TASKS },
+      { label: "Task Management", to: "/tasks", icon: CheckSquare, end: true, permission: PERMISSIONS.PAGE_TASKS },
+      { label: "Task Workspace", to: "/tasks/workspace", icon: Inbox, permission: PERMISSIONS.PAGE_TASKS },
     ],
   },
   {

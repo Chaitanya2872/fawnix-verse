@@ -3,6 +3,7 @@
 import React, { useMemo, useState } from "react";
 import {
   Bell,
+  CalendarDays,
   CheckCheck,
   ChevronRight,
   CircleDashed,
@@ -15,7 +16,7 @@ import {
 } from "lucide-react";
 import type { TaskSpaceSummary } from "../types";
 
-export type TaskWorkspaceSection = "inbox" | "my-tasks" | "team-spaces";
+export type TaskWorkspaceSection = "inbox" | "my-tasks" | "schedule" | "team-spaces";
 export type TaskInboxKind = "message" | "notification";
 
 export type TaskInboxItem = {
@@ -35,6 +36,7 @@ type TaskWorkspaceSidebarProps = {
   activeSection: TaskWorkspaceSection;
   inboxUnreadCount: number;
   myTaskCount: number;
+  scheduleCount: number;
   teamSpaceCount: number;
   spaces: TaskSpaceSummary[];
   selectedSpaceId: string;
@@ -87,6 +89,7 @@ export function TaskWorkspaceSidebar({
   activeSection,
   inboxUnreadCount,
   myTaskCount,
+  scheduleCount,
   teamSpaceCount,
   spaces,
   selectedSpaceId,
@@ -101,18 +104,24 @@ export function TaskWorkspaceSidebar({
   }> = [
     { id: "inbox", label: "Inbox", count: inboxUnreadCount, icon: <Inbox className="h-4 w-4" /> },
     { id: "my-tasks", label: "My Tasks", count: myTaskCount, icon: <UserRound className="h-4 w-4" /> },
+    { id: "schedule", label: "Schedule", count: scheduleCount, icon: <CalendarDays className="h-4 w-4" /> },
     { id: "team-spaces", label: "Team Spaces", count: teamSpaceCount, icon: <FolderKanban className="h-4 w-4" /> },
   ];
 
   return (
-    <aside className="xl:sticky xl:top-5 xl:self-start">
-      <div className="rounded-[28px] border border-slate-200 bg-white/90 p-3 shadow-sm">
-        <div className="px-2 py-2">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">Task Hub</p>
-          <p className="mt-1 text-sm text-slate-500">Messages, queues, and spaces.</p>
+    <aside className="h-full border-b border-slate-200 bg-white xl:border-b-0 xl:border-r">
+      <div className="flex h-full flex-col p-4">
+        <div className="mb-3 flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5">
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold text-slate-950">Fawnix Tasks</p>
+            <p className="truncate text-xs text-slate-500">Workspace</p>
+          </div>
+          <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl bg-slate-950 text-xs font-semibold text-white">
+            FT
+          </span>
         </div>
 
-        <nav className="mt-2 space-y-1" aria-label="Task workspace">
+        <nav className="space-y-1" aria-label="Task workspace">
           {navItems.map((item) => {
             const active = activeSection === item.id;
             return (
@@ -120,7 +129,7 @@ export function TaskWorkspaceSidebar({
                 key={item.id}
                 type="button"
                 onClick={() => onSectionChange(item.id)}
-                className={`flex w-full items-center justify-between gap-3 rounded-2xl px-3 py-2.5 text-left text-sm font-semibold transition ${
+                className={`flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold transition ${
                   active ? "bg-slate-950 text-white" : "text-slate-600 hover:bg-slate-100 hover:text-slate-950"
                 }`}
               >
@@ -136,7 +145,7 @@ export function TaskWorkspaceSidebar({
           })}
         </nav>
 
-        <div className="mt-4 border-t border-slate-200 pt-4">
+        <div className="mt-5 flex-1 border-t border-slate-200 pt-4">
           <div className="mb-2 flex items-center justify-between px-2">
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Spaces</p>
             <button
@@ -161,7 +170,7 @@ export function TaskWorkspaceSidebar({
                     onSectionChange("team-spaces");
                     onSpaceSelect(space.id);
                   }}
-                  className={`flex w-full items-center justify-between gap-3 rounded-2xl px-3 py-2.5 text-left transition ${
+                  className={`flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left transition ${
                     active ? "bg-slate-100 text-slate-950" : "text-slate-600 hover:bg-slate-50 hover:text-slate-950"
                   }`}
                 >

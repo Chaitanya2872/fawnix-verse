@@ -90,12 +90,6 @@ import {
   TASK_SPACE_PERMISSIONS,
   TASK_SPACE_VISIBILITIES,
 } from "./types";
-import {
-  TaskInboxPanel,
-  TaskWorkspaceSidebar,
-  type TaskInboxItem,
-  type TaskWorkspaceSection,
-} from "./components";
 import { getRoleLabel } from "@/modules/users/types";
 
 type TaskView = "list" | "board" | "calendar" | "timeline";
@@ -705,12 +699,6 @@ function activeSpaceTasks(tasks: TaskSummary[], spaceId: string) {
   return tasks.filter((task) => task.spaceId === spaceId);
 }
 
-function isTaskAssignedToUser(task: TaskSummary, user: CurrentUser | null | undefined) {
-  if (!user) return false;
-  if (task.assignedToId === user.id) return true;
-  return task.activeAssignees?.some((assignee) => assignee.assignedToId === user.id) ?? false;
-}
-
 function canManageSpace(user: CurrentUser | null | undefined, space: TaskSpaceSummary | null) {
   if (!user || !space) return false;
   if (hasPermission(user, PERMISSIONS.PAGE_TASKS) || hasPermission(user, PERMISSIONS.MODULE_TASKS)) return true;
@@ -743,8 +731,6 @@ export default function TaskManagementPage() {
   const [view, setView] = useState<TaskView>("list");
   const [scope, setScope] = useState<TaskScope>("all");
   const [grouping, setGrouping] = useState<TaskGrouping>("status");
-  const [workspaceSection, setWorkspaceSection] = useState<TaskWorkspaceSection>("team-spaces");
-  const [readInboxItemIds, setReadInboxItemIds] = useState<Set<string>>(new Set());
   const [filter, setFilter] = useState<TaskFilter>(defaultFilter);
   const [activePanel, setActivePanel] = useState<TaskPanelState>(null);
   const [selectedSpaceId, setSelectedSpaceId] = useState("");
@@ -901,56 +887,6 @@ export default function TaskManagementPage() {
         .slice(0, 24),
     [allFlatTasks]
   );
-  const myTaskCount = useMemo(
-    () => allFlatTasks.filter((task) => isTaskAssignedToUser(task, currentUser)).length,
-    [allFlatTasks, currentUser]
-  );
-  const inboxItems = useMemo<TaskInboxItem[]>(() => {
-    const activityItems: TaskInboxItem[] = (dashboard?.recentActivity ?? []).slice(0, 8).map((activity, index) => ({
-      id: `activity-${activity.id}`,
-      kind: "message",
-      title: activity.actorName ? `${activity.actorName} posted an update` : "Task update",
-      body: activity.message,
-      timestamp: formatRelativeDate(activity.createdAt),
-      source: "Activity",
-      unread: index < 2,
-      tone: "sky",
-    }));
-
-    const dashboardDeadlineItems: TaskInboxItem[] = (dashboard?.upcomingDeadlines ?? []).slice(0, 8).map((deadline, index) => ({
-      id: `deadline-${deadline.id}`,
-      kind: "notification",
-      title: deadline.title,
-      body: `${deadline.assignedToName ?? "Unassigned"} - due ${formatLongDate(deadline.dueDate)}`,
-      timestamp: formatRelativeDate(deadline.dueDate),
-      source: deadline.taskCode ?? "Deadline",
-      unread: index < 3 || deadline.priority === "HIGH" || deadline.priority === "CRITICAL",
-      tone: deadline.priority === "CRITICAL" ? "rose" : deadline.priority === "HIGH" ? "amber" : "slate",
-      taskId: deadline.id,
-      actionLabel: "Open task",
-    }));
-
-    const taskDeadlineItems: TaskInboxItem[] = dashboardDeadlineItems.length
-      ? []
-      : dueCalendar.slice(0, 8).map((task, index) => ({
-          id: `task-deadline-${task.id}`,
-          kind: "notification",
-          title: task.title,
-          body: `${task.assignedToName ?? "Unassigned"} - due ${formatLongDate(task.dueDate)}`,
-          timestamp: formatRelativeDate(task.dueDate),
-          source: task.projectRef || task.spaceName || "Deadline",
-          unread: task.overdue || index < 3,
-          tone: task.overdue ? "rose" : task.priority === "HIGH" || task.priority === "CRITICAL" ? "amber" : "slate",
-          taskId: task.id,
-          actionLabel: "Open task",
-        }));
-
-    return [...activityItems, ...dashboardDeadlineItems, ...taskDeadlineItems];
-  }, [dashboard?.recentActivity, dashboard?.upcomingDeadlines, dueCalendar]);
-  const inboxUnreadCount = useMemo(
-    () => inboxItems.filter((item) => item.unread && !readInboxItemIds.has(item.id)).length,
-    [inboxItems, readInboxItemIds]
-  );
   const projectOptions = useMemo(
     () =>
       [...new Set(allFlatTasks.map((task) => task.projectRef).filter((value): value is string => Boolean(value && value.trim())))]
@@ -1029,36 +965,8 @@ export default function TaskManagementPage() {
     setActivePanel({ type: "task-detail", taskId });
   }
 
-  function handleWorkspaceSectionChange(section: TaskWorkspaceSection) {
-    setWorkspaceSection(section);
-    if (section === "my-tasks") {
-      setScope("my");
-    }
-    if (section === "team-spaces") {
-      setScope("all");
-    }
-  }
-
   function handleScopeChange(nextScope: TaskScope) {
     setScope(nextScope);
-    if (nextScope === "my") {
-      setWorkspaceSection("my-tasks");
-    } else if (workspaceSection === "my-tasks") {
-      setWorkspaceSection("team-spaces");
-    }
-  }
-
-  function handleInboxItemRead(itemId: string) {
-    setReadInboxItemIds((prev) => {
-      if (prev.has(itemId)) return prev;
-      const next = new Set(prev);
-      next.add(itemId);
-      return next;
-    });
-  }
-
-  function handleMarkAllInboxRead() {
-    setReadInboxItemIds(new Set(inboxItems.map((item) => item.id)));
   }
 
   function openReportPanel() {
@@ -1555,18 +1463,7 @@ export default function TaskManagementPage() {
     <>
       <div className="min-h-screen bg-[#f6f7fb]">
         <div className="mx-auto max-w-[1700px] px-4 py-5 sm:px-6">
-          <main className="grid min-h-0 gap-5 xl:grid-cols-[280px_minmax(0,1fr)]">
-            <TaskWorkspaceSidebar
-              activeSection={workspaceSection}
-              inboxUnreadCount={inboxUnreadCount}
-              myTaskCount={myTaskCount}
-              teamSpaceCount={spaces.length}
-              spaces={spaces}
-              selectedSpaceId={selectedSpaceId}
-              onSectionChange={handleWorkspaceSectionChange}
-              onSpaceSelect={handleSpaceSelect}
-            />
-            <div className="flex min-h-0 flex-col gap-5">
+          <main className="flex min-h-0 flex-col gap-5">
             <section className="px-1 py-1 sm:px-0">
               <div className="flex flex-col gap-5">
                 <div className="flex flex-wrap items-center gap-2 text-sm text-slate-400">
@@ -1798,15 +1695,7 @@ export default function TaskManagementPage() {
             </section>
 
             <div className="min-h-0 flex-1 px-1 py-1 sm:px-0">
-                {workspaceSection === "inbox" ? (
-                  <TaskInboxPanel
-                    items={inboxItems}
-                    readItemIds={readInboxItemIds}
-                    onReadItem={handleInboxItemRead}
-                    onMarkAllRead={handleMarkAllInboxRead}
-                    onOpenTask={openTaskDetail}
-                  />
-                ) : treeQuery.isLoading ? (
+                {treeQuery.isLoading ? (
                   <PanelState icon={<Loader2 className="h-5 w-5 animate-spin" />} title="Loading workspace" body="Syncing task streams, activity, and workspace structure." />
                 ) : treeQuery.error ? (
                   <PanelState
@@ -2019,7 +1908,6 @@ export default function TaskManagementPage() {
                     ))}
                   </div>
                 )}
-            </div>
             </div>
           </main>
         </div>
