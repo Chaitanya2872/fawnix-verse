@@ -18,7 +18,6 @@ import {
   Filter,
   FolderKanban,
   GripVertical,
-  LayoutList,
   Loader2,
   MessageSquareText,
   MoreHorizontal,
@@ -26,7 +25,6 @@ import {
   Plus,
   Search,
   Settings2,
-  SquareKanban,
   Timer,
   TrendingUp,
   Upload,
@@ -1462,7 +1460,7 @@ export default function TaskManagementPage() {
       <div className="min-h-screen bg-[#f6f7fb]">
         <div className="mx-auto max-w-[1700px] px-4 py-5 sm:px-6">
           <main className="flex min-h-0 flex-col gap-5">
-            <section className="rounded-[32px] border border-slate-200/80 bg-white px-5 py-5 sm:px-6">
+            <section className="px-1 py-1 sm:px-0">
               <div className="flex flex-col gap-5">
                 <div className="flex flex-wrap items-center gap-2 text-sm text-slate-400">
                   <span>Team spaces</span>
@@ -1563,7 +1561,7 @@ export default function TaskManagementPage() {
 
                 <div className="flex flex-col gap-4 border-t border-slate-200 pt-4">
                   <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-                    <ViewSwitch value={view} onChange={setView} />
+                    <ViewDropdown value={view} onChange={setView} />
                     <div className="flex flex-wrap items-center gap-2">
                       <div className="inline-flex rounded-2xl border border-slate-200 bg-slate-50 p-1">
                         {(["all", "my", "team"] as TaskScope[]).map((item) => (
@@ -2622,34 +2620,28 @@ function AssigneeMultiSelect({
   );
 }
 
-function ViewSwitch({
+function ViewDropdown({
   value,
   onChange,
 }: {
   value: TaskView;
   onChange: (value: TaskView) => void;
 }) {
-  const options: Array<{ id: TaskView; label: string; icon: React.ReactNode }> = [
-    { id: "list", label: "List", icon: <LayoutList className="h-4 w-4" /> },
-    { id: "board", label: "Board", icon: <SquareKanban className="h-4 w-4" /> },
-    { id: "calendar", label: "Calendar", icon: <CalendarDays className="h-4 w-4" /> },
-    { id: "timeline", label: "Timeline", icon: <Workflow className="h-4 w-4" /> },
+  const options: FloatingOption[] = [
+    { value: "list", label: "List" },
+    { value: "board", label: "Board" },
+    { value: "calendar", label: "Calendar" },
+    { value: "timeline", label: "Timeline" },
   ];
   return (
-    <div className="inline-flex items-center gap-1 border-b border-slate-200">
-      {options.map((option) => (
-        <button
-          key={option.id}
-          type="button"
-          onClick={() => onChange(option.id)}
-          className={`inline-flex items-center gap-2 border-b-2 px-3 py-3 text-sm font-medium transition ${
-            value === option.id ? "border-slate-900 text-slate-950" : "border-transparent text-slate-500 hover:text-slate-700"
-          }`}
-        >
-          {option.icon}
-          {option.label}
-        </button>
-      ))}
+    <div className="w-full sm:w-[190px]">
+      <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">View</span>
+      <FloatingSelect
+        value={value}
+        onChange={(nextValue) => onChange(nextValue as TaskView)}
+        options={options}
+        className="w-full"
+      />
     </div>
   );
 }
