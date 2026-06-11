@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+
 type PartyDetails = {
   name: string;
   addressLines: string[];
@@ -9,6 +11,7 @@ type PartyDetails = {
 export type PurchaseOrderDocumentItem = {
   id: string;
   description: string;
+  make?: string | null;
   hsnOrSku?: string | null;
   quantity: number;
   unit: string;
@@ -17,6 +20,7 @@ export type PurchaseOrderDocumentItem = {
 };
 
 export type PurchaseOrderDocumentData = {
+  template?: "IOTIQ";
   poNumber: string;
   poDate?: string | null;
   project?: string | null;
@@ -28,22 +32,48 @@ export type PurchaseOrderDocumentData = {
   paymentMode?: string | null;
   warranty?: string | null;
   stateCode?: string | null;
+  preparedBy?: string | null;
+  status?: string | null;
+  approvalInformation?: string | null;
+  contactName?: string | null;
+  contactNumber?: string | null;
+  mailId?: string | null;
+  companyCin?: string | null;
   buyer: PartyDetails;
   vendor: PartyDetails;
   shipTo: PartyDetails;
   billTo: PartyDetails;
   items: PurchaseOrderDocumentItem[];
   subtotal: number;
+  igstAmount?: number;
+  cgstAmount?: number;
+  sgstAmount?: number;
   grandTotal: number;
+  amountInWords?: string | null;
+  terms?: Array<{ title: string; body: string }>;
   paymentTerms?: string | null;
   deliveryTerms?: string | null;
   vendorQuoteNotes?: string | null;
   internalNotes?: string | null;
 };
 
+const DEFAULT_COMPANY_CIN = "CIN NO. U72200TG2018PTC126920";
+
+const DEFAULT_IOTIQ_TERMS = [
+  { title: "Taxes & Duties", body: "The quoted Price is inclusive of GST. At present GST will be 18%." },
+  { title: "Freight", body: "Freight charges are EXTRA." },
+  { title: "Payment Terms", body: "100% advance against PI." },
+  { title: "Transport & Insurance", body: "Vendor Scope." },
+  { title: "Validity", body: "Our Offer is valid up to 1 Day." },
+  { title: "Delivery", body: "Immediate." },
+  { title: "Warranty", body: "As per OEM." },
+];
+
 function formatDate(value?: string | null) {
   if (!value) return "-";
-  return new Date(value).toLocaleDateString("en-IN", {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString("en-IN", {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
@@ -57,88 +87,106 @@ function formatCurrency(value: number) {
   }).format(value);
 }
 
+function displayGst(value?: string | null) {
+  if (!value) return "-";
+  return value.toLowerCase().startsWith("gst") ? value : `GST No. ${value}`;
+}
+
+function Row({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <>
+      <div className="border-r border-black px-2 py-1.5 font-semibold">{label}</div>
+      <div className="px-2 py-1.5">{children}</div>
+    </>
+  );
+}
+
 export function PurchaseOrderDocument({ document }: { document: PurchaseOrderDocumentData }) {
+  const terms = document.terms?.length ? document.terms : DEFAULT_IOTIQ_TERMS;
+  const igstAmount = document.igstAmount ?? 0;
+  const cgstAmount = document.cgstAmount ?? 0;
+  const sgstAmount = document.sgstAmount ?? 0;
+  const amountInWords = document.amountInWords || `INR ${formatCurrency(document.grandTotal)} only`;
+
   return (
     <div className="quotation-sheet mx-auto bg-white text-[10px] leading-tight text-black">
-      <div className="border border-black">
-        <div className="grid grid-cols-[100px_1fr] border-b border-black">
-          <div className="flex items-center justify-center border-r border-black p-3">
-            <img src="/vite.svg" alt="Company logo" className="h-16 w-16 object-contain" />
+      <div className="border-2 border-black">
+        <div className="grid grid-cols-[120px_1fr] border-b-2 border-black">
+          <div className="flex items-center justify-center border-r-2 border-black p-3">
+            <div className="flex h-16 w-16 items-center justify-center rounded-lg border-2 border-black text-[11px] font-black tracking-[0.18em]">
+              IOTIQ
+            </div>
           </div>
-          <div className="px-4 py-3">
-            <p className="text-lg font-bold uppercase tracking-wide text-slate-900">{document.buyer.name}</p>
+          <div className="px-4 py-3 text-center">
+            <p className="text-base font-bold uppercase tracking-wide">{document.buyer.name}</p>
             {document.buyer.addressLines.map((line) => (
               <p key={line}>{line}</p>
             ))}
-            {document.buyer.gst ? <p className="mt-1">GST: {document.buyer.gst}</p> : null}
+            <p className="mt-1 font-semibold">{document.companyCin || DEFAULT_COMPANY_CIN}</p>
+            <p className="font-semibold">{displayGst(document.buyer.gst)}</p>
           </div>
         </div>
 
-        <div className="border-b border-black bg-[#f1e2b9] px-3 py-1 text-center text-[11px] font-bold uppercase">
-          Purchase Order
+        <div className="border-b-2 border-black bg-[#f3dfb7] px-3 py-1.5 text-center text-[12px] font-bold uppercase tracking-[0.18em]">
+          PURCHASE ORDER
         </div>
 
-        <div className="grid grid-cols-[1fr_260px] border-b border-black">
-          <div className="border-r border-black p-3">
-            <p className="font-semibold uppercase">Vendor Details</p>
-            <p className="mt-2 font-semibold">{document.vendor.name}</p>
-            {document.vendor.addressLines.map((line) => (
-              <p key={line}>{line}</p>
-            ))}
-            {document.vendor.gst ? <p className="mt-1">GST: {document.vendor.gst}</p> : null}
-            {document.vendor.contactName ? <p className="mt-2">Contact: {document.vendor.contactName}</p> : null}
-            {document.vendor.contactNumber ? <p>Contact No: {document.vendor.contactNumber}</p> : null}
+        <div className="grid grid-cols-2 border-b-2 border-black">
+          <div className="border-r-2 border-black">
+            <div className="border-b border-black bg-slate-100 px-2 py-1.5 font-bold uppercase">Vendor Details</div>
+            <div className="p-2 leading-5">
+              <p className="font-semibold">{document.vendor.name || "-"}</p>
+              {document.vendor.addressLines.map((line) => (
+                <p key={line}>{line}</p>
+              ))}
+              <p className="mt-1">{displayGst(document.vendor.gst)}</p>
+            </div>
           </div>
-          <div className="p-3">
-            <div className="grid grid-cols-[110px_1fr] gap-x-2 gap-y-1">
-              <span className="font-semibold">Purchase Order</span>
-              <span>: {document.poNumber}</span>
-              <span className="font-semibold">Date</span>
-              <span>: {formatDate(document.poDate)}</span>
-              <span className="font-semibold">Project</span>
-              <span>: {document.project || "-"}</span>
-              <span className="font-semibold">Delivery Place</span>
-              <span>: {document.deliveryPlace || "-"}</span>
-              <span className="font-semibold">Vendor PI/Quote No</span>
-              <span>: {document.vendorQuoteReference || "-"}</span>
-              <span className="font-semibold">Delivery Date</span>
-              <span>: {formatDate(document.deliveryDate)}</span>
-              <span className="font-semibold">Reference Date</span>
-              <span>: {formatDate(document.referenceDate)}</span>
-              <span className="font-semibold">PR Number</span>
-              <span>: {document.requisitionNumber || "-"}</span>
-              <span className="font-semibold">Payment Mode</span>
-              <span>: {document.paymentMode || "-"}</span>
+          <div>
+            <div className="border-b border-black bg-slate-100 px-2 py-1.5 font-bold uppercase">PO Details</div>
+            <div className="grid grid-cols-[150px_1fr] divide-y divide-black">
+              <Row label="Purchase Order Number">{document.poNumber}</Row>
+              <Row label="PO Date">{formatDate(document.poDate)}</Row>
+              <Row label="Project">{document.project || "-"}</Row>
+              <Row label="Contact Name">{document.contactName || "-"}</Row>
+              <Row label="Contact Number">{document.contactNumber || "-"}</Row>
+              <Row label="Mail ID">{document.mailId || "-"}</Row>
+              <Row label="Vendor PI / Quote Number">{document.vendorQuoteReference || "-"}</Row>
+              <Row label="Reference Date">{formatDate(document.referenceDate)}</Row>
+              <Row label="Prepared By">{document.preparedBy || "Logged-in User"}</Row>
+              <Row label="Status">{document.status || "-"}</Row>
+              <Row label="Approval Information">{document.approvalInformation || "-"}</Row>
             </div>
           </div>
         </div>
 
-        <div className="grid grid-cols-2 border-b border-black">
-          <div className="border-r border-black p-3">
-            <p className="font-semibold uppercase">Shipping Address Details</p>
-            <p className="mt-2 font-semibold">{document.shipTo.name}</p>
-            {document.shipTo.addressLines.map((line) => (
-              <p key={line}>{line}</p>
-            ))}
-            {document.shipTo.contactName ? <p className="mt-2">Contact Person: {document.shipTo.contactName}</p> : null}
-            {document.shipTo.contactNumber ? <p>Contact: {document.shipTo.contactNumber}</p> : null}
+        <div className="grid grid-cols-2 border-b-2 border-black">
+          <div className="border-r-2 border-black">
+            <div className="border-b border-black bg-slate-100 px-2 py-1.5 font-bold uppercase">Shipping Address Details</div>
+            <div className="min-h-[78px] p-2 leading-5">
+              {document.shipTo.addressLines.map((line) => (
+                <p key={line}>{line}</p>
+              ))}
+            </div>
           </div>
-          <div className="p-3">
-            <p className="font-semibold uppercase">Billing To Details</p>
-            <p className="mt-2 font-semibold">{document.billTo.name}</p>
-            {document.billTo.addressLines.map((line) => (
-              <p key={line}>{line}</p>
-            ))}
-            <p className="mt-1">State Code / GST: {document.stateCode || document.billTo.gst || "-"}</p>
-            {document.billTo.contactName ? <p className="mt-2">Contact Person: {document.billTo.contactName}</p> : null}
-            {document.billTo.contactNumber ? <p>Contact Number: {document.billTo.contactNumber}</p> : null}
+          <div>
+            <div className="border-b border-black bg-slate-100 px-2 py-1.5 font-bold uppercase">Billing To Details</div>
+            <div className="p-2 leading-5">
+              <p className="font-semibold">{document.billTo.name}</p>
+              {document.billTo.addressLines.map((line) => (
+                <p key={line}>{line}</p>
+              ))}
+              <p>{displayGst(document.billTo.gst)}</p>
+              <p>Contact Person: {document.billTo.contactName || "-"}</p>
+              <p>Contact Number: {document.billTo.contactNumber || "-"}</p>
+            </div>
           </div>
         </div>
 
         <table className="w-full border-collapse text-[9px]">
           <thead>
-            <tr className="bg-[#f8f1da]">
-              {["S.No", "Description", "HSN Code", "Qty", "UOM", "Rate", "Amount(INR)"].map((heading) => (
+            <tr className="bg-[#f8ecd1]">
+              {["S.No", "Description", "Make", "HSN Code", "Qty", "UOM", "Rate", "Amount (INR)"].map((heading) => (
                 <th key={heading} className="border border-black px-1.5 py-1 text-left font-semibold">
                   {heading}
                 </th>
@@ -150,63 +198,60 @@ export function PurchaseOrderDocument({ document }: { document: PurchaseOrderDoc
               <tr key={item.id}>
                 <td className="border border-black px-1.5 py-1">{index + 1}</td>
                 <td className="border border-black px-1.5 py-1">{item.description}</td>
+                <td className="border border-black px-1.5 py-1">{item.make || "-"}</td>
                 <td className="border border-black px-1.5 py-1">{item.hsnOrSku || "-"}</td>
                 <td className="border border-black px-1.5 py-1">{item.quantity}</td>
                 <td className="border border-black px-1.5 py-1">{item.unit}</td>
-                <td className="border border-black px-1.5 py-1">{formatCurrency(item.rate)}</td>
-                <td className="border border-black px-1.5 py-1">{formatCurrency(item.amount)}</td>
+                <td className="border border-black px-1.5 py-1 text-right">{formatCurrency(item.rate)}</td>
+                <td className="border border-black px-1.5 py-1 text-right">{formatCurrency(item.amount)}</td>
               </tr>
             ))}
           </tbody>
         </table>
 
-        <div className="grid grid-cols-[1fr_220px] border-b border-black">
-          <div className="min-h-[90px] border-r border-black p-3">
-            <p className="font-semibold">In words:</p>
-            <p className="mt-1">INR {formatCurrency(document.grandTotal)} only</p>
+        <div className="grid grid-cols-[1fr_260px] border-b-2 border-black">
+          <div className="border-r-2 border-black p-2">
+            <p className="font-bold uppercase">Amount in Words</p>
+            <p className="mt-1 min-h-[42px] leading-5">{amountInWords}</p>
           </div>
-          <div className="p-3">
-            <div className="grid grid-cols-[1fr_auto] gap-y-1">
-              <span className="border-b border-black py-1 font-semibold">Basic Value</span>
-              <span className="border-b border-black py-1 text-right">{formatCurrency(document.subtotal)}</span>
-              <span className="border-b border-black py-1 font-semibold">Total Purchase Order Value</span>
-              <span className="border-b border-black py-1 text-right font-bold">{formatCurrency(document.grandTotal)}</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-[1fr_1fr] border-b border-black">
-          <div className="border-r border-black p-3">
-            <p className="font-semibold">Terms & Conditions</p>
-            <div className="mt-2 space-y-1">
-              <p>
-                <span className="font-semibold">Payment:</span> {document.paymentTerms || "As mutually agreed during vendor finalisation."}
-              </p>
-              <p>
-                <span className="font-semibold">Delivery:</span> {document.deliveryTerms || "As per confirmed delivery commitment."}
-              </p>
-              <p>
-                <span className="font-semibold">Warranty:</span> {document.warranty || "As per vendor commitment."}
-              </p>
-              {document.vendorQuoteNotes ? (
-                <p>
-                  <span className="font-semibold">Vendor Quote:</span> {document.vendorQuoteNotes}
-                </p>
-              ) : null}
-            </div>
-          </div>
-          <div className="p-3">
-            <p className="font-semibold">Billing / Internal Notes</p>
-            <p className="mt-2 min-h-[54px]">{document.internalNotes || "Invoice should be submitted with applicable tax documents and supporting references."}</p>
+          <div>
+            {[
+              ["Basic Value", document.subtotal],
+              ["Add: IGST", igstAmount],
+              ["Add: CGST", cgstAmount],
+              ["Add: SGST", sgstAmount],
+              ["Total Purchase Order Value", document.grandTotal],
+            ].map(([label, value]) => (
+              <div key={label as string} className="grid grid-cols-[1fr_105px] border-b border-black last:border-b-0">
+                <div className="px-2 py-1.5 font-semibold">{label}</div>
+                <div className="border-l border-black px-2 py-1.5 text-right font-semibold">{formatCurrency(value as number)}</div>
+              </div>
+            ))}
           </div>
         </div>
 
-        <div className="grid grid-cols-[1fr_180px]">
-          <div className="p-3">
-            <p>For {document.buyer.name}</p>
+        <div className="border-b-2 border-black p-2">
+          <p className="font-bold uppercase">Terms & Conditions</p>
+          <div className="mt-1 space-y-0.5">
+            {terms.map((term, index) => (
+              <div key={term.title} className="grid grid-cols-[24px_120px_1fr]">
+                <span>{index + 1}.</span>
+                <span className="font-semibold">{term.title}:</span>
+                <span>{term.body}</span>
+              </div>
+            ))}
           </div>
-          <div className="p-3 text-right">
-            <p className="mt-10 font-semibold">Authorized Signature</p>
+        </div>
+
+        <div className="grid grid-cols-[1fr_220px]">
+          <div className="p-2">
+            <p className="font-bold uppercase">Authorization Section</p>
+            <p className="mt-1">Signature area is reserved for approved users and is read-only during PO creation.</p>
+          </div>
+          <div className="border-l-2 border-black p-2 text-center">
+            <p className="font-semibold">For IOTIQ Innovations Pvt. Ltd.</p>
+            <div className="h-14" />
+            <p className="font-semibold">Authorized Signatory</p>
           </div>
         </div>
       </div>

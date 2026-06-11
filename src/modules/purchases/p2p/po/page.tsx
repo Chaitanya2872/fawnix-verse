@@ -1,7 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
-  CalendarDays,
-  CheckCircle2,
   ChevronDown,
   CircleDollarSign,
   Eye,
@@ -23,15 +21,6 @@ import { useCreatePurchaseOrder, usePurchaseOrders, usePurchaseRequisitions, use
 import type { PurchaseOrder, PurchaseOrderStatus, PurchaseRequisition, Vendor } from "@/modules/purchases/types";
 import { P2PCard, P2PFormField, P2PLayout, P2PStatusBadge, P2PTable } from "../components";
 
-type VendorQuoteDraft = {
-  id: string;
-  vendorId: string;
-  quotedAmount: string;
-  leadTimeDays: string;
-  paymentTerms: string;
-  remarks: string;
-};
-
 type PoLineItemDraft = {
   id: string;
   productName: string;
@@ -43,111 +32,59 @@ type PoLineItemDraft = {
   lineTotal: number;
 };
 
-type PoTemplateCompany = "ACS" | "IOTIQ";
-
-type PoTemplateConfig = {
-  companyCode: PoTemplateCompany;
-  companyName: string;
-  companyInfo: string[];
-  templateSource: string;
-  sections: Array<{ title: string; fields: string[] }>;
-  itemColumns: Array<{ key: string; label: string }>;
-  calculations: string[];
-  terms: string[];
-  approvalWorkflow: string[];
+type PoDraftDetails = {
+  vendorName: string;
+  vendorAddress: string;
+  vendorGst: string;
+  contactName: string;
+  contactNumber: string;
+  mailId: string;
+  referenceDate: string;
+  shippingAddress: string;
+  preparedBy: string;
+  status: string;
+  approvalInformation: string;
 };
 
-const PO_TEMPLATE_CONFIGS: Record<PoTemplateCompany, PoTemplateConfig> = {
-  ACS: {
-    companyCode: "ACS",
-    companyName: "ACS Technologies Limited",
-    companyInfo: [
-      "1st Floor, Building, Opp: District Vikalang Puranaravas Kendra",
-      "Kalyanapura Road, Near Anas River, Rangapura, Badkuwa, Jhabua, Madhya Pradesh - 457661",
-      "CIN: L62099TG1993PLC015268",
-      "GSTIN: 23AAACL4102B1ZI",
-    ],
-    templateSource: "PO-25_Sannverse_redesigned_editable_fixed 3.xlsx",
-    sections: [
-      { title: "Company Information", fields: ["Company name", "Registered address", "CIN", "GSTIN"] },
-      { title: "Purchase Order Details", fields: ["PO number", "PO date", "Project", "Reference", "Contact name", "Contact number"] },
-      { title: "Vendor Details", fields: ["Vendor name", "Vendor address", "GST number", "PAN", "Vendor contact name", "Vendor contact number"] },
-      { title: "Billing and Delivery Details", fields: ["Billing address", "Consignee name", "Delivery address", "Delivery contact", "Delivery GST"] },
-      { title: "Tax and Charges", fields: ["Total before tax", "CGST", "SGST", "Insurance", "Grand total", "Amount in words"] },
-      { title: "Signatures", fields: ["For ACS Technologies Ltd", "Authorised Signatory"] },
-    ],
-    itemColumns: [
-      { key: "serial", label: "S.No." },
-      { key: "description", label: "Description" },
-      { key: "hsn", label: "HSN" },
-      { key: "uom", label: "UoM" },
-      { key: "quantity", label: "Qty" },
-      { key: "rate", label: "Rate / Unit" },
-      { key: "amount", label: "Amount" },
-    ],
-    calculations: ["Item total", "Total amount before tax", "CGST 9%", "SGST 9%", "Insurance", "Total amount after tax", "Amount in words"],
-    terms: [
-      "Delivery within 04-06 weeks from approved documents and MFC/RDSO call letter; delay attracts LD charges of 1% per week up to 5%.",
-      "Price basis is FOR site and prices remain firm without escalation during the order period.",
-      "Duties, octroi, cess, and taxes are inclusive or as mentioned in the PO.",
-      "Payment terms: advance against PO acceptance with remaining payment as per commercial commitment.",
-      "Third party inspection call by RITES/RDSO where applicable.",
-      "Material must comply with required RDSO standards; rejected material must be replaced immediately at supplier cost.",
-      "Original tax invoice, LR copy, delivery challan, and MTC are required for bill booking and payment.",
-      "Warranty is 30 months from dispatch or 24 months from commissioning, whichever is earlier.",
-      "TCS under Section 206C(1H) applies as per applicable law.",
-      "Force majeure, termination, arbitration, and jurisdiction clauses apply as defined in the approved template.",
-    ],
-    approvalWorkflow: ["Draft", "Commercial Review", "Finance Approval", "Authorised Signatory", "Issued"],
-  },
-  IOTIQ: {
-    companyCode: "IOTIQ",
-    companyName: "IOTIQ Innovations Private Limited",
-    companyInfo: [
-      "Level 7, Pardhas Picasa Building, Durgam Cheruvu Road",
-      "Madhapur, Hyderabad, Telangana, India - 500081",
-      "CIN: 72200TG2018PTC126920",
-      "GSTIN: 36AAECI9929F1Z9",
-    ],
-    templateSource: "PO-035_Deekay Electricals_redesigned_editable_fixed 3.xlsx",
-    sections: [
-      { title: "Company Information", fields: ["Company name", "Registered address", "CIN", "GST number"] },
-      { title: "Purchase Order Details", fields: ["Purchase order number", "Date", "Project", "Contact name", "Contact number", "Mail ID", "Vendor PI / quote number", "Reference date"] },
-      { title: "Vendor Details", fields: ["Vendor name", "Vendor address", "GST number"] },
-      { title: "Shipping and Billing Details", fields: ["Shipping address", "Billing company", "Billing address", "Billing GST", "Contact person", "Contact number"] },
-      { title: "Tax and Charges", fields: ["Basic value", "IGST", "CGST", "SGST", "Total purchase order value", "Amount in words"] },
-      { title: "Signatures", fields: ["For IOTIQ Innovations Pvt. Ltd.", "Authorized Signature"] },
-    ],
-    itemColumns: [
-      { key: "serial", label: "S.No." },
-      { key: "description", label: "Description" },
-      { key: "make", label: "Make" },
-      { key: "hsn", label: "HSN Code" },
-      { key: "quantity", label: "Qty" },
-      { key: "uom", label: "UOM" },
-      { key: "rate", label: "Rate" },
-      { key: "amount", label: "Amount" },
-    ],
-    calculations: ["Basic value", "IGST", "CGST 9%", "SGST 9%", "Total purchase order value", "Amount in words"],
-    terms: [
-      "Taxes and duties: quoted price is inclusive of GST; current GST is 18%.",
-      "Freight charges are extra.",
-      "Payment terms: 100% advance against PI.",
-      "Transport and insurance are in vendor scope.",
-      "Offer validity applies as per selected quote.",
-      "Delivery is immediate or as committed in the vendor quotation.",
-      "Warranty is as per OEM.",
-    ],
-    approvalWorkflow: ["Draft", "Procurement Review", "Finance Approval", "Authorized Signature", "Issued"],
-  },
+const IOTIQ_TAX_RATE = 0.18;
+
+const IOTIQ_COMPANY = {
+  name: "IOTIQ Innovations Private Limited",
+  addressLines: [
+    "Level 7, Pardhas Picasa Building, Durgam Charuvu Road",
+    "Madhapur, Hyderabad, Telangana, India - 500081",
+  ],
+  cin: "CIN NO. U72200TG2018PTC126920",
+  gst: "GST No. 36AAECI9929F1Z9",
 };
+
+const IOTIQ_BILLING = {
+  name: "IOTIQ Innovations Private Limited",
+  addressLines: [
+    "Level 7, Pardha Picasa Building, Durgam Charuvu Road",
+    "Madhapur, Hyderabad, Telangana, India - 500081",
+  ],
+  gst: "GST No. 36AAECI9929F1Z9",
+  contactName: "Siva Kumari",
+  contactNumber: "9848106345",
+};
+
+const IOTIQ_TERMS = [
+  { title: "Taxes & Duties", body: "The quoted Price is inclusive of GST. At present GST will be 18%." },
+  { title: "Freight", body: "Freight charges are EXTRA." },
+  { title: "Payment Terms", body: "100% advance against PI." },
+  { title: "Transport & Insurance", body: "Vendor Scope." },
+  { title: "Validity", body: "Our Offer is valid up to 1 Day." },
+  { title: "Delivery", body: "Immediate." },
+  { title: "Warranty", body: "As per OEM." },
+];
 
 const BUYER = {
-  name: "ACS Technologies Limited",
-  addressLines: ["Level 7, Pardha Picasa Building, Durgam Cheruvu Road", "Madhapur, Hyderabad, Telangana, India - 500081"],
-  gst: "36AAACA4102B2S9",
-  contactName: "Procurement Team",
-  contactNumber: "+91 9706139943",
+  name: IOTIQ_COMPANY.name,
+  addressLines: IOTIQ_COMPANY.addressLines,
+  gst: IOTIQ_COMPANY.gst,
+  contactName: IOTIQ_BILLING.contactName,
+  contactNumber: IOTIQ_BILLING.contactNumber,
 };
 
 const SHIP_TO = { ...BUYER, contactName: "Warehouse Operations" };
@@ -167,18 +104,72 @@ function formatPlain(value: number) {
   }).format(value);
 }
 
-function formatTemplateCalculation(calculation: string, documentValue: number, estimatedTax: number, estimatedGrandTotal: number) {
-  const normalized = calculation.toLowerCase();
-  if (normalized.includes("amount in words")) return "Auto";
-  if (normalized.includes("cgst") || normalized.includes("sgst")) return formatCurrency(estimatedTax / 2);
-  if (normalized.includes("igst") || normalized.includes("tax")) return formatCurrency(estimatedTax);
-  if (normalized.includes("after tax") || normalized.includes("grand") || normalized.includes("total purchase order value")) {
-    return formatCurrency(estimatedGrandTotal);
+const SMALL_NUMBERS = [
+  "",
+  "One",
+  "Two",
+  "Three",
+  "Four",
+  "Five",
+  "Six",
+  "Seven",
+  "Eight",
+  "Nine",
+  "Ten",
+  "Eleven",
+  "Twelve",
+  "Thirteen",
+  "Fourteen",
+  "Fifteen",
+  "Sixteen",
+  "Seventeen",
+  "Eighteen",
+  "Nineteen",
+];
+
+const TENS = ["", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"];
+
+function numberBelowThousandToWords(value: number) {
+  const normalized = Math.floor(value);
+  const hundred = Math.floor(normalized / 100);
+  const remainder = normalized % 100;
+  const parts: string[] = [];
+
+  if (hundred) parts.push(`${SMALL_NUMBERS[hundred]} Hundred`);
+  if (remainder < 20) {
+    if (remainder) parts.push(SMALL_NUMBERS[remainder]);
+  } else {
+    const ten = Math.floor(remainder / 10);
+    const one = remainder % 10;
+    parts.push([TENS[ten], SMALL_NUMBERS[one]].filter(Boolean).join(" "));
   }
-  if (normalized.includes("before tax") || normalized.includes("basic") || normalized.includes("item total")) {
-    return formatCurrency(documentValue);
-  }
-  return "-";
+
+  return parts.join(" ");
+}
+
+function numberToIndianWords(value: number) {
+  const rounded = Math.round(Math.max(value, 0) * 100) / 100;
+  const rupees = Math.floor(rounded);
+  const paise = Math.round((rounded - rupees) * 100);
+  const scales = [
+    { value: 10000000, label: "Crore" },
+    { value: 100000, label: "Lakh" },
+    { value: 1000, label: "Thousand" },
+    { value: 1, label: "" },
+  ];
+  let remainder = rupees;
+  const parts: string[] = [];
+
+  scales.forEach((scale) => {
+    const count = Math.floor(remainder / scale.value);
+    if (!count) return;
+    remainder %= scale.value;
+    parts.push(`${numberBelowThousandToWords(count)}${scale.label ? ` ${scale.label}` : ""}`);
+  });
+
+  const rupeeWords = parts.length ? parts.join(" ") : "Zero";
+  const paiseWords = paise ? ` and ${numberBelowThousandToWords(paise)} Paise` : "";
+  return `${rupeeWords} Rupees${paiseWords} Only`;
 }
 
 function formatDate(value?: string | null) {
@@ -198,17 +189,6 @@ function fieldShellClass(disabled = false) {
   }`;
 }
 
-function newQuote(vendorId = "", amount = ""): VendorQuoteDraft {
-  return {
-    id: crypto.randomUUID(),
-    vendorId,
-    quotedAmount: amount,
-    leadTimeDays: "",
-    paymentTerms: "",
-    remarks: "",
-  };
-}
-
 function createLineItemDraft(item?: PurchaseRequisition["items"][number] | null): PoLineItemDraft {
   const quantity = item?.quantity ?? 1;
   const unitPrice = item?.estimatedUnitPrice ?? 0;
@@ -222,6 +202,46 @@ function createLineItemDraft(item?: PurchaseRequisition["items"][number] | null)
     unitPrice,
     lineTotal: quantity * unitPrice,
   };
+}
+
+function splitAddressLines(value: string, fallback: string[]) {
+  const lines = value
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  return lines.length ? lines : fallback;
+}
+
+function vendorAddressText(vendor?: Vendor | null) {
+  if (!vendor) return "";
+  return [
+    vendor.addressLine1,
+    vendor.addressLine2,
+    [vendor.city, vendor.state].filter(Boolean).join(", "),
+    [vendor.country, vendor.postalCode].filter(Boolean).join(" - "),
+  ]
+    .filter((value): value is string => !!value && !!value.trim())
+    .join("\n");
+}
+
+function createDefaultPoDraftDetails(vendor?: Vendor | null): PoDraftDetails {
+  return {
+    vendorName: vendor?.vendorName ?? "",
+    vendorAddress: vendorAddressText(vendor),
+    vendorGst: vendor?.taxIdentifier ?? "",
+    contactName: "",
+    contactNumber: "",
+    mailId: "",
+    referenceDate: new Date().toISOString().slice(0, 10),
+    shippingAddress: IOTIQ_COMPANY.addressLines.join("\n"),
+    preparedBy: "Logged-in User",
+    status: "Draft",
+    approvalInformation: "Pending approval",
+  };
+}
+
+function draftPoNumber(requisition?: PurchaseRequisition | null) {
+  return `DRAFT-${new Date().getFullYear()}-${requisition?.prNumber ?? "PO"}`;
 }
 
 function recalculateLineItem(item: PoLineItemDraft): PoLineItemDraft {
@@ -262,38 +282,51 @@ function draftDoc(
   requisition: PurchaseRequisition,
   vendor: Vendor | null | undefined,
   orderDate: string,
-  expectedDeliveryDate: string,
   project: string,
-  deliveryPlace: string,
   vendorQuoteReference: string,
-  paymentMode: string,
-  warranty: string,
-  stateCode: string,
-  notes: string,
-  quote?: VendorQuoteDraft | null,
+  details: PoDraftDetails,
   lineItems?: PoLineItemDraft[]
 ): PurchaseOrderDocumentData {
   const documentItems = lineItems?.length ? lineItems : requisition.items.map(createLineItemDraft);
   const subtotal = documentItems.reduce((sum, item) => sum + item.lineTotal, 0);
+  const igstAmount = subtotal * IOTIQ_TAX_RATE;
+  const cgstAmount = 0;
+  const sgstAmount = 0;
+  const grandTotal = subtotal + igstAmount + cgstAmount + sgstAmount;
+  const fallbackVendor = vendorParty(vendor);
   return {
-    poNumber: `DRAFT-${new Date().getFullYear()}-${requisition.prNumber}`,
+    template: "IOTIQ",
+    poNumber: draftPoNumber(requisition),
     poDate: orderDate,
     project,
-    deliveryPlace,
     requisitionNumber: requisition.prNumber,
     vendorQuoteReference,
-    deliveryDate: expectedDeliveryDate || requisition.neededByDate,
-    referenceDate: requisition.createdAt,
-    paymentMode,
-    warranty,
-    stateCode,
+    referenceDate: details.referenceDate,
+    preparedBy: details.preparedBy,
+    status: details.status,
+    approvalInformation: details.approvalInformation,
+    contactName: details.contactName,
+    contactNumber: details.contactNumber,
+    mailId: details.mailId,
+    stateCode: IOTIQ_COMPANY.gst,
+    companyCin: IOTIQ_COMPANY.cin,
     buyer: BUYER,
-    vendor: vendorParty(vendor),
-    shipTo: SHIP_TO,
-    billTo: BUYER,
+    vendor: {
+      name: details.vendorName.trim() || fallbackVendor.name,
+      addressLines: splitAddressLines(details.vendorAddress, fallbackVendor.addressLines),
+      gst: details.vendorGst.trim() || fallbackVendor.gst,
+      contactName: details.contactName,
+      contactNumber: details.contactNumber,
+    },
+    shipTo: {
+      name: "Shipping Address Details",
+      addressLines: splitAddressLines(details.shippingAddress, IOTIQ_COMPANY.addressLines),
+    },
+    billTo: IOTIQ_BILLING,
     items: documentItems.map((item) => ({
       id: item.id,
       description: item.productName,
+      make: item.category,
       hsnOrSku: item.sku,
       quantity: item.quantity,
       unit: item.unit,
@@ -301,34 +334,38 @@ function draftDoc(
       amount: item.lineTotal,
     })),
     subtotal,
-    grandTotal: Number(quote?.quotedAmount || subtotal),
-    paymentTerms: quote?.paymentTerms,
-    deliveryTerms: quote?.leadTimeDays ? `Expected lead time: ${quote.leadTimeDays} day(s)` : undefined,
-    vendorQuoteNotes: quote?.remarks,
-    internalNotes: notes || requisition.purpose || undefined,
+    igstAmount,
+    cgstAmount,
+    sgstAmount,
+    grandTotal,
+    amountInWords: numberToIndianWords(grandTotal),
+    terms: IOTIQ_TERMS,
+    internalNotes: requisition.purpose || undefined,
   };
 }
 
 function orderDoc(order: PurchaseOrder): PurchaseOrderDocumentData {
   return {
+    template: "IOTIQ",
     poNumber: order.poNumber,
     poDate: order.orderDate,
     project: "-",
-    deliveryPlace: "-",
     requisitionNumber: order.requisitionNumber,
     vendorQuoteReference: "-",
-    deliveryDate: order.expectedDeliveryDate,
     referenceDate: order.createdAt,
-    paymentMode: "-",
-    warranty: "-",
-    stateCode: BUYER.gst,
+    preparedBy: "Logged-in User",
+    status: order.status,
+    approvalInformation: order.status === "RECEIVED" ? "Received" : "Issued from approved requisition",
+    stateCode: IOTIQ_COMPANY.gst,
+    companyCin: IOTIQ_COMPANY.cin,
     buyer: BUYER,
     vendor: vendorParty(order.vendor),
     shipTo: SHIP_TO,
-    billTo: BUYER,
+    billTo: IOTIQ_BILLING,
     items: order.items.map((item) => ({
       id: item.id,
       description: item.productName,
+      make: item.category,
       hsnOrSku: item.sku,
       quantity: item.quantity,
       unit: item.unit,
@@ -337,6 +374,11 @@ function orderDoc(order: PurchaseOrder): PurchaseOrderDocumentData {
     })),
     subtotal: order.totalAmount,
     grandTotal: order.totalAmount,
+    igstAmount: 0,
+    cgstAmount: 0,
+    sgstAmount: 0,
+    amountInWords: numberToIndianWords(order.totalAmount),
+    terms: IOTIQ_TERMS,
     internalNotes: order.notes,
   };
 }
@@ -423,116 +465,125 @@ function PreviewModal({
 function CreatePurchaseOrderPanel({
   approvedRequisitions,
   vendors,
-  selectedCompany,
   purchaseRequisitionId,
   vendorId,
   orderDate,
-  expectedDeliveryDate,
   project,
-  deliveryPlace,
   vendorQuoteReference,
-  paymentMode,
-  warranty,
-  stateCode,
-  notes,
-  vendorQuotes,
+  poDraftDetails,
   lineItems,
   selectedRequisition,
   selectedVendor,
-  selectedQuote,
-  bestQuoteId,
   isCreating,
   errorMessage,
   onClose,
-  onSelectedCompanyChange,
   onPurchaseRequisitionIdChange,
   onVendorIdChange,
   onOrderDateChange,
-  onExpectedDeliveryDateChange,
   onProjectChange,
-  onDeliveryPlaceChange,
   onVendorQuoteReferenceChange,
-  onPaymentModeChange,
-  onWarrantyChange,
-  onStateCodeChange,
-  onNotesChange,
-  onVendorQuotesChange,
+  onPoDraftDetailsChange,
   onLineItemsChange,
   onPreview,
   onCreate,
 }: {
   approvedRequisitions: PurchaseRequisition[];
   vendors: Vendor[];
-  selectedCompany: PoTemplateCompany;
   purchaseRequisitionId: string;
   vendorId: string;
   orderDate: string;
-  expectedDeliveryDate: string;
   project: string;
-  deliveryPlace: string;
   vendorQuoteReference: string;
-  paymentMode: string;
-  warranty: string;
-  stateCode: string;
-  notes: string;
-  vendorQuotes: VendorQuoteDraft[];
+  poDraftDetails: PoDraftDetails;
   lineItems: PoLineItemDraft[];
   selectedRequisition: PurchaseRequisition | null;
   selectedVendor: Vendor | null;
-  selectedQuote: VendorQuoteDraft | null;
-  bestQuoteId: string | null;
   isCreating: boolean;
   errorMessage?: string;
   onClose: () => void;
-  onSelectedCompanyChange: (value: PoTemplateCompany) => void;
   onPurchaseRequisitionIdChange: (value: string) => void;
   onVendorIdChange: (value: string) => void;
   onOrderDateChange: (value: string) => void;
-  onExpectedDeliveryDateChange: (value: string) => void;
   onProjectChange: (value: string) => void;
-  onDeliveryPlaceChange: (value: string) => void;
   onVendorQuoteReferenceChange: (value: string) => void;
-  onPaymentModeChange: (value: string) => void;
-  onWarrantyChange: (value: string) => void;
-  onStateCodeChange: (value: string) => void;
-  onNotesChange: (value: string) => void;
-  onVendorQuotesChange: (value: VendorQuoteDraft[]) => void;
+  onPoDraftDetailsChange: (value: PoDraftDetails) => void;
   onLineItemsChange: (value: PoLineItemDraft[]) => void;
   onPreview: () => void;
   onCreate: () => void;
 }) {
-  const template = PO_TEMPLATE_CONFIGS[selectedCompany];
-  const lineItemsValue = lineItems.reduce((sum, item) => sum + item.lineTotal, 0);
-  const documentValue = selectedQuote?.quotedAmount ? Number(selectedQuote.quotedAmount) : lineItemsValue || (selectedRequisition?.totalAmount ?? 0);
-  const estimatedTax = documentValue * 0.18;
-  const estimatedGrandTotal = documentValue + estimatedTax;
-
-  function updateLineItem(itemId: string, patch: Partial<PoLineItemDraft>) {
-    onLineItemsChange(
-      lineItems.map((item) => (item.id === itemId ? recalculateLineItem({ ...item, ...patch }) : item))
+  const [showValidation, setShowValidation] = useState(false);
+  const [draftSavedAt, setDraftSavedAt] = useState<string | null>(null);
+  const basicValue = lineItems.reduce((sum, item) => sum + item.lineTotal, 0);
+  const igstAmount = basicValue * IOTIQ_TAX_RATE;
+  const cgstAmount = 0;
+  const sgstAmount = 0;
+  const totalPurchaseOrderValue = basicValue + igstAmount + cgstAmount + sgstAmount;
+  const amountInWords = numberToIndianWords(totalPurchaseOrderValue);
+  const poNumber = draftPoNumber(selectedRequisition);
+  const hasInvalidLineItems =
+    lineItems.length === 0 ||
+    lineItems.some(
+      (item) =>
+        !item.productName.trim() ||
+        !item.category.trim() ||
+        !item.sku.trim() ||
+        !item.unit.trim() ||
+        Number(item.quantity) <= 0 ||
+        Number(item.unitPrice) <= 0
     );
+  const missingFields = [
+    !purchaseRequisitionId ? "Approved Requisition" : "",
+    !vendorId ? "Vendor Record" : "",
+    !poDraftDetails.vendorName.trim() ? "Vendor Name" : "",
+    !poDraftDetails.vendorAddress.trim() ? "Vendor Address" : "",
+    !poDraftDetails.vendorGst.trim() ? "Vendor GST Number" : "",
+    !orderDate ? "PO Date" : "",
+    !project.trim() ? "Project" : "",
+    !poDraftDetails.contactName.trim() ? "Contact Name" : "",
+    !poDraftDetails.contactNumber.trim() ? "Contact Number" : "",
+    !poDraftDetails.mailId.trim() ? "Mail ID" : "",
+    !vendorQuoteReference.trim() ? "Vendor PI / Quote Number" : "",
+    !poDraftDetails.referenceDate ? "Reference Date" : "",
+    !poDraftDetails.shippingAddress.trim() ? "Shipping Address Details" : "",
+    hasInvalidLineItems ? "Complete Item Details" : "",
+  ].filter(Boolean);
+  const canSubmit = missingFields.length === 0 && !isCreating;
+  const sheetInputClass = "w-full border-0 bg-transparent px-2 py-1.5 text-[12px] text-slate-950 outline-none ring-0 placeholder:text-slate-400 focus:bg-amber-50";
+  const sheetTextareaClass = `${sheetInputClass} min-h-[76px] resize-none leading-5`;
+  const readonlyValueClass = "min-h-[30px] px-2 py-1.5 text-[12px] leading-5 text-slate-900";
+
+  function updateDraftDetail(key: keyof PoDraftDetails, value: string) {
+    onPoDraftDetailsChange({ ...poDraftDetails, [key]: value });
   }
 
-  function moveLineItem(index: number, direction: -1 | 1) {
-    const targetIndex = index + direction;
-    if (targetIndex < 0 || targetIndex >= lineItems.length) return;
-    const nextItems = [...lineItems];
-    const [item] = nextItems.splice(index, 1);
-    nextItems.splice(targetIndex, 0, item);
-    onLineItemsChange(nextItems);
+  function updateLineItem(itemId: string, patch: Partial<PoLineItemDraft>) {
+    onLineItemsChange(lineItems.map((item) => (item.id === itemId ? recalculateLineItem({ ...item, ...patch }) : item)));
+  }
+
+  function handleSaveDraft() {
+    setShowValidation(false);
+    setDraftSavedAt(new Date().toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" }));
+  }
+
+  function handleSubmitForApproval() {
+    if (!canSubmit) {
+      setShowValidation(true);
+      return;
+    }
+    onCreate();
   }
 
   return (
     <div className="fixed inset-0 z-40">
       <div className="absolute inset-0 bg-slate-950/30 backdrop-blur-[1px]" onClick={onClose} />
-      <div className="absolute inset-y-0 right-0 flex h-full w-full flex-col border-l border-slate-200 bg-white shadow-2xl sm:w-[90vw] lg:w-[58vw] lg:max-w-[980px]">
+      <div className="absolute inset-y-0 right-0 flex h-full w-full flex-col border-l border-slate-200 bg-white shadow-2xl sm:w-[94vw] xl:w-[78vw] xl:max-w-[1320px]">
         <div className="border-b border-slate-200 px-6 py-5">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-600">Purchase Order</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-600">IOTIQ Purchase Order</p>
               <h2 className="mt-2 text-2xl font-semibold text-slate-900">Create PO</h2>
               <p className="mt-1 text-sm text-slate-500">
-                Select an approved PR, compare vendor commercials, and generate a document-ready purchase order.
+                Fill only the editable Excel-template fields; company, billing, terms, totals, and authorization stay read-only.
               </p>
             </div>
             <button
@@ -545,74 +596,8 @@ function CreatePurchaseOrderPanel({
             </button>
           </div>
 
-          <div className="mt-5 flex flex-wrap items-center gap-3">
-            <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-blue-700">Approved PRs</p>
-              <p className="mt-1 text-sm font-semibold text-slate-900">{approvedRequisitions.length}</p>
-            </div>
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Quote Lines</p>
-              <p className="mt-1 text-sm font-semibold text-slate-900">{vendorQuotes.length}</p>
-            </div>
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Selected Vendor</p>
-              <p className="mt-1 text-sm font-semibold text-slate-900">{selectedVendor?.vendorName ?? "Not selected"}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex-1 space-y-6 overflow-y-auto px-6 py-6">
-          <section className="rounded-3xl border border-slate-200 bg-slate-50/80 p-5">
-            <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-600">Company Template</p>
-                <h3 className="mt-2 text-lg font-semibold text-slate-900">{template.companyName}</h3>
-                <p className="mt-1 text-sm text-slate-500">Loaded from {template.templateSource}</p>
-                <div className="mt-3 space-y-1 text-xs leading-5 text-slate-500">
-                  {template.companyInfo.map((line) => (
-                    <p key={line}>{line}</p>
-                  ))}
-                </div>
-              </div>
-              <div className="grid gap-2 sm:grid-cols-2">
-                {(Object.keys(PO_TEMPLATE_CONFIGS) as PoTemplateCompany[]).map((companyCode) => {
-                  const company = PO_TEMPLATE_CONFIGS[companyCode];
-                  const active = selectedCompany === companyCode;
-                  return (
-                    <button
-                      key={companyCode}
-                      type="button"
-                      onClick={() => onSelectedCompanyChange(companyCode)}
-                      className={`rounded-2xl border px-4 py-3 text-left transition ${
-                        active ? "border-blue-500 bg-white shadow-sm ring-2 ring-blue-100" : "border-slate-200 bg-white/70 hover:bg-white"
-                      }`}
-                    >
-                      <span className="block text-sm font-semibold text-slate-900">{companyCode}</span>
-                      <span className="mt-1 block text-xs text-slate-500">{company.companyName}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-              {template.sections.map((section) => (
-                <div key={section.title} className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
-                  <p className="text-sm font-semibold text-slate-900">{section.title}</p>
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    {section.fields.map((field) => (
-                      <span key={field} className="rounded-full bg-slate-100 px-2 py-1 text-[11px] font-medium text-slate-600">
-                        {field}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          <section className="grid gap-4 md:grid-cols-2">
-            <P2PFormField label="Approved Requisition" hint="POs can only be issued from approved PRs.">
+          <div className="mt-5 grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] lg:items-end">
+            <P2PFormField label="Approved Requisition" hint="Required to create the backend PO record.">
               <div className="relative">
                 <ShoppingCart className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 <select
@@ -623,7 +608,7 @@ function CreatePurchaseOrderPanel({
                   <option value="">Select approved requisition</option>
                   {approvedRequisitions.map((requisition) => (
                     <option key={requisition.id} value={requisition.id}>
-                      {requisition.prNumber} · {requisition.department}
+                      {requisition.prNumber} ? {requisition.department}
                     </option>
                   ))}
                 </select>
@@ -631,7 +616,7 @@ function CreatePurchaseOrderPanel({
               </div>
             </P2PFormField>
 
-            <P2PFormField label="Vendor" hint="Shortlist or override the vendor chosen in sourcing.">
+            <P2PFormField label="Vendor Record" hint="Auto-fills editable vendor fields, but printed cells can be changed.">
               <div className="relative">
                 <Truck className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 <select
@@ -649,513 +634,315 @@ function CreatePurchaseOrderPanel({
                 <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
               </div>
             </P2PFormField>
-          </section>
 
-          <section className="rounded-2xl border border-slate-200 bg-slate-50/70 p-5">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h3 className="text-sm font-semibold text-slate-900">Compare Vendor Quotes</h3>
-                <p className="text-xs text-slate-500">Capture multiple offers and use the best commercial line in PO preparation.</p>
-              </div>
-              <button
-                type="button"
-                onClick={() =>
-                  selectedRequisition
-                    ? onVendorQuotesChange([
-                        ...vendorQuotes,
-                        newQuote(
-                          "",
-                          String(selectedRequisition.negotiatedAmount ?? selectedRequisition.totalAmount)
-                        ),
-                      ])
-                    : null
-                }
-                disabled={!selectedRequisition}
-                className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 disabled:opacity-50"
-              >
-                <Plus className="h-3.5 w-3.5" />
-                Add Quote
-              </button>
+            <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-blue-700">Selected Vendor</p>
+              <p className="mt-1 whitespace-nowrap text-sm font-semibold text-slate-900">{selectedVendor?.vendorName ?? "Not selected"}</p>
             </div>
+          </div>
+        </div>
 
-            {!selectedRequisition ? (
-              <div className="mt-4 rounded-2xl border border-dashed border-slate-200 bg-white px-4 py-10 text-center text-sm text-slate-500">
-                Select an approved requisition first to compare vendor offers.
+        <div className="flex-1 overflow-y-auto bg-slate-100 px-6 py-6">
+          <div className="overflow-x-auto rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="mx-auto min-w-[1060px] max-w-[1180px] border-2 border-slate-950 bg-white text-[12px] text-slate-950">
+              <div className="grid grid-cols-[150px_1fr] border-b-2 border-slate-950">
+                <div className="flex items-center justify-center border-r-2 border-slate-950 p-4">
+                  <div className="flex h-20 w-20 items-center justify-center rounded-xl border-2 border-slate-900 bg-slate-50 text-sm font-black tracking-[0.2em] text-slate-900">
+                    IOTIQ
+                  </div>
+                </div>
+                <div className="p-4 text-center">
+                  <p className="text-lg font-bold uppercase tracking-wide">{IOTIQ_COMPANY.name}</p>
+                  {IOTIQ_COMPANY.addressLines.map((line) => (
+                    <p key={line} className="mt-1 leading-5">
+                      {line}
+                    </p>
+                  ))}
+                  <p className="mt-2 font-semibold">{IOTIQ_COMPANY.cin}</p>
+                  <p className="font-semibold">{IOTIQ_COMPANY.gst}</p>
+                </div>
               </div>
-            ) : (
-              <div className="mt-4 space-y-4">
-                <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4">
-                  <p className="text-sm font-semibold text-slate-900">{selectedRequisition.prNumber}</p>
-                  <p className="mt-1 text-xs text-slate-500">
-                    {selectedRequisition.department} · {selectedRequisition.items.length} item(s) · Baseline{" "}
-                    {formatCurrency(selectedRequisition.totalAmount)}
-                  </p>
+
+              <div className="border-b-2 border-slate-950 bg-[#f3dfb7] px-4 py-2 text-center text-base font-bold uppercase tracking-[0.18em]">
+                PURCHASE ORDER
+              </div>
+
+              <div className="grid grid-cols-2 border-b-2 border-slate-950">
+                <div className="border-r-2 border-slate-950">
+                  <div className="border-b border-slate-950 bg-slate-100 px-3 py-2 font-bold uppercase">Vendor Details</div>
+                  <div className="grid grid-cols-[170px_1fr] divide-y divide-slate-300">
+                    <div className="border-r border-slate-300 px-3 py-2 font-semibold">Vendor Name</div>
+                    <input
+                      value={poDraftDetails.vendorName}
+                      onChange={(event) => updateDraftDetail("vendorName", event.target.value)}
+                      placeholder="Enter vendor name"
+                      className={sheetInputClass}
+                    />
+                    <div className="border-r border-slate-300 px-3 py-2 font-semibold">Vendor Address</div>
+                    <textarea
+                      value={poDraftDetails.vendorAddress}
+                      onChange={(event) => updateDraftDetail("vendorAddress", event.target.value)}
+                      placeholder="Enter vendor address"
+                      className={sheetTextareaClass}
+                    />
+                    <div className="border-r border-slate-300 px-3 py-2 font-semibold">Vendor GST Number</div>
+                    <input
+                      value={poDraftDetails.vendorGst}
+                      onChange={(event) => updateDraftDetail("vendorGst", event.target.value)}
+                      placeholder="Enter vendor GST number"
+                      className={sheetInputClass}
+                    />
+                  </div>
                 </div>
 
-                {vendorQuotes.length === 0 ? (
-                  <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-4 py-10 text-center text-sm text-slate-500">
-                    No vendor quotes added yet.
+                <div>
+                  <div className="border-b border-slate-950 bg-slate-100 px-3 py-2 font-bold uppercase">PO Details</div>
+                  <div className="grid grid-cols-[190px_1fr] divide-y divide-slate-300">
+                    <div className="border-r border-slate-300 px-3 py-2 font-semibold">Purchase Order Number</div>
+                    <div className={readonlyValueClass}>{poNumber}</div>
+                    <div className="border-r border-slate-300 px-3 py-2 font-semibold">PO Date</div>
+                    <input type="date" value={orderDate} onChange={(event) => onOrderDateChange(event.target.value)} className={sheetInputClass} />
+                    <div className="border-r border-slate-300 px-3 py-2 font-semibold">Project</div>
+                    <input value={project} onChange={(event) => onProjectChange(event.target.value)} placeholder="Enter project" className={sheetInputClass} />
+                    <div className="border-r border-slate-300 px-3 py-2 font-semibold">Contact Name</div>
+                    <input
+                      value={poDraftDetails.contactName}
+                      onChange={(event) => updateDraftDetail("contactName", event.target.value)}
+                      placeholder="Enter contact name"
+                      className={sheetInputClass}
+                    />
+                    <div className="border-r border-slate-300 px-3 py-2 font-semibold">Contact Number</div>
+                    <input
+                      value={poDraftDetails.contactNumber}
+                      onChange={(event) => updateDraftDetail("contactNumber", event.target.value)}
+                      placeholder="Enter contact number"
+                      className={sheetInputClass}
+                    />
+                    <div className="border-r border-slate-300 px-3 py-2 font-semibold">Mail ID</div>
+                    <input
+                      type="email"
+                      value={poDraftDetails.mailId}
+                      onChange={(event) => updateDraftDetail("mailId", event.target.value)}
+                      placeholder="Enter mail ID"
+                      className={sheetInputClass}
+                    />
+                    <div className="border-r border-slate-300 px-3 py-2 font-semibold">Vendor PI / Quote Number</div>
+                    <input
+                      value={vendorQuoteReference}
+                      onChange={(event) => onVendorQuoteReferenceChange(event.target.value)}
+                      placeholder="Enter PI / quote number"
+                      className={sheetInputClass}
+                    />
+                    <div className="border-r border-slate-300 px-3 py-2 font-semibold">Reference Date</div>
+                    <input
+                      type="date"
+                      value={poDraftDetails.referenceDate}
+                      onChange={(event) => updateDraftDetail("referenceDate", event.target.value)}
+                      className={sheetInputClass}
+                    />
+                    <div className="border-r border-slate-300 px-3 py-2 font-semibold">Prepared By</div>
+                    <div className={readonlyValueClass}>{poDraftDetails.preparedBy}</div>
+                    <div className="border-r border-slate-300 px-3 py-2 font-semibold">Status</div>
+                    <div className={readonlyValueClass}>{poDraftDetails.status}</div>
+                    <div className="border-r border-slate-300 px-3 py-2 font-semibold">Approval Information</div>
+                    <div className={readonlyValueClass}>{poDraftDetails.approvalInformation}</div>
                   </div>
-                ) : (
-                  <div className="space-y-4">
-                    {vendorQuotes.map((quote) => {
-                      const quoteVendor = vendors.find((vendor) => vendor.id === quote.vendorId);
-                      const isBest = quote.id === bestQuoteId;
-                      return (
-                        <div key={quote.id} className="rounded-2xl border border-slate-200 bg-white p-4">
-                          <div className="flex flex-wrap items-center justify-between gap-3">
-                            <div className="flex items-center gap-2">
-                              <p className="text-sm font-semibold text-slate-900">{quoteVendor?.vendorName ?? "Vendor quote"}</p>
-                              {isBest ? (
-                                <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
-                                  Best quote
-                                </span>
-                              ) : null}
-                            </div>
-                            <div className="flex items-center gap-2">
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 border-b-2 border-slate-950">
+                <div className="border-r-2 border-slate-950">
+                  <div className="border-b border-slate-950 bg-slate-100 px-3 py-2 font-bold uppercase">Shipping Address Details</div>
+                  <textarea
+                    value={poDraftDetails.shippingAddress}
+                    onChange={(event) => updateDraftDetail("shippingAddress", event.target.value)}
+                    placeholder="Enter shipping address details"
+                    className={`${sheetTextareaClass} min-h-[130px]`}
+                  />
+                </div>
+                <div>
+                  <div className="border-b border-slate-950 bg-slate-100 px-3 py-2 font-bold uppercase">Billing To Details</div>
+                  <div className="space-y-1 px-3 py-3 leading-5">
+                    <p className="font-semibold">{IOTIQ_BILLING.name}</p>
+                    {IOTIQ_BILLING.addressLines.map((line) => (
+                      <p key={line}>{line}</p>
+                    ))}
+                    <p>{IOTIQ_BILLING.gst}</p>
+                    <p>Contact Person: {IOTIQ_BILLING.contactName}</p>
+                    <p>Contact Number: {IOTIQ_BILLING.contactNumber}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="border-b-2 border-slate-950">
+                <div className="flex items-center justify-between border-b border-slate-950 bg-slate-100 px-3 py-2">
+                  <span className="font-bold uppercase">Item Details</span>
+                  <button
+                    type="button"
+                    disabled={!selectedRequisition}
+                    onClick={() => onLineItemsChange([...lineItems, createLineItemDraft(null)])}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    Add Item
+                  </button>
+                </div>
+                <table className="w-full border-collapse text-[12px]">
+                  <thead>
+                    <tr className="bg-[#f8ecd1]">
+                      {["S.No", "Description", "Make", "HSN Code", "Qty", "UOM", "Rate", "Amount (INR)"].map((heading) => (
+                        <th key={heading} className="border border-slate-950 px-2 py-2 text-left font-bold">
+                          {heading}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {lineItems.length ? (
+                      lineItems.map((item, index) => (
+                        <tr key={item.id}>
+                          <td className="w-[82px] border border-slate-950 px-2 py-1.5">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="font-semibold">{index + 1}</span>
                               <button
                                 type="button"
-                                disabled={!quote.vendorId}
-                                onClick={() => {
-                                  onVendorIdChange(quote.vendorId);
-                                  if (quote.paymentTerms || quote.remarks) {
-                                    onNotesChange([quote.paymentTerms, quote.remarks].filter(Boolean).join(" | "));
-                                  }
-                                }}
-                                className="inline-flex items-center gap-1.5 rounded-full border border-blue-200 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-50 disabled:opacity-50"
-                              >
-                                <CheckCircle2 className="h-3.5 w-3.5" />
-                                Use For PO
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => onVendorQuotesChange(vendorQuotes.filter((entry) => entry.id !== quote.id))}
-                                className="inline-flex items-center gap-1.5 rounded-full border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50"
+                                onClick={() => onLineItemsChange(lineItems.filter((entry) => entry.id !== item.id))}
+                                className="rounded-full p-1 text-rose-600 hover:bg-rose-50"
+                                aria-label={`Remove item ${index + 1}`}
                               >
                                 <Trash2 className="h-3.5 w-3.5" />
-                                Remove
                               </button>
                             </div>
-                          </div>
-
-                          <div className="mt-3 grid gap-3 md:grid-cols-2">
-                            <div className="relative">
-                              <select
-                                value={quote.vendorId}
-                                onChange={(event) =>
-                                  onVendorQuotesChange(
-                                    vendorQuotes.map((entry) =>
-                                      entry.id === quote.id ? { ...entry, vendorId: event.target.value } : entry
-                                    )
-                                  )
-                                }
-                                className={`${fieldShellClass()} appearance-none pr-10`}
-                              >
-                                <option value="">Select vendor</option>
-                                {vendors.map((vendor) => (
-                                  <option key={vendor.id} value={vendor.id}>
-                                    {vendor.vendorName}
-                                  </option>
-                                ))}
-                              </select>
-                              <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                            </div>
-
+                          </td>
+                          <td className="min-w-[240px] border border-slate-950">
+                            <input
+                              value={item.productName}
+                              onChange={(event) => updateLineItem(item.id, { productName: event.target.value })}
+                              placeholder="Description"
+                              className={sheetInputClass}
+                            />
+                          </td>
+                          <td className="min-w-[140px] border border-slate-950">
+                            <input
+                              value={item.category}
+                              onChange={(event) => updateLineItem(item.id, { category: event.target.value })}
+                              placeholder="Make"
+                              className={sheetInputClass}
+                            />
+                          </td>
+                          <td className="min-w-[130px] border border-slate-950">
+                            <input
+                              value={item.sku}
+                              onChange={(event) => updateLineItem(item.id, { sku: event.target.value })}
+                              placeholder="HSN Code"
+                              className={sheetInputClass}
+                            />
+                          </td>
+                          <td className="w-[90px] border border-slate-950">
                             <input
                               type="number"
                               min={0}
                               step="0.01"
-                              value={quote.quotedAmount}
-                              onChange={(event) =>
-                                onVendorQuotesChange(
-                                  vendorQuotes.map((entry) =>
-                                    entry.id === quote.id ? { ...entry, quotedAmount: event.target.value } : entry
-                                  )
-                                )
-                              }
-                              placeholder="Quoted amount"
-                              className={fieldShellClass()}
+                              value={item.quantity}
+                              onChange={(event) => updateLineItem(item.id, { quantity: Number(event.target.value) })}
+                              className={sheetInputClass}
                             />
-
+                          </td>
+                          <td className="w-[110px] border border-slate-950">
+                            <input
+                              value={item.unit}
+                              onChange={(event) => updateLineItem(item.id, { unit: event.target.value })}
+                              placeholder="UOM"
+                              className={sheetInputClass}
+                            />
+                          </td>
+                          <td className="w-[130px] border border-slate-950">
                             <input
                               type="number"
                               min={0}
-                              value={quote.leadTimeDays}
-                              onChange={(event) =>
-                                onVendorQuotesChange(
-                                  vendorQuotes.map((entry) =>
-                                    entry.id === quote.id ? { ...entry, leadTimeDays: event.target.value } : entry
-                                  )
-                                )
-                              }
-                              placeholder="Lead time in days"
-                              className={fieldShellClass()}
+                              step="0.01"
+                              value={item.unitPrice}
+                              onChange={(event) => updateLineItem(item.id, { unitPrice: Number(event.target.value) })}
+                              className={sheetInputClass}
                             />
-
-                            <input
-                              value={quote.paymentTerms}
-                              onChange={(event) =>
-                                onVendorQuotesChange(
-                                  vendorQuotes.map((entry) =>
-                                    entry.id === quote.id ? { ...entry, paymentTerms: event.target.value } : entry
-                                  )
-                                )
-                              }
-                              placeholder="Payment terms"
-                              className={fieldShellClass()}
-                            />
-
-                            <textarea
-                              rows={2}
-                              value={quote.remarks}
-                              onChange={(event) =>
-                                onVendorQuotesChange(
-                                  vendorQuotes.map((entry) =>
-                                    entry.id === quote.id ? { ...entry, remarks: event.target.value } : entry
-                                  )
-                                )
-                              }
-                              placeholder="Remarks, warranty, inclusions, special commercial notes"
-                              className={`md:col-span-2 ${fieldShellClass()}`}
-                            />
-                          </div>
-
-                          <div className="mt-3 grid gap-3 md:grid-cols-3">
-                            <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
-                              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Quote Value</p>
-                              <p className="mt-1 text-sm font-semibold text-slate-900">
-                                {quote.quotedAmount ? formatPlain(Number(quote.quotedAmount)) : "-"}
-                              </p>
-                            </div>
-                            <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
-                              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Lead Time</p>
-                              <p className="mt-1 text-sm font-semibold text-slate-900">
-                                {quote.leadTimeDays ? `${quote.leadTimeDays} days` : "-"}
-                              </p>
-                            </div>
-                            <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
-                              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Delta vs PR</p>
-                              <p className="mt-1 text-sm font-semibold text-slate-900">
-                                {quote.quotedAmount
-                                  ? formatCurrency(Number(quote.quotedAmount) - selectedRequisition.totalAmount)
-                                  : "-"}
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            )}
-          </section>
-
-          <section className="rounded-2xl border border-slate-200 bg-white p-5">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h3 className="text-sm font-semibold text-slate-900">Line Item Details</h3>
-                <p className="text-xs text-slate-500">Columns change based on the selected {selectedCompany} PO template.</p>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  disabled={!selectedRequisition}
-                  onClick={() => onLineItemsChange([...lineItems, createLineItemDraft(null)])}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  Add Item
-                </button>
-              </div>
-            </div>
-
-            <div className="mt-4 overflow-x-auto rounded-2xl border border-slate-200">
-              <table className="min-w-full divide-y divide-slate-200 text-sm">
-                <thead className="bg-slate-50">
-                  <tr>
-                    {template.itemColumns.map((column) => (
-                      <th key={column.key} className="whitespace-nowrap px-3 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                        {column.label}
-                      </th>
-                    ))}
-                    <th className="px-3 py-2.5 text-right text-[11px] font-semibold uppercase tracking-wide text-slate-500">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 bg-white">
-                  {lineItems.length ? (
-                    lineItems.map((item, index) => (
-                      <tr key={item.id}>
-                        {template.itemColumns.map((column) => {
-                          const isTextField = column.key === "description" || column.key === "make" || column.key === "hsn" || column.key === "uom";
-                          const textValueMap: Record<string, string> = {
-                            description: item.productName,
-                            make: item.category,
-                            hsn: item.sku,
-                            uom: item.unit,
-                          };
-                          return (
-                            <td key={column.key} className="min-w-[120px] px-3 py-3 text-slate-700">
-                              {column.key === "serial" ? (
-                                <span className="text-sm font-semibold text-slate-500">{index + 1}</span>
-                              ) : isTextField ? (
-                                <input
-                                  value={textValueMap[column.key] ?? ""}
-                                  onChange={(event) =>
-                                    updateLineItem(
-                                      item.id,
-                                      column.key === "description"
-                                        ? { productName: event.target.value }
-                                        : column.key === "make"
-                                          ? { category: event.target.value }
-                                          : column.key === "hsn"
-                                            ? { sku: event.target.value }
-                                            : { unit: event.target.value }
-                                    )
-                                  }
-                                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-400"
-                                />
-                              ) : column.key === "quantity" || column.key === "rate" ? (
-                                <input
-                                  type="number"
-                                  min={0}
-                                  step="0.01"
-                                  value={column.key === "quantity" ? item.quantity : item.unitPrice}
-                                  onChange={(event) =>
-                                    updateLineItem(
-                                      item.id,
-                                      column.key === "quantity"
-                                        ? { quantity: Number(event.target.value) }
-                                        : { unitPrice: Number(event.target.value) }
-                                    )
-                                  }
-                                  className="w-28 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-400"
-                                />
-                              ) : (
-                                <span className="whitespace-nowrap text-sm font-semibold text-slate-900">
-                                  {formatPlain(item.lineTotal)}
-                                </span>
-                              )}
-                            </td>
-                          );
-                        })}
-                        <td className="whitespace-nowrap px-3 py-3 text-right">
-                          <button type="button" onClick={() => moveLineItem(index, -1)} disabled={index === 0} className="mr-2 text-xs font-semibold text-slate-600 disabled:opacity-30">
-                            Up
-                          </button>
-                          <button type="button" onClick={() => moveLineItem(index, 1)} disabled={index === lineItems.length - 1} className="mr-2 text-xs font-semibold text-slate-600 disabled:opacity-30">
-                            Down
-                          </button>
-                          <button type="button" onClick={() => onLineItemsChange(lineItems.filter((entry) => entry.id !== item.id))} className="text-xs font-semibold text-rose-600">Delete</button>
+                          </td>
+                          <td className="w-[150px] border border-slate-950 px-2 py-1.5 text-right font-semibold">
+                            {formatPlain(item.lineTotal)}
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={8} className="border border-slate-950 px-4 py-10 text-center text-slate-500">
+                          Select an approved requisition to load item rows, or add an item manually.
                         </td>
                       </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan={template.itemColumns.length + 1} className="px-4 py-10 text-center text-sm text-slate-500">
-                        Select an approved requisition to load line items.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </section>
-
-          <section className="grid gap-4 md:grid-cols-2">
-            <P2PFormField label="PO Date" hint="Commercial order date.">
-              <div className="relative">
-                <CalendarDays className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                <input
-                  type="date"
-                  value={orderDate}
-                  onChange={(event) => onOrderDateChange(event.target.value)}
-                  className={`${fieldShellClass()} pl-11`}
-                />
+                    )}
+                  </tbody>
+                </table>
               </div>
-            </P2PFormField>
 
-            <P2PFormField label="Expected Delivery Date" hint="Target supply date from vendor.">
-              <div className="relative">
-                <CalendarDays className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                <input
-                  type="date"
-                  value={expectedDeliveryDate}
-                  onChange={(event) => onExpectedDeliveryDateChange(event.target.value)}
-                  className={`${fieldShellClass()} pl-11`}
-                />
-              </div>
-            </P2PFormField>
-
-            <P2PFormField label="Project" hint="Optional project or cost center context.">
-              <input value={project} onChange={(event) => onProjectChange(event.target.value)} placeholder="Project" className={fieldShellClass()} />
-            </P2PFormField>
-
-            <P2PFormField label="Delivery Place" hint="Delivery location printed on the PO.">
-              <input
-                value={deliveryPlace}
-                onChange={(event) => onDeliveryPlaceChange(event.target.value)}
-                placeholder="Delivery place"
-                className={fieldShellClass()}
-              />
-            </P2PFormField>
-
-            <P2PFormField label="Vendor PI / Quote Reference" hint="Reference used in the vendor commercial document.">
-              <input
-                value={vendorQuoteReference}
-                onChange={(event) => onVendorQuoteReferenceChange(event.target.value)}
-                placeholder="Vendor PI / Quote reference"
-                className={fieldShellClass()}
-              />
-            </P2PFormField>
-
-            <P2PFormField label="Payment Mode" hint="Commercial settlement mode for the PO.">
-              <input
-                value={paymentMode}
-                onChange={(event) => onPaymentModeChange(event.target.value)}
-                placeholder="Payment mode"
-                className={fieldShellClass()}
-              />
-            </P2PFormField>
-
-            <P2PFormField label="Warranty" hint="Product or service warranty commitment.">
-              <input value={warranty} onChange={(event) => onWarrantyChange(event.target.value)} placeholder="Warranty" className={fieldShellClass()} />
-            </P2PFormField>
-
-            <P2PFormField label="State Code / GST" hint="Document tax identifier used in the PDF.">
-              <input
-                value={stateCode}
-                onChange={(event) => onStateCodeChange(event.target.value)}
-                placeholder="State code / GST"
-                className={fieldShellClass()}
-              />
-            </P2PFormField>
-
-            <div className="md:col-span-2">
-              <P2PFormField label="Internal / Commercial Notes" hint="Delivery instructions, commitments, or billing notes.">
-                <textarea
-                  rows={4}
-                  value={notes}
-                  onChange={(event) => onNotesChange(event.target.value)}
-                  placeholder="Delivery instructions, payment terms, billing notes, or vendor commitments"
-                  className={fieldShellClass()}
-                />
-              </P2PFormField>
-            </div>
-          </section>
-
-          <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
-            <div className="rounded-2xl border border-slate-200 bg-white p-5">
-              <p className="text-sm font-semibold text-slate-900">Terms and Conditions</p>
-              <p className="mt-1 text-xs text-slate-500">Loaded from the selected company template and editable through notes before generation.</p>
-              <div className="mt-4 space-y-2">
-                {template.terms.map((term, index) => (
-                  <div key={`${selectedCompany}-term-${index}`} className="flex gap-3 rounded-2xl border border-slate-100 bg-slate-50 px-3 py-2.5">
-                    <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-white text-xs font-semibold text-slate-500">{index + 1}</span>
-                    <p className="text-sm leading-5 text-slate-600">{term}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <div className="rounded-2xl border border-slate-200 bg-white p-5">
-                <p className="text-sm font-semibold text-slate-900">Tax and Charges</p>
-                <div className="mt-4 space-y-2 text-sm">
-                  {template.calculations.map((calculation) => (
-                    <div key={calculation} className="flex items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-2">
-                      <span className="text-slate-500">{calculation}</span>
-                      <span className="font-semibold text-slate-900">
-                        {formatTemplateCalculation(calculation, documentValue, estimatedTax, estimatedGrandTotal)}
-                      </span>
+              <div className="grid grid-cols-[1fr_380px] border-b-2 border-slate-950">
+                <div className="border-r-2 border-slate-950 p-3">
+                  <p className="font-bold uppercase">Amount in Words</p>
+                  <p className="mt-2 min-h-[46px] leading-5">{amountInWords}</p>
+                </div>
+                <div>
+                  {[
+                    ["Basic Value", basicValue],
+                    ["Add: IGST", igstAmount],
+                    ["Add: CGST", cgstAmount],
+                    ["Add: SGST", sgstAmount],
+                    ["Total Purchase Order Value", totalPurchaseOrderValue],
+                  ].map(([label, value]) => (
+                    <div key={label as string} className="grid grid-cols-[1fr_150px] border-b border-slate-950 last:border-b-0">
+                      <div className="px-3 py-2 font-semibold">{label}</div>
+                      <div className="border-l border-slate-950 px-3 py-2 text-right font-semibold">{formatPlain(value as number)}</div>
                     </div>
                   ))}
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-blue-100 bg-blue-50 p-5">
-                <p className="text-sm font-semibold text-slate-900">Approval Workflow</p>
-                <div className="mt-4 space-y-2">
-                  {template.approvalWorkflow.map((step, index) => (
-                    <div key={step} className="flex items-center gap-3 text-sm text-slate-600">
-                      <span className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold ${index === 0 ? "bg-blue-600 text-white" : "bg-white text-slate-500"}`}>
-                        {index + 1}
-                      </span>
-                      {step}
+              <div className="border-b-2 border-slate-950 p-3">
+                <p className="font-bold uppercase">Terms & Conditions</p>
+                <div className="mt-2 grid gap-2">
+                  {IOTIQ_TERMS.map((term, index) => (
+                    <div key={term.title} className="grid grid-cols-[34px_180px_1fr] leading-5">
+                      <span>{index + 1}.</span>
+                      <span className="font-semibold">{term.title}:</span>
+                      <span>{term.body}</span>
                     </div>
                   ))}
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5">
-                <p className="text-sm font-semibold text-slate-900">PDF Preview</p>
-                <p className="mt-2 text-sm leading-5 text-slate-600">
-                  Preview uses the current PO document renderer and marks the selected template. Exact Excel-match PDF rendering can now be built against this configuration.
-                </p>
+              <div className="grid grid-cols-[1fr_320px]">
+                <div className="p-3">
+                  <p className="font-bold uppercase">Authorization Section</p>
+                  <p className="mt-2 text-slate-600">Signature area is reserved for approved users and is read-only during PO creation.</p>
+                </div>
+                <div className="border-l-2 border-slate-950 p-3 text-center">
+                  <p className="font-semibold">For IOTIQ Innovations Pvt. Ltd.</p>
+                  <div className="h-20" />
+                  <p className="font-semibold">Authorized Signatory</p>
+                </div>
               </div>
             </div>
-          </section>
+          </div>
 
-          <section className="grid gap-4 md:grid-cols-2">
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Selected Requisition</p>
-              {selectedRequisition ? (
-                <div className="mt-2 space-y-2 text-sm text-slate-700">
-                  <p>
-                    <span className="text-slate-500">PR:</span> {selectedRequisition.prNumber}
-                  </p>
-                  <p>
-                    <span className="text-slate-500">Department:</span> {selectedRequisition.department}
-                  </p>
-                  <p>
-                    <span className="text-slate-500">Items:</span> {selectedRequisition.items.length}
-                  </p>
-                  <p>
-                    <span className="text-slate-500">Amount:</span> {formatCurrency(selectedRequisition.totalAmount)}
-                  </p>
-                </div>
-              ) : (
-                <p className="mt-2 text-sm text-slate-500">Choose an approved requisition.</p>
-              )}
+          {showValidation ? (
+            <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+              Complete mandatory fields before submission: {missingFields.join(", ")}.
             </div>
-
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Selected Vendor / Quote</p>
-              {selectedVendor ? (
-                <div className="mt-2 space-y-2 text-sm text-slate-700">
-                  <p>
-                    <span className="text-slate-500">Vendor:</span> {selectedVendor.vendorName}
-                  </p>
-                  <p>
-                    <span className="text-slate-500">Email:</span> {selectedVendor.email || "-"}
-                  </p>
-                  <p>
-                    <span className="text-slate-500">Phone:</span> {selectedVendor.phone || "-"}
-                  </p>
-                  <p>
-                    <span className="text-slate-500">Quoted:</span>{" "}
-                    {selectedQuote?.quotedAmount
-                      ? formatCurrency(Number(selectedQuote.quotedAmount))
-                      : formatCurrency(selectedRequisition?.totalAmount ?? 0)}
-                  </p>
-                  <p>
-                    <span className="text-slate-500">Project:</span> {project || "-"}
-                  </p>
-                </div>
-              ) : (
-                <p className="mt-2 text-sm text-slate-500">Choose or apply a vendor quote.</p>
-              )}
-            </div>
-          </section>
+          ) : null}
         </div>
 
         <div className="border-t border-slate-200 bg-white px-6 py-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Document Value</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900">
-                {formatCurrency(documentValue)}
-              </p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Total Purchase Order Value</p>
+              <p className="mt-1 text-lg font-semibold text-slate-900">{formatCurrency(totalPurchaseOrderValue)}</p>
+              {draftSavedAt ? <p className="mt-1 text-xs font-medium text-emerald-600">Draft saved at {draftSavedAt}</p> : null}
             </div>
             <div className="flex flex-wrap items-center gap-3">
               <button
@@ -1165,16 +952,24 @@ function CreatePurchaseOrderPanel({
                 className="inline-flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
               >
                 <Eye className="h-4 w-4" />
-                Preview PO
+                Preview PDF
               </button>
               <button
                 type="button"
-                onClick={onCreate}
-                disabled={!purchaseRequisitionId || !vendorId || isCreating}
-                className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm shadow-blue-600/20 hover:bg-blue-700 disabled:opacity-50"
+                onClick={handleSaveDraft}
+                className="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-100"
               >
-                {isCreating ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
-                Generate PO
+                <FileText className="h-4 w-4" />
+                Save Draft
+              </button>
+              <button
+                type="button"
+                onClick={handleSubmitForApproval}
+                disabled={isCreating}
+                className="inline-flex items-center gap-2 rounded-full bg-slate-950 px-5 py-2.5 text-sm font-semibold text-white shadow-sm shadow-slate-950/20 hover:bg-slate-800 disabled:opacity-50"
+              >
+                {isCreating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                Submit for Approval
               </button>
             </div>
           </div>
@@ -1328,19 +1123,12 @@ export default function P2PPurchaseOrderPage() {
   const { data: vendors = [] } = useVendors();
   const createPurchaseOrder = useCreatePurchaseOrder();
 
-  const [selectedCompany, setSelectedCompany] = useState<PoTemplateCompany>("ACS");
   const [purchaseRequisitionId, setPurchaseRequisitionId] = useState("");
   const [vendorId, setVendorId] = useState("");
   const [orderDate, setOrderDate] = useState(new Date().toISOString().slice(0, 10));
-  const [expectedDeliveryDate, setExpectedDeliveryDate] = useState("");
   const [project, setProject] = useState("");
-  const [deliveryPlace, setDeliveryPlace] = useState("");
   const [vendorQuoteReference, setVendorQuoteReference] = useState("");
-  const [paymentMode, setPaymentMode] = useState("");
-  const [warranty, setWarranty] = useState("");
-  const [stateCode, setStateCode] = useState(BUYER.gst);
-  const [notes, setNotes] = useState("");
-  const [vendorQuotes, setVendorQuotes] = useState<VendorQuoteDraft[]>([]);
+  const [poDraftDetails, setPoDraftDetails] = useState<PoDraftDetails>(() => createDefaultPoDraftDetails());
   const [poLineItems, setPoLineItems] = useState<PoLineItemDraft[]>([]);
   const [preview, setPreview] = useState<{ title: string; data: PurchaseOrderDocumentData } | null>(null);
   const [isCreatePanelOpen, setIsCreatePanelOpen] = useState(false);
@@ -1354,13 +1142,11 @@ export default function P2PPurchaseOrderPage() {
   );
   const selectedRequisition = approvedRequisitions.find((requisition) => requisition.id === purchaseRequisitionId) ?? null;
   const selectedVendor = vendors.find((vendor) => vendor.id === vendorId) ?? null;
-  const selectedQuote = vendorQuotes.find((quote) => quote.vendorId === vendorId) ?? null;
   const selectedOrder = purchaseOrders.find((order) => order.id === selectedPurchaseOrderId) ?? null;
 
   useEffect(() => {
     Promise.resolve().then(() => {
       if (!selectedRequisition) {
-        setVendorQuotes([]);
         setVendorId("");
         setPoLineItems([]);
         return;
@@ -1368,22 +1154,23 @@ export default function P2PPurchaseOrderPage() {
 
       setPoLineItems(selectedRequisition.items.map(createLineItemDraft));
 
-      setVendorQuotes((current) =>
-        current.length
-          ? current
-          : [
-              newQuote(
-                selectedRequisition.negotiationVendorId ?? "",
-                String(selectedRequisition.negotiatedAmount ?? selectedRequisition.totalAmount)
-              ),
-            ]
-      );
-
       if (selectedRequisition.negotiationVendorId) {
         setVendorId(selectedRequisition.negotiationVendorId);
       }
     });
   }, [selectedRequisition]);
+
+  useEffect(() => {
+    Promise.resolve().then(() => {
+      if (!selectedVendor) return;
+      setPoDraftDetails((current) => ({
+        ...current,
+        vendorName: selectedVendor.vendorName,
+        vendorAddress: vendorAddressText(selectedVendor),
+        vendorGst: selectedVendor.taxIdentifier ?? "",
+      }));
+    });
+  }, [selectedVendor]);
 
   const queueStats = useMemo(() => {
     const totalValue = purchaseOrders.reduce((sum, order) => sum + order.totalAmount, 0);
@@ -1398,18 +1185,6 @@ export default function P2PPurchaseOrderPage() {
       totalValue,
     };
   }, [approvedRequisitions.length, purchaseOrders]);
-
-  const bestQuoteId = useMemo(
-    () =>
-      vendorQuotes
-        .filter((quote) => quote.vendorId && Number(quote.quotedAmount) > 0)
-        .sort(
-          (left, right) =>
-            Number(left.quotedAmount) - Number(right.quotedAmount) ||
-            Number(left.leadTimeDays || 9999) - Number(right.leadTimeDays || 9999)
-        )[0]?.id ?? null,
-    [vendorQuotes]
-  );
 
   const filteredOrders = useMemo(() => {
     const search = queueSearch.trim().toLowerCase();
@@ -1429,38 +1204,25 @@ export default function P2PPurchaseOrderPage() {
   }, [purchaseOrders, queueFilter, queueSearch]);
 
   function resetCreateForm() {
-    setSelectedCompany("ACS");
     setPurchaseRequisitionId("");
     setVendorId("");
-    setExpectedDeliveryDate("");
     setProject("");
-    setDeliveryPlace("");
     setVendorQuoteReference("");
-    setPaymentMode("");
-    setWarranty("");
-    setStateCode(BUYER.gst);
-    setNotes("");
-    setVendorQuotes([]);
+    setPoDraftDetails(createDefaultPoDraftDetails());
     setPoLineItems([]);
   }
 
   function handlePreviewDraft() {
     if (!selectedRequisition) return;
     setPreview({
-      title: `${selectedCompany} - ${selectedRequisition.prNumber}`,
+      title: `${draftPoNumber(selectedRequisition)} - IOTIQ`,
       data: draftDoc(
         selectedRequisition,
         selectedVendor,
         orderDate,
-        expectedDeliveryDate,
         project,
-        deliveryPlace,
         vendorQuoteReference,
-        paymentMode,
-        warranty,
-        stateCode,
-        notes,
-        selectedQuote,
+        poDraftDetails,
         poLineItems
       ),
     });
@@ -1474,8 +1236,13 @@ export default function P2PPurchaseOrderPage() {
         payload: {
           vendorId,
           orderDate,
-          expectedDeliveryDate: expectedDeliveryDate || undefined,
-          notes: notes.trim() || undefined,
+          notes: [
+            project.trim() ? `Project: ${project.trim()}` : "",
+            vendorQuoteReference.trim() ? `Vendor PI / Quote Number: ${vendorQuoteReference.trim()}` : "",
+            poDraftDetails.referenceDate ? `Reference Date: ${poDraftDetails.referenceDate}` : "",
+          ]
+            .filter(Boolean)
+            .join(" | ") || undefined,
         },
       },
       {
@@ -1642,24 +1409,15 @@ export default function P2PPurchaseOrderPage() {
         <CreatePurchaseOrderPanel
           approvedRequisitions={approvedRequisitions}
           vendors={vendors}
-          selectedCompany={selectedCompany}
           purchaseRequisitionId={purchaseRequisitionId}
           vendorId={vendorId}
           orderDate={orderDate}
-          expectedDeliveryDate={expectedDeliveryDate}
           project={project}
-          deliveryPlace={deliveryPlace}
           vendorQuoteReference={vendorQuoteReference}
-          paymentMode={paymentMode}
-          warranty={warranty}
-          stateCode={stateCode}
-          notes={notes}
-          vendorQuotes={vendorQuotes}
+          poDraftDetails={poDraftDetails}
           lineItems={poLineItems}
           selectedRequisition={selectedRequisition}
           selectedVendor={selectedVendor}
-          selectedQuote={selectedQuote}
-          bestQuoteId={bestQuoteId}
           isCreating={createPurchaseOrder.isPending}
           errorMessage={createPurchaseOrder.error instanceof Error ? createPurchaseOrder.error.message : undefined}
           onClose={() => {
@@ -1668,19 +1426,12 @@ export default function P2PPurchaseOrderPage() {
               resetCreateForm();
             }
           }}
-          onSelectedCompanyChange={setSelectedCompany}
           onPurchaseRequisitionIdChange={setPurchaseRequisitionId}
           onVendorIdChange={setVendorId}
           onOrderDateChange={setOrderDate}
-          onExpectedDeliveryDateChange={setExpectedDeliveryDate}
           onProjectChange={setProject}
-          onDeliveryPlaceChange={setDeliveryPlace}
           onVendorQuoteReferenceChange={setVendorQuoteReference}
-          onPaymentModeChange={setPaymentMode}
-          onWarrantyChange={setWarranty}
-          onStateCodeChange={setStateCode}
-          onNotesChange={setNotes}
-          onVendorQuotesChange={setVendorQuotes}
+          onPoDraftDetailsChange={setPoDraftDetails}
           onLineItemsChange={setPoLineItems}
           onPreview={handlePreviewDraft}
           onCreate={handleCreatePurchaseOrder}
