@@ -58,6 +58,17 @@ type PoDraftDetails = {
 
 type PoTemplate = "ACS" | "IOTIQ";
 
+type PoTemplateDraft = {
+  purchaseRequisitionId: string;
+  vendorId: string;
+  orderDate: string;
+  project: string;
+  vendorQuoteReference: string;
+  poDraftDetails: PoDraftDetails;
+  poTerms: PoTermDraft[];
+  poLineItems: PoLineItemDraft[];
+};
+
 const IOTIQ_TAX_RATE = 0.18;
 const ACS_TAX_RATE = 0.09;
 const ACS_DEFAULT_INSURANCE = 3221;
@@ -290,6 +301,10 @@ function fieldShellClass(disabled = false) {
   }`;
 }
 
+function calculateLineTotal(item: Pick<PoLineItemDraft, "quantity" | "unitPrice">) {
+  return Number(item.quantity || 0) * Number(item.unitPrice || 0);
+}
+
 function createLineItemDraft(item?: PurchaseRequisition["items"][number] | null): PoLineItemDraft {
   const quantity = item?.quantity ?? 1;
   const unitPrice = item?.estimatedUnitPrice ?? 0;
@@ -301,7 +316,7 @@ function createLineItemDraft(item?: PurchaseRequisition["items"][number] | null)
     unit: item?.unit ?? "Nos",
     quantity,
     unitPrice,
-    lineTotal: quantity * unitPrice,
+    lineTotal: calculateLineTotal({ quantity, unitPrice }),
   };
 }
 
@@ -348,6 +363,26 @@ function createDefaultPoDraftDetails(template: PoTemplate = "IOTIQ", vendor?: Ve
   };
 }
 
+function createTemplateDraft(template: PoTemplate): PoTemplateDraft {
+  return {
+    purchaseRequisitionId: "",
+    vendorId: "",
+    orderDate: new Date().toISOString().slice(0, 10),
+    project: "",
+    vendorQuoteReference: "",
+    poDraftDetails: createDefaultPoDraftDetails(template),
+    poTerms: createTermsDraft(template),
+    poLineItems: [],
+  };
+}
+
+function createInitialTemplateDrafts(): Record<PoTemplate, PoTemplateDraft> {
+  return {
+    ACS: createTemplateDraft("ACS"),
+    IOTIQ: createTemplateDraft("IOTIQ"),
+  };
+}
+
 function financialYearCode(date = new Date()) {
   const startYear = date.getMonth() >= 3 ? date.getFullYear() : date.getFullYear() - 1;
   return `${String(startYear).slice(-2)}-${String(startYear + 1).slice(-2)}`;
@@ -361,7 +396,7 @@ function draftPoNumber(requisition?: PurchaseRequisition | null, template: PoTem
 function recalculateLineItem(item: PoLineItemDraft): PoLineItemDraft {
   return {
     ...item,
-    lineTotal: Number(item.quantity || 0) * Number(item.unitPrice || 0),
+    lineTotal: calculateLineTotal(item),
   };
 }
 
@@ -404,7 +439,7 @@ function draftDoc(
   lineItems?: PoLineItemDraft[]
 ): PurchaseOrderDocumentData {
   const documentItems = lineItems?.length ? lineItems : requisition.items.map(createLineItemDraft);
-  const subtotal = documentItems.reduce((sum, item) => sum + item.lineTotal, 0);
+  const subtotal = documentItems.reduce((sum, item) => sum + calculateLineTotal(item), 0);
   const insuranceAmount = template === "ACS" ? Number(details.insuranceAmount || ACS_DEFAULT_INSURANCE) : 0;
   const igstAmount = template === "IOTIQ" ? subtotal * IOTIQ_TAX_RATE : 0;
   const cgstAmount = template === "ACS" ? subtotal * ACS_TAX_RATE : 0;
@@ -452,7 +487,7 @@ function draftDoc(
       quantity: item.quantity,
       unit: item.unit,
       rate: item.unitPrice,
-      amount: item.lineTotal,
+      amount: calculateLineTotal(item),
     })),
     subtotal,
     igstAmount,
@@ -643,7 +678,7 @@ function CreatePurchaseOrderPanel({
   const [draftSavedAt, setDraftSavedAt] = useState<string | null>(null);
   const company = selectedTemplate === "ACS" ? ACS_COMPANY : IOTIQ_COMPANY;
   const billing = selectedTemplate === "ACS" ? ACS_BUYER : IOTIQ_BILLING;
-  const basicValue = lineItems.reduce((sum, item) => sum + item.lineTotal, 0);
+  const basicValue = lineItems.reduce((sum, item) => sum + calculateLineTotal(item), 0);
   const igstAmount = selectedTemplate === "IOTIQ" ? basicValue * IOTIQ_TAX_RATE : 0;
   const cgstAmount = selectedTemplate === "ACS" ? basicValue * ACS_TAX_RATE : 0;
   const sgstAmount = selectedTemplate === "ACS" ? basicValue * ACS_TAX_RATE : 0;
@@ -819,16 +854,29 @@ function CreatePurchaseOrderPanel({
                   <td className="min-w-[130px] border border-slate-950">
                     <input value={item.sku} onChange={(event) => updateLineItem(item.id, { sku: event.target.value })} placeholder={selectedTemplate === "ACS" ? "HSN" : "HSN Code"} className={sheetInputClass} />
                   </td>
-                  <td className="w-[110px] border border-slate-950">
-                    <input value={item.unit} onChange={(event) => updateLineItem(item.id, { unit: event.target.value })} placeholder={selectedTemplate === "ACS" ? "UoM" : "UOM"} className={sheetInputClass} />
-                  </td>
-                  <td className="w-[90px] border border-slate-950">
-                    <input type="number" min={0} step="0.01" value={item.quantity} onChange={(event) => updateLineItem(item.id, { quantity: Number(event.target.value) })} className={sheetInputClass} />
-                  </td>
+                  {selectedTemplate === "ACS" ? (
+                    <>
+                      <td className="w-[110px] border border-slate-950">
+                        <input value={item.unit} onChange={(event) => updateLineItem(item.id, { unit: event.target.value })} placeholder="UoM" className={sheetInputClass} />
+                      </td>
+                      <td className="w-[90px] border border-slate-950">
+                        <input type="number" min={0} step="0.01" value={item.quantity} onChange={(event) => updateLineItem(item.id, { quantity: Number(event.target.value) })} className={sheetInputClass} />
+                      </td>
+                    </>
+                  ) : (
+                    <>
+                      <td className="w-[90px] border border-slate-950">
+                        <input type="number" min={0} step="0.01" value={item.quantity} onChange={(event) => updateLineItem(item.id, { quantity: Number(event.target.value) })} className={sheetInputClass} />
+                      </td>
+                      <td className="w-[110px] border border-slate-950">
+                        <input value={item.unit} onChange={(event) => updateLineItem(item.id, { unit: event.target.value })} placeholder="UOM" className={sheetInputClass} />
+                      </td>
+                    </>
+                  )}
                   <td className="w-[130px] border border-slate-950">
                     <input type="number" min={0} step="0.01" value={item.unitPrice} onChange={(event) => updateLineItem(item.id, { unitPrice: Number(event.target.value) })} className={sheetInputClass} />
                   </td>
-                  <td className="w-[150px] border border-slate-950 px-2 py-1.5 text-right font-semibold">{formatPlain(item.lineTotal)}</td>
+                  <td className="w-[150px] border border-slate-950 px-2 py-1.5 text-right font-semibold">{formatPlain(calculateLineTotal(item))}</td>
                 </tr>
               ))
             ) : (
@@ -1207,14 +1255,7 @@ export default function P2PPurchaseOrderPage() {
   const { data: vendors = [] } = useVendors();
 
   const [selectedTemplate, setSelectedTemplate] = useState<PoTemplate>("IOTIQ");
-  const [purchaseRequisitionId, setPurchaseRequisitionId] = useState("");
-  const [vendorId, setVendorId] = useState("");
-  const [orderDate, setOrderDate] = useState(new Date().toISOString().slice(0, 10));
-  const [project, setProject] = useState("");
-  const [vendorQuoteReference, setVendorQuoteReference] = useState("");
-  const [poDraftDetails, setPoDraftDetails] = useState<PoDraftDetails>(() => createDefaultPoDraftDetails("IOTIQ"));
-  const [poTerms, setPoTerms] = useState<PoTermDraft[]>(() => createTermsDraft("IOTIQ"));
-  const [poLineItems, setPoLineItems] = useState<PoLineItemDraft[]>([]);
+  const [templateDrafts, setTemplateDrafts] = useState<Record<PoTemplate, PoTemplateDraft>>(() => createInitialTemplateDrafts());
   const [preview, setPreview] = useState<{ title: string; data: PurchaseOrderDocumentData } | null>(null);
   const [isCreatePanelOpen, setIsCreatePanelOpen] = useState(false);
   const [selectedPurchaseOrderId, setSelectedPurchaseOrderId] = useState<string | null>(null);
@@ -1225,39 +1266,10 @@ export default function P2PPurchaseOrderPage() {
     () => requisitions.filter((requisition) => requisition.status === "APPROVED"),
     [requisitions]
   );
-  const selectedRequisition = approvedRequisitions.find((requisition) => requisition.id === purchaseRequisitionId) ?? null;
-  const selectedVendor = vendors.find((vendor) => vendor.id === vendorId) ?? null;
+  const activeDraft = templateDrafts[selectedTemplate];
+  const selectedRequisition = approvedRequisitions.find((requisition) => requisition.id === activeDraft.purchaseRequisitionId) ?? null;
+  const selectedVendor = vendors.find((vendor) => vendor.id === activeDraft.vendorId) ?? null;
   const selectedOrder = purchaseOrders.find((order) => order.id === selectedPurchaseOrderId) ?? null;
-
-  useEffect(() => {
-    Promise.resolve().then(() => {
-      if (!selectedRequisition) {
-        setVendorId("");
-        setPoLineItems([]);
-        return;
-      }
-
-      setPoLineItems(selectedRequisition.items.map(createLineItemDraft));
-
-      if (selectedRequisition.negotiationVendorId) {
-        setVendorId(selectedRequisition.negotiationVendorId);
-      }
-    });
-  }, [selectedRequisition]);
-
-  useEffect(() => {
-    Promise.resolve().then(() => {
-      if (!selectedVendor) return;
-      setPoDraftDetails((current) => ({
-        ...current,
-        vendorName: selectedVendor.vendorName,
-        vendorAddress: vendorAddressText(selectedVendor),
-        vendorGst: selectedVendor.taxIdentifier ?? "",
-        vendorContactName: selectedVendor.vendorName,
-        vendorContactNumber: selectedVendor.phone ?? "",
-      }));
-    });
-  }, [selectedVendor]);
 
   const queueStats = useMemo(() => {
     const totalValue = purchaseOrders.reduce((sum, order) => sum + order.totalAmount, 0);
@@ -1290,36 +1302,49 @@ export default function P2PPurchaseOrderPage() {
     });
   }, [purchaseOrders, queueFilter, queueSearch]);
 
+  function updateActiveDraft(patch: Partial<PoTemplateDraft> | ((draft: PoTemplateDraft) => PoTemplateDraft)) {
+    setTemplateDrafts((current) => {
+      const currentDraft = current[selectedTemplate];
+      const nextDraft = typeof patch === "function" ? patch(currentDraft) : { ...currentDraft, ...patch };
+      return { ...current, [selectedTemplate]: nextDraft };
+    });
+  }
+
+  function handlePurchaseRequisitionChange(value: string) {
+    const requisition = approvedRequisitions.find((entry) => entry.id === value) ?? null;
+    updateActiveDraft((draft) => ({
+      ...draft,
+      purchaseRequisitionId: value,
+      vendorId: requisition?.negotiationVendorId ?? draft.vendorId,
+      poLineItems: requisition ? requisition.items.map(createLineItemDraft) : draft.poLineItems,
+    }));
+  }
+
+  function handleVendorChange(value: string) {
+    const vendor = vendors.find((entry) => entry.id === value) ?? null;
+    updateActiveDraft((draft) => ({
+      ...draft,
+      vendorId: value,
+      poDraftDetails: vendor
+        ? {
+            ...draft.poDraftDetails,
+            vendorName: vendor.vendorName,
+            vendorAddress: vendorAddressText(vendor),
+            vendorGst: vendor.taxIdentifier ?? "",
+            vendorContactName: vendor.vendorName,
+            vendorContactNumber: vendor.phone ?? "",
+          }
+        : draft.poDraftDetails,
+    }));
+  }
+
   function resetCreateForm() {
     setSelectedTemplate("IOTIQ");
-    setPurchaseRequisitionId("");
-    setVendorId("");
-    setProject("");
-    setVendorQuoteReference("");
-    setPoDraftDetails(createDefaultPoDraftDetails("IOTIQ"));
-    setPoTerms(createTermsDraft("IOTIQ"));
-    setPoLineItems([]);
+    setTemplateDrafts(createInitialTemplateDrafts());
   }
 
   function handleTemplateChange(template: PoTemplate) {
     setSelectedTemplate(template);
-    setPoTerms(createTermsDraft(template));
-    setPoDraftDetails((current) => ({
-      ...createDefaultPoDraftDetails(template, selectedVendor),
-      vendorName: current.vendorName,
-      vendorAddress: current.vendorAddress,
-      vendorGst: current.vendorGst,
-      vendorPan: current.vendorPan,
-      vendorContactName: current.vendorContactName,
-      vendorContactNumber: current.vendorContactNumber,
-      contactName: current.contactName,
-      contactNumber: current.contactNumber,
-      mailId: current.mailId,
-      referenceDate: current.referenceDate,
-      preparedBy: current.preparedBy,
-      status: current.status,
-      approvalInformation: current.approvalInformation,
-    }));
   }
 
   function handlePreviewDraft() {
@@ -1330,12 +1355,12 @@ export default function P2PPurchaseOrderPage() {
         selectedTemplate,
         selectedRequisition,
         selectedVendor,
-        orderDate,
-        project,
-        vendorQuoteReference,
-        poDraftDetails,
-        poTerms,
-        poLineItems
+        activeDraft.orderDate,
+        activeDraft.project,
+        activeDraft.vendorQuoteReference,
+        activeDraft.poDraftDetails,
+        activeDraft.poTerms,
+        activeDraft.poLineItems
       ),
     });
   }
@@ -1496,14 +1521,14 @@ export default function P2PPurchaseOrderPage() {
           approvedRequisitions={approvedRequisitions}
           vendors={vendors}
           selectedTemplate={selectedTemplate}
-          purchaseRequisitionId={purchaseRequisitionId}
-          vendorId={vendorId}
-          orderDate={orderDate}
-          project={project}
-          vendorQuoteReference={vendorQuoteReference}
-          poDraftDetails={poDraftDetails}
-          terms={poTerms}
-          lineItems={poLineItems}
+          purchaseRequisitionId={activeDraft.purchaseRequisitionId}
+          vendorId={activeDraft.vendorId}
+          orderDate={activeDraft.orderDate}
+          project={activeDraft.project}
+          vendorQuoteReference={activeDraft.vendorQuoteReference}
+          poDraftDetails={activeDraft.poDraftDetails}
+          terms={activeDraft.poTerms}
+          lineItems={activeDraft.poLineItems}
           selectedRequisition={selectedRequisition}
           selectedVendor={selectedVendor}
           onClose={() => {
@@ -1511,14 +1536,14 @@ export default function P2PPurchaseOrderPage() {
             resetCreateForm();
           }}
           onSelectedTemplateChange={handleTemplateChange}
-          onPurchaseRequisitionIdChange={setPurchaseRequisitionId}
-          onVendorIdChange={setVendorId}
-          onOrderDateChange={setOrderDate}
-          onProjectChange={setProject}
-          onVendorQuoteReferenceChange={setVendorQuoteReference}
-          onPoDraftDetailsChange={setPoDraftDetails}
-          onTermsChange={setPoTerms}
-          onLineItemsChange={setPoLineItems}
+          onPurchaseRequisitionIdChange={handlePurchaseRequisitionChange}
+          onVendorIdChange={handleVendorChange}
+          onOrderDateChange={(value) => updateActiveDraft({ orderDate: value })}
+          onProjectChange={(value) => updateActiveDraft({ project: value })}
+          onVendorQuoteReferenceChange={(value) => updateActiveDraft({ vendorQuoteReference: value })}
+          onPoDraftDetailsChange={(value) => updateActiveDraft({ poDraftDetails: value })}
+          onTermsChange={(value) => updateActiveDraft({ poTerms: value })}
+          onLineItemsChange={(value) => updateActiveDraft({ poLineItems: value })}
           onGenerate={handlePreviewDraft}
         />
       ) : null}

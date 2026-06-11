@@ -222,8 +222,17 @@ export function PurchaseOrderDocument({ document }: { document: PurchaseOrderDoc
                 <td className="border border-black px-1.5 py-1">{item.description}</td>
                 {!isAcs ? <td className="border border-black px-1.5 py-1">{item.make || "-"}</td> : null}
                 <td className="border border-black px-1.5 py-1">{item.hsnOrSku || "-"}</td>
-                <td className="border border-black px-1.5 py-1">{item.unit}</td>
-                <td className="border border-black px-1.5 py-1">{item.quantity}</td>
+                {isAcs ? (
+                  <>
+                    <td className="border border-black px-1.5 py-1">{item.unit}</td>
+                    <td className="border border-black px-1.5 py-1">{item.quantity}</td>
+                  </>
+                ) : (
+                  <>
+                    <td className="border border-black px-1.5 py-1">{item.quantity}</td>
+                    <td className="border border-black px-1.5 py-1">{item.unit}</td>
+                  </>
+                )}
                 <td className="border border-black px-1.5 py-1 text-right">{formatCurrency(item.rate)}</td>
                 <td className="border border-black px-1.5 py-1 text-right">{formatCurrency(item.amount)}</td>
               </tr>
