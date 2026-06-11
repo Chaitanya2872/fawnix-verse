@@ -32,6 +32,12 @@ type PoLineItemDraft = {
   lineTotal: number;
 };
 
+type PoTermDraft = {
+  id: string;
+  title: string;
+  body: string;
+};
+
 type PoDraftDetails = {
   vendorName: string;
   vendorAddress: string;
@@ -156,6 +162,15 @@ const PO_TEMPLATE_OPTIONS: Array<{ code: PoTemplate; label: string; companyName:
   { code: "ACS", label: "ACS", companyName: ACS_COMPANY.name, accent: "border-emerald-500 bg-emerald-50 text-emerald-700" },
   { code: "IOTIQ", label: "IOTIQ", companyName: IOTIQ_COMPANY.name, accent: "border-blue-500 bg-blue-50 text-blue-700" },
 ];
+
+function createTermsDraft(template: PoTemplate): PoTermDraft[] {
+  const sourceTerms = template === "ACS" ? ACS_TERMS : IOTIQ_TERMS;
+  return sourceTerms.map((term, index) => ({
+    id: `${template}-${index}-${crypto.randomUUID()}`,
+    title: term.title,
+    body: term.body,
+  }));
+}
 
 const IOTIQ_BUYER = {
   name: IOTIQ_COMPANY.name,
@@ -385,6 +400,7 @@ function draftDoc(
   project: string,
   vendorQuoteReference: string,
   details: PoDraftDetails,
+  terms: PoTermDraft[],
   lineItems?: PoLineItemDraft[]
 ): PurchaseOrderDocumentData {
   const documentItems = lineItems?.length ? lineItems : requisition.items.map(createLineItemDraft);
@@ -445,7 +461,7 @@ function draftDoc(
     insuranceAmount,
     grandTotal,
     amountInWords: numberToIndianWords(grandTotal),
-    terms: template === "ACS" ? ACS_TERMS : IOTIQ_TERMS,
+    terms: terms.map((term) => ({ title: term.title, body: term.body })),
     importantNote:
       template === "ACS"
         ? "Important Notes: On account of wrong selection of HSN code & Tax portion in the Invoice and correction at the later stage, differential amount will be collected/ returned."
@@ -582,6 +598,7 @@ function CreatePurchaseOrderPanel({
   project,
   vendorQuoteReference,
   poDraftDetails,
+  terms,
   lineItems,
   selectedRequisition,
   selectedVendor,
@@ -593,6 +610,7 @@ function CreatePurchaseOrderPanel({
   onProjectChange,
   onVendorQuoteReferenceChange,
   onPoDraftDetailsChange,
+  onTermsChange,
   onLineItemsChange,
   onGenerate,
 }: {
@@ -605,6 +623,7 @@ function CreatePurchaseOrderPanel({
   project: string;
   vendorQuoteReference: string;
   poDraftDetails: PoDraftDetails;
+  terms: PoTermDraft[];
   lineItems: PoLineItemDraft[];
   selectedRequisition: PurchaseRequisition | null;
   selectedVendor: Vendor | null;
@@ -616,6 +635,7 @@ function CreatePurchaseOrderPanel({
   onProjectChange: (value: string) => void;
   onVendorQuoteReferenceChange: (value: string) => void;
   onPoDraftDetailsChange: (value: PoDraftDetails) => void;
+  onTermsChange: (value: PoTermDraft[]) => void;
   onLineItemsChange: (value: PoLineItemDraft[]) => void;
   onGenerate: () => void;
 }) {
@@ -623,7 +643,6 @@ function CreatePurchaseOrderPanel({
   const [draftSavedAt, setDraftSavedAt] = useState<string | null>(null);
   const company = selectedTemplate === "ACS" ? ACS_COMPANY : IOTIQ_COMPANY;
   const billing = selectedTemplate === "ACS" ? ACS_BUYER : IOTIQ_BILLING;
-  const terms = selectedTemplate === "ACS" ? ACS_TERMS : IOTIQ_TERMS;
   const basicValue = lineItems.reduce((sum, item) => sum + item.lineTotal, 0);
   const igstAmount = selectedTemplate === "IOTIQ" ? basicValue * IOTIQ_TAX_RATE : 0;
   const cgstAmount = selectedTemplate === "ACS" ? basicValue * ACS_TAX_RATE : 0;
@@ -674,6 +693,10 @@ function CreatePurchaseOrderPanel({
 
   function updateLineItem(itemId: string, patch: Partial<PoLineItemDraft>) {
     onLineItemsChange(lineItems.map((item) => (item.id === itemId ? recalculateLineItem({ ...item, ...patch }) : item)));
+  }
+
+  function updateTerm(termId: string, patch: Partial<PoTermDraft>) {
+    onTermsChange(terms.map((term) => (term.id === termId ? { ...term, ...patch } : term)));
   }
 
   function handleSaveDraft() {
@@ -975,10 +998,20 @@ function CreatePurchaseOrderPanel({
                 <p className="font-bold uppercase">Terms & Conditions:</p>
                 <div className="mt-2 grid gap-2">
                   {terms.map((term, index) => (
-                    <div key={term.title} className="grid grid-cols-[34px_180px_1fr] leading-5">
-                      <span>{index + 1}</span>
-                      <span className="font-semibold">{term.title}</span>
-                      <span>{term.body}</span>
+                    <div key={term.id} className="grid grid-cols-[34px_180px_1fr] items-start gap-0 leading-5">
+                      <span className="px-1 py-1.5">{index + 1}</span>
+                      <input
+                        value={term.title}
+                        onChange={(event) => updateTerm(term.id, { title: event.target.value })}
+                        className="border-0 bg-transparent px-2 py-1.5 font-semibold outline-none focus:bg-amber-50"
+                        aria-label={`Term ${index + 1} title`}
+                      />
+                      <textarea
+                        value={term.body}
+                        onChange={(event) => updateTerm(term.id, { body: event.target.value })}
+                        className="min-h-[46px] resize-y border-0 bg-transparent px-2 py-1.5 outline-none focus:bg-amber-50"
+                        aria-label={`Term ${index + 1} matter`}
+                      />
                     </div>
                   ))}
                 </div>
@@ -1180,6 +1213,7 @@ export default function P2PPurchaseOrderPage() {
   const [project, setProject] = useState("");
   const [vendorQuoteReference, setVendorQuoteReference] = useState("");
   const [poDraftDetails, setPoDraftDetails] = useState<PoDraftDetails>(() => createDefaultPoDraftDetails("IOTIQ"));
+  const [poTerms, setPoTerms] = useState<PoTermDraft[]>(() => createTermsDraft("IOTIQ"));
   const [poLineItems, setPoLineItems] = useState<PoLineItemDraft[]>([]);
   const [preview, setPreview] = useState<{ title: string; data: PurchaseOrderDocumentData } | null>(null);
   const [isCreatePanelOpen, setIsCreatePanelOpen] = useState(false);
@@ -1263,11 +1297,13 @@ export default function P2PPurchaseOrderPage() {
     setProject("");
     setVendorQuoteReference("");
     setPoDraftDetails(createDefaultPoDraftDetails("IOTIQ"));
+    setPoTerms(createTermsDraft("IOTIQ"));
     setPoLineItems([]);
   }
 
   function handleTemplateChange(template: PoTemplate) {
     setSelectedTemplate(template);
+    setPoTerms(createTermsDraft(template));
     setPoDraftDetails((current) => ({
       ...createDefaultPoDraftDetails(template, selectedVendor),
       vendorName: current.vendorName,
@@ -1298,6 +1334,7 @@ export default function P2PPurchaseOrderPage() {
         project,
         vendorQuoteReference,
         poDraftDetails,
+        poTerms,
         poLineItems
       ),
     });
@@ -1465,6 +1502,7 @@ export default function P2PPurchaseOrderPage() {
           project={project}
           vendorQuoteReference={vendorQuoteReference}
           poDraftDetails={poDraftDetails}
+          terms={poTerms}
           lineItems={poLineItems}
           selectedRequisition={selectedRequisition}
           selectedVendor={selectedVendor}
@@ -1479,6 +1517,7 @@ export default function P2PPurchaseOrderPage() {
           onProjectChange={setProject}
           onVendorQuoteReferenceChange={setVendorQuoteReference}
           onPoDraftDetailsChange={setPoDraftDetails}
+          onTermsChange={setPoTerms}
           onLineItemsChange={setPoLineItems}
           onGenerate={handlePreviewDraft}
         />
