@@ -781,7 +781,7 @@ function CreatePurchaseOrderPanel({
       <div className="border-b-2 border-slate-950">
         <div className="flex items-center justify-between border-b border-slate-950 bg-slate-100 px-3 py-2">
           <span className="font-bold uppercase">Item Details</span>
-          <button type="button" disabled={!selectedRequisition} onClick={() => onLineItemsChange([...lineItems, createLineItemDraft(null)])} className="inline-flex items-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">
+          <button type="button" onClick={() => onLineItemsChange([...lineItems, createLineItemDraft(null)])} className="inline-flex items-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50">
             <Plus className="h-3.5 w-3.5" />
             Add Item
           </button>
