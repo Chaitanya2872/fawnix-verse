@@ -32,6 +32,116 @@ type VendorQuoteDraft = {
   remarks: string;
 };
 
+type PoLineItemDraft = {
+  id: string;
+  productName: string;
+  sku: string;
+  category: string;
+  unit: string;
+  quantity: number;
+  unitPrice: number;
+  lineTotal: number;
+};
+
+type PoTemplateCompany = "ACS" | "IOTIQ";
+
+type PoTemplateConfig = {
+  companyCode: PoTemplateCompany;
+  companyName: string;
+  companyInfo: string[];
+  templateSource: string;
+  sections: Array<{ title: string; fields: string[] }>;
+  itemColumns: Array<{ key: string; label: string }>;
+  calculations: string[];
+  terms: string[];
+  approvalWorkflow: string[];
+};
+
+const PO_TEMPLATE_CONFIGS: Record<PoTemplateCompany, PoTemplateConfig> = {
+  ACS: {
+    companyCode: "ACS",
+    companyName: "ACS Technologies Limited",
+    companyInfo: [
+      "1st Floor, Building, Opp: District Vikalang Puranaravas Kendra",
+      "Kalyanapura Road, Near Anas River, Rangapura, Badkuwa, Jhabua, Madhya Pradesh - 457661",
+      "CIN: L62099TG1993PLC015268",
+      "GSTIN: 23AAACL4102B1ZI",
+    ],
+    templateSource: "PO-25_Sannverse_redesigned_editable_fixed 3.xlsx",
+    sections: [
+      { title: "Company Information", fields: ["Company name", "Registered address", "CIN", "GSTIN"] },
+      { title: "Purchase Order Details", fields: ["PO number", "PO date", "Project", "Reference", "Contact name", "Contact number"] },
+      { title: "Vendor Details", fields: ["Vendor name", "Vendor address", "GST number", "PAN", "Vendor contact name", "Vendor contact number"] },
+      { title: "Billing and Delivery Details", fields: ["Billing address", "Consignee name", "Delivery address", "Delivery contact", "Delivery GST"] },
+      { title: "Tax and Charges", fields: ["Total before tax", "CGST", "SGST", "Insurance", "Grand total", "Amount in words"] },
+      { title: "Signatures", fields: ["For ACS Technologies Ltd", "Authorised Signatory"] },
+    ],
+    itemColumns: [
+      { key: "serial", label: "S.No." },
+      { key: "description", label: "Description" },
+      { key: "hsn", label: "HSN" },
+      { key: "uom", label: "UoM" },
+      { key: "quantity", label: "Qty" },
+      { key: "rate", label: "Rate / Unit" },
+      { key: "amount", label: "Amount" },
+    ],
+    calculations: ["Item total", "Total amount before tax", "CGST 9%", "SGST 9%", "Insurance", "Total amount after tax", "Amount in words"],
+    terms: [
+      "Delivery within 04-06 weeks from approved documents and MFC/RDSO call letter; delay attracts LD charges of 1% per week up to 5%.",
+      "Price basis is FOR site and prices remain firm without escalation during the order period.",
+      "Duties, octroi, cess, and taxes are inclusive or as mentioned in the PO.",
+      "Payment terms: advance against PO acceptance with remaining payment as per commercial commitment.",
+      "Third party inspection call by RITES/RDSO where applicable.",
+      "Material must comply with required RDSO standards; rejected material must be replaced immediately at supplier cost.",
+      "Original tax invoice, LR copy, delivery challan, and MTC are required for bill booking and payment.",
+      "Warranty is 30 months from dispatch or 24 months from commissioning, whichever is earlier.",
+      "TCS under Section 206C(1H) applies as per applicable law.",
+      "Force majeure, termination, arbitration, and jurisdiction clauses apply as defined in the approved template.",
+    ],
+    approvalWorkflow: ["Draft", "Commercial Review", "Finance Approval", "Authorised Signatory", "Issued"],
+  },
+  IOTIQ: {
+    companyCode: "IOTIQ",
+    companyName: "IOTIQ Innovations Private Limited",
+    companyInfo: [
+      "Level 7, Pardhas Picasa Building, Durgam Cheruvu Road",
+      "Madhapur, Hyderabad, Telangana, India - 500081",
+      "CIN: 72200TG2018PTC126920",
+      "GSTIN: 36AAECI9929F1Z9",
+    ],
+    templateSource: "PO-035_Deekay Electricals_redesigned_editable_fixed 3.xlsx",
+    sections: [
+      { title: "Company Information", fields: ["Company name", "Registered address", "CIN", "GST number"] },
+      { title: "Purchase Order Details", fields: ["Purchase order number", "Date", "Project", "Contact name", "Contact number", "Mail ID", "Vendor PI / quote number", "Reference date"] },
+      { title: "Vendor Details", fields: ["Vendor name", "Vendor address", "GST number"] },
+      { title: "Shipping and Billing Details", fields: ["Shipping address", "Billing company", "Billing address", "Billing GST", "Contact person", "Contact number"] },
+      { title: "Tax and Charges", fields: ["Basic value", "IGST", "CGST", "SGST", "Total purchase order value", "Amount in words"] },
+      { title: "Signatures", fields: ["For IOTIQ Innovations Pvt. Ltd.", "Authorized Signature"] },
+    ],
+    itemColumns: [
+      { key: "serial", label: "S.No." },
+      { key: "description", label: "Description" },
+      { key: "make", label: "Make" },
+      { key: "hsn", label: "HSN Code" },
+      { key: "quantity", label: "Qty" },
+      { key: "uom", label: "UOM" },
+      { key: "rate", label: "Rate" },
+      { key: "amount", label: "Amount" },
+    ],
+    calculations: ["Basic value", "IGST", "CGST 9%", "SGST 9%", "Total purchase order value", "Amount in words"],
+    terms: [
+      "Taxes and duties: quoted price is inclusive of GST; current GST is 18%.",
+      "Freight charges are extra.",
+      "Payment terms: 100% advance against PI.",
+      "Transport and insurance are in vendor scope.",
+      "Offer validity applies as per selected quote.",
+      "Delivery is immediate or as committed in the vendor quotation.",
+      "Warranty is as per OEM.",
+    ],
+    approvalWorkflow: ["Draft", "Procurement Review", "Finance Approval", "Authorized Signature", "Issued"],
+  },
+};
+
 const BUYER = {
   name: "ACS Technologies Limited",
   addressLines: ["Level 7, Pardha Picasa Building, Durgam Cheruvu Road", "Madhapur, Hyderabad, Telangana, India - 500081"],
@@ -55,6 +165,20 @@ function formatPlain(value: number) {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(value);
+}
+
+function formatTemplateCalculation(calculation: string, documentValue: number, estimatedTax: number, estimatedGrandTotal: number) {
+  const normalized = calculation.toLowerCase();
+  if (normalized.includes("amount in words")) return "Auto";
+  if (normalized.includes("cgst") || normalized.includes("sgst")) return formatCurrency(estimatedTax / 2);
+  if (normalized.includes("igst") || normalized.includes("tax")) return formatCurrency(estimatedTax);
+  if (normalized.includes("after tax") || normalized.includes("grand") || normalized.includes("total purchase order value")) {
+    return formatCurrency(estimatedGrandTotal);
+  }
+  if (normalized.includes("before tax") || normalized.includes("basic") || normalized.includes("item total")) {
+    return formatCurrency(documentValue);
+  }
+  return "-";
 }
 
 function formatDate(value?: string | null) {
@@ -82,6 +206,28 @@ function newQuote(vendorId = "", amount = ""): VendorQuoteDraft {
     leadTimeDays: "",
     paymentTerms: "",
     remarks: "",
+  };
+}
+
+function createLineItemDraft(item?: PurchaseRequisition["items"][number] | null): PoLineItemDraft {
+  const quantity = item?.quantity ?? 1;
+  const unitPrice = item?.estimatedUnitPrice ?? 0;
+  return {
+    id: item?.id ?? crypto.randomUUID(),
+    productName: item?.productName ?? "",
+    sku: item?.sku ?? "",
+    category: item?.category ?? "",
+    unit: item?.unit ?? "Nos",
+    quantity,
+    unitPrice,
+    lineTotal: quantity * unitPrice,
+  };
+}
+
+function recalculateLineItem(item: PoLineItemDraft): PoLineItemDraft {
+  return {
+    ...item,
+    lineTotal: Number(item.quantity || 0) * Number(item.unitPrice || 0),
   };
 }
 
@@ -124,8 +270,11 @@ function draftDoc(
   warranty: string,
   stateCode: string,
   notes: string,
-  quote?: VendorQuoteDraft | null
+  quote?: VendorQuoteDraft | null,
+  lineItems?: PoLineItemDraft[]
 ): PurchaseOrderDocumentData {
+  const documentItems = lineItems?.length ? lineItems : requisition.items.map(createLineItemDraft);
+  const subtotal = documentItems.reduce((sum, item) => sum + item.lineTotal, 0);
   return {
     poNumber: `DRAFT-${new Date().getFullYear()}-${requisition.prNumber}`,
     poDate: orderDate,
@@ -142,17 +291,17 @@ function draftDoc(
     vendor: vendorParty(vendor),
     shipTo: SHIP_TO,
     billTo: BUYER,
-    items: requisition.items.map((item) => ({
+    items: documentItems.map((item) => ({
       id: item.id,
       description: item.productName,
       hsnOrSku: item.sku,
       quantity: item.quantity,
       unit: item.unit,
-      rate: item.estimatedUnitPrice,
+      rate: item.unitPrice,
       amount: item.lineTotal,
     })),
-    subtotal: requisition.totalAmount,
-    grandTotal: Number(quote?.quotedAmount || requisition.totalAmount),
+    subtotal,
+    grandTotal: Number(quote?.quotedAmount || subtotal),
     paymentTerms: quote?.paymentTerms,
     deliveryTerms: quote?.leadTimeDays ? `Expected lead time: ${quote.leadTimeDays} day(s)` : undefined,
     vendorQuoteNotes: quote?.remarks,
@@ -274,6 +423,7 @@ function PreviewModal({
 function CreatePurchaseOrderPanel({
   approvedRequisitions,
   vendors,
+  selectedCompany,
   purchaseRequisitionId,
   vendorId,
   orderDate,
@@ -286,6 +436,7 @@ function CreatePurchaseOrderPanel({
   stateCode,
   notes,
   vendorQuotes,
+  lineItems,
   selectedRequisition,
   selectedVendor,
   selectedQuote,
@@ -293,6 +444,7 @@ function CreatePurchaseOrderPanel({
   isCreating,
   errorMessage,
   onClose,
+  onSelectedCompanyChange,
   onPurchaseRequisitionIdChange,
   onVendorIdChange,
   onOrderDateChange,
@@ -305,11 +457,13 @@ function CreatePurchaseOrderPanel({
   onStateCodeChange,
   onNotesChange,
   onVendorQuotesChange,
+  onLineItemsChange,
   onPreview,
   onCreate,
 }: {
   approvedRequisitions: PurchaseRequisition[];
   vendors: Vendor[];
+  selectedCompany: PoTemplateCompany;
   purchaseRequisitionId: string;
   vendorId: string;
   orderDate: string;
@@ -322,6 +476,7 @@ function CreatePurchaseOrderPanel({
   stateCode: string;
   notes: string;
   vendorQuotes: VendorQuoteDraft[];
+  lineItems: PoLineItemDraft[];
   selectedRequisition: PurchaseRequisition | null;
   selectedVendor: Vendor | null;
   selectedQuote: VendorQuoteDraft | null;
@@ -329,6 +484,7 @@ function CreatePurchaseOrderPanel({
   isCreating: boolean;
   errorMessage?: string;
   onClose: () => void;
+  onSelectedCompanyChange: (value: PoTemplateCompany) => void;
   onPurchaseRequisitionIdChange: (value: string) => void;
   onVendorIdChange: (value: string) => void;
   onOrderDateChange: (value: string) => void;
@@ -341,9 +497,31 @@ function CreatePurchaseOrderPanel({
   onStateCodeChange: (value: string) => void;
   onNotesChange: (value: string) => void;
   onVendorQuotesChange: (value: VendorQuoteDraft[]) => void;
+  onLineItemsChange: (value: PoLineItemDraft[]) => void;
   onPreview: () => void;
   onCreate: () => void;
 }) {
+  const template = PO_TEMPLATE_CONFIGS[selectedCompany];
+  const lineItemsValue = lineItems.reduce((sum, item) => sum + item.lineTotal, 0);
+  const documentValue = selectedQuote?.quotedAmount ? Number(selectedQuote.quotedAmount) : lineItemsValue || (selectedRequisition?.totalAmount ?? 0);
+  const estimatedTax = documentValue * 0.18;
+  const estimatedGrandTotal = documentValue + estimatedTax;
+
+  function updateLineItem(itemId: string, patch: Partial<PoLineItemDraft>) {
+    onLineItemsChange(
+      lineItems.map((item) => (item.id === itemId ? recalculateLineItem({ ...item, ...patch }) : item))
+    );
+  }
+
+  function moveLineItem(index: number, direction: -1 | 1) {
+    const targetIndex = index + direction;
+    if (targetIndex < 0 || targetIndex >= lineItems.length) return;
+    const nextItems = [...lineItems];
+    const [item] = nextItems.splice(index, 1);
+    nextItems.splice(targetIndex, 0, item);
+    onLineItemsChange(nextItems);
+  }
+
   return (
     <div className="fixed inset-0 z-40">
       <div className="absolute inset-0 bg-slate-950/30 backdrop-blur-[1px]" onClick={onClose} />
@@ -384,6 +562,55 @@ function CreatePurchaseOrderPanel({
         </div>
 
         <div className="flex-1 space-y-6 overflow-y-auto px-6 py-6">
+          <section className="rounded-3xl border border-slate-200 bg-slate-50/80 p-5">
+            <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-600">Company Template</p>
+                <h3 className="mt-2 text-lg font-semibold text-slate-900">{template.companyName}</h3>
+                <p className="mt-1 text-sm text-slate-500">Loaded from {template.templateSource}</p>
+                <div className="mt-3 space-y-1 text-xs leading-5 text-slate-500">
+                  {template.companyInfo.map((line) => (
+                    <p key={line}>{line}</p>
+                  ))}
+                </div>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {(Object.keys(PO_TEMPLATE_CONFIGS) as PoTemplateCompany[]).map((companyCode) => {
+                  const company = PO_TEMPLATE_CONFIGS[companyCode];
+                  const active = selectedCompany === companyCode;
+                  return (
+                    <button
+                      key={companyCode}
+                      type="button"
+                      onClick={() => onSelectedCompanyChange(companyCode)}
+                      className={`rounded-2xl border px-4 py-3 text-left transition ${
+                        active ? "border-blue-500 bg-white shadow-sm ring-2 ring-blue-100" : "border-slate-200 bg-white/70 hover:bg-white"
+                      }`}
+                    >
+                      <span className="block text-sm font-semibold text-slate-900">{companyCode}</span>
+                      <span className="mt-1 block text-xs text-slate-500">{company.companyName}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {template.sections.map((section) => (
+                <div key={section.title} className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                  <p className="text-sm font-semibold text-slate-900">{section.title}</p>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {section.fields.map((field) => (
+                      <span key={field} className="rounded-full bg-slate-100 px-2 py-1 text-[11px] font-medium text-slate-600">
+                        {field}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+
           <section className="grid gap-4 md:grid-cols-2">
             <P2PFormField label="Approved Requisition" hint="POs can only be issued from approved PRs.">
               <div className="relative">
@@ -624,6 +851,117 @@ function CreatePurchaseOrderPanel({
             )}
           </section>
 
+          <section className="rounded-2xl border border-slate-200 bg-white p-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-semibold text-slate-900">Line Item Details</h3>
+                <p className="text-xs text-slate-500">Columns change based on the selected {selectedCompany} PO template.</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  disabled={!selectedRequisition}
+                  onClick={() => onLineItemsChange([...lineItems, createLineItemDraft(null)])}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  Add Item
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-4 overflow-x-auto rounded-2xl border border-slate-200">
+              <table className="min-w-full divide-y divide-slate-200 text-sm">
+                <thead className="bg-slate-50">
+                  <tr>
+                    {template.itemColumns.map((column) => (
+                      <th key={column.key} className="whitespace-nowrap px-3 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                        {column.label}
+                      </th>
+                    ))}
+                    <th className="px-3 py-2.5 text-right text-[11px] font-semibold uppercase tracking-wide text-slate-500">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 bg-white">
+                  {lineItems.length ? (
+                    lineItems.map((item, index) => (
+                      <tr key={item.id}>
+                        {template.itemColumns.map((column) => {
+                          const isTextField = column.key === "description" || column.key === "make" || column.key === "hsn" || column.key === "uom";
+                          const textValueMap: Record<string, string> = {
+                            description: item.productName,
+                            make: item.category,
+                            hsn: item.sku,
+                            uom: item.unit,
+                          };
+                          return (
+                            <td key={column.key} className="min-w-[120px] px-3 py-3 text-slate-700">
+                              {column.key === "serial" ? (
+                                <span className="text-sm font-semibold text-slate-500">{index + 1}</span>
+                              ) : isTextField ? (
+                                <input
+                                  value={textValueMap[column.key] ?? ""}
+                                  onChange={(event) =>
+                                    updateLineItem(
+                                      item.id,
+                                      column.key === "description"
+                                        ? { productName: event.target.value }
+                                        : column.key === "make"
+                                          ? { category: event.target.value }
+                                          : column.key === "hsn"
+                                            ? { sku: event.target.value }
+                                            : { unit: event.target.value }
+                                    )
+                                  }
+                                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-400"
+                                />
+                              ) : column.key === "quantity" || column.key === "rate" ? (
+                                <input
+                                  type="number"
+                                  min={0}
+                                  step="0.01"
+                                  value={column.key === "quantity" ? item.quantity : item.unitPrice}
+                                  onChange={(event) =>
+                                    updateLineItem(
+                                      item.id,
+                                      column.key === "quantity"
+                                        ? { quantity: Number(event.target.value) }
+                                        : { unitPrice: Number(event.target.value) }
+                                    )
+                                  }
+                                  className="w-28 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-400"
+                                />
+                              ) : (
+                                <span className="whitespace-nowrap text-sm font-semibold text-slate-900">
+                                  {formatPlain(item.lineTotal)}
+                                </span>
+                              )}
+                            </td>
+                          );
+                        })}
+                        <td className="whitespace-nowrap px-3 py-3 text-right">
+                          <button type="button" onClick={() => moveLineItem(index, -1)} disabled={index === 0} className="mr-2 text-xs font-semibold text-slate-600 disabled:opacity-30">
+                            Up
+                          </button>
+                          <button type="button" onClick={() => moveLineItem(index, 1)} disabled={index === lineItems.length - 1} className="mr-2 text-xs font-semibold text-slate-600 disabled:opacity-30">
+                            Down
+                          </button>
+                          <button type="button" onClick={() => onLineItemsChange(lineItems.filter((entry) => entry.id !== item.id))} className="text-xs font-semibold text-rose-600">Delete</button>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={template.itemColumns.length + 1} className="px-4 py-10 text-center text-sm text-slate-500">
+                        Select an approved requisition to load line items.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
           <section className="grid gap-4 md:grid-cols-2">
             <P2PFormField label="PO Date" hint="Commercial order date.">
               <div className="relative">
@@ -706,6 +1044,58 @@ function CreatePurchaseOrderPanel({
             </div>
           </section>
 
+          <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+            <div className="rounded-2xl border border-slate-200 bg-white p-5">
+              <p className="text-sm font-semibold text-slate-900">Terms and Conditions</p>
+              <p className="mt-1 text-xs text-slate-500">Loaded from the selected company template and editable through notes before generation.</p>
+              <div className="mt-4 space-y-2">
+                {template.terms.map((term, index) => (
+                  <div key={`${selectedCompany}-term-${index}`} className="flex gap-3 rounded-2xl border border-slate-100 bg-slate-50 px-3 py-2.5">
+                    <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-white text-xs font-semibold text-slate-500">{index + 1}</span>
+                    <p className="text-sm leading-5 text-slate-600">{term}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="rounded-2xl border border-slate-200 bg-white p-5">
+                <p className="text-sm font-semibold text-slate-900">Tax and Charges</p>
+                <div className="mt-4 space-y-2 text-sm">
+                  {template.calculations.map((calculation) => (
+                    <div key={calculation} className="flex items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-2">
+                      <span className="text-slate-500">{calculation}</span>
+                      <span className="font-semibold text-slate-900">
+                        {formatTemplateCalculation(calculation, documentValue, estimatedTax, estimatedGrandTotal)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-blue-100 bg-blue-50 p-5">
+                <p className="text-sm font-semibold text-slate-900">Approval Workflow</p>
+                <div className="mt-4 space-y-2">
+                  {template.approvalWorkflow.map((step, index) => (
+                    <div key={step} className="flex items-center gap-3 text-sm text-slate-600">
+                      <span className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold ${index === 0 ? "bg-blue-600 text-white" : "bg-white text-slate-500"}`}>
+                        {index + 1}
+                      </span>
+                      {step}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5">
+                <p className="text-sm font-semibold text-slate-900">PDF Preview</p>
+                <p className="mt-2 text-sm leading-5 text-slate-600">
+                  Preview uses the current PO document renderer and marks the selected template. Exact Excel-match PDF rendering can now be built against this configuration.
+                </p>
+              </div>
+            </div>
+          </section>
+
           <section className="grid gap-4 md:grid-cols-2">
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Selected Requisition</p>
@@ -764,9 +1154,7 @@ function CreatePurchaseOrderPanel({
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Document Value</p>
               <p className="mt-1 text-lg font-semibold text-slate-900">
-                {selectedQuote?.quotedAmount
-                  ? formatCurrency(Number(selectedQuote.quotedAmount))
-                  : formatCurrency(selectedRequisition?.totalAmount ?? 0)}
+                {formatCurrency(documentValue)}
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-3">
@@ -940,6 +1328,7 @@ export default function P2PPurchaseOrderPage() {
   const { data: vendors = [] } = useVendors();
   const createPurchaseOrder = useCreatePurchaseOrder();
 
+  const [selectedCompany, setSelectedCompany] = useState<PoTemplateCompany>("ACS");
   const [purchaseRequisitionId, setPurchaseRequisitionId] = useState("");
   const [vendorId, setVendorId] = useState("");
   const [orderDate, setOrderDate] = useState(new Date().toISOString().slice(0, 10));
@@ -952,6 +1341,7 @@ export default function P2PPurchaseOrderPage() {
   const [stateCode, setStateCode] = useState(BUYER.gst);
   const [notes, setNotes] = useState("");
   const [vendorQuotes, setVendorQuotes] = useState<VendorQuoteDraft[]>([]);
+  const [poLineItems, setPoLineItems] = useState<PoLineItemDraft[]>([]);
   const [preview, setPreview] = useState<{ title: string; data: PurchaseOrderDocumentData } | null>(null);
   const [isCreatePanelOpen, setIsCreatePanelOpen] = useState(false);
   const [selectedPurchaseOrderId, setSelectedPurchaseOrderId] = useState<string | null>(null);
@@ -968,26 +1358,31 @@ export default function P2PPurchaseOrderPage() {
   const selectedOrder = purchaseOrders.find((order) => order.id === selectedPurchaseOrderId) ?? null;
 
   useEffect(() => {
-    if (!selectedRequisition) {
-      setVendorQuotes([]);
-      setVendorId("");
-      return;
-    }
+    Promise.resolve().then(() => {
+      if (!selectedRequisition) {
+        setVendorQuotes([]);
+        setVendorId("");
+        setPoLineItems([]);
+        return;
+      }
 
-    setVendorQuotes((current) =>
-      current.length
-        ? current
-        : [
-            newQuote(
-              selectedRequisition.negotiationVendorId ?? "",
-              String(selectedRequisition.negotiatedAmount ?? selectedRequisition.totalAmount)
-            ),
-          ]
-    );
+      setPoLineItems(selectedRequisition.items.map(createLineItemDraft));
 
-    if (selectedRequisition.negotiationVendorId) {
-      setVendorId(selectedRequisition.negotiationVendorId);
-    }
+      setVendorQuotes((current) =>
+        current.length
+          ? current
+          : [
+              newQuote(
+                selectedRequisition.negotiationVendorId ?? "",
+                String(selectedRequisition.negotiatedAmount ?? selectedRequisition.totalAmount)
+              ),
+            ]
+      );
+
+      if (selectedRequisition.negotiationVendorId) {
+        setVendorId(selectedRequisition.negotiationVendorId);
+      }
+    });
   }, [selectedRequisition]);
 
   const queueStats = useMemo(() => {
@@ -1034,6 +1429,7 @@ export default function P2PPurchaseOrderPage() {
   }, [purchaseOrders, queueFilter, queueSearch]);
 
   function resetCreateForm() {
+    setSelectedCompany("ACS");
     setPurchaseRequisitionId("");
     setVendorId("");
     setExpectedDeliveryDate("");
@@ -1045,12 +1441,13 @@ export default function P2PPurchaseOrderPage() {
     setStateCode(BUYER.gst);
     setNotes("");
     setVendorQuotes([]);
+    setPoLineItems([]);
   }
 
   function handlePreviewDraft() {
     if (!selectedRequisition) return;
     setPreview({
-      title: selectedRequisition.prNumber,
+      title: `${selectedCompany} - ${selectedRequisition.prNumber}`,
       data: draftDoc(
         selectedRequisition,
         selectedVendor,
@@ -1063,7 +1460,8 @@ export default function P2PPurchaseOrderPage() {
         warranty,
         stateCode,
         notes,
-        selectedQuote
+        selectedQuote,
+        poLineItems
       ),
     });
   }
@@ -1244,6 +1642,7 @@ export default function P2PPurchaseOrderPage() {
         <CreatePurchaseOrderPanel
           approvedRequisitions={approvedRequisitions}
           vendors={vendors}
+          selectedCompany={selectedCompany}
           purchaseRequisitionId={purchaseRequisitionId}
           vendorId={vendorId}
           orderDate={orderDate}
@@ -1256,6 +1655,7 @@ export default function P2PPurchaseOrderPage() {
           stateCode={stateCode}
           notes={notes}
           vendorQuotes={vendorQuotes}
+          lineItems={poLineItems}
           selectedRequisition={selectedRequisition}
           selectedVendor={selectedVendor}
           selectedQuote={selectedQuote}
@@ -1268,6 +1668,7 @@ export default function P2PPurchaseOrderPage() {
               resetCreateForm();
             }
           }}
+          onSelectedCompanyChange={setSelectedCompany}
           onPurchaseRequisitionIdChange={setPurchaseRequisitionId}
           onVendorIdChange={setVendorId}
           onOrderDateChange={setOrderDate}
@@ -1280,6 +1681,7 @@ export default function P2PPurchaseOrderPage() {
           onStateCodeChange={setStateCode}
           onNotesChange={setNotes}
           onVendorQuotesChange={setVendorQuotes}
+          onLineItemsChange={setPoLineItems}
           onPreview={handlePreviewDraft}
           onCreate={handleCreatePurchaseOrder}
         />

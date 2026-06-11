@@ -1,3 +1,6 @@
+x-java-env: &java-env
+  JAVA_TOOL_OPTIONS: "${JAVA_TOOL_OPTIONS:--Xms64m -Xmx256m -XX:MaxMetaspaceSize=160m -XX:ReservedCodeCacheSize=64m -XX:+ExitOnOutOfMemoryError}"
+
 services:
   frontend:
     build:
@@ -147,6 +150,7 @@ services:
         MODULE_PATH: platform/eureka-server
     restart: unless-stopped
     environment:
+      <<: *java-env
       SERVER_PORT: "8761"
     ports:
       - "8765:8761"
@@ -174,6 +178,7 @@ services:
       eureka-server:
         condition: service_healthy
     environment:
+      <<: *java-env
       SERVER_PORT: "8081"
       EUREKA_SERVER_URL: http://eureka-server:8761/eureka/
       FRONTEND_ORIGIN: https://fawnixverse.acstechnologies.co.in
@@ -217,6 +222,7 @@ services:
       speech-to-text-service:
         condition: service_started
     environment:
+      <<: *java-env
       SERVER_PORT: "8082"
       EUREKA_SERVER_URL: http://eureka-server:8761/eureka/
       JWT_SECRET: ${JWT_SECRET:-change-this-local-dev-secret-change-this-local-dev-secret}
@@ -296,6 +302,7 @@ services:
       eureka-server:
         condition: service_healthy
     environment:
+      <<: *java-env
       SERVER_PORT: "8083"
       EUREKA_SERVER_URL: http://eureka-server:8761/eureka/
       INVENTORY_DB_URL: jdbc:postgresql://postgres:5432/fawnix_inventory
@@ -325,6 +332,7 @@ services:
       eureka-server:
         condition: service_healthy
     environment:
+      <<: *java-env
       SERVER_PORT: "8084"
       EUREKA_SERVER_URL: http://eureka-server:8761/eureka/
       HRMS_DB_URL: jdbc:postgresql://postgres:5432/fawnix_hrms
@@ -354,6 +362,7 @@ services:
       eureka-server:
         condition: service_healthy
     environment:
+      <<: *java-env
       SERVER_PORT: "8085"
       EUREKA_SERVER_URL: http://eureka-server:8761/eureka/
       SALES_DB_URL: jdbc:postgresql://postgres:5432/fawnix_sales
@@ -387,6 +396,7 @@ services:
       inventory-service:
         condition: service_healthy
     environment:
+      <<: *java-env
       SERVER_PORT: "8093"
       EUREKA_SERVER_URL: http://eureka-server:8761/eureka/
       JWT_SECRET: ${JWT_SECRET:-change-this-local-dev-secret-change-this-local-dev-secret}
@@ -420,6 +430,7 @@ services:
       eureka-server:
         condition: service_healthy
     environment:
+      <<: *java-env
       SERVER_PORT: "8094"
       EUREKA_SERVER_URL: http://eureka-server:8761/eureka/
       JWT_SECRET: ${JWT_SECRET:-change-this-local-dev-secret-change-this-local-dev-secret}
@@ -469,6 +480,7 @@ services:
       task-service:
         condition: service_healthy
     environment:
+      <<: *java-env
       SERVER_PORT: "8080"
       EUREKA_SERVER_URL: http://eureka-server:8761/eureka/
       FRONTEND_ORIGINS: http://localhost:5173,http://127.0.0.1:5173,https://fawnixverse.acstechnologies.co.in,http://54.76.187.129,http://54.76.187.129:5173,https://54.76.187.129,http://108.131.209.156,http://108.131.209.156:5173,https://108.131.209.156
