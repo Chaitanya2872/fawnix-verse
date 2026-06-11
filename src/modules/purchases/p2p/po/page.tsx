@@ -17,7 +17,7 @@ import {
   X,
 } from "lucide-react";
 import { PurchaseOrderDocument, type PurchaseOrderDocumentData } from "@/modules/purchases/PurchaseOrderDocument";
-import { useCreatePurchaseOrder, usePurchaseOrders, usePurchaseRequisitions, useVendors } from "@/modules/purchases/hooks";
+import { usePurchaseOrders, usePurchaseRequisitions, useVendors } from "@/modules/purchases/hooks";
 import type { PurchaseOrder, PurchaseOrderStatus, PurchaseRequisition, Vendor } from "@/modules/purchases/types";
 import { P2PCard, P2PFormField, P2PLayout, P2PStatusBadge, P2PTable } from "../components";
 
@@ -36,17 +36,25 @@ type PoDraftDetails = {
   vendorName: string;
   vendorAddress: string;
   vendorGst: string;
+  vendorPan: string;
+  vendorContactName: string;
+  vendorContactNumber: string;
   contactName: string;
   contactNumber: string;
   mailId: string;
   referenceDate: string;
   shippingAddress: string;
+  insuranceAmount: string;
   preparedBy: string;
   status: string;
   approvalInformation: string;
 };
 
+type PoTemplate = "ACS" | "IOTIQ";
+
 const IOTIQ_TAX_RATE = 0.18;
+const ACS_TAX_RATE = 0.09;
+const ACS_DEFAULT_INSURANCE = 3221;
 
 const IOTIQ_COMPANY = {
   name: "IOTIQ Innovations Private Limited",
@@ -79,7 +87,77 @@ const IOTIQ_TERMS = [
   { title: "Warranty", body: "As per OEM." },
 ];
 
-const BUYER = {
+const ACS_COMPANY = {
+  name: "ACS Technologies Limited",
+  addressLines: [
+    "1st Floor, Building, Opp: District Vikalang Puranaravas Kendra,",
+    "Kalyanapura Road, Near Anas River, Rangapura",
+    "Badkuwa, Jhabua, Madhya Pradesh, 457661",
+  ],
+  cin: "CIN :   L62099TG1993PLC015268",
+  gst: "GSTIN.No-23AAACL4102B1ZI",
+};
+
+const ACS_TERMS = [
+  {
+    title: "Delivery Schedule",
+    body: "Within 04-06 weeks from the date of receipt of approved documents along with MFC/RDSO Call Letter. Delay in delivery will attract LD charges of 1% per week to maximum 5% of contract value.",
+  },
+  {
+    title: "Price Basis",
+    body: "FOR Site Basis. The given prices are firm and no escalation is allowed during the period of order.",
+  },
+  { title: "Duties, Octroi & Cess", body: "Inclusive" },
+  { title: "Taxes", body: "As mentioned above" },
+  { title: "Payment terms", body: "1 Crore Advance against the PO acceptance and remaining in 15 Days" },
+  { title: "Inspection", body: "Third party Inspection( RITES/RDSO) call shall be raised by M/s. SANNVERSE ALTIS JV" },
+  {
+    title: "Material Quality",
+    body: "Consequences of Deviation: If the supplied material fails to meet the required RDSO standards, if any short fall of the document it will be rejected. All expenses arising due to such deviation including inspection charges, administrative overheads, transportation charges, etc. will be debited to the account of M/s. SANVERSE. Replacement of rejected material must be immediate and treated as priority.",
+  },
+  {
+    title: "Billing Address",
+    body: "M/s.ACS TECHNOLOGIES LIMITED. 1st Floor, Building, Opp: District Vikalang Puranaravas Kendra, Kalyanapura Road, Near Anas River, Rangapura, Badkuwa, Jhabua, Madhya Pradesh, 457661. GST No: 23AAACL4102B1ZI",
+  },
+  {
+    title: "Consignee Name & Delivery Address",
+    body: "M/s. SANNVERSE ALTIS JV. C/O Pati Kallu, 730, Ghoradongri,Sarni road, Betul Madhya Pradesh-460443. Contact Person - Mrityunjay Singh - 9835058603. GST No: 23ACJAS5308K1Z9",
+  },
+  { title: "Test Certificates", body: "Vendor shall dispatch the materials up on receipt dispatch clearance from M/s. SANNVERSE ALTIS JV." },
+  {
+    title: "Documents required",
+    body: "Original Tax Invoice, LR copy, Delivery Challan, and MTC are required for bill booking and payment. Soft copy shall be mailed to info@sasiottechnologies.com.",
+  },
+  {
+    title: "Dispatch Clearence",
+    body: "Vendor shall dispatch the materials up on receipt dispatch clearance from M/s. SANNVERSE ALTIS JV/M/s. ACS TECHNOLOGIES LIMITED.",
+  },
+  { title: "Warranty", body: "30 Months from the date of dispatch or 24 months from date of comissioning of material whichever is earlier." },
+  {
+    title: "TCS",
+    body: "TCS Under Section 206C (1H) Of the Income Tax Act,1961, on sale Of goods Will be collected As per Application Law.",
+  },
+  { title: "Compliance to specification", body: "You shall comply with the agreed specifications" },
+  {
+    title: "Force majeure",
+    body: "Neither supplier nor buyer shall be considered in default in performance of contractual obligations as long as performance is prevented or delayed by force majeure conditions notified within one week with supporting documents.",
+  },
+  {
+    title: "Termination of order on default",
+    body: "If the supplier fails to deliver the goods within the time period specified or fails any obligation under the Purchase Order, the Buyer may terminate the order after fifteen days' notice of default.",
+  },
+  {
+    title: "Arbitration and Jurisdiction",
+    body: "Any dispute or differences arising out of the Purchase Order shall be referred to arbitration in accordance with the Arbitration and conciliation Act 1996. Area of jurisdiction shall be Hyderabad, India.",
+  },
+];
+
+const PO_TEMPLATE_OPTIONS: Array<{ code: PoTemplate; label: string; companyName: string; accent: string }> = [
+  { code: "ACS", label: "ACS", companyName: ACS_COMPANY.name, accent: "border-emerald-500 bg-emerald-50 text-emerald-700" },
+  { code: "IOTIQ", label: "IOTIQ", companyName: IOTIQ_COMPANY.name, accent: "border-blue-500 bg-blue-50 text-blue-700" },
+];
+
+const IOTIQ_BUYER = {
   name: IOTIQ_COMPANY.name,
   addressLines: IOTIQ_COMPANY.addressLines,
   gst: IOTIQ_COMPANY.gst,
@@ -87,7 +165,15 @@ const BUYER = {
   contactNumber: IOTIQ_BILLING.contactNumber,
 };
 
-const SHIP_TO = { ...BUYER, contactName: "Warehouse Operations" };
+const ACS_BUYER = {
+  name: ACS_COMPANY.name,
+  addressLines: ACS_COMPANY.addressLines,
+  gst: ACS_COMPANY.gst,
+  contactName: "Mrs. Siva Kumari",
+  contactNumber: "9848106345",
+};
+
+const SHIP_TO = { ...IOTIQ_BUYER, contactName: "Warehouse Operations" };
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("en-IN", {
@@ -224,23 +310,36 @@ function vendorAddressText(vendor?: Vendor | null) {
     .join("\n");
 }
 
-function createDefaultPoDraftDetails(vendor?: Vendor | null): PoDraftDetails {
+function createDefaultPoDraftDetails(template: PoTemplate = "IOTIQ", vendor?: Vendor | null): PoDraftDetails {
   return {
     vendorName: vendor?.vendorName ?? "",
     vendorAddress: vendorAddressText(vendor),
     vendorGst: vendor?.taxIdentifier ?? "",
+    vendorPan: "",
+    vendorContactName: vendor?.vendorName ?? "",
+    vendorContactNumber: vendor?.phone ?? "",
     contactName: "",
     contactNumber: "",
     mailId: "",
     referenceDate: new Date().toISOString().slice(0, 10),
-    shippingAddress: IOTIQ_COMPANY.addressLines.join("\n"),
+    shippingAddress:
+      template === "ACS"
+        ? "M/s. SANNVERSE ALTIS JV.\nC/O Pati Kallu, 730, Ghoradongri,Sarni road,\nBetul Madhya Pradesh-460443\nContact Person - Mrityunjay Singh - 9835058603\nGST No: 23ACJAS5308K1Z9"
+        : IOTIQ_COMPANY.addressLines.join("\n"),
+    insuranceAmount: String(template === "ACS" ? ACS_DEFAULT_INSURANCE : 0),
     preparedBy: "Logged-in User",
     status: "Draft",
     approvalInformation: "Pending approval",
   };
 }
 
-function draftPoNumber(requisition?: PurchaseRequisition | null) {
+function financialYearCode(date = new Date()) {
+  const startYear = date.getMonth() >= 3 ? date.getFullYear() : date.getFullYear() - 1;
+  return `${String(startYear).slice(-2)}-${String(startYear + 1).slice(-2)}`;
+}
+
+function draftPoNumber(requisition?: PurchaseRequisition | null, template: PoTemplate = "IOTIQ") {
+  if (template === "ACS") return `ACS/${financialYearCode()}/${requisition?.prNumber ?? "DRAFT"}`;
   return `DRAFT-${new Date().getFullYear()}-${requisition?.prNumber ?? "PO"}`;
 }
 
@@ -279,6 +378,7 @@ function vendorParty(vendor?: Vendor | null) {
 }
 
 function draftDoc(
+  template: PoTemplate,
   requisition: PurchaseRequisition,
   vendor: Vendor | null | undefined,
   orderDate: string,
@@ -289,14 +389,17 @@ function draftDoc(
 ): PurchaseOrderDocumentData {
   const documentItems = lineItems?.length ? lineItems : requisition.items.map(createLineItemDraft);
   const subtotal = documentItems.reduce((sum, item) => sum + item.lineTotal, 0);
-  const igstAmount = subtotal * IOTIQ_TAX_RATE;
-  const cgstAmount = 0;
-  const sgstAmount = 0;
-  const grandTotal = subtotal + igstAmount + cgstAmount + sgstAmount;
+  const insuranceAmount = template === "ACS" ? Number(details.insuranceAmount || ACS_DEFAULT_INSURANCE) : 0;
+  const igstAmount = template === "IOTIQ" ? subtotal * IOTIQ_TAX_RATE : 0;
+  const cgstAmount = template === "ACS" ? subtotal * ACS_TAX_RATE : 0;
+  const sgstAmount = template === "ACS" ? subtotal * ACS_TAX_RATE : 0;
+  const grandTotal = subtotal + igstAmount + cgstAmount + sgstAmount + insuranceAmount;
   const fallbackVendor = vendorParty(vendor);
+  const buyer = template === "ACS" ? ACS_BUYER : IOTIQ_BUYER;
+  const company = template === "ACS" ? ACS_COMPANY : IOTIQ_COMPANY;
   return {
-    template: "IOTIQ",
-    poNumber: draftPoNumber(requisition),
+    template,
+    poNumber: draftPoNumber(requisition, template),
     poDate: orderDate,
     project,
     requisitionNumber: requisition.prNumber,
@@ -308,21 +411,23 @@ function draftDoc(
     contactName: details.contactName,
     contactNumber: details.contactNumber,
     mailId: details.mailId,
-    stateCode: IOTIQ_COMPANY.gst,
-    companyCin: IOTIQ_COMPANY.cin,
-    buyer: BUYER,
+    vendorPan: details.vendorPan,
+    stateCode: company.gst,
+    companyCin: company.cin,
+    buyer,
     vendor: {
       name: details.vendorName.trim() || fallbackVendor.name,
       addressLines: splitAddressLines(details.vendorAddress, fallbackVendor.addressLines),
       gst: details.vendorGst.trim() || fallbackVendor.gst,
-      contactName: details.contactName,
-      contactNumber: details.contactNumber,
+      pan: details.vendorPan,
+      contactName: template === "ACS" ? details.vendorContactName : details.contactName,
+      contactNumber: template === "ACS" ? details.vendorContactNumber : details.contactNumber,
     },
     shipTo: {
       name: "Shipping Address Details",
-      addressLines: splitAddressLines(details.shippingAddress, IOTIQ_COMPANY.addressLines),
+      addressLines: splitAddressLines(details.shippingAddress, company.addressLines),
     },
-    billTo: IOTIQ_BILLING,
+    billTo: template === "ACS" ? ACS_BUYER : IOTIQ_BILLING,
     items: documentItems.map((item) => ({
       id: item.id,
       description: item.productName,
@@ -337,9 +442,14 @@ function draftDoc(
     igstAmount,
     cgstAmount,
     sgstAmount,
+    insuranceAmount,
     grandTotal,
     amountInWords: numberToIndianWords(grandTotal),
-    terms: IOTIQ_TERMS,
+    terms: template === "ACS" ? ACS_TERMS : IOTIQ_TERMS,
+    importantNote:
+      template === "ACS"
+        ? "Important Notes: On account of wrong selection of HSN code & Tax portion in the Invoice and correction at the later stage, differential amount will be collected/ returned."
+        : undefined,
     internalNotes: requisition.purpose || undefined,
   };
 }
@@ -358,7 +468,7 @@ function orderDoc(order: PurchaseOrder): PurchaseOrderDocumentData {
     approvalInformation: order.status === "RECEIVED" ? "Received" : "Issued from approved requisition",
     stateCode: IOTIQ_COMPANY.gst,
     companyCin: IOTIQ_COMPANY.cin,
-    buyer: BUYER,
+    buyer: IOTIQ_BUYER,
     vendor: vendorParty(order.vendor),
     shipTo: SHIP_TO,
     billTo: IOTIQ_BILLING,
@@ -465,6 +575,7 @@ function PreviewModal({
 function CreatePurchaseOrderPanel({
   approvedRequisitions,
   vendors,
+  selectedTemplate,
   purchaseRequisitionId,
   vendorId,
   orderDate,
@@ -474,9 +585,8 @@ function CreatePurchaseOrderPanel({
   lineItems,
   selectedRequisition,
   selectedVendor,
-  isCreating,
-  errorMessage,
   onClose,
+  onSelectedTemplateChange,
   onPurchaseRequisitionIdChange,
   onVendorIdChange,
   onOrderDateChange,
@@ -484,11 +594,11 @@ function CreatePurchaseOrderPanel({
   onVendorQuoteReferenceChange,
   onPoDraftDetailsChange,
   onLineItemsChange,
-  onPreview,
-  onCreate,
+  onGenerate,
 }: {
   approvedRequisitions: PurchaseRequisition[];
   vendors: Vendor[];
+  selectedTemplate: PoTemplate;
   purchaseRequisitionId: string;
   vendorId: string;
   orderDate: string;
@@ -498,9 +608,8 @@ function CreatePurchaseOrderPanel({
   lineItems: PoLineItemDraft[];
   selectedRequisition: PurchaseRequisition | null;
   selectedVendor: Vendor | null;
-  isCreating: boolean;
-  errorMessage?: string;
   onClose: () => void;
+  onSelectedTemplateChange: (value: PoTemplate) => void;
   onPurchaseRequisitionIdChange: (value: string) => void;
   onVendorIdChange: (value: string) => void;
   onOrderDateChange: (value: string) => void;
@@ -508,24 +617,28 @@ function CreatePurchaseOrderPanel({
   onVendorQuoteReferenceChange: (value: string) => void;
   onPoDraftDetailsChange: (value: PoDraftDetails) => void;
   onLineItemsChange: (value: PoLineItemDraft[]) => void;
-  onPreview: () => void;
-  onCreate: () => void;
+  onGenerate: () => void;
 }) {
   const [showValidation, setShowValidation] = useState(false);
   const [draftSavedAt, setDraftSavedAt] = useState<string | null>(null);
+  const company = selectedTemplate === "ACS" ? ACS_COMPANY : IOTIQ_COMPANY;
+  const billing = selectedTemplate === "ACS" ? ACS_BUYER : IOTIQ_BILLING;
+  const terms = selectedTemplate === "ACS" ? ACS_TERMS : IOTIQ_TERMS;
   const basicValue = lineItems.reduce((sum, item) => sum + item.lineTotal, 0);
-  const igstAmount = basicValue * IOTIQ_TAX_RATE;
-  const cgstAmount = 0;
-  const sgstAmount = 0;
-  const totalPurchaseOrderValue = basicValue + igstAmount + cgstAmount + sgstAmount;
+  const igstAmount = selectedTemplate === "IOTIQ" ? basicValue * IOTIQ_TAX_RATE : 0;
+  const cgstAmount = selectedTemplate === "ACS" ? basicValue * ACS_TAX_RATE : 0;
+  const sgstAmount = selectedTemplate === "ACS" ? basicValue * ACS_TAX_RATE : 0;
+  const insuranceAmount = selectedTemplate === "ACS" ? Number(poDraftDetails.insuranceAmount || ACS_DEFAULT_INSURANCE) : 0;
+  const totalPurchaseOrderValue = basicValue + igstAmount + cgstAmount + sgstAmount + insuranceAmount;
   const amountInWords = numberToIndianWords(totalPurchaseOrderValue);
-  const poNumber = draftPoNumber(selectedRequisition);
+  const poNumber = draftPoNumber(selectedRequisition, selectedTemplate);
+  const requiresMake = selectedTemplate === "IOTIQ";
   const hasInvalidLineItems =
     lineItems.length === 0 ||
     lineItems.some(
       (item) =>
         !item.productName.trim() ||
-        !item.category.trim() ||
+        (requiresMake && !item.category.trim()) ||
         !item.sku.trim() ||
         !item.unit.trim() ||
         Number(item.quantity) <= 0 ||
@@ -537,17 +650,20 @@ function CreatePurchaseOrderPanel({
     !poDraftDetails.vendorName.trim() ? "Vendor Name" : "",
     !poDraftDetails.vendorAddress.trim() ? "Vendor Address" : "",
     !poDraftDetails.vendorGst.trim() ? "Vendor GST Number" : "",
+    selectedTemplate === "ACS" && !poDraftDetails.vendorPan.trim() ? "Vendor PAN" : "",
+    selectedTemplate === "ACS" && !poDraftDetails.vendorContactName.trim() ? "Vendor Contact Name" : "",
+    selectedTemplate === "ACS" && !poDraftDetails.vendorContactNumber.trim() ? "Vendor Contact Number" : "",
     !orderDate ? "PO Date" : "",
     !project.trim() ? "Project" : "",
     !poDraftDetails.contactName.trim() ? "Contact Name" : "",
     !poDraftDetails.contactNumber.trim() ? "Contact Number" : "",
-    !poDraftDetails.mailId.trim() ? "Mail ID" : "",
-    !vendorQuoteReference.trim() ? "Vendor PI / Quote Number" : "",
-    !poDraftDetails.referenceDate ? "Reference Date" : "",
-    !poDraftDetails.shippingAddress.trim() ? "Shipping Address Details" : "",
+    selectedTemplate === "IOTIQ" && !poDraftDetails.mailId.trim() ? "Mail ID" : "",
+    !vendorQuoteReference.trim() ? (selectedTemplate === "ACS" ? "Reference" : "Vendor PI / Quote Number") : "",
+    selectedTemplate === "IOTIQ" && !poDraftDetails.referenceDate ? "Reference Date" : "",
+    selectedTemplate === "IOTIQ" && !poDraftDetails.shippingAddress.trim() ? "Shipping Address Details" : "",
     hasInvalidLineItems ? "Complete Item Details" : "",
   ].filter(Boolean);
-  const canSubmit = missingFields.length === 0 && !isCreating;
+  const canGenerate = missingFields.length === 0;
   const sheetInputClass = "w-full border-0 bg-transparent px-2 py-1.5 text-[12px] text-slate-950 outline-none ring-0 placeholder:text-slate-400 focus:bg-amber-50";
   const sheetTextareaClass = `${sheetInputClass} min-h-[76px] resize-none leading-5`;
   const readonlyValueClass = "min-h-[30px] px-2 py-1.5 text-[12px] leading-5 text-slate-900";
@@ -565,12 +681,179 @@ function CreatePurchaseOrderPanel({
     setDraftSavedAt(new Date().toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" }));
   }
 
-  function handleSubmitForApproval() {
-    if (!canSubmit) {
+  function handleGeneratePo() {
+    if (!canGenerate) {
       setShowValidation(true);
       return;
     }
-    onCreate();
+    setShowValidation(false);
+    onGenerate();
+  }
+
+  function renderVendorDetails() {
+    return (
+      <div className="border-r-2 border-slate-950">
+        <div className="border-b border-slate-950 bg-slate-100 px-3 py-2 font-bold uppercase">Vendor Details:</div>
+        <div className="grid grid-cols-[170px_1fr] divide-y divide-slate-300">
+          <div className="border-r border-slate-300 px-3 py-2 font-semibold">Vendor Name</div>
+          <input value={poDraftDetails.vendorName} onChange={(event) => updateDraftDetail("vendorName", event.target.value)} placeholder="Enter vendor name" className={sheetInputClass} />
+          <div className="border-r border-slate-300 px-3 py-2 font-semibold">Vendor Address</div>
+          <textarea value={poDraftDetails.vendorAddress} onChange={(event) => updateDraftDetail("vendorAddress", event.target.value)} placeholder="Enter vendor address" className={sheetTextareaClass} />
+          <div className="border-r border-slate-300 px-3 py-2 font-semibold">Vendor GST Number</div>
+          <input value={poDraftDetails.vendorGst} onChange={(event) => updateDraftDetail("vendorGst", event.target.value)} placeholder="Enter vendor GST number" className={sheetInputClass} />
+          {selectedTemplate === "ACS" ? (
+            <>
+              <div className="border-r border-slate-300 px-3 py-2 font-semibold">PAN</div>
+              <input value={poDraftDetails.vendorPan} onChange={(event) => updateDraftDetail("vendorPan", event.target.value)} placeholder="Enter vendor PAN" className={sheetInputClass} />
+              <div className="border-r border-slate-300 px-3 py-2 font-semibold">Contact Name</div>
+              <input value={poDraftDetails.vendorContactName} onChange={(event) => updateDraftDetail("vendorContactName", event.target.value)} placeholder="Enter vendor contact name" className={sheetInputClass} />
+              <div className="border-r border-slate-300 px-3 py-2 font-semibold">Contact No.</div>
+              <input value={poDraftDetails.vendorContactNumber} onChange={(event) => updateDraftDetail("vendorContactNumber", event.target.value)} placeholder="Enter vendor contact number" className={sheetInputClass} />
+            </>
+          ) : null}
+        </div>
+      </div>
+    );
+  }
+
+  function renderPoDetails() {
+    return (
+      <div>
+        <div className="border-b border-slate-950 bg-slate-100 px-3 py-2 font-bold uppercase">PO Details</div>
+        <div className="grid grid-cols-[190px_1fr] divide-y divide-slate-300">
+          <div className="border-r border-slate-300 px-3 py-2 font-semibold">{selectedTemplate === "ACS" ? "PO No." : "Purchase Order Number"}</div>
+          <div className={readonlyValueClass}>{poNumber}</div>
+          <div className="border-r border-slate-300 px-3 py-2 font-semibold">PO Date</div>
+          <input type="date" value={orderDate} onChange={(event) => onOrderDateChange(event.target.value)} className={sheetInputClass} />
+          <div className="border-r border-slate-300 px-3 py-2 font-semibold">Project</div>
+          <input value={project} onChange={(event) => onProjectChange(event.target.value)} placeholder="Enter project" className={sheetInputClass} />
+          <div className="border-r border-slate-300 px-3 py-2 font-semibold">{selectedTemplate === "ACS" ? "Reference" : "Vendor PI / Quote Number"}</div>
+          <input value={vendorQuoteReference} onChange={(event) => onVendorQuoteReferenceChange(event.target.value)} placeholder={selectedTemplate === "ACS" ? "Enter reference" : "Enter PI / quote number"} className={sheetInputClass} />
+          <div className="border-r border-slate-300 px-3 py-2 font-semibold">Contact Name</div>
+          <input value={poDraftDetails.contactName} onChange={(event) => updateDraftDetail("contactName", event.target.value)} placeholder="Enter contact name" className={sheetInputClass} />
+          <div className="border-r border-slate-300 px-3 py-2 font-semibold">Contact No.</div>
+          <input value={poDraftDetails.contactNumber} onChange={(event) => updateDraftDetail("contactNumber", event.target.value)} placeholder="Enter contact number" className={sheetInputClass} />
+          {selectedTemplate === "IOTIQ" ? (
+            <>
+              <div className="border-r border-slate-300 px-3 py-2 font-semibold">Mail ID</div>
+              <input type="email" value={poDraftDetails.mailId} onChange={(event) => updateDraftDetail("mailId", event.target.value)} placeholder="Enter mail ID" className={sheetInputClass} />
+              <div className="border-r border-slate-300 px-3 py-2 font-semibold">Reference Date</div>
+              <input type="date" value={poDraftDetails.referenceDate} onChange={(event) => updateDraftDetail("referenceDate", event.target.value)} className={sheetInputClass} />
+              <div className="border-r border-slate-300 px-3 py-2 font-semibold">Prepared By</div>
+              <div className={readonlyValueClass}>{poDraftDetails.preparedBy}</div>
+              <div className="border-r border-slate-300 px-3 py-2 font-semibold">Status</div>
+              <div className={readonlyValueClass}>{poDraftDetails.status}</div>
+              <div className="border-r border-slate-300 px-3 py-2 font-semibold">Approval Information</div>
+              <div className={readonlyValueClass}>{poDraftDetails.approvalInformation}</div>
+            </>
+          ) : null}
+        </div>
+      </div>
+    );
+  }
+
+  function renderItemTable() {
+    const columns = selectedTemplate === "ACS" ? ["S.No.", "Description", "HSN", "UoM", "Qty", "Rate/ Unit (Rs)", "Amount (Rs)"] : ["S.No", "Description", "Make", "HSN Code", "Qty", "UOM", "Rate", "Amount (INR)"];
+    return (
+      <div className="border-b-2 border-slate-950">
+        <div className="flex items-center justify-between border-b border-slate-950 bg-slate-100 px-3 py-2">
+          <span className="font-bold uppercase">Item Details</span>
+          <button type="button" disabled={!selectedRequisition} onClick={() => onLineItemsChange([...lineItems, createLineItemDraft(null)])} className="inline-flex items-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">
+            <Plus className="h-3.5 w-3.5" />
+            Add Item
+          </button>
+        </div>
+        <table className="w-full border-collapse text-[12px]">
+          <thead>
+            <tr className="bg-[#f8ecd1]">
+              {columns.map((heading) => (
+                <th key={heading} className="border border-slate-950 px-2 py-2 text-left font-bold">
+                  {heading}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {lineItems.length ? (
+              lineItems.map((item, index) => (
+                <tr key={item.id}>
+                  <td className="w-[82px] border border-slate-950 px-2 py-1.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-semibold">{index + 1}</span>
+                      <button type="button" onClick={() => onLineItemsChange(lineItems.filter((entry) => entry.id !== item.id))} className="rounded-full p-1 text-rose-600 hover:bg-rose-50" aria-label={`Remove item ${index + 1}`}>
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </td>
+                  <td className="min-w-[260px] border border-slate-950">
+                    <input value={item.productName} onChange={(event) => updateLineItem(item.id, { productName: event.target.value })} placeholder="Description" className={sheetInputClass} />
+                  </td>
+                  {selectedTemplate === "IOTIQ" ? (
+                    <td className="min-w-[140px] border border-slate-950">
+                      <input value={item.category} onChange={(event) => updateLineItem(item.id, { category: event.target.value })} placeholder="Make" className={sheetInputClass} />
+                    </td>
+                  ) : null}
+                  <td className="min-w-[130px] border border-slate-950">
+                    <input value={item.sku} onChange={(event) => updateLineItem(item.id, { sku: event.target.value })} placeholder={selectedTemplate === "ACS" ? "HSN" : "HSN Code"} className={sheetInputClass} />
+                  </td>
+                  <td className="w-[110px] border border-slate-950">
+                    <input value={item.unit} onChange={(event) => updateLineItem(item.id, { unit: event.target.value })} placeholder={selectedTemplate === "ACS" ? "UoM" : "UOM"} className={sheetInputClass} />
+                  </td>
+                  <td className="w-[90px] border border-slate-950">
+                    <input type="number" min={0} step="0.01" value={item.quantity} onChange={(event) => updateLineItem(item.id, { quantity: Number(event.target.value) })} className={sheetInputClass} />
+                  </td>
+                  <td className="w-[130px] border border-slate-950">
+                    <input type="number" min={0} step="0.01" value={item.unitPrice} onChange={(event) => updateLineItem(item.id, { unitPrice: Number(event.target.value) })} className={sheetInputClass} />
+                  </td>
+                  <td className="w-[150px] border border-slate-950 px-2 py-1.5 text-right font-semibold">{formatPlain(item.lineTotal)}</td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan={columns.length} className="border border-slate-950 px-4 py-10 text-center text-slate-500">
+                  Select an approved requisition to load item rows, or add an item manually.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
+
+  function renderSummary() {
+    const rows =
+      selectedTemplate === "ACS"
+        ? [
+            ["Total Amount Before Tax", basicValue],
+            ["CGST ", cgstAmount],
+            ["SGST ", sgstAmount],
+            ["Insurance", insuranceAmount],
+            ["Total  Amount after Tax in Rs.", totalPurchaseOrderValue],
+          ]
+        : [
+            ["Basic Value", basicValue],
+            ["Add: IGST", igstAmount],
+            ["Add: CGST", cgstAmount],
+            ["Add: SGST", sgstAmount],
+            ["Total Purchase Order Value", totalPurchaseOrderValue],
+          ];
+    return (
+      <div className="grid grid-cols-[1fr_380px] border-b-2 border-slate-950">
+        <div className="border-r-2 border-slate-950 p-3">
+          <p className="font-bold uppercase">Amount in Words</p>
+          <p className="mt-2 min-h-[46px] leading-5">{amountInWords}</p>
+        </div>
+        <div>
+          {rows.map(([label, value]) => (
+            <div key={label as string} className="grid grid-cols-[1fr_150px] border-b border-slate-950 last:border-b-0">
+              <div className="px-3 py-2 font-semibold">{label}</div>
+              <div className="border-l border-slate-950 px-3 py-2 text-right font-semibold">{formatPlain(value as number)}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -580,35 +863,37 @@ function CreatePurchaseOrderPanel({
         <div className="border-b border-slate-200 px-6 py-5">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-600">IOTIQ Purchase Order</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-600">Purchase Order Template</p>
               <h2 className="mt-2 text-2xl font-semibold text-slate-900">Create PO</h2>
-              <p className="mt-1 text-sm text-slate-500">
-                Fill only the editable Excel-template fields; company, billing, terms, totals, and authorization stay read-only.
-              </p>
+              <p className="mt-1 text-sm text-slate-500">Select ACS or IOTIQ, fill the editable Excel cells, then generate the matching PDF.</p>
             </div>
-            <button
-              type="button"
-              onClick={onClose}
-              className="inline-flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
-            >
+            <button type="button" onClick={onClose} className="inline-flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">
               <X className="h-4 w-4" />
               Close
             </button>
           </div>
 
+          <div className="mt-5 grid gap-3 md:grid-cols-2">
+            {PO_TEMPLATE_OPTIONS.map((option) => {
+              const active = selectedTemplate === option.code;
+              return (
+                <button key={option.code} type="button" onClick={() => onSelectedTemplateChange(option.code)} className={`rounded-2xl border px-4 py-3 text-left transition ${active ? option.accent : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"}`}>
+                  <span className="block text-sm font-bold uppercase tracking-[0.16em]">{option.label}</span>
+                  <span className="mt-1 block text-xs font-medium">{option.companyName}</span>
+                </button>
+              );
+            })}
+          </div>
+
           <div className="mt-5 grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] lg:items-end">
-            <P2PFormField label="Approved Requisition" hint="Required to create the backend PO record.">
+            <P2PFormField label="Approved Requisition" hint="Required to load item rows.">
               <div className="relative">
                 <ShoppingCart className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                <select
-                  value={purchaseRequisitionId}
-                  onChange={(event) => onPurchaseRequisitionIdChange(event.target.value)}
-                  className={`${fieldShellClass()} appearance-none pl-11 pr-10`}
-                >
+                <select value={purchaseRequisitionId} onChange={(event) => onPurchaseRequisitionIdChange(event.target.value)} className={`${fieldShellClass()} appearance-none pl-11 pr-10`}>
                   <option value="">Select approved requisition</option>
                   {approvedRequisitions.map((requisition) => (
                     <option key={requisition.id} value={requisition.id}>
-                      {requisition.prNumber} ? {requisition.department}
+                      {requisition.prNumber} - {requisition.department}
                     </option>
                   ))}
                 </select>
@@ -616,14 +901,10 @@ function CreatePurchaseOrderPanel({
               </div>
             </P2PFormField>
 
-            <P2PFormField label="Vendor Record" hint="Auto-fills editable vendor fields, but printed cells can be changed.">
+            <P2PFormField label="Vendor Record" hint="Auto-fills editable vendor cells.">
               <div className="relative">
                 <Truck className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                <select
-                  value={vendorId}
-                  onChange={(event) => onVendorIdChange(event.target.value)}
-                  className={`${fieldShellClass()} appearance-none pl-11 pr-10`}
-                >
+                <select value={vendorId} onChange={(event) => onVendorIdChange(event.target.value)} className={`${fieldShellClass()} appearance-none pl-11 pr-10`}>
                   <option value="">Select vendor</option>
                   {vendors.map((vendor) => (
                     <option key={vendor.id} value={vendor.id}>
@@ -647,274 +928,67 @@ function CreatePurchaseOrderPanel({
             <div className="mx-auto min-w-[1060px] max-w-[1180px] border-2 border-slate-950 bg-white text-[12px] text-slate-950">
               <div className="grid grid-cols-[150px_1fr] border-b-2 border-slate-950">
                 <div className="flex items-center justify-center border-r-2 border-slate-950 p-4">
-                  <div className="flex h-20 w-20 items-center justify-center rounded-xl border-2 border-slate-900 bg-slate-50 text-sm font-black tracking-[0.2em] text-slate-900">
-                    IOTIQ
-                  </div>
+                  <div className="flex h-20 w-20 items-center justify-center rounded-xl border-2 border-slate-900 bg-slate-50 text-sm font-black tracking-[0.2em] text-slate-900">{selectedTemplate}</div>
                 </div>
                 <div className="p-4 text-center">
-                  <p className="text-lg font-bold uppercase tracking-wide">{IOTIQ_COMPANY.name}</p>
-                  {IOTIQ_COMPANY.addressLines.map((line) => (
-                    <p key={line} className="mt-1 leading-5">
-                      {line}
-                    </p>
+                  <p className="text-lg font-bold uppercase tracking-wide">{company.name}</p>
+                  {company.addressLines.map((line) => (
+                    <p key={line} className="mt-1 leading-5">{line}</p>
                   ))}
-                  <p className="mt-2 font-semibold">{IOTIQ_COMPANY.cin}</p>
-                  <p className="font-semibold">{IOTIQ_COMPANY.gst}</p>
+                  <p className="mt-2 font-semibold">{company.cin}</p>
+                  <p className="font-semibold">{company.gst}</p>
                 </div>
               </div>
 
-              <div className="border-b-2 border-slate-950 bg-[#f3dfb7] px-4 py-2 text-center text-base font-bold uppercase tracking-[0.18em]">
-                PURCHASE ORDER
-              </div>
+              <div className="border-b-2 border-slate-950 bg-[#f3dfb7] px-4 py-2 text-center text-base font-bold uppercase tracking-[0.18em]">PURCHASE ORDER</div>
 
               <div className="grid grid-cols-2 border-b-2 border-slate-950">
-                <div className="border-r-2 border-slate-950">
-                  <div className="border-b border-slate-950 bg-slate-100 px-3 py-2 font-bold uppercase">Vendor Details</div>
-                  <div className="grid grid-cols-[170px_1fr] divide-y divide-slate-300">
-                    <div className="border-r border-slate-300 px-3 py-2 font-semibold">Vendor Name</div>
-                    <input
-                      value={poDraftDetails.vendorName}
-                      onChange={(event) => updateDraftDetail("vendorName", event.target.value)}
-                      placeholder="Enter vendor name"
-                      className={sheetInputClass}
-                    />
-                    <div className="border-r border-slate-300 px-3 py-2 font-semibold">Vendor Address</div>
-                    <textarea
-                      value={poDraftDetails.vendorAddress}
-                      onChange={(event) => updateDraftDetail("vendorAddress", event.target.value)}
-                      placeholder="Enter vendor address"
-                      className={sheetTextareaClass}
-                    />
-                    <div className="border-r border-slate-300 px-3 py-2 font-semibold">Vendor GST Number</div>
-                    <input
-                      value={poDraftDetails.vendorGst}
-                      onChange={(event) => updateDraftDetail("vendorGst", event.target.value)}
-                      placeholder="Enter vendor GST number"
-                      className={sheetInputClass}
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <div className="border-b border-slate-950 bg-slate-100 px-3 py-2 font-bold uppercase">PO Details</div>
-                  <div className="grid grid-cols-[190px_1fr] divide-y divide-slate-300">
-                    <div className="border-r border-slate-300 px-3 py-2 font-semibold">Purchase Order Number</div>
-                    <div className={readonlyValueClass}>{poNumber}</div>
-                    <div className="border-r border-slate-300 px-3 py-2 font-semibold">PO Date</div>
-                    <input type="date" value={orderDate} onChange={(event) => onOrderDateChange(event.target.value)} className={sheetInputClass} />
-                    <div className="border-r border-slate-300 px-3 py-2 font-semibold">Project</div>
-                    <input value={project} onChange={(event) => onProjectChange(event.target.value)} placeholder="Enter project" className={sheetInputClass} />
-                    <div className="border-r border-slate-300 px-3 py-2 font-semibold">Contact Name</div>
-                    <input
-                      value={poDraftDetails.contactName}
-                      onChange={(event) => updateDraftDetail("contactName", event.target.value)}
-                      placeholder="Enter contact name"
-                      className={sheetInputClass}
-                    />
-                    <div className="border-r border-slate-300 px-3 py-2 font-semibold">Contact Number</div>
-                    <input
-                      value={poDraftDetails.contactNumber}
-                      onChange={(event) => updateDraftDetail("contactNumber", event.target.value)}
-                      placeholder="Enter contact number"
-                      className={sheetInputClass}
-                    />
-                    <div className="border-r border-slate-300 px-3 py-2 font-semibold">Mail ID</div>
-                    <input
-                      type="email"
-                      value={poDraftDetails.mailId}
-                      onChange={(event) => updateDraftDetail("mailId", event.target.value)}
-                      placeholder="Enter mail ID"
-                      className={sheetInputClass}
-                    />
-                    <div className="border-r border-slate-300 px-3 py-2 font-semibold">Vendor PI / Quote Number</div>
-                    <input
-                      value={vendorQuoteReference}
-                      onChange={(event) => onVendorQuoteReferenceChange(event.target.value)}
-                      placeholder="Enter PI / quote number"
-                      className={sheetInputClass}
-                    />
-                    <div className="border-r border-slate-300 px-3 py-2 font-semibold">Reference Date</div>
-                    <input
-                      type="date"
-                      value={poDraftDetails.referenceDate}
-                      onChange={(event) => updateDraftDetail("referenceDate", event.target.value)}
-                      className={sheetInputClass}
-                    />
-                    <div className="border-r border-slate-300 px-3 py-2 font-semibold">Prepared By</div>
-                    <div className={readonlyValueClass}>{poDraftDetails.preparedBy}</div>
-                    <div className="border-r border-slate-300 px-3 py-2 font-semibold">Status</div>
-                    <div className={readonlyValueClass}>{poDraftDetails.status}</div>
-                    <div className="border-r border-slate-300 px-3 py-2 font-semibold">Approval Information</div>
-                    <div className={readonlyValueClass}>{poDraftDetails.approvalInformation}</div>
-                  </div>
-                </div>
+                {renderVendorDetails()}
+                {renderPoDetails()}
               </div>
 
-              <div className="grid grid-cols-2 border-b-2 border-slate-950">
-                <div className="border-r-2 border-slate-950">
-                  <div className="border-b border-slate-950 bg-slate-100 px-3 py-2 font-bold uppercase">Shipping Address Details</div>
-                  <textarea
-                    value={poDraftDetails.shippingAddress}
-                    onChange={(event) => updateDraftDetail("shippingAddress", event.target.value)}
-                    placeholder="Enter shipping address details"
-                    className={`${sheetTextareaClass} min-h-[130px]`}
-                  />
-                </div>
-                <div>
-                  <div className="border-b border-slate-950 bg-slate-100 px-3 py-2 font-bold uppercase">Billing To Details</div>
-                  <div className="space-y-1 px-3 py-3 leading-5">
-                    <p className="font-semibold">{IOTIQ_BILLING.name}</p>
-                    {IOTIQ_BILLING.addressLines.map((line) => (
-                      <p key={line}>{line}</p>
-                    ))}
-                    <p>{IOTIQ_BILLING.gst}</p>
-                    <p>Contact Person: {IOTIQ_BILLING.contactName}</p>
-                    <p>Contact Number: {IOTIQ_BILLING.contactNumber}</p>
+              {selectedTemplate === "IOTIQ" ? (
+                <div className="grid grid-cols-2 border-b-2 border-slate-950">
+                  <div className="border-r-2 border-slate-950">
+                    <div className="border-b border-slate-950 bg-slate-100 px-3 py-2 font-bold uppercase">Shipping Address Details</div>
+                    <textarea value={poDraftDetails.shippingAddress} onChange={(event) => updateDraftDetail("shippingAddress", event.target.value)} placeholder="Enter shipping address details" className={`${sheetTextareaClass} min-h-[130px]`} />
                   </div>
-                </div>
-              </div>
-
-              <div className="border-b-2 border-slate-950">
-                <div className="flex items-center justify-between border-b border-slate-950 bg-slate-100 px-3 py-2">
-                  <span className="font-bold uppercase">Item Details</span>
-                  <button
-                    type="button"
-                    disabled={!selectedRequisition}
-                    onClick={() => onLineItemsChange([...lineItems, createLineItemDraft(null)])}
-                    className="inline-flex items-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                    Add Item
-                  </button>
-                </div>
-                <table className="w-full border-collapse text-[12px]">
-                  <thead>
-                    <tr className="bg-[#f8ecd1]">
-                      {["S.No", "Description", "Make", "HSN Code", "Qty", "UOM", "Rate", "Amount (INR)"].map((heading) => (
-                        <th key={heading} className="border border-slate-950 px-2 py-2 text-left font-bold">
-                          {heading}
-                        </th>
+                  <div>
+                    <div className="border-b border-slate-950 bg-slate-100 px-3 py-2 font-bold uppercase">Billing To Details</div>
+                    <div className="space-y-1 px-3 py-3 leading-5">
+                      <p className="font-semibold">{billing.name}</p>
+                      {billing.addressLines.map((line) => (
+                        <p key={line}>{line}</p>
                       ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {lineItems.length ? (
-                      lineItems.map((item, index) => (
-                        <tr key={item.id}>
-                          <td className="w-[82px] border border-slate-950 px-2 py-1.5">
-                            <div className="flex items-center justify-between gap-2">
-                              <span className="font-semibold">{index + 1}</span>
-                              <button
-                                type="button"
-                                onClick={() => onLineItemsChange(lineItems.filter((entry) => entry.id !== item.id))}
-                                className="rounded-full p-1 text-rose-600 hover:bg-rose-50"
-                                aria-label={`Remove item ${index + 1}`}
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </button>
-                            </div>
-                          </td>
-                          <td className="min-w-[240px] border border-slate-950">
-                            <input
-                              value={item.productName}
-                              onChange={(event) => updateLineItem(item.id, { productName: event.target.value })}
-                              placeholder="Description"
-                              className={sheetInputClass}
-                            />
-                          </td>
-                          <td className="min-w-[140px] border border-slate-950">
-                            <input
-                              value={item.category}
-                              onChange={(event) => updateLineItem(item.id, { category: event.target.value })}
-                              placeholder="Make"
-                              className={sheetInputClass}
-                            />
-                          </td>
-                          <td className="min-w-[130px] border border-slate-950">
-                            <input
-                              value={item.sku}
-                              onChange={(event) => updateLineItem(item.id, { sku: event.target.value })}
-                              placeholder="HSN Code"
-                              className={sheetInputClass}
-                            />
-                          </td>
-                          <td className="w-[90px] border border-slate-950">
-                            <input
-                              type="number"
-                              min={0}
-                              step="0.01"
-                              value={item.quantity}
-                              onChange={(event) => updateLineItem(item.id, { quantity: Number(event.target.value) })}
-                              className={sheetInputClass}
-                            />
-                          </td>
-                          <td className="w-[110px] border border-slate-950">
-                            <input
-                              value={item.unit}
-                              onChange={(event) => updateLineItem(item.id, { unit: event.target.value })}
-                              placeholder="UOM"
-                              className={sheetInputClass}
-                            />
-                          </td>
-                          <td className="w-[130px] border border-slate-950">
-                            <input
-                              type="number"
-                              min={0}
-                              step="0.01"
-                              value={item.unitPrice}
-                              onChange={(event) => updateLineItem(item.id, { unitPrice: Number(event.target.value) })}
-                              className={sheetInputClass}
-                            />
-                          </td>
-                          <td className="w-[150px] border border-slate-950 px-2 py-1.5 text-right font-semibold">
-                            {formatPlain(item.lineTotal)}
-                          </td>
-                        </tr>
-                      ))
-                    ) : (
-                      <tr>
-                        <td colSpan={8} className="border border-slate-950 px-4 py-10 text-center text-slate-500">
-                          Select an approved requisition to load item rows, or add an item manually.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-
-              <div className="grid grid-cols-[1fr_380px] border-b-2 border-slate-950">
-                <div className="border-r-2 border-slate-950 p-3">
-                  <p className="font-bold uppercase">Amount in Words</p>
-                  <p className="mt-2 min-h-[46px] leading-5">{amountInWords}</p>
-                </div>
-                <div>
-                  {[
-                    ["Basic Value", basicValue],
-                    ["Add: IGST", igstAmount],
-                    ["Add: CGST", cgstAmount],
-                    ["Add: SGST", sgstAmount],
-                    ["Total Purchase Order Value", totalPurchaseOrderValue],
-                  ].map(([label, value]) => (
-                    <div key={label as string} className="grid grid-cols-[1fr_150px] border-b border-slate-950 last:border-b-0">
-                      <div className="px-3 py-2 font-semibold">{label}</div>
-                      <div className="border-l border-slate-950 px-3 py-2 text-right font-semibold">{formatPlain(value as number)}</div>
+                      <p>{billing.gst}</p>
+                      <p>Contact Person: {billing.contactName}</p>
+                      <p>Contact Number: {billing.contactNumber}</p>
                     </div>
-                  ))}
+                  </div>
                 </div>
-              </div>
+              ) : null}
+
+              {renderItemTable()}
+              {renderSummary()}
 
               <div className="border-b-2 border-slate-950 p-3">
-                <p className="font-bold uppercase">Terms & Conditions</p>
+                <p className="font-bold uppercase">Terms & Conditions:</p>
                 <div className="mt-2 grid gap-2">
-                  {IOTIQ_TERMS.map((term, index) => (
+                  {terms.map((term, index) => (
                     <div key={term.title} className="grid grid-cols-[34px_180px_1fr] leading-5">
-                      <span>{index + 1}.</span>
-                      <span className="font-semibold">{term.title}:</span>
+                      <span>{index + 1}</span>
+                      <span className="font-semibold">{term.title}</span>
                       <span>{term.body}</span>
                     </div>
                   ))}
                 </div>
               </div>
+
+              {selectedTemplate === "ACS" ? (
+                <div className="border-b-2 border-slate-950 bg-amber-50 px-3 py-2 font-semibold">
+                  Important Notes: On account of wrong selection of HSN code & Tax portion in the Invoice and correction at the later stage, differential amount will be collected/ returned.
+                </div>
+              ) : null}
 
               <div className="grid grid-cols-[1fr_320px]">
                 <div className="p-3">
@@ -922,19 +996,15 @@ function CreatePurchaseOrderPanel({
                   <p className="mt-2 text-slate-600">Signature area is reserved for approved users and is read-only during PO creation.</p>
                 </div>
                 <div className="border-l-2 border-slate-950 p-3 text-center">
-                  <p className="font-semibold">For IOTIQ Innovations Pvt. Ltd.</p>
+                  <p className="font-semibold">For {selectedTemplate === "ACS" ? "ACS Technologies Ltd" : "IOTIQ Innovations Pvt. Ltd."}</p>
                   <div className="h-20" />
-                  <p className="font-semibold">Authorized Signatory</p>
+                  <p className="font-semibold">{selectedTemplate === "ACS" ? "Authorised Signatory" : "Authorized Signatory"}</p>
                 </div>
               </div>
             </div>
           </div>
 
-          {showValidation ? (
-            <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-              Complete mandatory fields before submission: {missingFields.join(", ")}.
-            </div>
-          ) : null}
+          {showValidation ? <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">Complete mandatory fields before generating PO: {missingFields.join(", ")}.</div> : null}
         </div>
 
         <div className="border-t border-slate-200 bg-white px-6 py-4">
@@ -945,35 +1015,16 @@ function CreatePurchaseOrderPanel({
               {draftSavedAt ? <p className="mt-1 text-xs font-medium text-emerald-600">Draft saved at {draftSavedAt}</p> : null}
             </div>
             <div className="flex flex-wrap items-center gap-3">
-              <button
-                type="button"
-                onClick={onPreview}
-                disabled={!selectedRequisition}
-                className="inline-flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-              >
-                <Eye className="h-4 w-4" />
-                Preview PDF
-              </button>
-              <button
-                type="button"
-                onClick={handleSaveDraft}
-                className="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-100"
-              >
+              <button type="button" onClick={handleSaveDraft} className="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-100">
                 <FileText className="h-4 w-4" />
                 Save Draft
               </button>
-              <button
-                type="button"
-                onClick={handleSubmitForApproval}
-                disabled={isCreating}
-                className="inline-flex items-center gap-2 rounded-full bg-slate-950 px-5 py-2.5 text-sm font-semibold text-white shadow-sm shadow-slate-950/20 hover:bg-slate-800 disabled:opacity-50"
-              >
-                {isCreating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                Submit for Approval
+              <button type="button" onClick={handleGeneratePo} className="inline-flex items-center gap-2 rounded-full bg-slate-950 px-5 py-2.5 text-sm font-semibold text-white shadow-sm shadow-slate-950/20 hover:bg-slate-800">
+                <Printer className="h-4 w-4" />
+                Generate PO
               </button>
             </div>
           </div>
-          {errorMessage ? <p className="mt-3 text-sm text-rose-600">{errorMessage}</p> : null}
         </div>
       </div>
     </div>
@@ -1121,14 +1172,14 @@ export default function P2PPurchaseOrderPage() {
   const { data: purchaseOrders = [], isLoading, isError, error } = usePurchaseOrders();
   const { data: requisitions = [] } = usePurchaseRequisitions();
   const { data: vendors = [] } = useVendors();
-  const createPurchaseOrder = useCreatePurchaseOrder();
 
+  const [selectedTemplate, setSelectedTemplate] = useState<PoTemplate>("IOTIQ");
   const [purchaseRequisitionId, setPurchaseRequisitionId] = useState("");
   const [vendorId, setVendorId] = useState("");
   const [orderDate, setOrderDate] = useState(new Date().toISOString().slice(0, 10));
   const [project, setProject] = useState("");
   const [vendorQuoteReference, setVendorQuoteReference] = useState("");
-  const [poDraftDetails, setPoDraftDetails] = useState<PoDraftDetails>(() => createDefaultPoDraftDetails());
+  const [poDraftDetails, setPoDraftDetails] = useState<PoDraftDetails>(() => createDefaultPoDraftDetails("IOTIQ"));
   const [poLineItems, setPoLineItems] = useState<PoLineItemDraft[]>([]);
   const [preview, setPreview] = useState<{ title: string; data: PurchaseOrderDocumentData } | null>(null);
   const [isCreatePanelOpen, setIsCreatePanelOpen] = useState(false);
@@ -1168,6 +1219,8 @@ export default function P2PPurchaseOrderPage() {
         vendorName: selectedVendor.vendorName,
         vendorAddress: vendorAddressText(selectedVendor),
         vendorGst: selectedVendor.taxIdentifier ?? "",
+        vendorContactName: selectedVendor.vendorName,
+        vendorContactNumber: selectedVendor.phone ?? "",
       }));
     });
   }, [selectedVendor]);
@@ -1204,19 +1257,41 @@ export default function P2PPurchaseOrderPage() {
   }, [purchaseOrders, queueFilter, queueSearch]);
 
   function resetCreateForm() {
+    setSelectedTemplate("IOTIQ");
     setPurchaseRequisitionId("");
     setVendorId("");
     setProject("");
     setVendorQuoteReference("");
-    setPoDraftDetails(createDefaultPoDraftDetails());
+    setPoDraftDetails(createDefaultPoDraftDetails("IOTIQ"));
     setPoLineItems([]);
+  }
+
+  function handleTemplateChange(template: PoTemplate) {
+    setSelectedTemplate(template);
+    setPoDraftDetails((current) => ({
+      ...createDefaultPoDraftDetails(template, selectedVendor),
+      vendorName: current.vendorName,
+      vendorAddress: current.vendorAddress,
+      vendorGst: current.vendorGst,
+      vendorPan: current.vendorPan,
+      vendorContactName: current.vendorContactName,
+      vendorContactNumber: current.vendorContactNumber,
+      contactName: current.contactName,
+      contactNumber: current.contactNumber,
+      mailId: current.mailId,
+      referenceDate: current.referenceDate,
+      preparedBy: current.preparedBy,
+      status: current.status,
+      approvalInformation: current.approvalInformation,
+    }));
   }
 
   function handlePreviewDraft() {
     if (!selectedRequisition) return;
     setPreview({
-      title: `${draftPoNumber(selectedRequisition)} - IOTIQ`,
+      title: `${draftPoNumber(selectedRequisition, selectedTemplate)} - ${selectedTemplate}`,
       data: draftDoc(
+        selectedTemplate,
         selectedRequisition,
         selectedVendor,
         orderDate,
@@ -1226,32 +1301,6 @@ export default function P2PPurchaseOrderPage() {
         poLineItems
       ),
     });
-  }
-
-  function handleCreatePurchaseOrder() {
-    if (!purchaseRequisitionId || !vendorId || !orderDate) return;
-    createPurchaseOrder.mutate(
-      {
-        purchaseRequisitionId,
-        payload: {
-          vendorId,
-          orderDate,
-          notes: [
-            project.trim() ? `Project: ${project.trim()}` : "",
-            vendorQuoteReference.trim() ? `Vendor PI / Quote Number: ${vendorQuoteReference.trim()}` : "",
-            poDraftDetails.referenceDate ? `Reference Date: ${poDraftDetails.referenceDate}` : "",
-          ]
-            .filter(Boolean)
-            .join(" | ") || undefined,
-        },
-      },
-      {
-        onSuccess: () => {
-          setIsCreatePanelOpen(false);
-          resetCreateForm();
-        },
-      }
-    );
   }
 
   const columns = [
@@ -1409,6 +1458,7 @@ export default function P2PPurchaseOrderPage() {
         <CreatePurchaseOrderPanel
           approvedRequisitions={approvedRequisitions}
           vendors={vendors}
+          selectedTemplate={selectedTemplate}
           purchaseRequisitionId={purchaseRequisitionId}
           vendorId={vendorId}
           orderDate={orderDate}
@@ -1418,14 +1468,11 @@ export default function P2PPurchaseOrderPage() {
           lineItems={poLineItems}
           selectedRequisition={selectedRequisition}
           selectedVendor={selectedVendor}
-          isCreating={createPurchaseOrder.isPending}
-          errorMessage={createPurchaseOrder.error instanceof Error ? createPurchaseOrder.error.message : undefined}
           onClose={() => {
             setIsCreatePanelOpen(false);
-            if (!createPurchaseOrder.isPending) {
-              resetCreateForm();
-            }
+            resetCreateForm();
           }}
+          onSelectedTemplateChange={handleTemplateChange}
           onPurchaseRequisitionIdChange={setPurchaseRequisitionId}
           onVendorIdChange={setVendorId}
           onOrderDateChange={setOrderDate}
@@ -1433,8 +1480,7 @@ export default function P2PPurchaseOrderPage() {
           onVendorQuoteReferenceChange={setVendorQuoteReference}
           onPoDraftDetailsChange={setPoDraftDetails}
           onLineItemsChange={setPoLineItems}
-          onPreview={handlePreviewDraft}
-          onCreate={handleCreatePurchaseOrder}
+          onGenerate={handlePreviewDraft}
         />
       ) : null}
 
