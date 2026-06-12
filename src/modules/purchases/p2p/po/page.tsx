@@ -109,12 +109,12 @@ const IOTIQ_TERMS = [
 const ACS_COMPANY = {
   name: "ACS Technologies Limited",
   addressLines: [
-    "1st Floor, Building, Opp: District Vikalang Puranaravas Kendra,",
-    "Kalyanapura Road, Near Anas River, Rangapura",
-    "Badkuwa, Jhabua, Madhya Pradesh, 457661",
+      "Level 7, Pardha Picasa Building, Durgam Charuvu Road",
+    "Madhapur, Hyderabad, Telangana, India - 500081",
+    
   ],
   cin: "CIN :   L62099TG1993PLC015268",
-  gst: "GSTIN.No-23AAACL4102B1ZI",
+  gst: "GSTIN.No-36AAACL4102B3Z9",
 };
 
 const ACS_TERMS = [

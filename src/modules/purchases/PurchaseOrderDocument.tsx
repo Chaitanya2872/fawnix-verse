@@ -250,17 +250,19 @@ export function PurchaseOrderDocument({ document }: { document: PurchaseOrderDoc
               ...(isAcs
                 ? [
                     ["Total Amount Before Tax", document.subtotal],
-                    ["Add: IGST", igstAmount],
                     ["CGST ", cgstAmount],
                     ["SGST ", sgstAmount],
+                    ["Add: IGST", igstAmount],
+
                     ["Others", otherCharges],
                     ["Total  Amount after Tax in Rs.", document.grandTotal],
                   ]
                 : [
                     ["Basic Value", document.subtotal],
-                    ["Add: IGST", igstAmount],
                     ["Add: CGST @ 9%", cgstAmount],
                     ["Add: SGST @ 9%", sgstAmount],
+                    ["Add: IGST", igstAmount],
+
                     ["Total Purchase Order Value", document.grandTotal],
                   ]),
             ].map(([label, value]) => (
