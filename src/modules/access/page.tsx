@@ -293,10 +293,18 @@ export default function AccessRequestsPage() {
   });
 
   const reviewMutation = useMutation({
-    mutationFn: ({ id, decision }: { id: string; decision: "APPROVE" | "REJECT" }) =>
+    mutationFn: ({
+      id,
+      decision,
+      permissions,
+    }: {
+      id: string;
+      decision: "APPROVE" | "REJECT";
+      permissions?: string[];
+    }) =>
       accessRequestsApi.review(id, {
         decision,
-        permissions: decision === "APPROVE" ? reviewPermissions[id] ?? selectedRequest?.permissions ?? [] : undefined,
+        permissions: decision === "APPROVE" ? permissions : undefined,
         reviewNote: reviewNotes[id] ?? "",
       }),
     onSuccess: () => {
@@ -572,7 +580,13 @@ export default function AccessRequestsPage() {
                       />
                       <div className="flex gap-2">
                         <Button
-                          onClick={() => reviewMutation.mutate({ id: request.id, decision: "APPROVE" })}
+                          onClick={() =>
+                            reviewMutation.mutate({
+                              id: request.id,
+                              decision: "APPROVE",
+                              permissions: reviewPermissions[request.id] ?? request.permissions,
+                            })
+                          }
                           disabled={reviewMutation.isPending || (reviewPermissions[request.id] ?? request.permissions).length === 0}
                         >
                           Approve
@@ -609,7 +623,13 @@ export default function AccessRequestsPage() {
           onClose={() => setSelectedRequestId(null)}
           onEdit={() => startEdit(selectedRequest)}
           onCancel={() => cancelMutation.mutate(selectedRequest.id)}
-          onApprove={() => reviewMutation.mutate({ id: selectedRequest.id, decision: "APPROVE" })}
+          onApprove={() =>
+            reviewMutation.mutate({
+              id: selectedRequest.id,
+              decision: "APPROVE",
+              permissions: reviewPermissions[selectedRequest.id] ?? selectedRequest.permissions,
+            })
+          }
           onReject={() => reviewMutation.mutate({ id: selectedRequest.id, decision: "REJECT" })}
           isMaster={isMaster}
           isReviewing={reviewMutation.isPending}
