@@ -50,7 +50,7 @@ export type PurchaseOrderDocumentData = {
   igstAmount?: number;
   cgstAmount?: number;
   sgstAmount?: number;
-  insuranceAmount?: number;
+  otherCharges?: number;
   grandTotal: number;
   amountInWords?: string | null;
   terms?: Array<{ title: string; body: string }>;
@@ -111,7 +111,7 @@ export function PurchaseOrderDocument({ document }: { document: PurchaseOrderDoc
   const igstAmount = document.igstAmount ?? 0;
   const cgstAmount = document.cgstAmount ?? 0;
   const sgstAmount = document.sgstAmount ?? 0;
-  const insuranceAmount = document.insuranceAmount ?? 0;
+  const otherCharges = document.otherCharges ?? 0;
   const amountInWords = document.amountInWords || `INR ${formatCurrency(document.grandTotal)} only`;
 
   return (
@@ -219,7 +219,7 @@ export function PurchaseOrderDocument({ document }: { document: PurchaseOrderDoc
             {document.items.map((item, index) => (
               <tr key={item.id}>
                 <td className="border border-black px-1.5 py-1">{index + 1}</td>
-                <td className="border border-black px-1.5 py-1">{item.description}</td>
+                <td className="whitespace-pre-line border border-black px-1.5 py-1">{item.description}</td>
                 {!isAcs ? <td className="border border-black px-1.5 py-1">{item.make || "-"}</td> : null}
                 <td className="border border-black px-1.5 py-1">{item.hsnOrSku || "-"}</td>
                 {isAcs ? (
@@ -250,9 +250,10 @@ export function PurchaseOrderDocument({ document }: { document: PurchaseOrderDoc
               ...(isAcs
                 ? [
                     ["Total Amount Before Tax", document.subtotal],
+                    ["Add: IGST", igstAmount],
                     ["CGST ", cgstAmount],
                     ["SGST ", sgstAmount],
-                    ["Insurance", insuranceAmount],
+                    ["Others", otherCharges],
                     ["Total  Amount after Tax in Rs.", document.grandTotal],
                   ]
                 : [
@@ -278,7 +279,7 @@ export function PurchaseOrderDocument({ document }: { document: PurchaseOrderDoc
               <div key={term.title} className="grid grid-cols-[24px_130px_1fr]">
                 <span>{index + 1}.</span>
                 <span className="font-semibold">{term.title}:</span>
-                <span>{term.body}</span>
+                <span className="whitespace-pre-line">{term.body}</span>
               </div>
             ))}
           </div>
@@ -289,10 +290,7 @@ export function PurchaseOrderDocument({ document }: { document: PurchaseOrderDoc
         ) : null}
 
         <div className="grid grid-cols-[1fr_220px]">
-          <div className="p-2">
-            <p className="font-bold uppercase">Authorization Section</p>
-            <p className="mt-1">Signature area is reserved for approved users and is read-only during PO creation.</p>
-          </div>
+          <div className="p-2" />
           <div className="border-l-2 border-black p-2 text-center">
             <p className="font-semibold">For {isAcs ? "ACS Technologies Ltd" : "IOTIQ Innovations Pvt. Ltd."}</p>
             <div className="h-14" />

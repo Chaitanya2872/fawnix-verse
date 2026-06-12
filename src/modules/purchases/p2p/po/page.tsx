@@ -50,7 +50,7 @@ type PoDraftDetails = {
   mailId: string;
   referenceDate: string;
   shippingAddress: string;
-  insuranceAmount: string;
+  otherCharges: string;
   preparedBy: string;
   status: string;
   approvalInformation: string;
@@ -70,8 +70,8 @@ type PoTemplateDraft = {
 };
 
 const IOTIQ_TAX_RATE = 0.18;
+const ACS_IGST_RATE = 0.18;
 const ACS_TAX_RATE = 0.09;
-const ACS_DEFAULT_INSURANCE = 3221;
 
 const IOTIQ_COMPANY = {
   name: "IOTIQ Innovations Private Limited",
@@ -356,7 +356,7 @@ function createDefaultPoDraftDetails(template: PoTemplate = "IOTIQ", vendor?: Ve
       template === "ACS"
         ? "M/s. SANNVERSE ALTIS JV.\nC/O Pati Kallu, 730, Ghoradongri,Sarni road,\nBetul Madhya Pradesh-460443\nContact Person - Mrityunjay Singh - 9835058603\nGST No: 23ACJAS5308K1Z9"
         : IOTIQ_COMPANY.addressLines.join("\n"),
-    insuranceAmount: String(template === "ACS" ? ACS_DEFAULT_INSURANCE : 0),
+    otherCharges: "0",
     preparedBy: "Logged-in User",
     status: "Draft",
     approvalInformation: "Pending approval",
@@ -440,11 +440,11 @@ function draftDoc(
 ): PurchaseOrderDocumentData {
   const documentItems = lineItems?.length ? lineItems : requisition.items.map(createLineItemDraft);
   const subtotal = documentItems.reduce((sum, item) => sum + calculateLineTotal(item), 0);
-  const insuranceAmount = template === "ACS" ? Number(details.insuranceAmount || ACS_DEFAULT_INSURANCE) : 0;
-  const igstAmount = template === "IOTIQ" ? subtotal * IOTIQ_TAX_RATE : 0;
+  const otherCharges = template === "ACS" ? Number(details.otherCharges || 0) : 0;
+  const igstAmount = template === "IOTIQ" ? subtotal * IOTIQ_TAX_RATE : template === "ACS" ? subtotal * ACS_IGST_RATE : 0;
   const cgstAmount = template === "ACS" ? subtotal * ACS_TAX_RATE : 0;
   const sgstAmount = template === "ACS" ? subtotal * ACS_TAX_RATE : 0;
-  const grandTotal = subtotal + igstAmount + cgstAmount + sgstAmount + insuranceAmount;
+  const grandTotal = subtotal + igstAmount + cgstAmount + sgstAmount + otherCharges;
   const fallbackVendor = vendorParty(vendor);
   const buyer = template === "ACS" ? ACS_BUYER : IOTIQ_BUYER;
   const company = template === "ACS" ? ACS_COMPANY : IOTIQ_COMPANY;
@@ -493,7 +493,7 @@ function draftDoc(
     igstAmount,
     cgstAmount,
     sgstAmount,
-    insuranceAmount,
+    otherCharges,
     grandTotal,
     amountInWords: numberToIndianWords(grandTotal),
     terms: terms.map((term) => ({ title: term.title, body: term.body })),
@@ -679,11 +679,11 @@ function CreatePurchaseOrderPanel({
   const company = selectedTemplate === "ACS" ? ACS_COMPANY : IOTIQ_COMPANY;
   const billing = selectedTemplate === "ACS" ? ACS_BUYER : IOTIQ_BILLING;
   const basicValue = lineItems.reduce((sum, item) => sum + calculateLineTotal(item), 0);
-  const igstAmount = selectedTemplate === "IOTIQ" ? basicValue * IOTIQ_TAX_RATE : 0;
+  const igstAmount = selectedTemplate === "IOTIQ" ? basicValue * IOTIQ_TAX_RATE : selectedTemplate === "ACS" ? basicValue * ACS_IGST_RATE : 0;
   const cgstAmount = selectedTemplate === "ACS" ? basicValue * ACS_TAX_RATE : 0;
   const sgstAmount = selectedTemplate === "ACS" ? basicValue * ACS_TAX_RATE : 0;
-  const insuranceAmount = selectedTemplate === "ACS" ? Number(poDraftDetails.insuranceAmount || ACS_DEFAULT_INSURANCE) : 0;
-  const totalPurchaseOrderValue = basicValue + igstAmount + cgstAmount + sgstAmount + insuranceAmount;
+  const otherCharges = selectedTemplate === "ACS" ? Number(poDraftDetails.otherCharges || 0) : 0;
+  const totalPurchaseOrderValue = basicValue + igstAmount + cgstAmount + sgstAmount + otherCharges;
   const amountInWords = numberToIndianWords(totalPurchaseOrderValue);
   const poNumber = draftPoNumber(selectedRequisition, selectedTemplate);
   const requiresMake = selectedTemplate === "IOTIQ";
@@ -732,6 +732,14 @@ function CreatePurchaseOrderPanel({
 
   function updateTerm(termId: string, patch: Partial<PoTermDraft>) {
     onTermsChange(terms.map((term) => (term.id === termId ? { ...term, ...patch } : term)));
+  }
+
+  function addTermRow() {
+    onTermsChange([...terms, { id: `${selectedTemplate}-term-${crypto.randomUUID()}`, title: "", body: "" }]);
+  }
+
+  function deleteTermRow(termId: string) {
+    onTermsChange(terms.filter((term) => term.id !== termId));
   }
 
   function handleSaveDraft() {
@@ -844,7 +852,13 @@ function CreatePurchaseOrderPanel({
                     </div>
                   </td>
                   <td className="min-w-[260px] border border-slate-950">
-                    <input value={item.productName} onChange={(event) => updateLineItem(item.id, { productName: event.target.value })} placeholder="Description" className={sheetInputClass} />
+                    <textarea
+                      rows={2}
+                      value={item.productName}
+                      onChange={(event) => updateLineItem(item.id, { productName: event.target.value })}
+                      placeholder="Description"
+                      className={`${sheetInputClass} min-h-[52px] resize-y whitespace-pre-wrap leading-5`}
+                    />
                   </td>
                   {selectedTemplate === "IOTIQ" ? (
                     <td className="min-w-[140px] border border-slate-950">
@@ -897,17 +911,15 @@ function CreatePurchaseOrderPanel({
       selectedTemplate === "ACS"
         ? [
             ["Total Amount Before Tax", basicValue],
-            ["CGST ", cgstAmount],
-            ["SGST ", sgstAmount],
-            ["Insurance", insuranceAmount],
-            ["Total  Amount after Tax in Rs.", totalPurchaseOrderValue],
+            ["Add: IGST", igstAmount],
+            ["Add: CGST", cgstAmount],
+            ["Add: SGST", sgstAmount],
           ]
         : [
             ["Basic Value", basicValue],
             ["Add: IGST", igstAmount],
             ["Add: CGST", cgstAmount],
             ["Add: SGST", sgstAmount],
-            ["Total Purchase Order Value", totalPurchaseOrderValue],
           ];
     return (
       <div className="grid grid-cols-[1fr_380px] border-b-2 border-slate-950">
@@ -922,6 +934,24 @@ function CreatePurchaseOrderPanel({
               <div className="border-l border-slate-950 px-3 py-2 text-right font-semibold">{formatPlain(value as number)}</div>
             </div>
           ))}
+          {selectedTemplate === "ACS" ? (
+            <div className="grid grid-cols-[1fr_150px] border-b border-slate-950">
+              <div className="px-3 py-2 font-semibold">Others</div>
+              <input
+                type="number"
+                min={0}
+                step="0.01"
+                value={poDraftDetails.otherCharges}
+                onChange={(event) => updateDraftDetail("otherCharges", event.target.value)}
+                className="border-0 border-l border-slate-950 bg-transparent px-3 py-2 text-right font-semibold outline-none focus:bg-amber-50"
+                aria-label="Other charges"
+              />
+            </div>
+          ) : null}
+          <div className="grid grid-cols-[1fr_150px] border-b border-slate-950 last:border-b-0">
+            <div className="px-3 py-2 font-semibold">{selectedTemplate === "ACS" ? "Total  Amount after Tax in Rs." : "Total Purchase Order Value"}</div>
+            <div className="border-l border-slate-950 px-3 py-2 text-right font-semibold">{formatPlain(totalPurchaseOrderValue)}</div>
+          </div>
         </div>
       </div>
     );
@@ -1043,10 +1073,20 @@ function CreatePurchaseOrderPanel({
               {renderSummary()}
 
               <div className="border-b-2 border-slate-950 p-3">
-                <p className="font-bold uppercase">Terms & Conditions:</p>
+                <div className="flex items-center justify-between gap-3">
+                  <p className="font-bold uppercase">Terms & Conditions:</p>
+                  <button
+                    type="button"
+                    onClick={addTermRow}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    Add Row
+                  </button>
+                </div>
                 <div className="mt-2 grid gap-2">
                   {terms.map((term, index) => (
-                    <div key={term.id} className="grid grid-cols-[34px_180px_1fr] items-start gap-0 leading-5">
+                    <div key={term.id} className="grid grid-cols-[34px_180px_1fr_72px] items-start gap-0 leading-5">
                       <span className="px-1 py-1.5">{index + 1}</span>
                       <input
                         value={term.title}
@@ -1060,6 +1100,13 @@ function CreatePurchaseOrderPanel({
                         className="min-h-[46px] resize-y border-0 bg-transparent px-2 py-1.5 outline-none focus:bg-amber-50"
                         aria-label={`Term ${index + 1} matter`}
                       />
+                      <button
+                        type="button"
+                        onClick={() => deleteTermRow(term.id)}
+                        className="mx-1 mt-1 rounded-full border border-rose-200 px-2 py-1 text-[11px] font-semibold text-rose-600 hover:bg-rose-50"
+                      >
+                        Delete
+                      </button>
                     </div>
                   ))}
                 </div>
@@ -1072,10 +1119,7 @@ function CreatePurchaseOrderPanel({
               ) : null}
 
               <div className="grid grid-cols-[1fr_320px]">
-                <div className="p-3">
-                  <p className="font-bold uppercase">Authorization Section</p>
-                  <p className="mt-2 text-slate-600">Signature area is reserved for approved users and is read-only during PO creation.</p>
-                </div>
+                <div className="p-3" />
                 <div className="border-l-2 border-slate-950 p-3 text-center">
                   <p className="font-semibold">For {selectedTemplate === "ACS" ? "ACS Technologies Ltd" : "IOTIQ Innovations Pvt. Ltd."}</p>
                   <div className="h-20" />
