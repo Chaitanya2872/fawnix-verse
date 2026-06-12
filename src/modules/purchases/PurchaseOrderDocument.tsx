@@ -259,8 +259,8 @@ export function PurchaseOrderDocument({ document }: { document: PurchaseOrderDoc
                 : [
                     ["Basic Value", document.subtotal],
                     ["Add: IGST", igstAmount],
-                    ["Add: CGST", cgstAmount],
-                    ["Add: SGST", sgstAmount],
+                    ["Add: CGST @ 9%", cgstAmount],
+                    ["Add: SGST @ 9%", sgstAmount],
                     ["Total Purchase Order Value", document.grandTotal],
                   ]),
             ].map(([label, value]) => (

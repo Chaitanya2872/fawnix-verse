@@ -51,6 +51,8 @@ type PoDraftDetails = {
   referenceDate: string;
   shippingAddress: string;
   otherCharges: string;
+  igstAmount: string;
+  igstAmountMode: "AUTO" | "MANUAL";
   preparedBy: string;
   status: string;
   approvalInformation: string;
@@ -107,12 +109,11 @@ const IOTIQ_TERMS = [
 const ACS_COMPANY = {
   name: "ACS Technologies Limited",
   addressLines: [
-    "1st Floor, Building, Opp: District Vikalang Puranaravas Kendra,",
-    "Kalyanapura Road, Near Anas River, Rangapura",
-    "Badkuwa, Jhabua, Madhya Pradesh, 457661",
+    "Level 7, Pardhas Picasa Building, Durgam Charuvu Road",
+    "Madhapur, Hyderabad, Telangana, India - 500081",
   ],
   cin: "CIN :   L62099TG1993PLC015268",
-  gst: "GSTIN.No-23AAACL4102B1ZI",
+  gst: "GSTIN.No-36AAACL4102B3Z9",
 };
 
 const ACS_TERMS = [
@@ -214,6 +215,31 @@ function formatPlain(value: number) {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(value);
+}
+
+function formatEditableAmount(value: number) {
+  return Number.isFinite(value) ? value.toFixed(2) : "0.00";
+}
+
+function calculatePurchaseOrderTaxes(template: PoTemplate, subtotal: number, details: PoDraftDetails) {
+  const igstAmount =
+    template === "IOTIQ"
+      ? details.igstAmountMode === "MANUAL"
+        ? parseAmountInput(details.igstAmount || "")
+        : subtotal * IOTIQ_TAX_RATE
+      : subtotal * ACS_IGST_RATE;
+  const cgstAmount = subtotal * ACS_TAX_RATE;
+  const sgstAmount = subtotal * ACS_TAX_RATE;
+  const otherCharges = template === "ACS" ? Number(details.otherCharges || 0) : 0;
+  const grandTotal = subtotal + igstAmount + cgstAmount + sgstAmount + otherCharges;
+
+  return {
+    igstAmount,
+    cgstAmount,
+    sgstAmount,
+    otherCharges,
+    grandTotal,
+  };
 }
 
 const SMALL_NUMBERS = [
@@ -362,6 +388,8 @@ function createDefaultPoDraftDetails(template: PoTemplate = "IOTIQ", vendor?: Ve
         ? "M/s. SANNVERSE ALTIS JV.\nC/O Pati Kallu, 730, Ghoradongri,Sarni road,\nBetul Madhya Pradesh-460443\nContact Person - Mrityunjay Singh - 9835058603\nGST No: 23ACJAS5308K1Z9"
         : IOTIQ_COMPANY.addressLines.join("\n"),
     otherCharges: "0",
+    igstAmount: "",
+    igstAmountMode: "AUTO",
     preparedBy: "Logged-in User",
     status: "Draft",
     approvalInformation: "Pending approval",
@@ -445,11 +473,7 @@ function draftDoc(
 ): PurchaseOrderDocumentData {
   const documentItems = lineItems?.length ? lineItems : requisition.items.map(createLineItemDraft);
   const subtotal = documentItems.reduce((sum, item) => sum + calculateLineTotal(item), 0);
-  const otherCharges = template === "ACS" ? Number(details.otherCharges || 0) : 0;
-  const igstAmount = template === "IOTIQ" ? subtotal * IOTIQ_TAX_RATE : template === "ACS" ? subtotal * ACS_IGST_RATE : 0;
-  const cgstAmount = template === "ACS" ? subtotal * ACS_TAX_RATE : 0;
-  const sgstAmount = template === "ACS" ? subtotal * ACS_TAX_RATE : 0;
-  const grandTotal = subtotal + igstAmount + cgstAmount + sgstAmount + otherCharges;
+  const { igstAmount, cgstAmount, sgstAmount, otherCharges, grandTotal } = calculatePurchaseOrderTaxes(template, subtotal, details);
   const fallbackVendor = vendorParty(vendor);
   const buyer = template === "ACS" ? ACS_BUYER : IOTIQ_BUYER;
   const company = template === "ACS" ? ACS_COMPANY : IOTIQ_COMPANY;
@@ -684,11 +708,8 @@ function CreatePurchaseOrderPanel({
   const company = selectedTemplate === "ACS" ? ACS_COMPANY : IOTIQ_COMPANY;
   const billing = selectedTemplate === "ACS" ? ACS_BUYER : IOTIQ_BILLING;
   const basicValue = lineItems.reduce((sum, item) => sum + calculateLineTotal(item), 0);
-  const igstAmount = selectedTemplate === "IOTIQ" ? basicValue * IOTIQ_TAX_RATE : selectedTemplate === "ACS" ? basicValue * ACS_IGST_RATE : 0;
-  const cgstAmount = selectedTemplate === "ACS" ? basicValue * ACS_TAX_RATE : 0;
-  const sgstAmount = selectedTemplate === "ACS" ? basicValue * ACS_TAX_RATE : 0;
-  const otherCharges = selectedTemplate === "ACS" ? Number(poDraftDetails.otherCharges || 0) : 0;
-  const totalPurchaseOrderValue = basicValue + igstAmount + cgstAmount + sgstAmount + otherCharges;
+  const taxes = calculatePurchaseOrderTaxes(selectedTemplate, basicValue, poDraftDetails);
+  const { igstAmount, cgstAmount, sgstAmount, grandTotal: totalPurchaseOrderValue } = taxes;
   const amountInWords = numberToIndianWords(totalPurchaseOrderValue);
   const poNumber = draftPoNumber(selectedRequisition, selectedTemplate);
   const requiresMake = selectedTemplate === "IOTIQ";
@@ -729,6 +750,10 @@ function CreatePurchaseOrderPanel({
 
   function updateDraftDetail(key: keyof PoDraftDetails, value: string) {
     onPoDraftDetailsChange({ ...poDraftDetails, [key]: value });
+  }
+
+  function updateDraftDetails(patch: Partial<PoDraftDetails>) {
+    onPoDraftDetailsChange({ ...poDraftDetails, ...patch });
   }
 
   function updateLineItem(itemId: string, patch: Partial<PoLineItemDraft>) {
@@ -919,20 +944,6 @@ function CreatePurchaseOrderPanel({
   }
 
   function renderSummary() {
-    const rows =
-      selectedTemplate === "ACS"
-        ? [
-            ["Total Amount Before Tax", basicValue],
-            ["Add: IGST", igstAmount],
-            ["Add: CGST", cgstAmount],
-            ["Add: SGST", sgstAmount],
-          ]
-        : [
-            ["Basic Value", basicValue],
-            ["Add: IGST", igstAmount],
-            ["Add: CGST", cgstAmount],
-            ["Add: SGST", sgstAmount],
-          ];
     return (
       <div className="grid grid-cols-[1fr_380px] border-b-2 border-slate-950">
         <div className="border-r-2 border-slate-950 p-3">
@@ -940,12 +951,53 @@ function CreatePurchaseOrderPanel({
           <p className="mt-2 min-h-[46px] leading-5">{amountInWords}</p>
         </div>
         <div>
-          {rows.map(([label, value]) => (
-            <div key={label as string} className="grid grid-cols-[1fr_150px] border-b border-slate-950 last:border-b-0">
-              <div className="px-3 py-2 font-semibold">{label}</div>
-              <div className="border-l border-slate-950 px-3 py-2 text-right font-semibold">{formatPlain(value as number)}</div>
-            </div>
-          ))}
+          {selectedTemplate === "ACS" ? (
+            <>
+              {[
+                ["Total Amount Before Tax", basicValue],
+                ["Add: IGST", igstAmount],
+                ["Add: CGST", cgstAmount],
+                ["Add: SGST", sgstAmount],
+              ].map(([label, value]) => (
+                <div key={label as string} className="grid grid-cols-[1fr_150px] border-b border-slate-950 last:border-b-0">
+                  <div className="px-3 py-2 font-semibold">{label}</div>
+                  <div className="border-l border-slate-950 px-3 py-2 text-right font-semibold">{formatPlain(value as number)}</div>
+                </div>
+              ))}
+            </>
+          ) : (
+            <>
+              <div className="grid grid-cols-[1fr_150px] border-b border-slate-950">
+                <div className="px-3 py-2 font-semibold">Basic Value</div>
+                <div className="border-l border-slate-950 px-3 py-2 text-right font-semibold">{formatPlain(basicValue)}</div>
+              </div>
+              <div className="grid grid-cols-[1fr_150px] border-b border-slate-950">
+                <div className="px-3 py-2 font-semibold">Add: IGST Amount</div>
+                <input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={poDraftDetails.igstAmountMode === "MANUAL" ? poDraftDetails.igstAmount || "" : formatEditableAmount(basicValue * IOTIQ_TAX_RATE)}
+                  onChange={(event) =>
+                    updateDraftDetails({
+                      igstAmountMode: "MANUAL",
+                      igstAmount: event.target.value,
+                    })
+                  }
+                  className="border-0 border-l border-slate-950 bg-transparent px-3 py-2 text-right font-semibold outline-none focus:bg-amber-50"
+                  aria-label="IGST amount"
+                />
+              </div>
+              <div className="grid grid-cols-[1fr_150px] border-b border-slate-950">
+                <div className="px-3 py-2 font-semibold">Add: CGST @ 9%</div>
+                <div className="border-l border-slate-950 px-3 py-2 text-right font-semibold">{formatPlain(cgstAmount)}</div>
+              </div>
+              <div className="grid grid-cols-[1fr_150px] border-b border-slate-950">
+                <div className="px-3 py-2 font-semibold">Add: SGST @ 9%</div>
+                <div className="border-l border-slate-950 px-3 py-2 text-right font-semibold">{formatPlain(sgstAmount)}</div>
+              </div>
+            </>
+          )}
           {selectedTemplate === "ACS" ? (
             <div className="grid grid-cols-[1fr_150px] border-b border-slate-950">
               <div className="px-3 py-2 font-semibold">Others</div>
@@ -1373,6 +1425,14 @@ export default function P2PPurchaseOrderPage() {
       purchaseRequisitionId: value,
       vendorId: requisition?.negotiationVendorId ?? draft.vendorId,
       poLineItems: requisition ? requisition.items.map(createLineItemDraft) : draft.poLineItems,
+      poDraftDetails:
+        selectedTemplate === "IOTIQ"
+          ? {
+              ...draft.poDraftDetails,
+              igstAmount: "",
+              igstAmountMode: "AUTO",
+            }
+          : draft.poDraftDetails,
     }));
   }
 
