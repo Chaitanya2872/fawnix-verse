@@ -305,6 +305,11 @@ function calculateLineTotal(item: Pick<PoLineItemDraft, "quantity" | "unitPrice"
   return Number(item.quantity || 0) * Number(item.unitPrice || 0);
 }
 
+function parseAmountInput(value: string) {
+  const parsed = Number(value.replace(/,/g, ""));
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
 function createLineItemDraft(item?: PurchaseRequisition["items"][number] | null): PoLineItemDraft {
   const quantity = item?.quantity ?? 1;
   const unitPrice = item?.estimatedUnitPrice ?? 0;
@@ -874,13 +879,13 @@ function CreatePurchaseOrderPanel({
                         <input value={item.unit} onChange={(event) => updateLineItem(item.id, { unit: event.target.value })} placeholder="UoM" className={sheetInputClass} />
                       </td>
                       <td className="w-[90px] border border-slate-950">
-                        <input type="number" min={0} step="0.01" value={item.quantity} onChange={(event) => updateLineItem(item.id, { quantity: Number(event.target.value) })} className={sheetInputClass} />
+                        <input type="number" min={0} step="0.01" value={item.quantity} onChange={(event) => updateLineItem(item.id, { quantity: parseAmountInput(event.target.value) })} className={sheetInputClass} />
                       </td>
                     </>
                   ) : (
                     <>
                       <td className="w-[90px] border border-slate-950">
-                        <input type="number" min={0} step="0.01" value={item.quantity} onChange={(event) => updateLineItem(item.id, { quantity: Number(event.target.value) })} className={sheetInputClass} />
+                        <input type="number" min={0} step="0.01" value={item.quantity} onChange={(event) => updateLineItem(item.id, { quantity: parseAmountInput(event.target.value) })} className={sheetInputClass} />
                       </td>
                       <td className="w-[110px] border border-slate-950">
                         <input value={item.unit} onChange={(event) => updateLineItem(item.id, { unit: event.target.value })} placeholder="UOM" className={sheetInputClass} />
@@ -888,9 +893,16 @@ function CreatePurchaseOrderPanel({
                     </>
                   )}
                   <td className="w-[130px] border border-slate-950">
-                    <input type="number" min={0} step="0.01" value={item.unitPrice} onChange={(event) => updateLineItem(item.id, { unitPrice: Number(event.target.value) })} className={sheetInputClass} />
+                    <input type="number" min={0} step="0.01" value={item.unitPrice} onChange={(event) => updateLineItem(item.id, { unitPrice: parseAmountInput(event.target.value) })} className={sheetInputClass} />
                   </td>
-                  <td className="w-[150px] border border-slate-950 px-2 py-1.5 text-right font-semibold">{formatPlain(calculateLineTotal(item))}</td>
+                  <td className="w-[150px] border border-slate-950">
+                    <input
+                      readOnly
+                      value={formatPlain(calculateLineTotal(item))}
+                      className="w-full border-0 bg-slate-50 px-2 py-1.5 text-right font-semibold text-slate-950 outline-none"
+                      aria-label={`Amount for item ${index + 1}`}
+                    />
+                  </td>
                 </tr>
               ))
             ) : (
