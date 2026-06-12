@@ -1,4 +1,6 @@
 import type { ReactNode } from "react";
+import acsLogo from "@/assets/purchase-order/ACS_logo.png";
+import iotiqLogo from "@/assets/purchase-order/IOTIQ_logo.png";
 
 type PartyDetails = {
   name: string;
@@ -107,7 +109,7 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
 
 export function PurchaseOrderDocument({ document }: { document: PurchaseOrderDocumentData }) {
   const isAcs = document.template === "ACS";
-  const logoSrc = isAcs ? "/quotation-assets/ACS_logo.png" : "/quotation-assets/IOTIQ_logo.png";
+  const logoSrc = isAcs ? acsLogo : iotiqLogo;
   const logoAlt = isAcs ? "ACS Technologies logo" : "IOTIQ logo";
   const terms = document.terms?.length ? document.terms : DEFAULT_IOTIQ_TERMS;
   const igstAmount = document.igstAmount ?? 0;
@@ -120,8 +122,8 @@ export function PurchaseOrderDocument({ document }: { document: PurchaseOrderDoc
     <div className="quotation-sheet mx-auto bg-white text-[10px] leading-tight text-black">
       <div className="border-2 border-black">
         <div className="grid grid-cols-[150px_1fr] border-b-2 border-black">
-          <div className="flex items-center justify-center border-r-2 border-black p-3">
-            <img src={logoSrc} alt={logoAlt} className="h-14 w-full object-contain" />
+          <div className="flex items-center justify-center border-r-2 border-black p-2">
+            <img src={logoSrc} alt={logoAlt} className="max-h-16 max-w-full object-contain" />
           </div>
           <div className="px-4 py-3 text-center">
             <p className="text-base font-bold uppercase tracking-wide">{document.buyer.name}</p>

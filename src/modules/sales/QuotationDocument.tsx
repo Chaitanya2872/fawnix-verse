@@ -1,4 +1,5 @@
 import type { Quote } from "./types";
+import iotiqLogo from "@/assets/purchase-order/IOTIQ_logo.png";
 
 type SalesRepDetails = {
   name: string;
@@ -112,7 +113,7 @@ export function QuotationDocument({
           <div className="flex items-center justify-center gap-4">
             <div className="h-10 w-px bg-black" />
             <img
-              src="/quotation-assets/IOTIQ_logo.png"
+              src={iotiqLogo}
               alt="IOTIQ"
               className="h-10 object-contain"
             />
