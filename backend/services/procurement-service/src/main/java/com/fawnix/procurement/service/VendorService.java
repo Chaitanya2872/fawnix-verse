@@ -16,9 +16,11 @@ import com.fawnix.procurement.repository.VendorDocumentRepository;
 import com.fawnix.procurement.repository.VendorRepository;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Pattern;
@@ -339,15 +341,20 @@ public class VendorService {
 
   private void replaceBankAccounts(Vendor vendor, List<ProcurementDtos.VendorBankAccountRequest> bankRequests) {
     List<ProcurementDtos.VendorBankAccountRequest> requests = bankRequests == null ? List.of() : bankRequests;
+    Map<UUID, VendorBankAccount> existingAccounts = new HashMap<>();
+    for (VendorBankAccount bankAccount : vendor.getBankAccounts()) {
+      existingAccounts.put(bankAccount.getId(), bankAccount);
+    }
     List<VendorBankAccount> accounts = new ArrayList<>();
     boolean primaryAssigned = false;
     for (ProcurementDtos.VendorBankAccountRequest request : requests) {
       VendorBankAccount account = new VendorBankAccount();
-      account.setId(UUID.randomUUID());
+      VendorBankAccount existing = request.id() == null ? null : existingAccounts.get(request.id());
+      account.setId(request.id() != null ? request.id() : UUID.randomUUID());
       account.setVendor(vendor);
       account.setAccountHolderName(requiredTrimmed(request.accountHolderName(), "Account holder name is required."));
       account.setBankName(requiredTrimmed(request.bankName(), "Bank name is required."));
-      account.setAccountNumber(requiredTrimmed(request.accountNumber(), "Account number is required."));
+      account.setAccountNumber(resolveAccountNumber(request, existing));
       account.setIfscCode(normalizeUpper(request.ifscCode()));
       account.setBranchName(trimToNull(request.branchName()));
       account.setUpiId(trimToNull(request.upiId()));
@@ -420,19 +427,37 @@ public class VendorService {
 
     Set<String> uniqueAccounts = new LinkedHashSet<>();
     for (ProcurementDtos.VendorBankAccountRequest account : bankAccounts) {
-      String accountNumber = requiredTrimmed(account.accountNumber(), "Account number is required.");
-      String confirmAccountNumber = requiredTrimmed(account.confirmAccountNumber(), "Please re-enter account number.");
-      if (!accountNumber.equals(confirmAccountNumber)) {
-        throw new BadRequestException("Account number and re-entered account number must match.");
+      String accountNumber = trimToNull(account.accountNumber());
+      String confirmAccountNumber = trimToNull(account.confirmAccountNumber());
+      boolean unchangedExisting = account.id() != null && accountNumber == null && confirmAccountNumber == null;
+      if (!unchangedExisting) {
+        accountNumber = requiredTrimmed(account.accountNumber(), "Account number is required.");
+        confirmAccountNumber = requiredTrimmed(account.confirmAccountNumber(), "Please re-enter account number.");
+        if (!accountNumber.equals(confirmAccountNumber)) {
+          throw new BadRequestException("Account number and re-entered account number must match.");
+        }
       }
       String ifsc = normalizeUpper(account.ifscCode());
       if (ifsc == null || !IFSC_PATTERN.matcher(ifsc).matches()) {
         throw new BadRequestException("IFSC code format is invalid.");
       }
-      if (!uniqueAccounts.add(accountNumber)) {
+      String uniquenessKey = unchangedExisting ? "existing:" + account.id() : accountNumber;
+      if (!uniqueAccounts.add(uniquenessKey)) {
         throw new BadRequestException("Duplicate bank account number found.");
       }
     }
+  }
+
+  private String resolveAccountNumber(
+      ProcurementDtos.VendorBankAccountRequest request,
+      VendorBankAccount existing
+  ) {
+    String accountNumber = trimToNull(request.accountNumber());
+    String confirmAccountNumber = trimToNull(request.confirmAccountNumber());
+    if (accountNumber == null && confirmAccountNumber == null && existing != null) {
+      return existing.getAccountNumber();
+    }
+    return requiredTrimmed(request.accountNumber(), "Account number is required.");
   }
 
   private String generateVendorCode() {

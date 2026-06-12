@@ -296,7 +296,7 @@ export default function AccessRequestsPage() {
     mutationFn: ({ id, decision }: { id: string; decision: "APPROVE" | "REJECT" }) =>
       accessRequestsApi.review(id, {
         decision,
-        permissions: decision === "APPROVE" ? reviewPermissions[id] ?? [] : undefined,
+        permissions: decision === "APPROVE" ? reviewPermissions[id] ?? selectedRequest?.permissions ?? [] : undefined,
         reviewNote: reviewNotes[id] ?? "",
       }),
     onSuccess: () => {

@@ -348,6 +348,7 @@ public final class ProcurementDtos {
   }
 
   public record VendorBankAccountRequest(
+      UUID id,
       @NotBlank(message = "Account holder name is required.")
       @Size(max = 160, message = "Account holder name cannot exceed 160 characters.")
       String accountHolderName,

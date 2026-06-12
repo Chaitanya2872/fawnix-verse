@@ -346,6 +346,7 @@ function sanitizeVendorPayload(form: VendorForm): CreateVendorPayload {
       primaryContact: Boolean(contact.primaryContact ?? index === 0),
     })),
     bankAccounts: (form.bankAccounts ?? []).map((account, index) => ({
+      id: account.id,
       accountHolderName: normalizeText(account.accountHolderName),
       bankName: normalizeText(account.bankName),
       accountNumber: normalizeText(account.accountNumber),
