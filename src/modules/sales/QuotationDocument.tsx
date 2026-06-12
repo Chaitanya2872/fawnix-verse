@@ -112,7 +112,7 @@ export function QuotationDocument({
           <div className="flex items-center justify-center gap-4">
             <div className="h-10 w-px bg-black" />
             <img
-              src="/quotation-assets/IOTIQ_text.png"
+              src="/quotation-assets/IOTIQ_logo.png"
               alt="IOTIQ"
               className="h-10 object-contain"
             />

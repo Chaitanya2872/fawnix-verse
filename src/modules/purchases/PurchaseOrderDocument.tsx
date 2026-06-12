@@ -107,6 +107,8 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
 
 export function PurchaseOrderDocument({ document }: { document: PurchaseOrderDocumentData }) {
   const isAcs = document.template === "ACS";
+  const logoSrc = isAcs ? "/quotation-assets/ACS_logo.png" : "/quotation-assets/IOTIQ_logo.png";
+  const logoAlt = isAcs ? "ACS Technologies logo" : "IOTIQ logo";
   const terms = document.terms?.length ? document.terms : DEFAULT_IOTIQ_TERMS;
   const igstAmount = document.igstAmount ?? 0;
   const cgstAmount = document.cgstAmount ?? 0;
@@ -117,11 +119,9 @@ export function PurchaseOrderDocument({ document }: { document: PurchaseOrderDoc
   return (
     <div className="quotation-sheet mx-auto bg-white text-[10px] leading-tight text-black">
       <div className="border-2 border-black">
-        <div className="grid grid-cols-[120px_1fr] border-b-2 border-black">
+        <div className="grid grid-cols-[150px_1fr] border-b-2 border-black">
           <div className="flex items-center justify-center border-r-2 border-black p-3">
-            <div className="flex h-16 w-16 items-center justify-center rounded-lg border-2 border-black text-[11px] font-black tracking-[0.18em]">
-              {isAcs ? "ACS" : "IOTIQ"}
-            </div>
+            <img src={logoSrc} alt={logoAlt} className="h-14 w-full object-contain" />
           </div>
           <div className="px-4 py-3 text-center">
             <p className="text-base font-bold uppercase tracking-wide">{document.buyer.name}</p>
