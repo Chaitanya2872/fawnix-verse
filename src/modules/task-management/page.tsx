@@ -2292,7 +2292,7 @@ function AssigneeSelect({
     const emptyOption = options.find((option) => option.value === "");
     const matchedOptions = filterAssigneeOptions(options, query, value ? [value] : []);
     return emptyOption ? [emptyOption, ...matchedOptions] : matchedOptions;
-  }, [options, query]);
+  }, [options, query, value]);
 
   const selectedIndex = Math.max(
     0,

@@ -5,6 +5,9 @@ import com.fawnix.procurement.domain.BudgetContextType;
 import com.fawnix.procurement.domain.GoodsReceiptStatus;
 import com.fawnix.procurement.domain.InvoiceStatus;
 import com.fawnix.procurement.domain.PaymentStatus;
+import com.fawnix.procurement.domain.VendorAccountType;
+import com.fawnix.procurement.domain.VendorAddressType;
+import com.fawnix.procurement.domain.VendorStatus;
 import com.fawnix.procurement.domain.PurchaseRequisitionDocumentType;
 import com.fawnix.procurement.domain.PurchaseRequisitionPriority;
 import com.fawnix.procurement.domain.PurchaseOrderStatus;
@@ -216,36 +219,156 @@ public final class ProcurementDtos {
   }
 
   public record CreateVendorRequest(
-      @NotBlank(message = "Vendor code is required.")
-      String vendorCode,
-      @NotBlank(message = "Vendor name is required.")
-      String vendorName,
+      @Size(max = 80, message = "Vendor type cannot exceed 80 characters.")
+      String vendorType,
+      @Size(max = 20, message = "Salutation cannot exceed 20 characters.")
+      String salutation,
+      @Size(max = 80, message = "First name cannot exceed 80 characters.")
+      String firstName,
+      @Size(max = 80, message = "Last name cannot exceed 80 characters.")
+      String lastName,
+      @Size(max = 160, message = "Company name cannot exceed 160 characters.")
+      String companyName,
+      @NotBlank(message = "Display name is required.")
+      @Size(max = 160, message = "Display name cannot exceed 160 characters.")
+      String displayName,
       @Email(message = "Email must be valid.")
+      @Size(max = 160, message = "Email cannot exceed 160 characters.")
       String email,
+      @Size(max = 40, message = "Phone cannot exceed 40 characters.")
       String phone,
-      String taxIdentifier,
-      String addressLine1,
-      String addressLine2,
-      String city,
-      String state,
-      String country,
-      String postalCode
+      @Size(max = 40, message = "Work phone cannot exceed 40 characters.")
+      String workPhone,
+      @Size(max = 40, message = "Mobile cannot exceed 40 characters.")
+      String mobile,
+      @Size(max = 60, message = "Vendor language cannot exceed 60 characters.")
+      String vendorLanguage,
+      @Size(max = 20, message = "GST number cannot exceed 20 characters.")
+      String gstNumber,
+      @Size(max = 20, message = "PAN number cannot exceed 20 characters.")
+      String panNumber,
+      @Size(max = 255, message = "Website cannot exceed 255 characters.")
+      String website,
+      VendorStatus status,
+      @Size(max = 4000, message = "Remarks cannot exceed 4000 characters.")
+      String remarks,
+      @Valid VendorAddressRequest billingAddress,
+      List<@Valid VendorAddressRequest> shippingAddresses,
+      List<@Valid VendorContactPersonRequest> contactPersons,
+      List<@Valid VendorBankAccountRequest> bankAccounts
   ) {
   }
 
   public record UpdateVendorRequest(
-      @NotBlank(message = "Vendor name is required.")
-      String vendorName,
+      @Size(max = 80, message = "Vendor type cannot exceed 80 characters.")
+      String vendorType,
+      @Size(max = 20, message = "Salutation cannot exceed 20 characters.")
+      String salutation,
+      @Size(max = 80, message = "First name cannot exceed 80 characters.")
+      String firstName,
+      @Size(max = 80, message = "Last name cannot exceed 80 characters.")
+      String lastName,
+      @Size(max = 160, message = "Company name cannot exceed 160 characters.")
+      String companyName,
+      @NotBlank(message = "Display name is required.")
+      @Size(max = 160, message = "Display name cannot exceed 160 characters.")
+      String displayName,
       @Email(message = "Email must be valid.")
+      @Size(max = 160, message = "Email cannot exceed 160 characters.")
       String email,
+      @Size(max = 40, message = "Phone cannot exceed 40 characters.")
       String phone,
-      String taxIdentifier,
+      @Size(max = 40, message = "Work phone cannot exceed 40 characters.")
+      String workPhone,
+      @Size(max = 40, message = "Mobile cannot exceed 40 characters.")
+      String mobile,
+      @Size(max = 60, message = "Vendor language cannot exceed 60 characters.")
+      String vendorLanguage,
+      @Size(max = 20, message = "GST number cannot exceed 20 characters.")
+      String gstNumber,
+      @Size(max = 20, message = "PAN number cannot exceed 20 characters.")
+      String panNumber,
+      @Size(max = 255, message = "Website cannot exceed 255 characters.")
+      String website,
+      VendorStatus status,
+      @Size(max = 4000, message = "Remarks cannot exceed 4000 characters.")
+      String remarks,
+      @Valid VendorAddressRequest billingAddress,
+      List<@Valid VendorAddressRequest> shippingAddresses,
+      List<@Valid VendorContactPersonRequest> contactPersons,
+      List<@Valid VendorBankAccountRequest> bankAccounts
+  ) {
+  }
+
+  public record VendorAddressRequest(
+      VendorAddressType addressType,
+      @Size(max = 80, message = "Address label cannot exceed 80 characters.")
+      String label,
+      @Size(max = 160, message = "Attention cannot exceed 160 characters.")
+      String attention,
+      @Size(max = 255, message = "Address line 1 cannot exceed 255 characters.")
       String addressLine1,
+      @Size(max = 255, message = "Address line 2 cannot exceed 255 characters.")
       String addressLine2,
+      @Size(max = 80, message = "City cannot exceed 80 characters.")
       String city,
+      @Size(max = 80, message = "State cannot exceed 80 characters.")
       String state,
+      @Size(max = 80, message = "Country cannot exceed 80 characters.")
       String country,
-      String postalCode
+      @Size(max = 20, message = "Postal code cannot exceed 20 characters.")
+      String postalCode,
+      Boolean primaryAddress
+  ) {
+  }
+
+  public record VendorContactPersonRequest(
+      @Size(max = 20, message = "Salutation cannot exceed 20 characters.")
+      String salutation,
+      @NotBlank(message = "Contact first name is required.")
+      @Size(max = 80, message = "Contact first name cannot exceed 80 characters.")
+      String firstName,
+      @Size(max = 80, message = "Contact last name cannot exceed 80 characters.")
+      String lastName,
+      @Email(message = "Contact email must be valid.")
+      @Size(max = 160, message = "Contact email cannot exceed 160 characters.")
+      String email,
+      @Size(max = 40, message = "Contact work phone cannot exceed 40 characters.")
+      String workPhone,
+      @Size(max = 40, message = "Contact mobile cannot exceed 40 characters.")
+      String mobile,
+      @Size(max = 120, message = "Skype name cannot exceed 120 characters.")
+      String skypeName,
+      @Size(max = 120, message = "Designation cannot exceed 120 characters.")
+      String designation,
+      @Size(max = 120, message = "Department cannot exceed 120 characters.")
+      String department,
+      Boolean primaryContact
+  ) {
+  }
+
+  public record VendorBankAccountRequest(
+      @NotBlank(message = "Account holder name is required.")
+      @Size(max = 160, message = "Account holder name cannot exceed 160 characters.")
+      String accountHolderName,
+      @NotBlank(message = "Bank name is required.")
+      @Size(max = 160, message = "Bank name cannot exceed 160 characters.")
+      String bankName,
+      @NotBlank(message = "Account number is required.")
+      @Size(max = 64, message = "Account number cannot exceed 64 characters.")
+      String accountNumber,
+      @NotBlank(message = "Please re-enter account number.")
+      @Size(max = 64, message = "Account confirmation cannot exceed 64 characters.")
+      String confirmAccountNumber,
+      @NotBlank(message = "IFSC code is required.")
+      @Size(max = 20, message = "IFSC code cannot exceed 20 characters.")
+      String ifscCode,
+      @Size(max = 160, message = "Branch name cannot exceed 160 characters.")
+      String branchName,
+      @Size(max = 120, message = "UPI ID cannot exceed 120 characters.")
+      String upiId,
+      VendorAccountType accountType,
+      Boolean primaryAccount
   ) {
   }
 
@@ -316,8 +439,22 @@ public final class ProcurementDtos {
       UUID id,
       String vendorCode,
       String vendorName,
+      String vendorType,
+      String salutation,
+      String firstName,
+      String lastName,
+      String companyName,
+      String displayName,
       String email,
       String phone,
+      String workPhone,
+      String mobile,
+      String vendorLanguage,
+      String gstNumber,
+      String panNumber,
+      String website,
+      VendorStatus status,
+      String remarks,
       String taxIdentifier,
       String addressLine1,
       String addressLine2,
@@ -325,6 +462,59 @@ public final class ProcurementDtos {
       String state,
       String country,
       String postalCode,
+      VendorAddressResponse billingAddress,
+      List<VendorAddressResponse> shippingAddresses,
+      List<VendorContactPersonResponse> contactPersons,
+      List<VendorBankAccountResponse> bankAccounts,
+      Instant createdAt,
+      Instant updatedAt
+  ) {
+  }
+
+  public record VendorAddressResponse(
+      UUID id,
+      VendorAddressType addressType,
+      String label,
+      String attention,
+      String addressLine1,
+      String addressLine2,
+      String city,
+      String state,
+      String country,
+      String postalCode,
+      boolean primaryAddress,
+      Instant createdAt,
+      Instant updatedAt
+  ) {
+  }
+
+  public record VendorContactPersonResponse(
+      UUID id,
+      String salutation,
+      String firstName,
+      String lastName,
+      String email,
+      String workPhone,
+      String mobile,
+      String skypeName,
+      String designation,
+      String department,
+      boolean primaryContact,
+      Instant createdAt,
+      Instant updatedAt
+  ) {
+  }
+
+  public record VendorBankAccountResponse(
+      UUID id,
+      String accountHolderName,
+      String bankName,
+      String accountNumberMasked,
+      String ifscCode,
+      String branchName,
+      String upiId,
+      VendorAccountType accountType,
+      boolean primaryAccount,
       Instant createdAt,
       Instant updatedAt
   ) {

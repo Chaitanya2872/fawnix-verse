@@ -97,6 +97,10 @@ public class AccessRequestEntity {
     return requestNote;
   }
 
+  public void setRequestNote(String requestNote) {
+    this.requestNote = requestNote;
+  }
+
   public String getReviewNote() {
     return reviewNote;
   }

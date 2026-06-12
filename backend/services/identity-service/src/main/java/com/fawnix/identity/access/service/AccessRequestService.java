@@ -16,6 +16,11 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -60,33 +65,61 @@ public class AccessRequestService {
   }
 
   @Transactional(readOnly = true)
-  public List<AccessRequestDtos.AccessRequestResponse> listMyRequests(AppUserDetails requesterDetails) {
-    return accessRequestRepository.findAllByRequester_IdOrderByCreatedAtDesc(requesterDetails.getUserId())
-        .stream()
-        .map(this::toResponse)
-        .toList();
+  public AccessRequestDtos.AccessRequestPageResponse listMyRequests(
+      AppUserDetails requesterDetails,
+      String status,
+      String search,
+      int page,
+      int pageSize
+  ) {
+    return listRequests(requesterDetails.getUserId(), status, search, page, pageSize);
   }
 
   @Transactional(readOnly = true)
-  public List<AccessRequestDtos.AccessRequestResponse> listAllRequests(String status) {
-    if (!StringUtils.hasText(status)) {
-      return accessRequestRepository.findAllByOrderByCreatedAtDesc()
-          .stream()
-          .map(this::toResponse)
-          .toList();
-    }
+  public AccessRequestDtos.AccessRequestPageResponse listAllRequests(
+      String status,
+      String search,
+      int page,
+      int pageSize
+  ) {
+    return listRequests(null, status, search, page, pageSize);
+  }
 
-    AccessRequestStatus requestedStatus;
-    try {
-      requestedStatus = AccessRequestStatus.valueOf(status.trim().toUpperCase(Locale.ROOT));
-    } catch (IllegalArgumentException exception) {
-      throw new BadRequestException("Status is invalid.");
+  @Transactional(readOnly = true)
+  public AccessRequestDtos.AccessRequestResponse getRequest(String accessRequestId, AppUserDetails userDetails, boolean isMaster) {
+    AccessRequestEntity entity = accessRequestRepository.findById(accessRequestId)
+        .orElseThrow(() -> new ResourceNotFoundException("Access request not found"));
+    if (!isMaster && !entity.getRequester().getId().equals(userDetails.getUserId())) {
+      throw new ResourceNotFoundException("Access request not found");
     }
+    return toResponse(entity);
+  }
 
-    return accessRequestRepository.findAllByStatusOrderByCreatedAtAsc(requestedStatus)
-        .stream()
-        .map(this::toResponse)
-        .toList();
+  @Transactional
+  public AccessRequestDtos.AccessRequestResponse updateRequest(
+      String accessRequestId,
+      AccessRequestDtos.UpdateAccessRequest request,
+      AppUserDetails requesterDetails
+  ) {
+    AccessRequestEntity entity = requirePendingRequesterOwnedRequest(accessRequestId, requesterDetails);
+    UserEntity requester = entity.getRequester();
+    Set<String> permissions = normalizePermissions(request.permissions());
+    permissions.removeAll(requester.getPermissions());
+    if (permissions.isEmpty()) {
+      throw new BadRequestException("Selected permissions are already assigned.");
+    }
+    entity.setPermissions(permissions);
+    entity.setRequestNote(normalizeNote(request.requestNote()));
+    entity.setUpdatedAt(Instant.now());
+    return toResponse(accessRequestRepository.save(entity));
+  }
+
+  @Transactional
+  public AccessRequestDtos.AccessRequestResponse cancelRequest(String accessRequestId, AppUserDetails requesterDetails) {
+    AccessRequestEntity entity = requirePendingRequesterOwnedRequest(accessRequestId, requesterDetails);
+    entity.setStatus(AccessRequestStatus.CANCELLED);
+    entity.setUpdatedAt(Instant.now());
+    return toResponse(accessRequestRepository.save(entity));
   }
 
   @Transactional
@@ -158,9 +191,77 @@ public class AccessRequestService {
     return note.trim();
   }
 
+  private AccessRequestDtos.AccessRequestPageResponse listRequests(
+      String requesterId,
+      String status,
+      String search,
+      int page,
+      int pageSize
+  ) {
+    Pageable pageable = PageRequest.of(
+        Math.max(0, page),
+        Math.min(Math.max(1, pageSize), 100),
+        Sort.by(Sort.Direction.DESC, "createdAt")
+    );
+    Specification<AccessRequestEntity> specification = Specification.where(byRequester(requesterId))
+        .and(byStatus(status))
+        .and(bySearch(search));
+    Page<AccessRequestEntity> result = accessRequestRepository.findAll(specification, pageable);
+    return new AccessRequestDtos.AccessRequestPageResponse(
+        result.stream().map(this::toResponse).toList(),
+        result.getNumber(),
+        result.getSize(),
+        result.getTotalElements(),
+        result.getTotalPages()
+    );
+  }
+
+  private Specification<AccessRequestEntity> byRequester(String requesterId) {
+    return (root, query, builder) ->
+        requesterId == null ? builder.conjunction() : builder.equal(root.get("requester").get("id"), requesterId);
+  }
+
+  private Specification<AccessRequestEntity> byStatus(String status) {
+    if (!StringUtils.hasText(status) || "ALL".equalsIgnoreCase(status.trim())) {
+      return (root, query, builder) -> builder.conjunction();
+    }
+    AccessRequestStatus requestedStatus;
+    try {
+      requestedStatus = AccessRequestStatus.valueOf(status.trim().toUpperCase(Locale.ROOT));
+    } catch (IllegalArgumentException exception) {
+      throw new BadRequestException("Status is invalid.");
+    }
+    return (root, query, builder) -> builder.equal(root.get("status"), requestedStatus);
+  }
+
+  private Specification<AccessRequestEntity> bySearch(String search) {
+    if (!StringUtils.hasText(search)) {
+      return (root, query, builder) -> builder.conjunction();
+    }
+    String term = "%" + search.trim().toLowerCase(Locale.ROOT) + "%";
+    return (root, query, builder) -> builder.or(
+        builder.like(builder.lower(root.get("requestNote")), term),
+        builder.like(builder.lower(root.get("reviewNote")), term),
+        builder.like(builder.lower(root.get("requester").get("fullName")), term),
+        builder.like(builder.lower(root.get("requester").get("email")), term)
+    );
+  }
+
   private UserEntity requireUser(String userId) {
     return userRepository.findById(userId)
         .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+  }
+
+  private AccessRequestEntity requirePendingRequesterOwnedRequest(String accessRequestId, AppUserDetails requesterDetails) {
+    AccessRequestEntity entity = accessRequestRepository.findById(accessRequestId)
+        .orElseThrow(() -> new ResourceNotFoundException("Access request not found"));
+    if (!entity.getRequester().getId().equals(requesterDetails.getUserId())) {
+      throw new ResourceNotFoundException("Access request not found");
+    }
+    if (entity.getStatus() != AccessRequestStatus.PENDING) {
+      throw new BadRequestException("Only pending access requests can be changed.");
+    }
+    return entity;
   }
 
   private AccessRequestDtos.AccessRequestResponse toResponse(AccessRequestEntity entity) {

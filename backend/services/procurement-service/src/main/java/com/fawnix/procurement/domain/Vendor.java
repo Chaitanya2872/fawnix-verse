@@ -1,9 +1,16 @@
 package com.fawnix.procurement.domain;
 
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 @Entity
@@ -19,32 +26,63 @@ public class Vendor extends AuditableEntity {
   @Column(name = "vendor_name", nullable = false, length = 160)
   private String vendorName;
 
-  @Column(name = "email", length = 160)
-  private String email;
+  @Column(name = "vendor_type", length = 80)
+  private String vendorType;
+
+  @Column(name = "salutation", length = 20)
+  private String salutation;
+
+  @Column(name = "first_name", length = 80)
+  private String firstName;
+
+  @Column(name = "last_name", length = 80)
+  private String lastName;
+
+  @Column(name = "company_name", length = 160)
+  private String companyName;
 
   @Column(name = "phone", length = 40)
   private String phone;
 
-  @Column(name = "tax_identifier", length = 80)
-  private String taxIdentifier;
+  @Column(name = "work_phone", length = 40)
+  private String workPhone;
 
-  @Column(name = "address_line_1", length = 255)
-  private String addressLine1;
+  @Column(name = "mobile", length = 40)
+  private String mobile;
 
-  @Column(name = "address_line_2", length = 255)
-  private String addressLine2;
+  @Column(name = "email", length = 160)
+  private String email;
 
-  @Column(name = "city", length = 80)
-  private String city;
+  @Column(name = "vendor_language", length = 60)
+  private String vendorLanguage;
 
-  @Column(name = "state", length = 80)
-  private String state;
+  @Column(name = "gst_number", length = 20)
+  private String gstNumber;
 
-  @Column(name = "country", length = 80)
-  private String country;
+  @Column(name = "pan_number", length = 20)
+  private String panNumber;
 
-  @Column(name = "postal_code", length = 20)
-  private String postalCode;
+  @Column(name = "website", length = 255)
+  private String website;
+
+  @Enumerated(EnumType.STRING)
+  @Column(name = "status", nullable = false, length = 20)
+  private VendorStatus status = VendorStatus.ACTIVE;
+
+  @Column(name = "remarks", length = 4000)
+  private String remarks;
+
+  @OneToMany(mappedBy = "vendor", cascade = CascadeType.ALL, orphanRemoval = true)
+  @OrderBy("addressType asc, primaryAddress desc, createdAt asc")
+  private List<VendorAddress> addresses = new ArrayList<>();
+
+  @OneToMany(mappedBy = "vendor", cascade = CascadeType.ALL, orphanRemoval = true)
+  @OrderBy("primaryContact desc, createdAt asc")
+  private List<VendorContactPerson> contactPersons = new ArrayList<>();
+
+  @OneToMany(mappedBy = "vendor", cascade = CascadeType.ALL, orphanRemoval = true)
+  @OrderBy("primaryAccount desc, createdAt asc")
+  private List<VendorBankAccount> bankAccounts = new ArrayList<>();
 
   public UUID getId() {
     return id;
@@ -70,12 +108,44 @@ public class Vendor extends AuditableEntity {
     this.vendorName = vendorName;
   }
 
-  public String getEmail() {
-    return email;
+  public String getVendorType() {
+    return vendorType;
   }
 
-  public void setEmail(String email) {
-    this.email = email;
+  public void setVendorType(String vendorType) {
+    this.vendorType = vendorType;
+  }
+
+  public String getSalutation() {
+    return salutation;
+  }
+
+  public void setSalutation(String salutation) {
+    this.salutation = salutation;
+  }
+
+  public String getFirstName() {
+    return firstName;
+  }
+
+  public void setFirstName(String firstName) {
+    this.firstName = firstName;
+  }
+
+  public String getLastName() {
+    return lastName;
+  }
+
+  public void setLastName(String lastName) {
+    this.lastName = lastName;
+  }
+
+  public String getCompanyName() {
+    return companyName;
+  }
+
+  public void setCompanyName(String companyName) {
+    this.companyName = companyName;
   }
 
   public String getPhone() {
@@ -86,59 +156,99 @@ public class Vendor extends AuditableEntity {
     this.phone = phone;
   }
 
-  public String getTaxIdentifier() {
-    return taxIdentifier;
+  public String getWorkPhone() {
+    return workPhone;
   }
 
-  public void setTaxIdentifier(String taxIdentifier) {
-    this.taxIdentifier = taxIdentifier;
+  public void setWorkPhone(String workPhone) {
+    this.workPhone = workPhone;
   }
 
-  public String getAddressLine1() {
-    return addressLine1;
+  public String getMobile() {
+    return mobile;
   }
 
-  public void setAddressLine1(String addressLine1) {
-    this.addressLine1 = addressLine1;
+  public void setMobile(String mobile) {
+    this.mobile = mobile;
   }
 
-  public String getAddressLine2() {
-    return addressLine2;
+  public String getEmail() {
+    return email;
   }
 
-  public void setAddressLine2(String addressLine2) {
-    this.addressLine2 = addressLine2;
+  public void setEmail(String email) {
+    this.email = email;
   }
 
-  public String getCity() {
-    return city;
+  public String getVendorLanguage() {
+    return vendorLanguage;
   }
 
-  public void setCity(String city) {
-    this.city = city;
+  public void setVendorLanguage(String vendorLanguage) {
+    this.vendorLanguage = vendorLanguage;
   }
 
-  public String getState() {
-    return state;
+  public String getGstNumber() {
+    return gstNumber;
   }
 
-  public void setState(String state) {
-    this.state = state;
+  public void setGstNumber(String gstNumber) {
+    this.gstNumber = gstNumber;
   }
 
-  public String getCountry() {
-    return country;
+  public String getPanNumber() {
+    return panNumber;
   }
 
-  public void setCountry(String country) {
-    this.country = country;
+  public void setPanNumber(String panNumber) {
+    this.panNumber = panNumber;
   }
 
-  public String getPostalCode() {
-    return postalCode;
+  public String getWebsite() {
+    return website;
   }
 
-  public void setPostalCode(String postalCode) {
-    this.postalCode = postalCode;
+  public void setWebsite(String website) {
+    this.website = website;
+  }
+
+  public VendorStatus getStatus() {
+    return status;
+  }
+
+  public void setStatus(VendorStatus status) {
+    this.status = status;
+  }
+
+  public String getRemarks() {
+    return remarks;
+  }
+
+  public void setRemarks(String remarks) {
+    this.remarks = remarks;
+  }
+
+  public List<VendorAddress> getAddresses() {
+    return addresses;
+  }
+
+  public void setAddresses(List<VendorAddress> addresses) {
+    this.addresses = addresses;
+  }
+
+  public List<VendorContactPerson> getContactPersons() {
+    return contactPersons;
+  }
+
+  public void setContactPersons(List<VendorContactPerson> contactPersons) {
+    this.contactPersons = contactPersons;
+  }
+
+  public List<VendorBankAccount> getBankAccounts() {
+    return bankAccounts;
+  }
+
+  public void setBankAccounts(List<VendorBankAccount> bankAccounts) {
+    this.bankAccounts = bankAccounts;
   }
 }

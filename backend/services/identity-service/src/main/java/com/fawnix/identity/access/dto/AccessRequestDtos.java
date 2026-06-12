@@ -2,6 +2,7 @@ package com.fawnix.identity.access.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import java.time.Instant;
 import java.util.List;
@@ -24,6 +25,12 @@ public final class AccessRequestDtos {
   ) {
   }
 
+  public record UpdateAccessRequest(
+      @NotEmpty List<String> permissions,
+      @Size(max = 1000) String requestNote
+  ) {
+  }
+
   public record AccessRequestResponse(
       String id,
       RequesterSummary requester,
@@ -35,6 +42,15 @@ public final class AccessRequestDtos {
       Instant reviewedAt,
       Instant createdAt,
       Instant updatedAt
+  ) {
+  }
+
+  public record AccessRequestPageResponse(
+      List<AccessRequestResponse> items,
+      int page,
+      int pageSize,
+      long totalItems,
+      int totalPages
   ) {
   }
 

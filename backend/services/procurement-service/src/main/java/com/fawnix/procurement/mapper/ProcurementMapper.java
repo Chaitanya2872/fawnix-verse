@@ -8,6 +8,9 @@ import com.fawnix.procurement.domain.PurchaseOrderItem;
 import com.fawnix.procurement.domain.PurchaseRequisitionDocument;
 import com.fawnix.procurement.domain.PurchaseRequisition;
 import com.fawnix.procurement.domain.PurchaseRequisitionItem;
+import com.fawnix.procurement.domain.VendorAddress;
+import com.fawnix.procurement.domain.VendorBankAccount;
+import com.fawnix.procurement.domain.VendorContactPerson;
 import com.fawnix.procurement.domain.Vendor;
 import com.fawnix.procurement.domain.VendorDocument;
 import com.fawnix.procurement.dto.ProcurementDtos;
@@ -100,22 +103,109 @@ public class ProcurementMapper {
   }
 
   public ProcurementDtos.VendorResponse toVendorResponse(Vendor vendor) {
+    List<ProcurementDtos.VendorAddressResponse> shippingAddresses = vendor.getAddresses().stream()
+        .filter(address -> address.getAddressType() == com.fawnix.procurement.domain.VendorAddressType.SHIPPING)
+        .map(this::toVendorAddressResponse)
+        .toList();
+    ProcurementDtos.VendorAddressResponse billingAddress = vendor.getAddresses().stream()
+        .filter(address -> address.getAddressType() == com.fawnix.procurement.domain.VendorAddressType.BILLING)
+        .findFirst()
+        .map(this::toVendorAddressResponse)
+        .orElse(null);
+
     return new ProcurementDtos.VendorResponse(
         vendor.getId(),
         vendor.getVendorCode(),
         vendor.getVendorName(),
+        vendor.getVendorType(),
+        vendor.getSalutation(),
+        vendor.getFirstName(),
+        vendor.getLastName(),
+        vendor.getCompanyName(),
+        vendor.getVendorName(),
         vendor.getEmail(),
         vendor.getPhone(),
-        vendor.getTaxIdentifier(),
-        vendor.getAddressLine1(),
-        vendor.getAddressLine2(),
-        vendor.getCity(),
-        vendor.getState(),
-        vendor.getCountry(),
-        vendor.getPostalCode(),
+        vendor.getWorkPhone(),
+        vendor.getMobile(),
+        vendor.getVendorLanguage(),
+        vendor.getGstNumber(),
+        vendor.getPanNumber(),
+        vendor.getWebsite(),
+        vendor.getStatus(),
+        vendor.getRemarks(),
+        vendor.getGstNumber(),
+        billingAddress != null ? billingAddress.addressLine1() : null,
+        billingAddress != null ? billingAddress.addressLine2() : null,
+        billingAddress != null ? billingAddress.city() : null,
+        billingAddress != null ? billingAddress.state() : null,
+        billingAddress != null ? billingAddress.country() : null,
+        billingAddress != null ? billingAddress.postalCode() : null,
+        billingAddress,
+        shippingAddresses,
+        vendor.getContactPersons().stream().map(this::toVendorContactPersonResponse).toList(),
+        vendor.getBankAccounts().stream().map(this::toVendorBankAccountResponse).toList(),
         vendor.getCreatedAt(),
         vendor.getUpdatedAt()
     );
+  }
+
+  public ProcurementDtos.VendorAddressResponse toVendorAddressResponse(VendorAddress address) {
+    return new ProcurementDtos.VendorAddressResponse(
+        address.getId(),
+        address.getAddressType(),
+        address.getLabel(),
+        address.getAttention(),
+        address.getAddressLine1(),
+        address.getAddressLine2(),
+        address.getCity(),
+        address.getState(),
+        address.getCountry(),
+        address.getPostalCode(),
+        address.isPrimaryAddress(),
+        address.getCreatedAt(),
+        address.getUpdatedAt()
+    );
+  }
+
+  public ProcurementDtos.VendorContactPersonResponse toVendorContactPersonResponse(VendorContactPerson contactPerson) {
+    return new ProcurementDtos.VendorContactPersonResponse(
+        contactPerson.getId(),
+        contactPerson.getSalutation(),
+        contactPerson.getFirstName(),
+        contactPerson.getLastName(),
+        contactPerson.getEmail(),
+        contactPerson.getWorkPhone(),
+        contactPerson.getMobile(),
+        contactPerson.getSkypeName(),
+        contactPerson.getDesignation(),
+        contactPerson.getDepartment(),
+        contactPerson.isPrimaryContact(),
+        contactPerson.getCreatedAt(),
+        contactPerson.getUpdatedAt()
+    );
+  }
+
+  public ProcurementDtos.VendorBankAccountResponse toVendorBankAccountResponse(VendorBankAccount bankAccount) {
+    return new ProcurementDtos.VendorBankAccountResponse(
+        bankAccount.getId(),
+        bankAccount.getAccountHolderName(),
+        bankAccount.getBankName(),
+        maskAccountNumber(bankAccount.getAccountNumber()),
+        bankAccount.getIfscCode(),
+        bankAccount.getBranchName(),
+        bankAccount.getUpiId(),
+        bankAccount.getAccountType(),
+        bankAccount.isPrimaryAccount(),
+        bankAccount.getCreatedAt(),
+        bankAccount.getUpdatedAt()
+    );
+  }
+
+  private String maskAccountNumber(String value) {
+    if (value == null || value.length() <= 4) {
+      return value;
+    }
+    return "*".repeat(Math.max(0, value.length() - 4)) + value.substring(value.length() - 4);
   }
 
   public ProcurementDtos.VendorDocumentResponse toVendorDocumentResponse(VendorDocument vendorDocument) {

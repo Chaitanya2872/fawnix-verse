@@ -113,21 +113,29 @@ public class TaskNotesImportAiService {
         noteText
     );
 
-    OpenAiApi openAiApi = OpenAiApi.builder().apiKey(apiKey).build();
-    OpenAiChatOptions options = OpenAiChatOptions.builder()
-        .model(model)
-        .temperature(temperature)
+    // Spring AI 1.1.x uses builders for both the low-level API client and the
+    // chat model. The older direct constructors no longer match this version.
+    OpenAiApi openAiApi = OpenAiApi.builder()
+        .apiKey(apiKey)
         .build();
+
+    OpenAiChatOptions options = OpenAiChatOptions.builder()
+        .model(this.model)
+        .temperature(this.temperature)
+        .build();
+
     OpenAiChatModel chatModel = OpenAiChatModel.builder()
         .openAiApi(openAiApi)
         .defaultOptions(options)
         .observationRegistry(ObservationRegistry.NOOP)
         .build();
+
     ChatResponse response = chatModel.call(new Prompt(
-        new SystemMessage(systemPrompt),
-        new UserMessage(userPrompt)
+        List.of(new SystemMessage(systemPrompt), new UserMessage(userPrompt))
     ));
-    String content = response == null || response.getResult() == null || response.getResult().getOutput() == null
+
+    String content = response == null || response.getResult() == null
+        || response.getResult().getOutput() == null
         ? null
         : response.getResult().getOutput().getText();
 

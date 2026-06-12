@@ -166,20 +166,44 @@ const mapAccessRequest = (request: any) => ({
 });
 
 export const accessRequestsApi = {
-  listMine: async () => {
-    const response = await api.get("/access-requests/me");
-    const data = Array.isArray(response.data) ? response.data : response.data?.data ?? [];
-    return { data: data.map(mapAccessRequest) };
+  listMine: async (params?: { status?: string; search?: string; page?: number; pageSize?: number }) => {
+    const response = await api.get("/access-requests/me", { params });
+    const payload = response.data?.items ? response.data : response.data?.data ?? response.data;
+    const data = Array.isArray(payload) ? payload : payload?.items ?? [];
+    return {
+      data: data.map(mapAccessRequest),
+      page: payload?.page ?? 0,
+      pageSize: payload?.pageSize ?? params?.pageSize ?? 10,
+      totalItems: payload?.totalItems ?? data.length,
+      totalPages: payload?.totalPages ?? 1,
+    };
   },
-  listAll: async (status?: string) => {
-    const response = await api.get("/access-requests", {
-      params: status ? { status } : undefined,
-    });
-    const data = Array.isArray(response.data) ? response.data : response.data?.data ?? [];
-    return { data: data.map(mapAccessRequest) };
+  listAll: async (params?: { status?: string; search?: string; page?: number; pageSize?: number }) => {
+    const response = await api.get("/access-requests", { params });
+    const payload = response.data?.items ? response.data : response.data?.data ?? response.data;
+    const data = Array.isArray(payload) ? payload : payload?.items ?? [];
+    return {
+      data: data.map(mapAccessRequest),
+      page: payload?.page ?? 0,
+      pageSize: payload?.pageSize ?? params?.pageSize ?? 10,
+      totalItems: payload?.totalItems ?? data.length,
+      totalPages: payload?.totalPages ?? 1,
+    };
+  },
+  get: async (id: string) => {
+    const response = await api.get(`/access-requests/${id}`);
+    return { data: mapAccessRequest(response.data?.data ?? response.data) };
   },
   submit: async (payload: { permissions: string[]; requestNote?: string }) => {
     const response = await api.post("/access-requests", payload);
+    return { data: mapAccessRequest(response.data?.data ?? response.data) };
+  },
+  update: async (id: string, payload: { permissions: string[]; requestNote?: string }) => {
+    const response = await api.patch(`/access-requests/${id}`, payload);
+    return { data: mapAccessRequest(response.data?.data ?? response.data) };
+  },
+  cancel: async (id: string) => {
+    const response = await api.delete(`/access-requests/${id}`);
     return { data: mapAccessRequest(response.data?.data ?? response.data) };
   },
   review: async (
