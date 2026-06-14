@@ -36,6 +36,8 @@ export const PERMISSIONS = {
   PAGE_ADMIN_USERS: "page.admin.users",
   PAGE_ADMIN_SETTINGS: "page.admin.settings",
   PAGE_TASKS: "page.tasks",
+  FEATURE_ACCESS_REQUESTS_REVIEW: "feature.access.requests.review",
+  FEATURE_ADMIN_USERS_MANAGE: "feature.admin.users.manage",
 } as const;
 
 export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -60,17 +62,14 @@ export const MODULE_PERMISSION_MAP: Record<string, Permission> = {
 
 export function hasPermission(
   user: CurrentUser | null | undefined,
-  permission: Permission
+  permission: string
 ): boolean {
   if (!user) return false;
-  if (user.roles?.includes("ROLE_MASTER")) {
-    return true;
-  }
   const permissions = user.permissions ?? [];
   if (permissions.includes(permission)) return true;
-  if (hasLegacyPagePermission(permissions, permission)) return true;
+  if (hasLegacyPagePermission(permissions, permission as Permission)) return true;
 
-  const modulePermission = resolveModulePermission(permission);
+  const modulePermission = resolveModulePermission(permission as Permission);
   if (modulePermission && permissions.includes(modulePermission)) {
     return true;
   }
@@ -80,7 +79,7 @@ export function hasPermission(
 
 export function hasAnyPermission(
   user: CurrentUser | null | undefined,
-  permissions: Permission[]
+  permissions: string[]
 ): boolean {
   return permissions.some((permission) => hasPermission(user, permission));
 }

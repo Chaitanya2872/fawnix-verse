@@ -9,6 +9,6 @@ import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 public interface AccessRequestRepository extends JpaRepository<AccessRequestEntity, String>,
     JpaSpecificationExecutor<AccessRequestEntity> {
 
-  @EntityGraph(attributePaths = {"requester", "requester.roles", "reviewedBy"})
+  @EntityGraph(attributePaths = {"requester", "requester.roles", "requester.roles.permissions", "reviewedBy"})
   Optional<AccessRequestEntity> findById(String id);
 }

@@ -8,17 +8,19 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface UserRepository extends JpaRepository<UserEntity, String> {
 
-  @EntityGraph(attributePaths = {"roles", "permissions"})
+  @EntityGraph(attributePaths = {"roles", "roles.permissions", "permissions"})
   Optional<UserEntity> findByEmailIgnoreCase(String email);
 
   Optional<UserEntity> findByFullNameIgnoreCase(String fullName);
 
-  @EntityGraph(attributePaths = {"roles", "permissions"})
+  @EntityGraph(attributePaths = {"roles", "roles.permissions", "permissions"})
   List<UserEntity> findAllByActiveTrueOrderByFullNameAsc();
 
-  @EntityGraph(attributePaths = {"roles", "permissions"})
+  @EntityGraph(attributePaths = {"roles", "roles.permissions", "permissions"})
   List<UserEntity> findAllByOrderByFullNameAsc();
 
-  @EntityGraph(attributePaths = {"roles", "permissions"})
+  @EntityGraph(attributePaths = {"roles", "roles.permissions", "permissions"})
   List<UserEntity> findDistinctByActiveTrueAndRoles_NameInOrderByFullNameAsc(List<String> roleNames);
+
+  long countByRoles_Id(String roleId);
 }

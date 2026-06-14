@@ -1,7 +1,6 @@
 package com.fawnix.identity.auth.controller;
 
 import com.fawnix.identity.auth.dto.AuthDtos;
-import com.fawnix.identity.auth.entity.RoleName;
 import com.fawnix.identity.auth.service.AuthService;
 import com.fawnix.identity.common.exception.ForbiddenOperationException;
 import jakarta.validation.Valid;
@@ -34,7 +33,7 @@ public class InternalAdminAuthController {
       @RequestHeader("X-Internal-Service-Secret") String providedSecret
   ) {
     verifySecret(providedSecret);
-    return authService.registerWithRole(request, RoleName.ROLE_ADMIN);
+    return authService.registerAdmin(request);
   }
 
   @PostMapping("/register-master")
@@ -43,7 +42,7 @@ public class InternalAdminAuthController {
       @RequestHeader("X-Internal-Service-Secret") String providedSecret
   ) {
     verifySecret(providedSecret);
-    return authService.registerWithRole(request, RoleName.ROLE_MASTER);
+    return authService.registerMaster(request);
   }
 
   private void verifySecret(String providedSecret) {

@@ -1,7 +1,6 @@
 package com.fawnix.identity.auth.controller;
 
 import com.fawnix.identity.auth.dto.AuthDtos;
-import com.fawnix.identity.auth.entity.RoleName;
 import com.fawnix.identity.auth.service.AuthService;
 import com.fawnix.identity.security.service.AppUserDetails;
 import jakarta.validation.Valid;
@@ -36,13 +35,13 @@ public class AuthController {
 
   @PostMapping("/register-admin")
   public AuthDtos.TokenResponse registerAdmin(@Valid @RequestBody AuthDtos.RegisterRequest request) {
-    return authService.registerWithRole(request, RoleName.ROLE_ADMIN);
+    return authService.registerAdmin(request);
   }
 
   @PostMapping("/register-master")
-  @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_REPORTING_MANAGER','ROLE_MASTER')")
+  @PreAuthorize("hasAuthority('feature.admin.users.manage')")
   public AuthDtos.TokenResponse registerMaster(@Valid @RequestBody AuthDtos.RegisterRequest request) {
-    return authService.registerWithRole(request, RoleName.ROLE_MASTER);
+    return authService.registerMaster(request);
   }
 
   @PostMapping("/refresh")

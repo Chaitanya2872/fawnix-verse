@@ -73,36 +73,6 @@ const FALLBACK_PERMISSION_MODULE_GROUPS: PermissionModuleGroup[] = [
   },
 ];
 
-const FALLBACK_ROLE_DEFAULT_PERMISSIONS: Record<string, string[]> = {
-  ROLE_MASTER: Object.values(PERMISSIONS),
-  ROLE_ADMIN: [PERMISSIONS.MODULE_TASKS, PERMISSIONS.PAGE_TASKS],
-  ROLE_REPORTING_MANAGER: [
-    PERMISSIONS.MODULE_REPORTS,
-    PERMISSIONS.PAGE_REPORTS,
-    PERMISSIONS.MODULE_TASKS,
-    PERMISSIONS.PAGE_TASKS,
-  ],
-  ROLE_SALES_MANAGER: [
-    PERMISSIONS.MODULE_CRM,
-    PERMISSIONS.MODULE_REPORTS,
-    PERMISSIONS.MODULE_TASKS,
-    PERMISSIONS.PAGE_DASHBOARD,
-    PERMISSIONS.PAGE_CRM_LEADS,
-    PERMISSIONS.PAGE_CRM_PRESALES,
-    PERMISSIONS.PAGE_REPORTS,
-    PERMISSIONS.PAGE_TASKS,
-  ],
-  ROLE_SALES_REP: [
-    PERMISSIONS.MODULE_CRM,
-    PERMISSIONS.MODULE_TASKS,
-    PERMISSIONS.PAGE_DASHBOARD,
-    PERMISSIONS.PAGE_CRM_LEADS,
-    PERMISSIONS.PAGE_CRM_PRESALES,
-    PERMISSIONS.PAGE_TASKS,
-  ],
-  ROLE_VIEWER: [PERMISSIONS.MODULE_REPORTS, PERMISSIONS.PAGE_DASHBOARD, PERMISSIONS.PAGE_REPORTS],
-};
-
 export function uniquePermissions(list: string[]): string[] {
   return Array.from(new Set(list));
 }
@@ -131,7 +101,7 @@ export function getRoleDefaultPermissions(catalog: AccessControlCatalog | null |
   if (backendValue?.length) {
     return uniquePermissions(backendValue);
   }
-  return uniquePermissions(FALLBACK_ROLE_DEFAULT_PERMISSIONS[role] ?? []);
+  return [];
 }
 
 export function getPermissionLabel(catalog: AccessControlCatalog | null | undefined, permission: string): string {
@@ -143,14 +113,7 @@ export function getPermissionLabel(catalog: AccessControlCatalog | null | undefi
 
 export function getRoleOptions(catalog: AccessControlCatalog | null | undefined): Array<{ value: UserRole; label: string }> {
   if (!catalog?.roles?.length) {
-    return [
-      { value: "ROLE_MASTER", label: "Master" },
-      { value: "ROLE_ADMIN", label: "Admin" },
-      { value: "ROLE_REPORTING_MANAGER", label: "Reporting Manager" },
-      { value: "ROLE_SALES_MANAGER", label: "Manager" },
-      { value: "ROLE_SALES_REP", label: "Employee" },
-      { value: "ROLE_VIEWER", label: "Viewer" },
-    ];
+    return [];
   }
 
   return catalog.roles.map((role) => ({

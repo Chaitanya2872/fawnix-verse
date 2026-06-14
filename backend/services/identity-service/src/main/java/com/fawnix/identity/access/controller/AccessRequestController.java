@@ -50,9 +50,9 @@ public class AccessRequestController {
       @PathVariable String id,
       @AuthenticationPrincipal AppUserDetails userDetails
   ) {
-    boolean isMaster = userDetails.getAuthorities().stream()
-        .anyMatch(authority -> "ROLE_MASTER".equals(authority.getAuthority()));
-    return accessRequestService.getRequest(id, userDetails, isMaster);
+    boolean canReview = userDetails.getAuthorities().stream()
+        .anyMatch(authority -> "feature.access.requests.review".equals(authority.getAuthority()));
+    return accessRequestService.getRequest(id, userDetails, canReview);
   }
 
   @PatchMapping("/{id}")
@@ -73,7 +73,7 @@ public class AccessRequestController {
   }
 
   @GetMapping
-  @PreAuthorize("hasAuthority('ROLE_MASTER')")
+  @PreAuthorize("hasAuthority('feature.access.requests.review')")
   public AccessRequestDtos.AccessRequestPageResponse listAllRequests(
       @RequestParam(required = false) String status,
       @RequestParam(required = false) String search,
@@ -84,7 +84,7 @@ public class AccessRequestController {
   }
 
   @PatchMapping("/{id}/review")
-  @PreAuthorize("hasAuthority('ROLE_MASTER')")
+  @PreAuthorize("hasAuthority('feature.access.requests.review')")
   public AccessRequestDtos.AccessRequestResponse reviewRequest(
       @PathVariable String id,
       @AuthenticationPrincipal AppUserDetails userDetails,

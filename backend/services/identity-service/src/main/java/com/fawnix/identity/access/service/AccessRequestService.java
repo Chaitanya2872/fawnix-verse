@@ -4,11 +4,12 @@ import com.fawnix.identity.access.dto.AccessRequestDtos;
 import com.fawnix.identity.access.entity.AccessRequestEntity;
 import com.fawnix.identity.access.entity.AccessRequestStatus;
 import com.fawnix.identity.access.repository.AccessRequestRepository;
+import com.fawnix.identity.auth.entity.PermissionEntity;
+import com.fawnix.identity.auth.service.PermissionService;
 import com.fawnix.identity.common.exception.BadRequestException;
 import com.fawnix.identity.common.exception.ResourceNotFoundException;
 import com.fawnix.identity.security.service.AppUserDetails;
 import com.fawnix.identity.users.entity.UserEntity;
-import com.fawnix.identity.users.permission.UserPermissionCatalog;
 import com.fawnix.identity.users.repository.UserRepository;
 import java.time.Instant;
 import java.util.LinkedHashSet;
@@ -30,13 +31,16 @@ public class AccessRequestService {
 
   private final AccessRequestRepository accessRequestRepository;
   private final UserRepository userRepository;
+  private final PermissionService permissionService;
 
   public AccessRequestService(
       AccessRequestRepository accessRequestRepository,
-      UserRepository userRepository
+      UserRepository userRepository,
+      PermissionService permissionService
   ) {
     this.accessRequestRepository = accessRequestRepository;
     this.userRepository = userRepository;
+    this.permissionService = permissionService;
   }
 
   @Transactional
@@ -46,7 +50,7 @@ public class AccessRequestService {
   ) {
     UserEntity requester = requireUser(requesterDetails.getUserId());
     Set<String> requestedPermissions = normalizePermissions(request.permissions());
-    requestedPermissions.removeAll(requester.getPermissions());
+    requestedPermissions.removeAll(effectivePermissions(requester));
     if (requestedPermissions.isEmpty()) {
       throw new BadRequestException("Selected permissions are already assigned.");
     }
@@ -104,7 +108,7 @@ public class AccessRequestService {
     AccessRequestEntity entity = requirePendingRequesterOwnedRequest(accessRequestId, requesterDetails);
     UserEntity requester = entity.getRequester();
     Set<String> permissions = normalizePermissions(request.permissions());
-    permissions.removeAll(requester.getPermissions());
+    permissions.removeAll(effectivePermissions(requester));
     if (permissions.isEmpty()) {
       throw new BadRequestException("Selected permissions are already assigned.");
     }
@@ -167,21 +171,22 @@ public class AccessRequestService {
   }
 
   private Set<String> normalizePermissions(List<String> requested) {
-    Set<String> normalized = new LinkedHashSet<>();
-    for (String permission : requested) {
-      if (!StringUtils.hasText(permission)) {
-        continue;
-      }
-      String trimmed = permission.trim();
-      if (!UserPermissionCatalog.ALL_PERMISSIONS.contains(trimmed)) {
-        throw new BadRequestException("Unknown permission: " + trimmed);
-      }
-      normalized.add(trimmed);
-    }
+    Set<String> normalized = permissionService.resolvePermissions(requested).stream()
+        .map(PermissionEntity::getKey)
+        .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
     if (normalized.isEmpty()) {
       throw new BadRequestException("At least one permission must be selected.");
     }
     return normalized;
+  }
+
+  private Set<String> effectivePermissions(UserEntity user) {
+    LinkedHashSet<String> permissions = new LinkedHashSet<>(user.getPermissions());
+    user.getRoles().forEach(role -> role.getPermissions().stream()
+        .filter(PermissionEntity::isActive)
+        .map(PermissionEntity::getKey)
+        .forEach(permissions::add));
+    return permissions;
   }
 
   private String normalizeNote(String note) {

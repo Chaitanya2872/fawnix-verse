@@ -3,21 +3,20 @@ package com.fawnix.identity.auth.service;
 import com.fawnix.identity.auth.dto.AuthDtos;
 import com.fawnix.identity.auth.entity.RefreshTokenEntity;
 import com.fawnix.identity.auth.entity.RoleEntity;
-import com.fawnix.identity.auth.entity.RoleName;
 import com.fawnix.identity.auth.mapper.AuthMapper;
 import com.fawnix.identity.auth.repository.RefreshTokenRepository;
-import com.fawnix.identity.auth.repository.RoleRepository;
 import com.fawnix.identity.common.exception.BadRequestException;
 import com.fawnix.identity.common.exception.ResourceNotFoundException;
 import com.fawnix.identity.security.jwt.JwtService;
 import com.fawnix.identity.security.service.AppUserDetails;
 import com.fawnix.identity.users.entity.UserEntity;
-import com.fawnix.identity.users.permission.UserPermissionCatalog;
 import com.fawnix.identity.users.repository.UserRepository;
 import java.time.Instant;
+import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -33,8 +32,11 @@ public class AuthService {
   private final RefreshTokenRepository refreshTokenRepository;
   private final JwtService jwtService;
   private final AuthMapper authMapper;
-  private final RoleRepository roleRepository;
   private final PasswordEncoder passwordEncoder;
+  private final RoleService roleService;
+  private final String defaultRoleName;
+  private final String bootstrapAdminRoleName;
+  private final String bootstrapMasterRoleName;
 
   public AuthService(
       AuthenticationManager authenticationManager,
@@ -42,16 +44,22 @@ public class AuthService {
       RefreshTokenRepository refreshTokenRepository,
       JwtService jwtService,
       AuthMapper authMapper,
-      RoleRepository roleRepository,
-      PasswordEncoder passwordEncoder
+      PasswordEncoder passwordEncoder,
+      RoleService roleService,
+      @Value("${app.security.default-role-name:ROLE_VIEWER}") String defaultRoleName,
+      @Value("${app.security.bootstrap-admin-role-name:ROLE_ADMIN}") String bootstrapAdminRoleName,
+      @Value("${app.security.bootstrap-master-role-name:ROLE_MASTER}") String bootstrapMasterRoleName
   ) {
     this.authenticationManager = authenticationManager;
     this.userRepository = userRepository;
     this.refreshTokenRepository = refreshTokenRepository;
     this.jwtService = jwtService;
     this.authMapper = authMapper;
-    this.roleRepository = roleRepository;
     this.passwordEncoder = passwordEncoder;
+    this.roleService = roleService;
+    this.defaultRoleName = defaultRoleName;
+    this.bootstrapAdminRoleName = bootstrapAdminRoleName;
+    this.bootstrapMasterRoleName = bootstrapMasterRoleName;
   }
 
   @Transactional
@@ -69,15 +77,24 @@ public class AuthService {
 
   @Transactional
   public AuthDtos.TokenResponse register(AuthDtos.RegisterRequest request) {
-    return registerWithRole(request, RoleName.ROLE_VIEWER);
+    return registerWithRole(request, defaultRoleName);
   }
 
   @Transactional
-  public AuthDtos.TokenResponse registerWithRole(AuthDtos.RegisterRequest request, RoleName roleName) {
+  public AuthDtos.TokenResponse registerAdmin(AuthDtos.RegisterRequest request) {
+    return registerWithRole(request, bootstrapAdminRoleName);
+  }
+
+  @Transactional
+  public AuthDtos.TokenResponse registerMaster(AuthDtos.RegisterRequest request) {
+    return registerWithRole(request, bootstrapMasterRoleName);
+  }
+
+  @Transactional
+  public AuthDtos.TokenResponse registerWithRole(AuthDtos.RegisterRequest request, String roleName) {
     String email = normalizeEmail(request.email());
     ensureEmailAvailable(email);
-    RoleEntity role = roleRepository.findByName(roleName.name())
-        .orElseThrow(() -> new IllegalStateException(roleName + " role is not configured."));
+    RoleEntity role = roleService.resolveActiveRole(roleName);
 
     Instant now = Instant.now();
     UserEntity user = new UserEntity(
@@ -92,7 +109,7 @@ public class AuthService {
         now
     );
     user.setRoles(Set.of(role));
-    user.setPermissions(UserPermissionCatalog.defaultsForRole(roleName));
+    user.setPermissions(new LinkedHashSet<>());
     UserEntity saved = userRepository.save(user);
     AppUserDetails userDetails = new AppUserDetails(saved);
     return issueTokens(userDetails, saved);
