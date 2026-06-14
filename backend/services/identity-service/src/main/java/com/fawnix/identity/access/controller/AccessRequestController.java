@@ -73,7 +73,7 @@ public class AccessRequestController {
   }
 
   @GetMapping
-  @PreAuthorize("hasAuthority('feature.access.requests.review')")
+  @PreAuthorize("@authz.hasAuthority(authentication, 'feature.access.requests.review')")
   public AccessRequestDtos.AccessRequestPageResponse listAllRequests(
       @RequestParam(required = false) String status,
       @RequestParam(required = false) String search,
@@ -84,7 +84,7 @@ public class AccessRequestController {
   }
 
   @PatchMapping("/{id}/review")
-  @PreAuthorize("hasAuthority('feature.access.requests.review')")
+  @PreAuthorize("@authz.hasAuthority(authentication, 'feature.access.requests.review')")
   public AccessRequestDtos.AccessRequestResponse reviewRequest(
       @PathVariable String id,
       @AuthenticationPrincipal AppUserDetails userDetails,

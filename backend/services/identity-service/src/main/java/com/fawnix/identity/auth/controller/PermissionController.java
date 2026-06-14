@@ -26,19 +26,19 @@ public class PermissionController {
   }
 
   @GetMapping
-  @PreAuthorize("hasAuthority('feature.admin.permissions.manage')")
+  @PreAuthorize("@authz.hasAuthority(authentication, 'feature.admin.permissions.manage')")
   public List<PermissionDtos.PermissionResponse> listPermissions() {
     return permissionService.getPermissions();
   }
 
   @PostMapping
-  @PreAuthorize("hasAuthority('feature.admin.permissions.manage')")
+  @PreAuthorize("@authz.hasAuthority(authentication, 'feature.admin.permissions.manage')")
   public PermissionDtos.PermissionResponse createPermission(@Valid @RequestBody PermissionDtos.CreatePermissionRequest request) {
     return permissionService.createPermission(request);
   }
 
   @PatchMapping("/{key}")
-  @PreAuthorize("hasAuthority('feature.admin.permissions.manage')")
+  @PreAuthorize("@authz.hasAuthority(authentication, 'feature.admin.permissions.manage')")
   public PermissionDtos.PermissionResponse updatePermission(
       @PathVariable String key,
       @Valid @RequestBody PermissionDtos.UpdatePermissionRequest request
@@ -47,7 +47,7 @@ public class PermissionController {
   }
 
   @DeleteMapping("/{key}")
-  @PreAuthorize("hasAuthority('feature.admin.permissions.manage')")
+  @PreAuthorize("@authz.hasAuthority(authentication, 'feature.admin.permissions.manage')")
   public ResponseEntity<Void> deletePermission(@PathVariable String key) {
     permissionService.deletePermission(key);
     return ResponseEntity.noContent().build();

@@ -26,19 +26,19 @@ public class RoleController {
   }
 
   @GetMapping
-  @PreAuthorize("hasAuthority('feature.admin.roles.manage')")
+  @PreAuthorize("@authz.hasAuthority(authentication, 'feature.admin.roles.manage')")
   public List<RoleDtos.RoleResponse> listRoles() {
     return roleService.getRoles();
   }
 
   @PostMapping
-  @PreAuthorize("hasAuthority('feature.admin.roles.manage')")
+  @PreAuthorize("@authz.hasAuthority(authentication, 'feature.admin.roles.manage')")
   public RoleDtos.RoleResponse createRole(@Valid @RequestBody RoleDtos.CreateRoleRequest request) {
     return roleService.createRole(request);
   }
 
   @PatchMapping("/{id}")
-  @PreAuthorize("hasAuthority('feature.admin.roles.manage')")
+  @PreAuthorize("@authz.hasAuthority(authentication, 'feature.admin.roles.manage')")
   public RoleDtos.RoleResponse updateRole(
       @PathVariable String id,
       @Valid @RequestBody RoleDtos.UpdateRoleRequest request
@@ -47,7 +47,7 @@ public class RoleController {
   }
 
   @PostMapping("/{id}/clone")
-  @PreAuthorize("hasAuthority('feature.admin.roles.manage')")
+  @PreAuthorize("@authz.hasAuthority(authentication, 'feature.admin.roles.manage')")
   public RoleDtos.RoleResponse cloneRole(
       @PathVariable String id,
       @Valid @RequestBody RoleDtos.CloneRoleRequest request
@@ -56,7 +56,7 @@ public class RoleController {
   }
 
   @PatchMapping("/{id}/status")
-  @PreAuthorize("hasAuthority('feature.admin.roles.manage')")
+  @PreAuthorize("@authz.hasAuthority(authentication, 'feature.admin.roles.manage')")
   public RoleDtos.RoleResponse updateRoleStatus(
       @PathVariable String id,
       @Valid @RequestBody RoleDtos.UpdateRoleStatusRequest request
@@ -65,7 +65,7 @@ public class RoleController {
   }
 
   @DeleteMapping("/{id}")
-  @PreAuthorize("hasAuthority('feature.admin.roles.manage')")
+  @PreAuthorize("@authz.hasAuthority(authentication, 'feature.admin.roles.manage')")
   public ResponseEntity<Void> deleteRole(@PathVariable String id) {
     roleService.deleteRole(id);
     return ResponseEntity.noContent().build();

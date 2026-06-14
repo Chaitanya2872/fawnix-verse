@@ -39,7 +39,7 @@ public class AuthController {
   }
 
   @PostMapping("/register-master")
-  @PreAuthorize("hasAuthority('feature.admin.users.manage')")
+  @PreAuthorize("@authz.hasAuthority(authentication, 'feature.admin.users.manage')")
   public AuthDtos.TokenResponse registerMaster(@Valid @RequestBody AuthDtos.RegisterRequest request) {
     return authService.registerMaster(request);
   }
