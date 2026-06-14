@@ -22,6 +22,7 @@ import { useCurrentUser } from "@/modules/auth/hooks";
 import { PERMISSIONS, hasPermission } from "@/modules/auth/permissions";
 import { hasStoredSession } from "@/services/api-client";
 import {
+  useAccessControlCatalog,
   useCreateUser,
   useDeleteUser,
   useUpdateUser,
@@ -29,7 +30,6 @@ import {
   useUsers,
 } from "./hooks";
 import {
-  USER_ROLE_OPTIONS,
   USER_LANGUAGE_OPTIONS,
   getPrimaryRole,
   getRoleLabel,
@@ -40,7 +40,7 @@ import {
   type UserRole,
 } from "./types";
 import { PermissionSelector } from "./PermissionSelector";
-import { ROLE_DEFAULT_PERMISSIONS, uniquePermissions } from "./permissions";
+import { buildPermissionModuleGroups, getRoleDefaultPermissions, getRoleOptions, uniquePermissions } from "./permissions";
 
 type UserFormState = {
   fullName: string;
@@ -64,8 +64,6 @@ const EMPTY_FORM: UserFormState = {
 
 const selectClassName =
   "flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring";
-
-const UI_ROLE_OPTIONS = USER_ROLE_OPTIONS.filter((option) => option.value !== "ROLE_MASTER");
 
 function buildFormFromUser(user: User): UserFormState {
   return {
@@ -99,6 +97,7 @@ function UserFormFields({
   onChange,
   onTogglePermission,
   onResetPermissions,
+  permissionGroups,
   passwordHint,
 }: {
   form: UserFormState;
@@ -106,6 +105,7 @@ function UserFormFields({
   onChange: <K extends keyof UserFormState>(field: K, value: UserFormState[K]) => void;
   onTogglePermission: (permission: string) => void;
   onResetPermissions: () => void;
+  permissionGroups: ReturnType<typeof buildPermissionModuleGroups>;
   passwordHint?: string;
 }) {
   return (
@@ -198,11 +198,12 @@ function UserFormFields({
           <PermissionSelector
             selectedPermissions={form.permissions}
             onTogglePermission={onTogglePermission}
+            permissionGroups={permissionGroups}
             idPrefix="user-permission"
           />
         </div>
         <p className="text-xs text-slate-500">
-          Master has full access. Other roles follow the selected module and page permissions.
+          Master has full access. Other roles can be tailored at module, page, and feature level.
         </p>
       </div>
     </div>
@@ -214,6 +215,7 @@ export default function UsersPage() {
   const isAdmin = hasPermission(currentUser, PERMISSIONS.PAGE_ADMIN_USERS);
 
   const usersQuery = useUsers({ enabled: Boolean(isAdmin) });
+  const accessCatalogQuery = useAccessControlCatalog({ enabled: Boolean(isAdmin) });
   const createUserMutation = useCreateUser();
   const updateUserMutation = useUpdateUser();
   const updateStatusMutation = useUpdateUserStatus();
@@ -229,6 +231,18 @@ export default function UsersPage() {
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const users = useMemo(() => usersQuery.data ?? [], [usersQuery.data]);
+  const permissionGroups = useMemo(
+    () => buildPermissionModuleGroups(accessCatalogQuery.data),
+    [accessCatalogQuery.data]
+  );
+  const roleOptions = useMemo(
+    () => getRoleOptions(accessCatalogQuery.data),
+    [accessCatalogQuery.data]
+  );
+  const uiRoleOptions = useMemo(
+    () => roleOptions.filter((option) => option.value !== "ROLE_MASTER"),
+    [roleOptions]
+  );
 
   const handleFormChange = <K extends keyof UserFormState>(
     field: K,
@@ -250,18 +264,14 @@ export default function UsersPage() {
   const resetPermissionsToRoleDefaults = () => {
     setFormState((prev) => ({
       ...prev,
-      permissions: uniquePermissions(
-        ROLE_DEFAULT_PERMISSIONS[prev.role] ?? []
-      ),
+      permissions: uniquePermissions(getRoleDefaultPermissions(accessCatalogQuery.data, prev.role)),
     }));
   };
 
   const openCreateDialog = () => {
     setFormState({
       ...EMPTY_FORM,
-      permissions: uniquePermissions(
-        ROLE_DEFAULT_PERMISSIONS[EMPTY_FORM.role] ?? []
-      ),
+      permissions: uniquePermissions(getRoleDefaultPermissions(accessCatalogQuery.data, EMPTY_FORM.role)),
     });
     setFormError(null);
     setPageError(null);
@@ -397,6 +407,14 @@ export default function UsersPage() {
             <div className="rounded-lg border border-dashed border-slate-200 p-6 text-sm text-slate-500">
               Loading users...
             </div>
+          ) : accessCatalogQuery.isLoading ? (
+            <div className="rounded-lg border border-dashed border-slate-200 p-6 text-sm text-slate-500">
+              Loading roles and permission catalog...
+            </div>
+          ) : accessCatalogQuery.isError ? (
+            <div className="rounded-lg border border-red-100 bg-red-50 p-4 text-sm text-red-700">
+              {(accessCatalogQuery.error as Error)?.message ?? "Failed to load access control catalog."}
+            </div>
           ) : usersQuery.isError ? (
             <div className="rounded-lg border border-red-100 bg-red-50 p-4 text-sm text-red-700">
               {(usersQuery.error as Error)?.message ?? "Failed to load users."}
@@ -483,10 +501,11 @@ export default function UsersPage() {
           <form onSubmit={handleCreateSubmit} className="space-y-5">
             <UserFormFields
               form={formState}
-              roleOptions={UI_ROLE_OPTIONS}
+              roleOptions={uiRoleOptions}
               onChange={handleFormChange}
               onTogglePermission={handleTogglePermission}
               onResetPermissions={resetPermissionsToRoleDefaults}
+              permissionGroups={permissionGroups}
             />
             {formError ? (
               <div className="rounded-md border border-red-100 bg-red-50 p-3 text-sm text-red-700">
@@ -518,12 +537,13 @@ export default function UsersPage() {
               form={formState}
               roleOptions={
                 formState.role === "ROLE_MASTER"
-                  ? [{ value: "ROLE_MASTER", label: "Master" }, ...UI_ROLE_OPTIONS]
-                  : UI_ROLE_OPTIONS
+                  ? [{ value: "ROLE_MASTER", label: "Master" }, ...uiRoleOptions]
+                  : uiRoleOptions
               }
               onChange={handleFormChange}
               onTogglePermission={handleTogglePermission}
               onResetPermissions={resetPermissionsToRoleDefaults}
+              permissionGroups={permissionGroups}
               passwordHint="Leave blank to keep the current password."
             />
             {activeUser ? (

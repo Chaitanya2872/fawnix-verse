@@ -38,6 +38,18 @@ public class UserController {
     return userService.getUsers();
   }
 
+  @GetMapping("/roles")
+  @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_REPORTING_MANAGER','ROLE_MASTER')")
+  public List<UserDtos.RoleOptionResponse> getRoles() {
+    return userService.getAvailableRoles();
+  }
+
+  @GetMapping("/access-control/catalog")
+  @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_REPORTING_MANAGER','ROLE_MASTER')")
+  public UserDtos.AccessControlCatalogResponse getAccessControlCatalog() {
+    return userService.getAccessControlCatalog();
+  }
+
   @GetMapping("/{id}")
   @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_REPORTING_MANAGER','ROLE_MASTER')")
   public UserDtos.UserResponse getUserById(@PathVariable String id) {
@@ -66,6 +78,15 @@ public class UserController {
       @Valid @RequestBody UserDtos.UpdateUserRoleRequest request
   ) {
     return userService.updateUserRole(id, request.role());
+  }
+
+  @PatchMapping("/{id}/access")
+  @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_REPORTING_MANAGER','ROLE_MASTER')")
+  public UserDtos.UserResponse updateUserAccess(
+      @PathVariable String id,
+      @Valid @RequestBody UserDtos.UpdateUserAccessRequest request
+  ) {
+    return userService.updateUserAccess(id, request);
   }
 
   @PatchMapping("/{id}/status")

@@ -24,6 +24,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import org.springframework.data.domain.Sort;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -138,6 +139,63 @@ public class UserService {
     return userMapper.toUserResponse(userRepository.save(user));
   }
 
+  public UserDtos.UserResponse updateUserAccess(String userId, UserDtos.UpdateUserAccessRequest request) {
+    UserEntity user = requireUser(userId);
+    RoleEntity role = resolveRole(request.role());
+    RoleName roleName = RoleName.valueOf(role.getName());
+    user.setRoles(Set.of(role));
+    user.setPermissions(normalizePermissions(request.permissions(), roleName));
+    user.setUpdatedAt(Instant.now());
+    return userMapper.toUserResponse(userRepository.save(user));
+  }
+
+  @Transactional(readOnly = true)
+  public List<UserDtos.RoleOptionResponse> getAvailableRoles() {
+    return roleRepository.findAll(Sort.by(Sort.Direction.ASC, "name"))
+        .stream()
+        .map(role -> {
+          RoleName roleName = RoleName.valueOf(role.getName());
+          return new UserDtos.RoleOptionResponse(
+              role.getName(),
+              toRoleLabel(roleName),
+              List.copyOf(UserPermissionCatalog.defaultsForRole(roleName))
+          );
+        })
+        .toList();
+  }
+
+  @Transactional(readOnly = true)
+  public UserDtos.AccessControlCatalogResponse getAccessControlCatalog() {
+    List<UserDtos.PermissionModuleResponse> modules = UserPermissionCatalog.definitions().stream()
+        .collect(java.util.stream.Collectors.groupingBy(
+            definition -> definition.moduleKey(),
+            java.util.LinkedHashMap::new,
+            java.util.stream.Collectors.toList()
+        ))
+        .entrySet()
+        .stream()
+        .map(entry -> new UserDtos.PermissionModuleResponse(
+            entry.getKey(),
+            toModuleLabel(entry.getKey()),
+            entry.getValue().stream()
+                .map(definition -> new UserDtos.PermissionDefinitionResponse(
+                    definition.key(),
+                    definition.label(),
+                    definition.description(),
+                    definition.moduleKey(),
+                    definition.level()
+                ))
+                .toList()
+        ))
+        .toList();
+
+    return new UserDtos.AccessControlCatalogResponse(
+        getAvailableRoles(),
+        modules,
+        List.copyOf(UserPermissionCatalog.ALL_PERMISSIONS)
+    );
+  }
+
   @Transactional
   public void deleteUser(String userId) {
     UserEntity user = requireUser(userId);
@@ -233,6 +291,45 @@ public class UserService {
       return "unknown";
     }
     return roleName.replace("ROLE_", "").toLowerCase(Locale.ROOT);
+  }
+
+  private String toRoleLabel(RoleName roleName) {
+    String normalized = roleName.name().replace("ROLE_", "").toLowerCase(Locale.ROOT);
+    String[] parts = normalized.split("_");
+    StringBuilder builder = new StringBuilder();
+    for (String part : parts) {
+      if (part.isBlank()) {
+        continue;
+      }
+      if (builder.length() > 0) {
+        builder.append(' ');
+      }
+      builder.append(Character.toUpperCase(part.charAt(0))).append(part.substring(1));
+    }
+    return builder.toString();
+  }
+
+  private String toModuleLabel(String moduleKey) {
+    String normalized = moduleKey == null ? "" : moduleKey.toLowerCase(Locale.ROOT);
+    return switch (normalized) {
+      case "access" -> "Access";
+      case "admin" -> "Admin";
+      case "analytics" -> "Analytics";
+      case "approvals" -> "Approvals";
+      case "crm" -> "CRM";
+      case "forms" -> "Forms";
+      case "hrms" -> "HRMS";
+      case "integrations" -> "Integrations";
+      case "inventory" -> "Inventory";
+      case "notifications" -> "Notifications";
+      case "org" -> "Organization";
+      case "purchases" -> "Purchases";
+      case "recruitment" -> "Recruitment";
+      case "reports" -> "Reports";
+      case "sales" -> "Sales";
+      case "tasks" -> "Tasks";
+      default -> moduleKey;
+    };
   }
 
   private RoleEntity resolveRole(String roleInput) {

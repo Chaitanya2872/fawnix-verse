@@ -9,8 +9,9 @@ import { Label } from "@/components/ui/label";
 import { useCurrentUser } from "@/modules/auth/hooks";
 import { hasStoredSession } from "@/services/api-client";
 import { accessRequestsApi } from "@/lib/api";
+import { useAccessControlCatalog } from "@/modules/users/hooks";
 import { PermissionSelector } from "@/modules/users/PermissionSelector";
-import { PERMISSION_GROUPS } from "@/modules/users/permissions";
+import { buildPermissionModuleGroups, getPermissionLabel } from "@/modules/users/permissions";
 
 type AccessRequest = {
   id: string;
@@ -34,7 +35,6 @@ type AccessRequest = {
   updatedAt: string | null;
 };
 
-const ALL_PERMISSION_OPTIONS = PERMISSION_GROUPS.flatMap((group) => group.options);
 const STATUS_OPTIONS = ["ALL", "PENDING", "APPROVED", "REJECTED", "CANCELLED"] as const;
 
 function StatusBadge({ status }: { status: string }) {
@@ -48,10 +48,6 @@ function StatusBadge({ status }: { status: string }) {
           ? "bg-slate-100 text-slate-700"
           : "bg-amber-50 text-amber-700";
   return <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${className}`}>{normalized}</span>;
-}
-
-function permissionLabel(permission: string) {
-  return ALL_PERMISSION_OPTIONS.find((option) => option.value === permission)?.label ?? permission;
 }
 
 function RequestPanel({
@@ -68,6 +64,8 @@ function RequestPanel({
   isMaster,
   isReviewing,
   isUpdating,
+  permissionGroups,
+  permissionLabel,
 }: {
   request: AccessRequest;
   reviewNotes: Record<string, string>;
@@ -82,6 +80,8 @@ function RequestPanel({
   isMaster: boolean;
   isReviewing: boolean;
   isUpdating: boolean;
+  permissionGroups: ReturnType<typeof buildPermissionModuleGroups>;
+  permissionLabel: (permission: string) => string;
 }) {
   const selectedPermissions = reviewPermissions[request.id] ?? request.permissions;
   return (
@@ -128,33 +128,22 @@ function RequestPanel({
             <div className="rounded-2xl border border-slate-200 bg-white p-4">
               <p className="text-sm font-semibold text-slate-900">Review & Approve</p>
               <div className="mt-3 space-y-4">
-                {PERMISSION_GROUPS.map((group) => (
-                  <div key={group.heading}>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{group.heading}</p>
-                    <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                      {group.options.map((option) => (
-                        <label key={`${request.id}-${option.value}`} className="flex items-start gap-2 rounded-md border border-slate-200 bg-slate-50 p-3 text-sm">
-                          <input
-                            type="checkbox"
-                            checked={selectedPermissions.includes(option.value)}
-                            onChange={() =>
-                              setReviewPermissions((previous) => {
-                                const current = previous[request.id] ?? request.permissions;
-                                return {
-                                  ...previous,
-                                  [request.id]: current.includes(option.value)
-                                    ? current.filter((value) => value !== option.value)
-                                    : [...current, option.value],
-                                };
-                              })
-                            }
-                          />
-                          <span>{option.label}</span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                ))}
+                <PermissionSelector
+                  selectedPermissions={selectedPermissions}
+                  permissionGroups={permissionGroups}
+                  onTogglePermission={(permission) =>
+                    setReviewPermissions((previous) => {
+                      const current = previous[request.id] ?? request.permissions;
+                      return {
+                        ...previous,
+                        [request.id]: current.includes(permission)
+                          ? current.filter((value) => value !== permission)
+                          : [...current, permission],
+                      };
+                    })
+                  }
+                  idPrefix={`review-drawer-${request.id}`}
+                />
                 <textarea
                   value={reviewNotes[request.id] ?? ""}
                   onChange={(event) => setReviewNotes((previous) => ({ ...previous, [request.id]: event.target.value }))}
@@ -210,6 +199,7 @@ function RequestPanel({
 export default function AccessRequestsPage() {
   const queryClient = useQueryClient();
   const { data: currentUser } = useCurrentUser({ enabled: hasStoredSession() });
+  const accessCatalogQuery = useAccessControlCatalog({ enabled: hasStoredSession() });
   const isMaster = currentUser?.roles?.includes("ROLE_MASTER") ?? false;
 
   const [selectedPermissions, setSelectedPermissions] = useState<string[]>([]);
@@ -320,11 +310,31 @@ export default function AccessRequestsPage() {
   const myRequests = useMemo(() => (myRequestsQuery.data?.data ?? []) as AccessRequest[], [myRequestsQuery.data]);
   const allRequests = useMemo(() => (allRequestsQuery.data?.data ?? []) as AccessRequest[], [allRequestsQuery.data]);
   const selectedRequest = (detailRequestQuery.data?.data ?? null) as AccessRequest | null;
+  const permissionGroups = useMemo(
+    () => buildPermissionModuleGroups(accessCatalogQuery.data),
+    [accessCatalogQuery.data]
+  );
+  const permissionLabel = useMemo(
+    () => (permission: string) => getPermissionLabel(accessCatalogQuery.data, permission),
+    [accessCatalogQuery.data]
+  );
 
   const togglePermission = (permission: string) => {
     setSelectedPermissions((previous) =>
       previous.includes(permission) ? previous.filter((item) => item !== permission) : [...previous, permission]
     );
+  };
+
+  const toggleReviewPermission = (requestId: string, permission: string, fallbackPermissions: string[]) => {
+    setReviewPermissions((previous) => {
+      const current = previous[requestId] ?? fallbackPermissions;
+      return {
+        ...previous,
+        [requestId]: current.includes(permission)
+          ? current.filter((item) => item !== permission)
+          : [...current, permission],
+      };
+    });
   };
 
   const isEditing = Boolean(editingRequestId);
@@ -365,7 +375,7 @@ export default function AccessRequestsPage() {
         <CardHeader>
           <CardTitle>{isEditing ? "Edit Access Request" : "Request Module Access"}</CardTitle>
           <CardDescription>
-            Select the modules or pages you need. Approved permissions will be added to your account.
+            Select the modules, pages, or feature permissions you need. Approved permissions will be added to your account.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -373,6 +383,7 @@ export default function AccessRequestsPage() {
             <PermissionSelector
               selectedPermissions={selectedPermissions}
               onTogglePermission={togglePermission}
+              permissionGroups={permissionGroups}
               idPrefix="access-request-permission"
             />
           </div>
@@ -537,12 +548,7 @@ export default function AccessRequestsPage() {
                         {request.requester.fullName} ({request.requester.email})
                       </p>
                       <p className="mt-1 text-xs text-slate-500">
-                        {request.permissions
-                          .map(
-                            (permission) =>
-                              ALL_PERMISSION_OPTIONS.find((option) => option.value === permission)?.label ?? permission
-                          )
-                          .join(", ")}
+                        {request.permissions.map(permissionLabel).join(", ")}
                       </p>
                     </div>
                     <StatusBadge status={request.status} />
@@ -560,6 +566,7 @@ export default function AccessRequestsPage() {
                         </p>
                         <PermissionSelector
                           selectedPermissions={reviewPermissions[request.id] ?? request.permissions}
+                          permissionGroups={permissionGroups}
                           onTogglePermission={(permission) =>
                             toggleReviewPermission(request.id, permission, request.permissions)
                           }
@@ -634,6 +641,8 @@ export default function AccessRequestsPage() {
           isMaster={isMaster}
           isReviewing={reviewMutation.isPending}
           isUpdating={cancelMutation.isPending}
+          permissionGroups={permissionGroups}
+          permissionLabel={permissionLabel}
         />
       ) : null}
     </div>

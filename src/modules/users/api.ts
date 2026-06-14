@@ -1,5 +1,5 @@
 import { api, ensureApiSession, getApiErrorMessage } from "@/services/api-client";
-import type { CreateUserPayload, UpdateUserPayload, User } from "./types";
+import type { AccessControlCatalog, CreateUserPayload, UpdateUserPayload, User } from "./types";
 
 function rethrowApiError(error: unknown, fallback: string): never {
   throw new Error(getApiErrorMessage(error, fallback));
@@ -12,6 +12,16 @@ export async function fetchUsers(): Promise<User[]> {
     return response.data ?? [];
   } catch (error) {
     rethrowApiError(error, "Failed to load users.");
+  }
+}
+
+export async function fetchAccessControlCatalog(): Promise<AccessControlCatalog> {
+  try {
+    await ensureApiSession();
+    const response = await api.get<AccessControlCatalog>("/users/access-control/catalog");
+    return response.data;
+  } catch (error) {
+    rethrowApiError(error, "Failed to load access control catalog.");
   }
 }
 

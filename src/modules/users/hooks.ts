@@ -2,15 +2,17 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createUser,
   deleteUser,
+  fetchAccessControlCatalog,
   fetchUsers,
   updateUser,
   updateUserStatus,
 } from "./api";
-import type { CreateUserPayload, UpdateUserPayload, User } from "./types";
+import type { AccessControlCatalog, CreateUserPayload, UpdateUserPayload, User } from "./types";
 
 export const usersKeys = {
   all: ["users"] as const,
   list: () => [...usersKeys.all, "list"] as const,
+  accessCatalog: () => [...usersKeys.all, "access-catalog"] as const,
 };
 
 export function useUsers(options?: { enabled?: boolean }) {
@@ -18,6 +20,15 @@ export function useUsers(options?: { enabled?: boolean }) {
     queryKey: usersKeys.list(),
     queryFn: fetchUsers,
     staleTime: 30_000,
+    enabled: options?.enabled ?? true,
+  });
+}
+
+export function useAccessControlCatalog(options?: { enabled?: boolean }) {
+  return useQuery<AccessControlCatalog>({
+    queryKey: usersKeys.accessCatalog(),
+    queryFn: fetchAccessControlCatalog,
+    staleTime: 60_000,
     enabled: options?.enabled ?? true,
   });
 }

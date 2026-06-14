@@ -1,10 +1,4 @@
-export type UserRole =
-  | "ROLE_MASTER"
-  | "ROLE_ADMIN"
-  | "ROLE_REPORTING_MANAGER"
-  | "ROLE_SALES_MANAGER"
-  | "ROLE_SALES_REP"
-  | "ROLE_VIEWER";
+export type UserRole = string;
 
 export type User = {
   id: string;
@@ -39,6 +33,34 @@ export type UpdateUserPayload = {
   permissions: string[];
 };
 
+export type PermissionLevel = "MODULE" | "PAGE" | "FEATURE";
+
+export type RoleOption = {
+  key: string;
+  label: string;
+  defaultPermissions: string[];
+};
+
+export type PermissionDefinition = {
+  key: string;
+  label: string;
+  description: string;
+  moduleKey: string;
+  level: PermissionLevel;
+};
+
+export type PermissionModule = {
+  key: string;
+  label: string;
+  permissions: PermissionDefinition[];
+};
+
+export type AccessControlCatalog = {
+  roles: RoleOption[];
+  modules: PermissionModule[];
+  allPermissions: string[];
+};
+
 export const USER_ROLE_OPTIONS: { value: UserRole; label: string }[] = [
   { value: "ROLE_MASTER", label: "Master" },
   { value: "ROLE_ADMIN", label: "Admin" },
@@ -61,6 +83,11 @@ const ROLE_LABELS: Record<string, string> = {
   ROLE_SALES_MANAGER: "Manager",
   ROLE_SALES_REP: "Employee",
   ROLE_VIEWER: "Viewer",
+  ROLE_HR_MANAGER: "HR Manager",
+  ROLE_RECRUITER: "Recruiter",
+  ROLE_HIRING_MANAGER: "Hiring Manager",
+  ROLE_INTERVIEWER: "Interviewer",
+  ROLE_EMPLOYEE: "Employee",
 };
 
 export function getPrimaryRole(roles: string[] | null | undefined): UserRole {
@@ -73,6 +100,11 @@ export function getPrimaryRole(roles: string[] | null | undefined): UserRole {
   if (roles.includes("ROLE_SALES_MANAGER")) return "ROLE_SALES_MANAGER";
   if (roles.includes("ROLE_SALES_REP")) return "ROLE_SALES_REP";
   if (roles.includes("ROLE_VIEWER")) return "ROLE_VIEWER";
+  if (roles.includes("ROLE_HR_MANAGER")) return "ROLE_HR_MANAGER";
+  if (roles.includes("ROLE_RECRUITER")) return "ROLE_RECRUITER";
+  if (roles.includes("ROLE_HIRING_MANAGER")) return "ROLE_HIRING_MANAGER";
+  if (roles.includes("ROLE_INTERVIEWER")) return "ROLE_INTERVIEWER";
+  if (roles.includes("ROLE_EMPLOYEE")) return "ROLE_EMPLOYEE";
   return "ROLE_VIEWER";
 }
 
