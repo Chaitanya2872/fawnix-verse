@@ -65,6 +65,9 @@ export function hasPermission(
   permission: string
 ): boolean {
   if (!user) return false;
+  if (user.roles?.includes("ROLE_MASTER")) {
+    return true;
+  }
   const permissions = user.permissions ?? [];
   if (permissions.includes(permission)) return true;
   if (hasLegacyPagePermission(permissions, permission as Permission)) return true;
