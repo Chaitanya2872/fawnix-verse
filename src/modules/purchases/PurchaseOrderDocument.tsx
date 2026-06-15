@@ -121,9 +121,9 @@ export function PurchaseOrderDocument({ document }: { document: PurchaseOrderDoc
   return (
     <div className="quotation-sheet mx-auto bg-white text-[10px] leading-tight text-black">
       <div className="border-2 border-black">
-        <div className="grid grid-cols-[150px_1fr] border-b-2 border-black">
-          <div className="flex items-center justify-center border-r-2 border-black p-2">
-            <img src={logoSrc} alt={logoAlt} className="max-h-16 max-w-full object-contain" />
+        <div className="grid grid-cols-[180px_1fr] border-b-2 border-black">
+          <div className="flex items-center justify-center border-r-2 border-black p-1.5">
+            <img src={logoSrc} alt={logoAlt} className="h-[84px] w-auto max-w-full object-contain" />
           </div>
           <div className="px-4 py-3 text-center">
             <p className="text-base font-bold uppercase tracking-wide">{document.buyer.name}</p>
