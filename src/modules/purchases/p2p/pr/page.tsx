@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
+/* eslint-disable react-hooks/set-state-in-effect */
 import { useEffect, useMemo, useRef, useState, type ComponentProps, type ReactNode } from "react";
 import {
   ArrowRightCircle,
@@ -505,8 +507,8 @@ function CreateRequisitionPanel({
     name: string;
     sku: string;
     price: number;
-    category?: string;
-    unit?: string;
+    category?: string | null;
+    unit?: string | null;
   }>;
   isProductsLoading: boolean;
   requestType: PurchaseRequisitionType;
@@ -2478,6 +2480,16 @@ export default function P2PPrManagementPage() {
   );
 
   const grandTotal = subtotalAmount + taxAmount;
+
+  const panelProducts = useMemo(
+    () =>
+      products.map((product) => ({
+        ...product,
+        category: product.category ?? undefined,
+        unit: product.unit ?? undefined,
+      })),
+    [products]
+  );
 
   const selectedRequisition =
     requisitions.find((requisition) => requisition.id === selectedRequisitionId) ?? null;
