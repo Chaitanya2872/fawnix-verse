@@ -33,11 +33,10 @@ export const PERMISSIONS = {
   PAGE_ACCOUNTING: "page.accounting",
   PAGE_HRMS: "page.hrms",
   PAGE_REPORTS: "page.reports",
+  PAGE_ACCESS_REQUESTS: "page.access.requests",
   PAGE_ADMIN_USERS: "page.admin.users",
   PAGE_ADMIN_SETTINGS: "page.admin.settings",
   PAGE_TASKS: "page.tasks",
-  FEATURE_ACCESS_REQUESTS_REVIEW: "feature.access.requests.review",
-  FEATURE_ADMIN_USERS_MANAGE: "feature.admin.users.manage",
 } as const;
 
 export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];

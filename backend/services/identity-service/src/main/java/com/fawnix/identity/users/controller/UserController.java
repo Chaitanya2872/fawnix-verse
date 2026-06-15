@@ -33,37 +33,37 @@ public class UserController {
   }
 
   @GetMapping
-  @PreAuthorize("@authz.hasAuthority(authentication, 'feature.admin.users.manage')")
+  @PreAuthorize("@authz.hasAuthority(authentication, 'page.admin.users')")
   public List<UserDtos.UserResponse> getUsers() {
     return userService.getUsers();
   }
 
   @GetMapping("/roles")
-  @PreAuthorize("@authz.hasAuthority(authentication, 'feature.admin.roles.manage')")
+  @PreAuthorize("@authz.hasAuthority(authentication, 'page.admin.users')")
   public List<UserDtos.RoleOptionResponse> getRoles() {
     return userService.getAvailableRoles();
   }
 
   @GetMapping("/access-control/catalog")
-  @PreAuthorize("@authz.hasAuthority(authentication, 'feature.admin.permissions.manage') or @authz.hasAuthority(authentication, 'feature.admin.roles.manage') or @authz.hasAuthority(authentication, 'feature.admin.users.manage')")
+  @PreAuthorize("@authz.hasAuthority(authentication, 'page.admin.users')")
   public UserDtos.AccessControlCatalogResponse getAccessControlCatalog() {
     return userService.getAccessControlCatalog();
   }
 
   @GetMapping("/{id}")
-  @PreAuthorize("@authz.hasAuthority(authentication, 'feature.admin.users.manage')")
+  @PreAuthorize("@authz.hasAuthority(authentication, 'page.admin.users')")
   public UserDtos.UserResponse getUserById(@PathVariable String id) {
     return userService.getUserById(id);
   }
 
   @PostMapping
-  @PreAuthorize("@authz.hasAuthority(authentication, 'feature.admin.users.manage')")
+  @PreAuthorize("@authz.hasAuthority(authentication, 'page.admin.users')")
   public UserDtos.UserResponse createUser(@Valid @RequestBody UserDtos.CreateUserRequest request) {
     return userService.createUser(request);
   }
 
   @PatchMapping("/{id}")
-  @PreAuthorize("@authz.hasAuthority(authentication, 'feature.admin.users.manage')")
+  @PreAuthorize("@authz.hasAuthority(authentication, 'page.admin.users')")
   public UserDtos.UserResponse updateUser(
       @PathVariable String id,
       @Valid @RequestBody UserDtos.UpdateUserRequest request
@@ -72,7 +72,7 @@ public class UserController {
   }
 
   @PatchMapping("/{id}/role")
-  @PreAuthorize("@authz.hasAuthority(authentication, 'feature.admin.users.manage')")
+  @PreAuthorize("@authz.hasAuthority(authentication, 'page.admin.users')")
   public UserDtos.UserResponse updateUserRole(
       @PathVariable String id,
       @Valid @RequestBody UserDtos.UpdateUserRoleRequest request
@@ -81,7 +81,7 @@ public class UserController {
   }
 
   @PatchMapping("/{id}/access")
-  @PreAuthorize("@authz.hasAuthority(authentication, 'feature.admin.users.manage')")
+  @PreAuthorize("@authz.hasAuthority(authentication, 'page.admin.users')")
   public UserDtos.UserResponse updateUserAccess(
       @PathVariable String id,
       @Valid @RequestBody UserDtos.UpdateUserAccessRequest request
@@ -90,7 +90,7 @@ public class UserController {
   }
 
   @PatchMapping("/{id}/status")
-  @PreAuthorize("@authz.hasAuthority(authentication, 'feature.admin.users.manage')")
+  @PreAuthorize("@authz.hasAuthority(authentication, 'page.admin.users')")
   public UserDtos.UserResponse updateUserStatus(
       @PathVariable String id,
       @Valid @RequestBody UserDtos.UpdateUserStatusRequest request
@@ -99,7 +99,7 @@ public class UserController {
   }
 
   @DeleteMapping("/{id}")
-  @PreAuthorize("@authz.hasAuthority(authentication, 'feature.admin.users.manage')")
+  @PreAuthorize("@authz.hasAuthority(authentication, 'page.admin.users')")
   public ResponseEntity<Void> deleteUser(@PathVariable String id) {
     userService.deleteUser(id);
     return ResponseEntity.noContent().build();

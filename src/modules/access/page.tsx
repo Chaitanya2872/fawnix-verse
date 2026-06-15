@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { useCurrentUser } from "@/modules/auth/hooks";
+import { PERMISSIONS, hasPermission } from "@/modules/auth/permissions";
 import { hasStoredSession } from "@/services/api-client";
 import { accessRequestsApi } from "@/lib/api";
 import { useAccessControlCatalog } from "@/modules/users/hooks";
@@ -200,7 +201,7 @@ export default function AccessRequestsPage() {
   const queryClient = useQueryClient();
   const { data: currentUser } = useCurrentUser({ enabled: hasStoredSession() });
   const accessCatalogQuery = useAccessControlCatalog({ enabled: hasStoredSession() });
-  const isMaster = currentUser?.roles?.includes("ROLE_MASTER") ?? false;
+  const canReviewRequests = hasPermission(currentUser, PERMISSIONS.PAGE_ACCESS_REQUESTS);
 
   const [selectedPermissions, setSelectedPermissions] = useState<string[]>([]);
   const [requestNote, setRequestNote] = useState("");
@@ -236,7 +237,7 @@ export default function AccessRequestsPage() {
         page: masterPage,
         pageSize: 8,
       }),
-    enabled: isMaster,
+    enabled: canReviewRequests,
   });
 
   const detailRequestQuery = useQuery({
@@ -497,11 +498,11 @@ export default function AccessRequestsPage() {
         </CardContent>
       </Card>
 
-      {isMaster ? (
+      {canReviewRequests ? (
         <Card>
           <CardHeader>
             <CardTitle>Approval Queue</CardTitle>
-            <CardDescription>Filter, search, and review all access requests from master control.</CardDescription>
+            <CardDescription>Filter, search, and review all access requests from the access control queue.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -638,7 +639,7 @@ export default function AccessRequestsPage() {
             })
           }
           onReject={() => reviewMutation.mutate({ id: selectedRequest.id, decision: "REJECT" })}
-          isMaster={isMaster}
+          isMaster={canReviewRequests}
           isReviewing={reviewMutation.isPending}
           isUpdating={cancelMutation.isPending}
           permissionGroups={permissionGroups}

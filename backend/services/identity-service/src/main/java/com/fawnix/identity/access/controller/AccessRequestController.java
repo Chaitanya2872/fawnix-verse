@@ -51,7 +51,7 @@ public class AccessRequestController {
       @AuthenticationPrincipal AppUserDetails userDetails
   ) {
     boolean canReview = userDetails.getAuthorities().stream()
-        .anyMatch(authority -> "feature.access.requests.review".equals(authority.getAuthority()));
+        .anyMatch(authority -> "page.access.requests".equals(authority.getAuthority()) || "ROLE_MASTER".equals(authority.getAuthority()));
     return accessRequestService.getRequest(id, userDetails, canReview);
   }
 
@@ -73,7 +73,7 @@ public class AccessRequestController {
   }
 
   @GetMapping
-  @PreAuthorize("@authz.hasAuthority(authentication, 'feature.access.requests.review')")
+  @PreAuthorize("@authz.hasAuthority(authentication, 'page.access.requests')")
   public AccessRequestDtos.AccessRequestPageResponse listAllRequests(
       @RequestParam(required = false) String status,
       @RequestParam(required = false) String search,
@@ -84,7 +84,7 @@ public class AccessRequestController {
   }
 
   @PatchMapping("/{id}/review")
-  @PreAuthorize("@authz.hasAuthority(authentication, 'feature.access.requests.review')")
+  @PreAuthorize("@authz.hasAuthority(authentication, 'page.access.requests')")
   public AccessRequestDtos.AccessRequestResponse reviewRequest(
       @PathVariable String id,
       @AuthenticationPrincipal AppUserDetails userDetails,
