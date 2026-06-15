@@ -17,7 +17,15 @@ spring:
         - id: identity-users
           uri: lb://IDENTITY-SERVICE
           predicates:
-            - Path=/api/users/**
+            - Path=/api/users,/api/users/**
+        - id: identity-roles
+          uri: lb://IDENTITY-SERVICE
+          predicates:
+            - Path=/api/roles,/api/roles/**
+        - id: identity-permissions
+          uri: lb://IDENTITY-SERVICE
+          predicates:
+            - Path=/api/permissions,/api/permissions/**
         - id: identity-access-requests
           uri: lb://IDENTITY-SERVICE
           predicates:
