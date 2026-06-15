@@ -498,8 +498,14 @@ function sanitizeVendorPayload(form: VendorForm): CreateVendorPayload {
       id: account.id,
       accountHolderName: normalizeText(account.accountHolderName),
       bankName: normalizeText(account.bankName),
-      accountNumber: normalizeText(account.accountNumber),
-      confirmAccountNumber: normalizeText(account.confirmAccountNumber ?? account.accountNumber),
+      accountNumber:
+        account.id && !normalizeText(account.accountNumber) && !normalizeText(account.confirmAccountNumber)
+          ? undefined
+          : normalizeText(account.accountNumber),
+      confirmAccountNumber:
+        account.id && !normalizeText(account.accountNumber) && !normalizeText(account.confirmAccountNumber)
+          ? undefined
+          : normalizeText(account.confirmAccountNumber ?? account.accountNumber),
       ifscCode: normalizeText(account.ifscCode).toUpperCase(),
       branchName: normalizeOptional(account.branchName),
       upiId: normalizeOptional(account.upiId),
@@ -568,16 +574,18 @@ function validateVendorForm(form: VendorForm, vendors: Vendor[], activeVendorId?
   }
 
   payload.bankAccounts?.forEach((account, index) => {
+    const unchangedExistingAccount = Boolean(account.id) && !account.accountNumber && !account.confirmAccountNumber;
+
     if (!account.accountHolderName) {
       errors[`bankAccounts.${index}.accountHolderName`] = "Account holder name is required.";
     }
     if (!account.bankName) {
       errors[`bankAccounts.${index}.bankName`] = "Bank name is required.";
     }
-    if (!account.accountNumber) {
+    if (!unchangedExistingAccount && !account.accountNumber) {
       errors[`bankAccounts.${index}.accountNumber`] = "Account number is required.";
     }
-    if (account.accountNumber !== account.confirmAccountNumber) {
+    if (!unchangedExistingAccount && account.accountNumber !== account.confirmAccountNumber) {
       errors[`bankAccounts.${index}.confirmAccountNumber`] = "Account numbers do not match.";
     }
     if (!IFSC_PATTERN.test(account.ifscCode)) {
