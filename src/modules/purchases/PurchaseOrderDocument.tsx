@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import acsLogo from "@/assets/purchase-order/ACS_logo.png";
+import acsSeal from "@/assets/purchase-order/ACS_seal.png";
 import iotiqLogo from "@/assets/purchase-order/IOTIQ_logo.png";
 
 type PartyDetails = {
@@ -297,7 +298,13 @@ export function PurchaseOrderDocument({ document }: { document: PurchaseOrderDoc
           <div className="p-2" />
           <div className="border-l-2 border-black p-2 text-center">
             <p className="font-semibold">For {isAcs ? "ACS Technologies Ltd" : "IOTIQ Innovations Pvt. Ltd."}</p>
-            <div className="h-14" />
+            {isAcs ? (
+              <div className="flex h-16 items-center justify-center">
+                <img src={acsSeal} alt="ACS seal" className="h-16 w-16 object-contain" />
+              </div>
+            ) : (
+              <div className="h-14" />
+            )}
             <p className="font-semibold">{isAcs ? "Authorised Signatory" : "Authorized Signatory"}</p>
           </div>
         </div>

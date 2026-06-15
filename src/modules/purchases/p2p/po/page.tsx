@@ -17,6 +17,7 @@ import {
   X,
 } from "lucide-react";
 import acsLogo from "@/assets/purchase-order/ACS_logo.png";
+import acsSeal from "@/assets/purchase-order/ACS_seal.png";
 import iotiqLogo from "@/assets/purchase-order/IOTIQ_logo.png";
 import { PurchaseOrderDocument, type PurchaseOrderDocumentData } from "@/modules/purchases/PurchaseOrderDocument";
 import { usePurchaseOrders, usePurchaseRequisitions, useVendors } from "@/modules/purchases/hooks";
@@ -1193,7 +1194,13 @@ function CreatePurchaseOrderPanel({
                 <div className="p-3" />
                 <div className="border-l-2 border-slate-950 p-3 text-center">
                   <p className="font-semibold">For {selectedTemplate === "ACS" ? "ACS Technologies Ltd" : "IOTIQ Innovations Pvt. Ltd."}</p>
-                  <div className="h-20" />
+                  {selectedTemplate === "ACS" ? (
+                    <div className="flex h-20 items-center justify-center">
+                      <img src={acsSeal} alt="ACS seal" className="h-20 w-20 object-contain" />
+                    </div>
+                  ) : (
+                    <div className="h-20" />
+                  )}
                   <p className="font-semibold">{selectedTemplate === "ACS" ? "Authorised Signatory" : "Authorized Signatory"}</p>
                 </div>
               </div>
