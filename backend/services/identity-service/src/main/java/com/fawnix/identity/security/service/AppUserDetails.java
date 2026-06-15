@@ -2,7 +2,9 @@ package com.fawnix.identity.security.service;
 
 import com.fawnix.identity.users.entity.UserEntity;
 import java.util.Collection;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Stream;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -32,7 +34,7 @@ public class AppUserDetails implements UserDetails {
   public Collection<? extends GrantedAuthority> getAuthorities() {
     return Stream.concat(
             user.getRoles().stream().map(role -> new SimpleGrantedAuthority(role.getName())),
-            user.getPermissions().stream().map(SimpleGrantedAuthority::new)
+            getPermissionNames().stream().map(SimpleGrantedAuthority::new)
         )
         .toList();
   }
@@ -72,6 +74,12 @@ public class AppUserDetails implements UserDetails {
   }
 
   public List<String> getPermissionNames() {
-    return user.getPermissions().stream().toList();
+    Set<String> permissions = new LinkedHashSet<>();
+    user.getRoles().forEach(role -> role.getPermissions().stream()
+        .filter(permission -> permission.isActive())
+        .map(permission -> permission.getKey())
+        .forEach(permissions::add));
+    permissions.addAll(user.getPermissions());
+    return permissions.stream().toList();
   }
 }

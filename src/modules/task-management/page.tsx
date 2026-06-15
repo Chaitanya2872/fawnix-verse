@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/preserve-manual-memoization */
 /* eslint-disable react-hooks/purity */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable react-hooks/set-state-in-effect */
@@ -2292,7 +2293,7 @@ function AssigneeSelect({
     const emptyOption = options.find((option) => option.value === "");
     const matchedOptions = filterAssigneeOptions(options, query, value ? [value] : []);
     return emptyOption ? [emptyOption, ...matchedOptions] : matchedOptions;
-  }, [options, query]);
+  }, [options, query, value]);
 
   const selectedIndex = Math.max(
     0,

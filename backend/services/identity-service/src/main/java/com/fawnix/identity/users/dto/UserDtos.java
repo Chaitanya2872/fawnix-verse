@@ -56,4 +56,40 @@ public final class UserDtos {
       @NotBlank String role
   ) {
   }
+
+  public record UpdateUserAccessRequest(
+      @NotBlank String role,
+      List<String> permissions
+  ) {
+  }
+
+  public record RoleOptionResponse(
+      String key,
+      String label,
+      List<String> defaultPermissions
+  ) {
+  }
+
+  public record PermissionDefinitionResponse(
+      String key,
+      String label,
+      String description,
+      String moduleKey,
+      String level
+  ) {
+  }
+
+  public record PermissionModuleResponse(
+      String key,
+      String label,
+      List<PermissionDefinitionResponse> permissions
+  ) {
+  }
+
+  public record AccessControlCatalogResponse(
+      List<RoleOptionResponse> roles,
+      List<PermissionModuleResponse> modules,
+      List<String> allPermissions
+  ) {
+  }
 }

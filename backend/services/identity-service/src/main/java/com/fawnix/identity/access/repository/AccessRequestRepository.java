@@ -1,23 +1,14 @@
 package com.fawnix.identity.access.repository;
 
 import com.fawnix.identity.access.entity.AccessRequestEntity;
-import com.fawnix.identity.access.entity.AccessRequestStatus;
-import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 
-public interface AccessRequestRepository extends JpaRepository<AccessRequestEntity, String> {
+public interface AccessRequestRepository extends JpaRepository<AccessRequestEntity, String>,
+    JpaSpecificationExecutor<AccessRequestEntity> {
 
-  @EntityGraph(attributePaths = {"requester", "requester.roles", "reviewedBy"})
-  List<AccessRequestEntity> findAllByRequester_IdOrderByCreatedAtDesc(String requesterId);
-
-  @EntityGraph(attributePaths = {"requester", "requester.roles", "reviewedBy"})
-  List<AccessRequestEntity> findAllByOrderByCreatedAtDesc();
-
-  @EntityGraph(attributePaths = {"requester", "requester.roles", "reviewedBy"})
-  List<AccessRequestEntity> findAllByStatusOrderByCreatedAtAsc(AccessRequestStatus status);
-
-  @EntityGraph(attributePaths = {"requester", "requester.roles", "reviewedBy"})
+  @EntityGraph(attributePaths = {"requester", "requester.roles", "requester.roles.permissions", "reviewedBy"})
   Optional<AccessRequestEntity> findById(String id);
 }

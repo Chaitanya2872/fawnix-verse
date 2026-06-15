@@ -1,24 +1,24 @@
 import { PERMISSIONS, type Permission } from "@/modules/auth/permissions";
-import type { UserRole } from "./types";
+import type { AccessControlCatalog, PermissionDefinition, PermissionModule, UserRole } from "./types";
 
 export type PermissionOption = {
-  value: Permission;
+  value: string;
   label: string;
   description?: string;
 };
 
-export type PermissionGroup = {
-  heading: string;
-  options: PermissionOption[];
-};
-
 export type PermissionModuleGroup = {
-  module: PermissionOption;
+  key: string;
+  label: string;
+  module?: PermissionOption | null;
   pages: PermissionOption[];
+  features: PermissionOption[];
 };
 
-export const PERMISSION_MODULE_GROUPS: PermissionModuleGroup[] = [
+const FALLBACK_PERMISSION_MODULE_GROUPS: PermissionModuleGroup[] = [
   {
+    key: "inventory",
+    label: "Inventory",
     module: { value: PERMISSIONS.MODULE_INVENTORY, label: "Inventory Module" },
     pages: [
       { value: PERMISSIONS.PAGE_INVENTORY_MANAGE, label: "Manage Inventory" },
@@ -26,8 +26,11 @@ export const PERMISSION_MODULE_GROUPS: PermissionModuleGroup[] = [
       { value: PERMISSIONS.PAGE_INVENTORY_INVOICES, label: "Bills & Invoices" },
       { value: PERMISSIONS.PAGE_SALES_ORDERS, label: "Orders" },
     ],
+    features: [],
   },
   {
+    key: "crm",
+    label: "CRM",
     module: { value: PERMISSIONS.MODULE_CRM, label: "CRM Module" },
     pages: [
       { value: PERMISSIONS.PAGE_CRM_LEADS, label: "CRM Leads" },
@@ -35,132 +38,94 @@ export const PERMISSION_MODULE_GROUPS: PermissionModuleGroup[] = [
       { value: PERMISSIONS.PAGE_CRM_PRESALES, label: "CRM Tasks" },
       { value: PERMISSIONS.PAGE_CRM_OPPORTUNITIES, label: "CRM Opportunities" },
     ],
+    features: [],
   },
   {
+    key: "sales",
+    label: "Sales",
     module: { value: PERMISSIONS.MODULE_SALES, label: "Sales Module" },
-    pages: [
-      { value: PERMISSIONS.PAGE_SALES, label: "Quotations" },
-    ],
+    pages: [{ value: PERMISSIONS.PAGE_SALES, label: "Quotations" }],
+    features: [],
   },
   {
+    key: "purchases",
+    label: "Purchases",
     module: { value: PERMISSIONS.MODULE_PURCHASES, label: "Purchases Module" },
-    pages: [
-      { value: PERMISSIONS.PAGE_PURCHASES, label: "Purchases" },
-    ],
+    pages: [{ value: PERMISSIONS.PAGE_PURCHASES, label: "Purchases" }],
+    features: [],
   },
   {
+    key: "reports",
+    label: "Reports",
     module: { value: PERMISSIONS.MODULE_REPORTS, label: "Reports Module" },
     pages: [
       { value: PERMISSIONS.PAGE_ACCOUNTING, label: "Accounting" },
       { value: PERMISSIONS.PAGE_REPORTS, label: "Reports" },
     ],
+    features: [],
   },
   {
+    key: "tasks",
+    label: "Tasks",
     module: { value: PERMISSIONS.MODULE_TASKS, label: "Task Management Module" },
-    pages: [
-      { value: PERMISSIONS.PAGE_TASKS, label: "Task Management" },
-    ],
-  },
-  {
-    module: { value: PERMISSIONS.MODULE_HRMS, label: "HRMS Module" },
-    pages: [
-      { value: PERMISSIONS.PAGE_HRMS, label: "HRMS" },
-    ],
-  },
-  {
-    module: { value: PERMISSIONS.MODULE_ADMIN, label: "Administration Module" },
-    pages: [
-      { value: PERMISSIONS.PAGE_ADMIN_USERS, label: "Users" },
-    ],
-  },
-  {
-    module: { value: PERMISSIONS.MODULE_INTEGRATIONS, label: "Integrations Module" },
-    pages: [
-      { value: PERMISSIONS.PAGE_ADMIN_SETTINGS, label: "Settings / Integrations" },
-    ],
-  },
-  {
-    module: { value: PERMISSIONS.MODULE_RECRUITMENT, label: "Recruitment Module" },
-    pages: [],
-  },
-  {
-    module: { value: PERMISSIONS.MODULE_FORMS, label: "Forms Module" },
-    pages: [],
-  },
-  {
-    module: { value: PERMISSIONS.MODULE_APPROVALS, label: "Approvals Module" },
-    pages: [],
-  },
-  {
-    module: { value: PERMISSIONS.MODULE_ORG, label: "Organization Module" },
-    pages: [],
-  },
-  {
-    module: { value: PERMISSIONS.MODULE_ANALYTICS, label: "Analytics Module" },
-    pages: [],
-  },
-  {
-    module: { value: PERMISSIONS.MODULE_NOTIFICATIONS, label: "Notifications Module" },
-    pages: [],
+    pages: [{ value: PERMISSIONS.PAGE_TASKS, label: "Task Management" }],
+    features: [],
   },
 ];
 
-export const STANDALONE_PAGE_OPTIONS: PermissionOption[] = [
-  { value: PERMISSIONS.PAGE_DASHBOARD, label: "Dashboard" },
-];
-
-export const PERMISSION_GROUPS: PermissionGroup[] = [
-  {
-    heading: "Modules",
-    options: PERMISSION_MODULE_GROUPS.map((group) => group.module),
-  },
-  {
-    heading: "Pages",
-    options: [
-      ...STANDALONE_PAGE_OPTIONS,
-      ...PERMISSION_MODULE_GROUPS.flatMap((group) => group.pages),
-      { value: PERMISSIONS.PAGE_INVENTORY, label: "Inventory (Legacy)" },
-    ],
-  },
-];
-
-export const ROLE_DEFAULT_PERMISSIONS: Record<UserRole, Permission[]> = {
-  ROLE_MASTER: Object.values(PERMISSIONS),
-  ROLE_ADMIN: [
-    PERMISSIONS.MODULE_TASKS,
-    PERMISSIONS.PAGE_TASKS,
-  ],
-  ROLE_REPORTING_MANAGER: [
-    PERMISSIONS.MODULE_REPORTS,
-    PERMISSIONS.PAGE_REPORTS,
-    PERMISSIONS.MODULE_TASKS,
-    PERMISSIONS.PAGE_TASKS,
-  ],
-  ROLE_SALES_MANAGER: [
-    PERMISSIONS.MODULE_CRM,
-    PERMISSIONS.MODULE_REPORTS,
-    PERMISSIONS.MODULE_TASKS,
-    PERMISSIONS.PAGE_DASHBOARD,
-    PERMISSIONS.PAGE_CRM_LEADS,
-    PERMISSIONS.PAGE_CRM_PRESALES,
-    PERMISSIONS.PAGE_REPORTS,
-    PERMISSIONS.PAGE_TASKS,
-  ],
-  ROLE_SALES_REP: [
-    PERMISSIONS.MODULE_CRM,
-    PERMISSIONS.MODULE_TASKS,
-    PERMISSIONS.PAGE_DASHBOARD,
-    PERMISSIONS.PAGE_CRM_LEADS,
-    PERMISSIONS.PAGE_CRM_PRESALES,
-    PERMISSIONS.PAGE_TASKS,
-  ],
-  ROLE_VIEWER: [
-    PERMISSIONS.MODULE_REPORTS,
-    PERMISSIONS.PAGE_DASHBOARD,
-    PERMISSIONS.PAGE_REPORTS,
-  ],
-};
-
-export function uniquePermissions(list: Permission[]): Permission[] {
+export function uniquePermissions(list: string[]): string[] {
   return Array.from(new Set(list));
+}
+
+export function buildPermissionModuleGroups(catalog?: AccessControlCatalog | null): PermissionModuleGroup[] {
+  if (!catalog?.modules?.length) {
+    return FALLBACK_PERMISSION_MODULE_GROUPS;
+  }
+
+  return catalog.modules.map((module) => {
+    const modulePermission = module.permissions.find((permission) => permission.level === "MODULE");
+    return {
+      key: module.key,
+      label: module.label,
+      module: modulePermission
+        ? toPermissionOption(modulePermission)
+        : null,
+      pages: module.permissions.filter((permission) => permission.level === "PAGE").map(toPermissionOption),
+      features: module.permissions.filter((permission) => permission.level === "FEATURE").map(toPermissionOption),
+    };
+  });
+}
+
+export function getRoleDefaultPermissions(catalog: AccessControlCatalog | null | undefined, role: UserRole): string[] {
+  const backendValue = catalog?.roles.find((item) => item.key === role)?.defaultPermissions;
+  if (backendValue?.length) {
+    return uniquePermissions(backendValue);
+  }
+  return [];
+}
+
+export function getPermissionLabel(catalog: AccessControlCatalog | null | undefined, permission: string): string {
+  const match = catalog?.modules
+    ?.flatMap((module) => module.permissions)
+    .find((item) => item.key === permission);
+  return match?.label ?? permission;
+}
+
+export function getRoleOptions(catalog: AccessControlCatalog | null | undefined): Array<{ value: UserRole; label: string }> {
+  if (!catalog?.roles?.length) {
+    return [];
+  }
+
+  return catalog.roles.map((role) => ({
+    value: role.key,
+    label: role.label,
+  }));
+}
+
+function toPermissionOption(permission: PermissionDefinition): PermissionOption {
+  return {
+    value: permission.key,
+    label: permission.label,
+    description: permission.description,
+  };
 }

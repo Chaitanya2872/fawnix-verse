@@ -3,12 +3,9 @@ package com.fawnix.identity.auth.service;
 import com.fawnix.identity.auth.dto.AuthDtos;
 import com.fawnix.identity.auth.dto.FawnixOtpDtos;
 import com.fawnix.identity.auth.entity.RoleEntity;
-import com.fawnix.identity.auth.entity.RoleName;
-import com.fawnix.identity.auth.repository.RoleRepository;
 import com.fawnix.identity.common.exception.BadRequestException;
 import com.fawnix.identity.common.exception.ResourceNotFoundException;
 import com.fawnix.identity.users.entity.UserEntity;
-import com.fawnix.identity.users.permission.UserPermissionCatalog;
 import com.fawnix.identity.users.repository.UserRepository;
 import java.time.Instant;
 import java.util.LinkedHashSet;
@@ -25,24 +22,24 @@ public class FawnixOtpAuthService {
 
   private final FawnixOtpClient otpClient;
   private final UserRepository userRepository;
-  private final RoleRepository roleRepository;
   private final PasswordEncoder passwordEncoder;
   private final AuthService authService;
+  private final RoleService roleService;
   private final String defaultRoleName;
 
   public FawnixOtpAuthService(
       FawnixOtpClient otpClient,
       UserRepository userRepository,
-      RoleRepository roleRepository,
       PasswordEncoder passwordEncoder,
       AuthService authService,
+      RoleService roleService,
       @Value("${app.fawnix-otp.default-role:ROLE_VIEWER}") String defaultRoleName
   ) {
     this.otpClient = otpClient;
     this.userRepository = userRepository;
-    this.roleRepository = roleRepository;
     this.passwordEncoder = passwordEncoder;
     this.authService = authService;
+    this.roleService = roleService;
     this.defaultRoleName = defaultRoleName;
   }
 
@@ -88,7 +85,6 @@ public class FawnixOtpAuthService {
     }
 
     UserEntity existingUser = userRepository.findByEmailIgnoreCase(email).orElse(null);
-    boolean isExistingUser = existingUser != null;
 
     UserEntity user = existingUser != null ? existingUser : userRepository.findByEmailIgnoreCase(email).orElseGet(() -> {
       Instant now = Instant.now();
@@ -103,9 +99,9 @@ public class FawnixOtpAuthService {
           now,
           now
       );
-      RoleEntity role = requireRole(resolveRoleName(profile));
+      RoleEntity role = roleService.resolveActiveRole(resolveRoleName(profile));
       created.setRoles(Set.of(role));
-      created.setPermissions(UserPermissionCatalog.defaultsForRoleName(role.getName()));
+      created.setPermissions(new LinkedHashSet<>());
       return userRepository.save(created);
     });
 
@@ -125,18 +121,8 @@ public class FawnixOtpAuthService {
       updated = true;
     }
     if (user.getRoles() == null || user.getRoles().isEmpty()) {
-      RoleEntity effectiveRole = requireRole(resolveRoleName(profile));
+      RoleEntity effectiveRole = roleService.resolveActiveRole(resolveRoleName(profile));
       user.setRoles(Set.of(effectiveRole));
-      user.setPermissions(UserPermissionCatalog.defaultsForRoleName(effectiveRole.getName()));
-      updated = true;
-    }
-    if (isExistingUser && (user.getPermissions() == null || user.getPermissions().isEmpty())) {
-      // Backfill permissions without changing the user's existing role assignment.
-      String currentRoleName = user.getRoles().stream()
-          .findFirst()
-          .map(RoleEntity::getName)
-          .orElseGet(() -> resolveRoleName(profile));
-      user.setPermissions(new LinkedHashSet<>(UserPermissionCatalog.defaultsForRoleName(currentRoleName)));
       updated = true;
     }
 
@@ -148,29 +134,11 @@ public class FawnixOtpAuthService {
   }
 
   private String resolveRoleName(FawnixOtpDtos.FawnixUser profile) {
-    String configured = defaultRoleName == null ? "" : defaultRoleName.trim().toUpperCase(Locale.ROOT);
+    String configured = defaultRoleName == null ? "" : defaultRoleName.trim();
     if (configured.isEmpty()) {
-      return RoleName.ROLE_VIEWER.name();
+      throw new ResourceNotFoundException("Default OTP role is not configured.");
     }
-    return switch (configured) {
-      case "MASTER", "ROLE_MASTER" -> RoleName.ROLE_MASTER.name();
-      case "ADMIN", "ROLE_ADMIN" -> RoleName.ROLE_ADMIN.name();
-      case "REPORTING_MANAGER", "ROLE_REPORTING_MANAGER" -> RoleName.ROLE_REPORTING_MANAGER.name();
-      case "MANAGER", "ROLE_MANAGER", "ROLE_SALES_MANAGER" -> RoleName.ROLE_SALES_MANAGER.name();
-      case "SALES_REP", "ROLE_SALES_REP" -> RoleName.ROLE_SALES_REP.name();
-      case "EMPLOYEE", "ROLE_EMPLOYEE" -> RoleName.ROLE_EMPLOYEE.name();
-      case "HR_MANAGER", "ROLE_HR_MANAGER" -> RoleName.ROLE_HR_MANAGER.name();
-      case "RECRUITER", "ROLE_RECRUITER" -> RoleName.ROLE_RECRUITER.name();
-      case "HIRING_MANAGER", "ROLE_HIRING_MANAGER" -> RoleName.ROLE_HIRING_MANAGER.name();
-      case "INTERVIEWER", "ROLE_INTERVIEWER" -> RoleName.ROLE_INTERVIEWER.name();
-      case "VIEWER", "ROLE_VIEWER" -> RoleName.ROLE_VIEWER.name();
-      default -> RoleName.ROLE_VIEWER.name();
-    };
-  }
-
-  private RoleEntity requireRole(String roleName) {
-    return roleRepository.findByName(roleName)
-        .orElseThrow(() -> new ResourceNotFoundException("Role not found: " + roleName));
+    return configured;
   }
 
   private String normalizeEmail(String email) {

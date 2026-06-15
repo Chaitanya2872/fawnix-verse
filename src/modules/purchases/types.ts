@@ -20,6 +20,9 @@ export type GoodsReceiptStatus = "RECEIVED";
 export type ApprovalAction = "SUBMITTED" | "APPROVED" | "REJECTED";
 export type InvoiceStatus = "DRAFT" | "PENDING_APPROVAL" | "APPROVED" | "REJECTED" | "PAID";
 export type PaymentStatus = "PENDING_APPROVAL" | "REJECTED" | "PAID";
+export type VendorStatus = "ACTIVE" | "INACTIVE";
+export type VendorAddressType = "BILLING" | "SHIPPING";
+export type VendorAccountType = "SAVINGS" | "CURRENT" | "OVERDRAFT" | "CASH_CREDIT" | "OTHER";
 
 export interface PurchaseRequisitionItem {
   id: string;
@@ -96,8 +99,22 @@ export interface Vendor {
   id: string;
   vendorCode: string;
   vendorName: string;
+  vendorType?: string | null;
+  salutation?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
+  companyName?: string | null;
+  displayName?: string | null;
   email?: string | null;
   phone?: string | null;
+  workPhone?: string | null;
+  mobile?: string | null;
+  vendorLanguage?: string | null;
+  gstNumber?: string | null;
+  panNumber?: string | null;
+  website?: string | null;
+  status: VendorStatus;
+  remarks?: string | null;
   taxIdentifier?: string | null;
   addressLine1?: string | null;
   addressLine2?: string | null;
@@ -105,6 +122,10 @@ export interface Vendor {
   state?: string | null;
   country?: string | null;
   postalCode?: string | null;
+  billingAddress?: VendorAddress | null;
+  shippingAddresses: VendorAddress[];
+  contactPersons: VendorContactPerson[];
+  bankAccounts: VendorBankAccount[];
   createdAt: string;
   updatedAt: string;
 }
@@ -116,6 +137,54 @@ export interface VendorDocument {
   fileSize: number;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface VendorAddress {
+  id?: string;
+  addressType: VendorAddressType;
+  label?: string | null;
+  attention?: string | null;
+  addressLine1?: string | null;
+  addressLine2?: string | null;
+  city?: string | null;
+  state?: string | null;
+  country?: string | null;
+  postalCode?: string | null;
+  primaryAddress?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface VendorContactPerson {
+  id?: string;
+  salutation?: string | null;
+  firstName: string;
+  lastName?: string | null;
+  email?: string | null;
+  workPhone?: string | null;
+  mobile?: string | null;
+  skypeName?: string | null;
+  designation?: string | null;
+  department?: string | null;
+  primaryContact?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface VendorBankAccount {
+  id?: string;
+  accountHolderName: string;
+  bankName: string;
+  accountNumber?: string | null;
+  accountNumberMasked?: string | null;
+  confirmAccountNumber?: string | null;
+  ifscCode: string;
+  branchName?: string | null;
+  upiId?: string | null;
+  accountType?: VendorAccountType | null;
+  primaryAccount?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface PurchaseOrderItem {
@@ -257,20 +326,29 @@ export interface UpdatePurchaseRequisitionNegotiationPayload {
 }
 
 export interface CreateVendorPayload {
-  vendorCode: string;
-  vendorName: string;
+  vendorType?: string;
+  salutation?: string;
+  firstName?: string;
+  lastName?: string;
+  companyName?: string;
+  displayName: string;
   email?: string;
   phone?: string;
-  taxIdentifier?: string;
-  addressLine1?: string;
-  addressLine2?: string;
-  city?: string;
-  state?: string;
-  country?: string;
-  postalCode?: string;
+  workPhone?: string;
+  mobile?: string;
+  vendorLanguage?: string;
+  gstNumber?: string;
+  panNumber?: string;
+  website?: string;
+  status?: VendorStatus;
+  remarks?: string;
+  billingAddress?: VendorAddress;
+  shippingAddresses?: VendorAddress[];
+  contactPersons?: VendorContactPerson[];
+  bankAccounts?: VendorBankAccount[];
 }
 
-export type UpdateVendorPayload = Omit<CreateVendorPayload, "vendorCode">;
+export type UpdateVendorPayload = CreateVendorPayload;
 
 export interface CreatePurchaseOrderPayload {
   vendorId: string;

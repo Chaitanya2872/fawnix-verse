@@ -22,25 +22,38 @@ import { useCurrentUser } from "@/modules/auth/hooks";
 import { PERMISSIONS, hasPermission } from "@/modules/auth/permissions";
 import { hasStoredSession } from "@/services/api-client";
 import {
+  useAccessControlCatalog,
+  useCloneRole,
+  useCreatePermission,
+  useCreateRole,
   useCreateUser,
+  useDeletePermission,
+  useDeleteRole,
   useDeleteUser,
+  usePermissions,
+  useRoles,
+  useUpdatePermission,
+  useUpdateRole,
+  useUpdateRoleStatus,
   useUpdateUser,
   useUpdateUserStatus,
   useUsers,
 } from "./hooks";
 import {
-  USER_ROLE_OPTIONS,
   USER_LANGUAGE_OPTIONS,
+  type CreatePermissionPayload,
+  type CreateRolePayload,
+  type PermissionRecord,
+  type RoleRecord,
   getPrimaryRole,
   getRoleLabel,
-  getRoleLabelFromValue,
   type CreateUserPayload,
   type UpdateUserPayload,
   type User,
   type UserRole,
 } from "./types";
 import { PermissionSelector } from "./PermissionSelector";
-import { ROLE_DEFAULT_PERMISSIONS, uniquePermissions } from "./permissions";
+import { buildPermissionModuleGroups, getRoleDefaultPermissions, getRoleOptions, uniquePermissions } from "./permissions";
 
 type UserFormState = {
   fullName: string;
@@ -52,20 +65,46 @@ type UserFormState = {
   permissions: string[];
 };
 
+type RoleFormState = {
+  name: string;
+  description: string;
+  permissions: string[];
+};
+
+type PermissionFormState = {
+  key: string;
+  label: string;
+  moduleKey: string;
+  description: string;
+  active: boolean;
+};
+
 const EMPTY_FORM: UserFormState = {
   fullName: "",
   email: "",
   phoneNumber: "",
   language: "",
   password: "",
-  role: "ROLE_SALES_REP",
+  role: "",
   permissions: [],
+};
+
+const EMPTY_ROLE_FORM: RoleFormState = {
+  name: "",
+  description: "",
+  permissions: [],
+};
+
+const EMPTY_PERMISSION_FORM: PermissionFormState = {
+  key: "",
+  label: "",
+  moduleKey: "",
+  description: "",
+  active: true,
 };
 
 const selectClassName =
   "flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring";
-
-const UI_ROLE_OPTIONS = USER_ROLE_OPTIONS.filter((option) => option.value !== "ROLE_MASTER");
 
 function buildFormFromUser(user: User): UserFormState {
   return {
@@ -99,6 +138,7 @@ function UserFormFields({
   onChange,
   onTogglePermission,
   onResetPermissions,
+  permissionGroups,
   passwordHint,
 }: {
   form: UserFormState;
@@ -106,6 +146,7 @@ function UserFormFields({
   onChange: <K extends keyof UserFormState>(field: K, value: UserFormState[K]) => void;
   onTogglePermission: (permission: string) => void;
   onResetPermissions: () => void;
+  permissionGroups: ReturnType<typeof buildPermissionModuleGroups>;
   passwordHint?: string;
 }) {
   return (
@@ -163,6 +204,7 @@ function UserFormFields({
           onChange={(event) => onChange("role", event.target.value as UserRole)}
           required
         >
+          <option value="">Select role</option>
           {roleOptions.map((option) => (
             <option key={option.value} value={option.value}>
               {option.label}
@@ -198,11 +240,12 @@ function UserFormFields({
           <PermissionSelector
             selectedPermissions={form.permissions}
             onTogglePermission={onTogglePermission}
+            permissionGroups={permissionGroups}
             idPrefix="user-permission"
           />
         </div>
         <p className="text-xs text-slate-500">
-          Master has full access. Other roles follow the selected module and page permissions.
+          Role defaults come from the backend catalog and can be refined at module, page, and feature level.
         </p>
       </div>
     </div>
@@ -214,21 +257,62 @@ export default function UsersPage() {
   const isAdmin = hasPermission(currentUser, PERMISSIONS.PAGE_ADMIN_USERS);
 
   const usersQuery = useUsers({ enabled: Boolean(isAdmin) });
+  const accessCatalogQuery = useAccessControlCatalog({ enabled: Boolean(isAdmin) });
+  const rolesQuery = useRoles({ enabled: Boolean(isAdmin) });
+  const permissionsQuery = usePermissions({ enabled: Boolean(isAdmin) });
   const createUserMutation = useCreateUser();
   const updateUserMutation = useUpdateUser();
   const updateStatusMutation = useUpdateUserStatus();
   const deleteUserMutation = useDeleteUser();
+  const createRoleMutation = useCreateRole();
+  const updateRoleMutation = useUpdateRole();
+  const cloneRoleMutation = useCloneRole();
+  const updateRoleStatusMutation = useUpdateRoleStatus();
+  const deleteRoleMutation = useDeleteRole();
+  const createPermissionMutation = useCreatePermission();
+  const updatePermissionMutation = useUpdatePermission();
+  const deletePermissionMutation = useDeletePermission();
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
+  const [isRoleDialogOpen, setIsRoleDialogOpen] = useState(false);
+  const [isPermissionDialogOpen, setIsPermissionDialogOpen] = useState(false);
   const [activeUser, setActiveUser] = useState<User | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<User | null>(null);
+  const [activeRole, setActiveRole] = useState<RoleRecord | null>(null);
+  const [activePermission, setActivePermission] = useState<PermissionRecord | null>(null);
+  const [roleCloneTarget, setRoleCloneTarget] = useState<RoleRecord | null>(null);
   const [formState, setFormState] = useState<UserFormState>(EMPTY_FORM);
+  const [roleFormState, setRoleFormState] = useState<RoleFormState>(EMPTY_ROLE_FORM);
+  const [permissionFormState, setPermissionFormState] = useState<PermissionFormState>(EMPTY_PERMISSION_FORM);
   const [formError, setFormError] = useState<string | null>(null);
   const [pageError, setPageError] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [roleFormError, setRoleFormError] = useState<string | null>(null);
+  const [permissionFormError, setPermissionFormError] = useState<string | null>(null);
 
   const users = useMemo(() => usersQuery.data ?? [], [usersQuery.data]);
+  const roles = useMemo(() => rolesQuery.data ?? [], [rolesQuery.data]);
+  const permissions = useMemo(() => permissionsQuery.data ?? [], [permissionsQuery.data]);
+  const permissionGroups = useMemo(
+    () => buildPermissionModuleGroups(accessCatalogQuery.data),
+    [accessCatalogQuery.data]
+  );
+  const roleOptions = useMemo(
+    () => getRoleOptions(accessCatalogQuery.data),
+    [accessCatalogQuery.data]
+  );
+  const permissionModuleOptions = useMemo(
+    () =>
+      Array.from(new Set(permissions.map((permission) => permission.moduleKey))).sort((left, right) =>
+        left.localeCompare(right)
+      ),
+    [permissions]
+  );
+  const resolveRoleLabel = (roleKeys: string[]) => {
+    const key = roleKeys[0];
+    return roleOptions.find((option) => option.value === key)?.label ?? getRoleLabel(roleKeys);
+  };
 
   const handleFormChange = <K extends keyof UserFormState>(
     field: K,
@@ -250,18 +334,36 @@ export default function UsersPage() {
   const resetPermissionsToRoleDefaults = () => {
     setFormState((prev) => ({
       ...prev,
-      permissions: uniquePermissions(
-        ROLE_DEFAULT_PERMISSIONS[prev.role] ?? []
-      ),
+      permissions: uniquePermissions(getRoleDefaultPermissions(accessCatalogQuery.data, prev.role)),
+    }));
+  };
+
+  const handleRoleFormChange = <K extends keyof RoleFormState>(field: K, value: RoleFormState[K]) => {
+    setRoleFormState((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handlePermissionFormChange = <K extends keyof PermissionFormState>(
+    field: K,
+    value: PermissionFormState[K]
+  ) => {
+    setPermissionFormState((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleToggleRolePermission = (permission: string) => {
+    setRoleFormState((prev) => ({
+      ...prev,
+      permissions: prev.permissions.includes(permission)
+        ? prev.permissions.filter((item) => item !== permission)
+        : [...prev.permissions, permission],
     }));
   };
 
   const openCreateDialog = () => {
+    const defaultRole = roleOptions[0]?.value ?? "";
     setFormState({
       ...EMPTY_FORM,
-      permissions: uniquePermissions(
-        ROLE_DEFAULT_PERMISSIONS[EMPTY_FORM.role] ?? []
-      ),
+      role: defaultRole,
+      permissions: uniquePermissions(getRoleDefaultPermissions(accessCatalogQuery.data, defaultRole)),
     });
     setFormError(null);
     setPageError(null);
@@ -274,6 +376,58 @@ export default function UsersPage() {
     setFormError(null);
     setPageError(null);
     setIsEditOpen(true);
+  };
+
+  const openCreateRoleDialog = () => {
+    setActiveRole(null);
+    setRoleCloneTarget(null);
+    setRoleFormState(EMPTY_ROLE_FORM);
+    setRoleFormError(null);
+    setIsRoleDialogOpen(true);
+  };
+
+  const openEditRoleDialog = (role: RoleRecord) => {
+    setActiveRole(role);
+    setRoleCloneTarget(null);
+    setRoleFormState({
+      name: role.name,
+      description: role.description ?? "",
+      permissions: role.permissions ?? [],
+    });
+    setRoleFormError(null);
+    setIsRoleDialogOpen(true);
+  };
+
+  const openCloneRoleDialog = (role: RoleRecord) => {
+    setRoleCloneTarget(role);
+    setActiveRole(null);
+    setRoleFormState({
+      name: `${role.name} Copy`,
+      description: role.description ?? "",
+      permissions: role.permissions ?? [],
+    });
+    setRoleFormError(null);
+    setIsRoleDialogOpen(true);
+  };
+
+  const openCreatePermissionDialog = () => {
+    setActivePermission(null);
+    setPermissionFormState(EMPTY_PERMISSION_FORM);
+    setPermissionFormError(null);
+    setIsPermissionDialogOpen(true);
+  };
+
+  const openEditPermissionDialog = (permission: PermissionRecord) => {
+    setActivePermission(permission);
+    setPermissionFormState({
+      key: permission.key,
+      label: permission.label,
+      moduleKey: permission.moduleKey,
+      description: permission.description ?? "",
+      active: permission.active,
+    });
+    setPermissionFormError(null);
+    setIsPermissionDialogOpen(true);
   };
 
   const handleCreateSubmit = async (event: FormEvent) => {
@@ -357,6 +511,57 @@ export default function UsersPage() {
     }
   };
 
+  const handleRoleSubmit = async (event: FormEvent) => {
+    event.preventDefault();
+    setRoleFormError(null);
+    const payload: CreateRolePayload = {
+      name: roleFormState.name.trim(),
+      description: roleFormState.description.trim() || undefined,
+      permissions: roleFormState.permissions,
+    };
+
+    try {
+      if (roleCloneTarget) {
+        await cloneRoleMutation.mutateAsync({ id: roleCloneTarget.id, name: payload.name });
+      } else if (activeRole) {
+        await updateRoleMutation.mutateAsync({ id: activeRole.id, payload });
+      } else {
+        await createRoleMutation.mutateAsync(payload);
+      }
+      setIsRoleDialogOpen(false);
+    } catch (error) {
+      setRoleFormError(error instanceof Error ? error.message : "Failed to save role.");
+    }
+  };
+
+  const handlePermissionSubmit = async (event: FormEvent) => {
+    event.preventDefault();
+    setPermissionFormError(null);
+    const createPayload: CreatePermissionPayload = {
+      key: permissionFormState.key.trim(),
+      label: permissionFormState.label.trim(),
+      moduleKey: permissionFormState.moduleKey.trim(),
+      description: permissionFormState.description.trim() || undefined,
+    };
+
+    try {
+      if (activePermission) {
+        await updatePermissionMutation.mutateAsync({
+          key: activePermission.key,
+          payload: {
+            ...createPayload,
+            active: permissionFormState.active,
+          },
+        });
+      } else {
+        await createPermissionMutation.mutateAsync(createPayload);
+      }
+      setIsPermissionDialogOpen(false);
+    } catch (error) {
+      setPermissionFormError(error instanceof Error ? error.message : "Failed to save permission.");
+    }
+  };
+
   if (!isAdmin) {
     return (
       <Card>
@@ -397,6 +602,14 @@ export default function UsersPage() {
             <div className="rounded-lg border border-dashed border-slate-200 p-6 text-sm text-slate-500">
               Loading users...
             </div>
+          ) : accessCatalogQuery.isLoading ? (
+            <div className="rounded-lg border border-dashed border-slate-200 p-6 text-sm text-slate-500">
+              Loading roles and permission catalog...
+            </div>
+          ) : accessCatalogQuery.isError ? (
+            <div className="rounded-lg border border-red-100 bg-red-50 p-4 text-sm text-red-700">
+              {(accessCatalogQuery.error as Error)?.message ?? "Failed to load access control catalog."}
+            </div>
           ) : usersQuery.isError ? (
             <div className="rounded-lg border border-red-100 bg-red-50 p-4 text-sm text-red-700">
               {(usersQuery.error as Error)?.message ?? "Failed to load users."}
@@ -430,7 +643,7 @@ export default function UsersPage() {
                         {user.phoneNumber ?? "-"}
                       </td>
                       <td className="px-4 py-3 text-slate-600">
-                        {getRoleLabel(user.roles)}
+                        {resolveRoleLabel(user.roles)}
                       </td>
                       <td className="px-4 py-3 text-slate-600">
                         {user.language ?? "-"}
@@ -472,6 +685,118 @@ export default function UsersPage() {
         </CardContent>
       </Card>
 
+      <div className="grid gap-6 xl:grid-cols-2">
+        <Card>
+          <CardHeader className="flex flex-row items-start justify-between gap-4">
+            <div>
+              <CardTitle className="text-base">Role Management</CardTitle>
+              <CardDescription>Create dynamic roles, assign permissions, clone roles, and control activation.</CardDescription>
+            </div>
+            <Button onClick={openCreateRoleDialog}>Create Role</Button>
+          </CardHeader>
+          <CardContent>
+            {rolesQuery.isLoading ? (
+              <div className="rounded-lg border border-dashed border-slate-200 p-6 text-sm text-slate-500">Loading roles...</div>
+            ) : rolesQuery.isError ? (
+              <div className="rounded-lg border border-red-100 bg-red-50 p-4 text-sm text-red-700">
+                {(rolesQuery.error as Error)?.message ?? "Failed to load roles."}
+              </div>
+            ) : roles.length === 0 ? (
+              <div className="rounded-lg border border-dashed border-slate-200 p-6 text-sm text-slate-500">No roles created yet.</div>
+            ) : (
+              <div className="space-y-3">
+                {roles.map((role) => (
+                  <div key={role.id} className="rounded-lg border border-slate-200 p-4">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="text-sm font-semibold text-slate-900">{role.name}</p>
+                          <span className="rounded-full bg-slate-100 px-2 py-1 text-[11px] font-semibold text-slate-600">{role.key}</span>
+                          <span className={`rounded-full px-2 py-1 text-[11px] font-semibold ${role.active ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600"}`}>
+                            {role.active ? "Active" : "Inactive"}
+                          </span>
+                        </div>
+                        {role.description ? <p className="mt-2 text-sm text-slate-600">{role.description}</p> : null}
+                        <p className="mt-2 text-xs text-slate-500">{role.permissions.length} permission(s) assigned</p>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <Button variant="outline" size="sm" onClick={() => openEditRoleDialog(role)}>Edit</Button>
+                        <Button variant="outline" size="sm" onClick={() => openCloneRoleDialog(role)}>Clone</Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => updateRoleStatusMutation.mutate({ id: role.id, active: !role.active })}
+                          disabled={updateRoleStatusMutation.isPending || role.systemDefined}
+                        >
+                          {role.active ? "Deactivate" : "Activate"}
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => deleteRoleMutation.mutate(role.id)}
+                          disabled={deleteRoleMutation.isPending || role.systemDefined}
+                        >
+                          Delete
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-start justify-between gap-4">
+            <div>
+              <CardTitle className="text-base">Permission Management</CardTitle>
+              <CardDescription>Create and maintain database-driven permissions grouped by module.</CardDescription>
+            </div>
+            <Button onClick={openCreatePermissionDialog}>Create Permission</Button>
+          </CardHeader>
+          <CardContent>
+            {permissionsQuery.isLoading ? (
+              <div className="rounded-lg border border-dashed border-slate-200 p-6 text-sm text-slate-500">Loading permissions...</div>
+            ) : permissionsQuery.isError ? (
+              <div className="rounded-lg border border-red-100 bg-red-50 p-4 text-sm text-red-700">
+                {(permissionsQuery.error as Error)?.message ?? "Failed to load permissions."}
+              </div>
+            ) : permissions.length === 0 ? (
+              <div className="rounded-lg border border-dashed border-slate-200 p-6 text-sm text-slate-500">No permissions created yet.</div>
+            ) : (
+              <div className="space-y-3">
+                {permissions.map((permission) => (
+                  <div key={permission.key} className="rounded-lg border border-slate-200 p-4">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="text-sm font-semibold text-slate-900">{permission.label}</p>
+                          <span className="rounded-full bg-slate-100 px-2 py-1 text-[11px] font-semibold text-slate-600">{permission.key}</span>
+                          <span className="rounded-full bg-blue-50 px-2 py-1 text-[11px] font-semibold text-blue-700">{permission.moduleKey}</span>
+                        </div>
+                        {permission.description ? <p className="mt-2 text-sm text-slate-600">{permission.description}</p> : null}
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <Button variant="outline" size="sm" onClick={() => openEditPermissionDialog(permission)}>Edit</Button>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => deletePermissionMutation.mutate(permission.key)}
+                          disabled={deletePermissionMutation.isPending || permission.systemDefined}
+                        >
+                          Delete
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
         <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -483,10 +808,11 @@ export default function UsersPage() {
           <form onSubmit={handleCreateSubmit} className="space-y-5">
             <UserFormFields
               form={formState}
-              roleOptions={UI_ROLE_OPTIONS}
+              roleOptions={roleOptions}
               onChange={handleFormChange}
               onTogglePermission={handleTogglePermission}
               onResetPermissions={resetPermissionsToRoleDefaults}
+              permissionGroups={permissionGroups}
             />
             {formError ? (
               <div className="rounded-md border border-red-100 bg-red-50 p-3 text-sm text-red-700">
@@ -516,19 +842,16 @@ export default function UsersPage() {
           <form onSubmit={handleEditSubmit} className="space-y-5">
             <UserFormFields
               form={formState}
-              roleOptions={
-                formState.role === "ROLE_MASTER"
-                  ? [{ value: "ROLE_MASTER", label: "Master" }, ...UI_ROLE_OPTIONS]
-                  : UI_ROLE_OPTIONS
-              }
+              roleOptions={roleOptions}
               onChange={handleFormChange}
               onTogglePermission={handleTogglePermission}
               onResetPermissions={resetPermissionsToRoleDefaults}
+              permissionGroups={permissionGroups}
               passwordHint="Leave blank to keep the current password."
             />
             {activeUser ? (
               <p className="text-xs text-slate-500">
-                Current role: {getRoleLabelFromValue(getPrimaryRole(activeUser.roles))}
+                Current role: {resolveRoleLabel(activeUser.roles)}
               </p>
             ) : null}
             {formError ? (
@@ -542,6 +865,170 @@ export default function UsersPage() {
               </Button>
               <Button type="submit" disabled={updateUserMutation.isPending}>
                 {updateUserMutation.isPending ? "Saving..." : "Save Changes"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isRoleDialogOpen} onOpenChange={setIsRoleDialogOpen}>
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {roleCloneTarget ? "Clone Role" : activeRole ? "Edit Role" : "Create Role"}
+            </DialogTitle>
+            <DialogDescription>
+              Manage dynamic roles and assign database-driven permissions.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleRoleSubmit} className="space-y-5">
+            <div className="grid gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="role-name">Role Name</Label>
+                <Input
+                  id="role-name"
+                  value={roleFormState.name}
+                  onChange={(event) => handleRoleFormChange("name", event.target.value)}
+                  placeholder="Procurement Manager"
+                  required
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="role-description">Description</Label>
+                <textarea
+                  id="role-description"
+                  value={roleFormState.description}
+                  onChange={(event) => handleRoleFormChange("description", event.target.value)}
+                  rows={3}
+                  placeholder="Describe what this role is allowed to do."
+                  className="min-h-24 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                />
+              </div>
+              <div className="grid gap-2">
+                <div className="flex items-center justify-between gap-3">
+                  <Label>Permissions</Label>
+                  <Button type="button" variant="outline" size="sm" onClick={() => handleRoleFormChange("permissions", [])}>
+                    Clear
+                  </Button>
+                </div>
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                  <PermissionSelector
+                    selectedPermissions={roleFormState.permissions}
+                    onTogglePermission={handleToggleRolePermission}
+                    permissionGroups={permissionGroups}
+                    idPrefix="role-permission"
+                  />
+                </div>
+              </div>
+            </div>
+            {roleFormError ? (
+              <div className="rounded-md border border-red-100 bg-red-50 p-3 text-sm text-red-700">
+                {roleFormError}
+              </div>
+            ) : null}
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button type="button" variant="ghost" onClick={() => setIsRoleDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={createRoleMutation.isPending || updateRoleMutation.isPending || cloneRoleMutation.isPending}
+              >
+                {createRoleMutation.isPending || updateRoleMutation.isPending || cloneRoleMutation.isPending
+                  ? "Saving..."
+                  : roleCloneTarget
+                    ? "Clone Role"
+                    : activeRole
+                      ? "Save Role"
+                      : "Create Role"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isPermissionDialogOpen} onOpenChange={setIsPermissionDialogOpen}>
+        <DialogContent className="sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle>{activePermission ? "Edit Permission" : "Create Permission"}</DialogTitle>
+            <DialogDescription>
+              Configure permission keys without shipping code changes.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handlePermissionSubmit} className="space-y-5">
+            <div className="grid gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="permission-key">Permission Key</Label>
+                <Input
+                  id="permission-key"
+                  value={permissionFormState.key}
+                  onChange={(event) => handlePermissionFormChange("key", event.target.value)}
+                  placeholder="vendor.create"
+                  required
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="permission-label">Label</Label>
+                <Input
+                  id="permission-label"
+                  value={permissionFormState.label}
+                  onChange={(event) => handlePermissionFormChange("label", event.target.value)}
+                  placeholder="Create Vendor"
+                  required
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="permission-module">Module</Label>
+                <Input
+                  id="permission-module"
+                  list="permission-module-options"
+                  value={permissionFormState.moduleKey}
+                  onChange={(event) => handlePermissionFormChange("moduleKey", event.target.value)}
+                  placeholder="purchases"
+                  required
+                />
+                <datalist id="permission-module-options">
+                  {permissionModuleOptions.map((option) => (
+                    <option key={option} value={option} />
+                  ))}
+                </datalist>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="permission-description">Description</Label>
+                <textarea
+                  id="permission-description"
+                  value={permissionFormState.description}
+                  onChange={(event) => handlePermissionFormChange("description", event.target.value)}
+                  rows={3}
+                  placeholder="Describe what the permission unlocks."
+                  className="min-h-24 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                />
+              </div>
+              {activePermission ? (
+                <label className="flex items-center gap-2 text-sm text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={permissionFormState.active}
+                    onChange={(event) => handlePermissionFormChange("active", event.target.checked)}
+                  />
+                  Permission is active
+                </label>
+              ) : null}
+            </div>
+            {permissionFormError ? (
+              <div className="rounded-md border border-red-100 bg-red-50 p-3 text-sm text-red-700">
+                {permissionFormError}
+              </div>
+            ) : null}
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button type="button" variant="ghost" onClick={() => setIsPermissionDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={createPermissionMutation.isPending || updatePermissionMutation.isPending}
+              >
+                {createPermissionMutation.isPending || updatePermissionMutation.isPending ? "Saving..." : activePermission ? "Save Permission" : "Create Permission"}
               </Button>
             </DialogFooter>
           </form>

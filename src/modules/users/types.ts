@@ -1,10 +1,4 @@
-export type UserRole =
-  | "ROLE_MASTER"
-  | "ROLE_ADMIN"
-  | "ROLE_REPORTING_MANAGER"
-  | "ROLE_SALES_MANAGER"
-  | "ROLE_SALES_REP"
-  | "ROLE_VIEWER";
+export type UserRole = string;
 
 export type User = {
   id: string;
@@ -39,14 +33,79 @@ export type UpdateUserPayload = {
   permissions: string[];
 };
 
-export const USER_ROLE_OPTIONS: { value: UserRole; label: string }[] = [
-  { value: "ROLE_MASTER", label: "Master" },
-  { value: "ROLE_ADMIN", label: "Admin" },
-  { value: "ROLE_REPORTING_MANAGER", label: "Reporting Manager" },
-  { value: "ROLE_SALES_MANAGER", label: "Manager" },
-  { value: "ROLE_SALES_REP", label: "Employee" },
-  { value: "ROLE_VIEWER", label: "Viewer" },
-];
+export type PermissionLevel = "MODULE" | "PAGE" | "FEATURE";
+
+export type RoleOption = {
+  key: string;
+  label: string;
+  defaultPermissions: string[];
+};
+
+export type RoleRecord = {
+  id: string;
+  key: string;
+  name: string;
+  description: string | null;
+  active: boolean;
+  systemDefined: boolean;
+  permissions: string[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CreateRolePayload = {
+  name: string;
+  description?: string;
+  permissions: string[];
+};
+
+export type UpdateRolePayload = CreateRolePayload;
+
+export type PermissionRecord = {
+  key: string;
+  label: string;
+  moduleKey: string;
+  description: string | null;
+  active: boolean;
+  systemDefined: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CreatePermissionPayload = {
+  key: string;
+  label: string;
+  moduleKey: string;
+  description?: string;
+};
+
+export type UpdatePermissionPayload = {
+  key: string;
+  label: string;
+  moduleKey: string;
+  description?: string;
+  active: boolean;
+};
+
+export type PermissionDefinition = {
+  key: string;
+  label: string;
+  description: string;
+  moduleKey: string;
+  level: PermissionLevel;
+};
+
+export type PermissionModule = {
+  key: string;
+  label: string;
+  permissions: PermissionDefinition[];
+};
+
+export type AccessControlCatalog = {
+  roles: RoleOption[];
+  modules: PermissionModule[];
+  allPermissions: string[];
+};
 
 export const USER_LANGUAGE_OPTIONS: { value: string; label: string }[] = [
   { value: "English", label: "English" },
@@ -54,33 +113,23 @@ export const USER_LANGUAGE_OPTIONS: { value: string; label: string }[] = [
   { value: "Hindi", label: "Hindi" },
 ];
 
-const ROLE_LABELS: Record<string, string> = {
-  ROLE_MASTER: "Master",
-  ROLE_ADMIN: "Admin",
-  ROLE_REPORTING_MANAGER: "Reporting Manager",
-  ROLE_SALES_MANAGER: "Manager",
-  ROLE_SALES_REP: "Employee",
-  ROLE_VIEWER: "Viewer",
-};
-
 export function getPrimaryRole(roles: string[] | null | undefined): UserRole {
-  if (!roles || roles.length === 0) {
-    return "ROLE_VIEWER";
-  }
-  if (roles.includes("ROLE_MASTER")) return "ROLE_MASTER";
-  if (roles.includes("ROLE_ADMIN")) return "ROLE_ADMIN";
-  if (roles.includes("ROLE_REPORTING_MANAGER")) return "ROLE_REPORTING_MANAGER";
-  if (roles.includes("ROLE_SALES_MANAGER")) return "ROLE_SALES_MANAGER";
-  if (roles.includes("ROLE_SALES_REP")) return "ROLE_SALES_REP";
-  if (roles.includes("ROLE_VIEWER")) return "ROLE_VIEWER";
-  return "ROLE_VIEWER";
+  return roles?.[0] ?? "";
 }
 
 export function getRoleLabel(roles: string[] | null | undefined): string {
   const role = getPrimaryRole(roles);
-  return ROLE_LABELS[role] ?? "Unknown";
+  return getRoleLabelFromValue(role);
 }
 
 export function getRoleLabelFromValue(role: string): string {
-  return ROLE_LABELS[role] ?? role;
+  if (!role) {
+    return "Unassigned";
+  }
+
+  return role
+    .replace(/^ROLE_/i, "")
+    .replace(/[_\-.]+/g, " ")
+    .toLowerCase()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
 }
