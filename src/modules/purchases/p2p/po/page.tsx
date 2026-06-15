@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import {
   ChevronDown,
   CircleDollarSign,
@@ -622,7 +623,7 @@ function PreviewModal({
     return () => document.body.classList.remove("printing-quotation");
   }, []);
 
-  return (
+  return createPortal(
     <div className="quotation-print-layer fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm print:static print:block print:bg-white print:p-0">
       <div className="quotation-print-root relative flex h-[92vh] w-full max-w-[1100px] flex-col overflow-hidden rounded-3xl border border-slate-200 bg-[#f5f1e6] shadow-2xl print:h-auto print:max-w-none print:rounded-none print:border-none print:bg-white print:shadow-none">
         <div className="flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4 print:hidden">
@@ -652,7 +653,8 @@ function PreviewModal({
           <PurchaseOrderDocument document={data} />
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
