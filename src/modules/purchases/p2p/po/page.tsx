@@ -16,6 +16,9 @@ import {
   Truck,
   X,
 } from "lucide-react";
+import acsLogo from "@/assets/purchase-order/ACS_logo.png";
+import acsSeal from "@/assets/purchase-order/ACS_seal.png";
+import iotiqLogo from "@/assets/purchase-order/IOTIQ_logo.png";
 import { PurchaseOrderDocument, type PurchaseOrderDocumentData } from "@/modules/purchases/PurchaseOrderDocument";
 import { usePurchaseOrders, usePurchaseRequisitions, useVendors } from "@/modules/purchases/hooks";
 import type { PurchaseOrder, PurchaseOrderStatus, PurchaseRequisition, Vendor } from "@/modules/purchases/types";
@@ -1094,7 +1097,11 @@ function CreatePurchaseOrderPanel({
             <div className="mx-auto min-w-[1060px] max-w-[1180px] border-2 border-slate-950 bg-white text-[12px] text-slate-950">
               <div className="grid grid-cols-[150px_1fr] border-b-2 border-slate-950">
                 <div className="flex items-center justify-center border-r-2 border-slate-950 p-4">
-                  <div className="flex h-20 w-20 items-center justify-center rounded-xl border-2 border-slate-900 bg-slate-50 text-sm font-black tracking-[0.2em] text-slate-900">{selectedTemplate}</div>
+                  <img
+                    src={selectedTemplate === "ACS" ? acsLogo : iotiqLogo}
+                    alt={`${selectedTemplate} logo`}
+                    className="max-h-20 max-w-[120px] object-contain"
+                  />
                 </div>
                 <div className="p-4 text-center">
                   <p className="text-lg font-bold uppercase tracking-wide">{company.name}</p>
@@ -1187,7 +1194,13 @@ function CreatePurchaseOrderPanel({
                 <div className="p-3" />
                 <div className="border-l-2 border-slate-950 p-3 text-center">
                   <p className="font-semibold">For {selectedTemplate === "ACS" ? "ACS Technologies Ltd" : "IOTIQ Innovations Pvt. Ltd."}</p>
-                  <div className="h-20" />
+                  {selectedTemplate === "ACS" ? (
+                    <div className="flex h-20 items-center justify-center">
+                      <img src={acsSeal} alt="ACS seal" className="h-20 w-20 object-contain" />
+                    </div>
+                  ) : (
+                    <div className="h-20" />
+                  )}
                   <p className="font-semibold">{selectedTemplate === "ACS" ? "Authorised Signatory" : "Authorized Signatory"}</p>
                 </div>
               </div>
