@@ -7,6 +7,7 @@ import com.fawnix.sales.invoices.entity.SalesInvoiceEntity;
 import com.fawnix.sales.invoices.entity.SalesInvoiceStatus;
 import com.fawnix.sales.invoices.repository.SalesInvoiceRepository;
 import com.fawnix.sales.orders.entity.SalesOrderEntity;
+import com.fawnix.sales.orders.entity.SalesOrderStatus;
 import com.fawnix.sales.orders.repository.SalesOrderRepository;
 import com.fawnix.sales.security.service.AppUserDetails;
 import java.math.BigDecimal;
@@ -48,6 +49,9 @@ public class SalesInvoiceService {
       AppUserDetails userDetails
   ) {
     SalesOrderEntity order = requireOrder(request.salesOrderId());
+    if (order.getStatus() != SalesOrderStatus.APPROVED && order.getStatus() != SalesOrderStatus.CONFIRMED && order.getStatus() != SalesOrderStatus.PARTIALLY_DELIVERED && order.getStatus() != SalesOrderStatus.DELIVERED) {
+      throw new BadRequestException("Only approved or delivered orders can be invoiced.");
+    }
     SalesInvoiceEntity invoice = new SalesInvoiceEntity();
     invoice.setId(UUID.randomUUID().toString());
     invoice.setInvoiceNumber(generateInvoiceNumber());
@@ -68,7 +72,11 @@ public class SalesInvoiceService {
     invoice.setCreatedAt(now);
     invoice.setUpdatedAt(now);
     applyUser(invoice, userDetails);
-    return toResponse(salesInvoiceRepository.save(invoice));
+    SalesInvoiceEntity saved = salesInvoiceRepository.save(invoice);
+    order.setStatus(SalesOrderStatus.INVOICED);
+    order.setUpdatedAt(now);
+    salesOrderRepository.save(order);
+    return toResponse(saved);
   }
 
   @Transactional

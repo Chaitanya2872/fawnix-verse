@@ -8,4 +8,5 @@ public interface SalesDeliveryRepository extends JpaRepository<SalesDeliveryEnti
   boolean existsByDeliveryNumber(String deliveryNumber);
   List<SalesDeliveryEntity> findTop20ByOrderByCreatedAtDesc();
   List<SalesDeliveryEntity> findTop20BySalesOrderIdOrderByCreatedAtDesc(String salesOrderId);
+  List<SalesDeliveryEntity> findBySalesOrderIdOrderByCreatedAtDesc(String salesOrderId);
 }

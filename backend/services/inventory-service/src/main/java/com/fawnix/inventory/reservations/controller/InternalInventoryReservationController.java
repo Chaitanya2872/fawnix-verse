@@ -24,4 +24,18 @@ public class InternalInventoryReservationController {
   ) {
     return inventoryReservationService.reserve(request);
   }
+
+  @PostMapping("/validate")
+  public InventoryReservationDtos.ValidateInventoryResponse validate(
+      @Valid @RequestBody InventoryReservationDtos.ValidateInventoryRequest request
+  ) {
+    return inventoryReservationService.validate(request);
+  }
+
+  @PostMapping("/fulfill")
+  public InventoryReservationDtos.FulfillInventoryResponse fulfill(
+      @Valid @RequestBody InventoryReservationDtos.FulfillInventoryRequest request
+  ) {
+    return inventoryReservationService.fulfill(request);
+  }
 }

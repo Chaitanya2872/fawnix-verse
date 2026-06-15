@@ -1,11 +1,15 @@
 export const SalesOrderStatus = {
   DRAFT: "DRAFT",
+  SUBMITTED: "SUBMITTED",
   PENDING_APPROVAL: "PENDING_APPROVAL",
   APPROVED: "APPROVED",
-  PROCESSING: "PROCESSING",
-  PACKED: "PACKED",
-  SHIPPED: "SHIPPED",
+  REJECTED: "REJECTED",
+  CONFIRMED: "CONFIRMED",
+  PARTIALLY_DELIVERED: "PARTIALLY_DELIVERED",
   DELIVERED: "DELIVERED",
+  INVOICED: "INVOICED",
+  PARTIALLY_PAID: "PARTIALLY_PAID",
+  PAID: "PAID",
   CLOSED: "CLOSED",
   CANCELLED: "CANCELLED",
 } as const;
@@ -47,7 +51,16 @@ export type CreateSalesOrderInput = {
   shippingAddress?: string;
   currency?: string;
   status?: SalesOrderStatus;
+  deliveryDate?: string;
+  paymentTerms?: string;
+  customerPoNumber?: string;
+  quotationReference?: string;
+  paymentDueDays?: number;
   taxRate?: number;
+  discountPercent?: number;
+  customerCreditLimit?: number;
+  customerOutstandingAmount?: number;
+  confirmationAttachmentUrl?: string;
   notes?: string;
   items: CreateSalesOrderLineItemInput[];
 };
@@ -72,9 +85,62 @@ export type ManualOrderFormState = {
   shippingAddress: string;
   currency: string;
   status: SalesOrderStatus;
+  deliveryDate: string;
+  paymentTerms: string;
+  customerPoNumber: string;
+  quotationReference: string;
+  paymentDueDays: string;
   taxRate: string;
+  discountPercent: string;
+  customerCreditLimit: string;
+  customerOutstandingAmount: string;
+  confirmationAttachmentUrl: string;
   notes: string;
   items: ManualOrderItemDraft[];
+};
+
+export type SalesOrderValidation = {
+  stockAvailable: boolean;
+  creditLimitExceeded: boolean;
+  duplicateOrder: boolean;
+  riskyPaymentTerms: boolean;
+  specialDiscount: boolean;
+  summary: string;
+  validatedAt: string | null;
+};
+
+export type SalesOrderApproval = {
+  id: string;
+  roleKey: string;
+  roleLabel: string;
+  sequenceNo: number;
+  status: string;
+  remarks: string | null;
+  approverName: string | null;
+  createdAt: string;
+  decidedAt: string | null;
+};
+
+export type SalesOrderAuditLog = {
+  id: string;
+  actionType: string;
+  actorName: string | null;
+  details: string | null;
+  createdAt: string;
+};
+
+export type SalesOrderApprovalRule = {
+  id: string;
+  roleKey: string;
+  roleLabel: string;
+  sequenceNo: number;
+  minOrderValue: number | null;
+  maxOrderValue: number | null;
+  requireCreditLimitBreach: boolean;
+  requireInventoryShortage: boolean;
+  requireRiskyTerms: boolean;
+  requireSpecialDiscount: boolean;
+  active: boolean;
 };
 
 export type SalesOrderSummary = {
@@ -85,6 +151,10 @@ export type SalesOrderSummary = {
   customerName: string;
   company: string | null;
   total: number;
+  paymentTerms: string | null;
+  deliveryDate: string | null;
+  creditLimitExceeded: boolean;
+  stockAvailable: boolean;
   inventoryReserved: boolean;
   createdAt: string;
   updatedAt: string;
@@ -103,13 +173,34 @@ export type SalesOrder = {
   billingAddress: string | null;
   shippingAddress: string | null;
   currency: string;
+  deliveryDate: string | null;
+  paymentTerms: string | null;
+  customerPoNumber: string | null;
+  quotationReference: string | null;
+  paymentDueDays: number | null;
   subtotal: number;
   taxRate: number;
   taxTotal: number;
+  discountPercent: number;
+  discountAmount: number;
   total: number;
+  customerCreditLimit: number;
+  customerOutstandingAmount: number;
+  creditLimitExceeded: boolean;
+  stockAvailable: boolean;
+  duplicateOrderFlag: boolean;
+  riskyPaymentTerms: boolean;
+  specialDiscountFlag: boolean;
+  validation: SalesOrderValidation;
+  submittedAt: string | null;
+  confirmedAt: string | null;
+  confirmedByName: string | null;
+  confirmationAttachmentUrl: string | null;
   inventoryReserved: boolean;
   inventoryReservationMessage: string | null;
   inventoryReservedAt: string | null;
+  approvals: SalesOrderApproval[];
+  auditLogs: SalesOrderAuditLog[];
   notes: string | null;
   items: SalesOrderLineItem[];
   createdAt: string;
@@ -152,6 +243,26 @@ export const SalesInvoiceStatus = {
 
 export type SalesInvoiceStatus = (typeof SalesInvoiceStatus)[keyof typeof SalesInvoiceStatus];
 
+export const PaymentMode = {
+  UPI: "UPI",
+  BANK_TRANSFER: "BANK_TRANSFER",
+  CHEQUE: "CHEQUE",
+  CASH: "CASH",
+} as const;
+
+export type PaymentMode = (typeof PaymentMode)[keyof typeof PaymentMode];
+
+export const SalesReturnStatus = {
+  REQUESTED: "REQUESTED",
+  PENDING_APPROVAL: "PENDING_APPROVAL",
+  APPROVED: "APPROVED",
+  REJECTED: "REJECTED",
+  CREDIT_ISSUED: "CREDIT_ISSUED",
+  CLOSED: "CLOSED",
+} as const;
+
+export type SalesReturnStatus = (typeof SalesReturnStatus)[keyof typeof SalesReturnStatus];
+
 export type SalesDelivery = {
   id: string;
   deliveryNumber: string;
@@ -193,12 +304,82 @@ export type SalesInvoice = {
   updatedAt: string;
 };
 
+export type SalesPayment = {
+  id: string;
+  paymentNumber: string;
+  salesInvoiceId: string;
+  salesOrderId: string;
+  customerName: string;
+  currency: string;
+  paymentMode: PaymentMode;
+  paymentDate: string;
+  amount: number;
+  referenceNumber: string | null;
+  remarks: string | null;
+  createdAt: string;
+};
+
+export type SalesReturn = {
+  id: string;
+  returnNumber: string;
+  salesOrderId: string;
+  salesInvoiceId: string | null;
+  customerName: string;
+  status: SalesReturnStatus;
+  returnReason: string;
+  requestedAmount: number;
+  approvedAmount: number;
+  remarks: string | null;
+  approvedByName: string | null;
+  createdAt: string;
+  approvedAt: string | null;
+  creditNotes: SalesCreditNote[];
+};
+
+export type SalesCreditNote = {
+  id: string;
+  creditNoteNumber: string;
+  salesReturnId: string;
+  salesInvoiceId: string | null;
+  customerName: string;
+  currency: string;
+  amount: number;
+  remarks: string | null;
+  createdAt: string;
+};
+
+export type SalesMetric = {
+  label: string;
+  key: string;
+  value: number;
+};
+
+export type SalesCustomerReportRow = {
+  customerName: string;
+  totalSales: number;
+  outstandingAmount: number;
+};
+
+export type SalesReportOverview = {
+  metrics: SalesMetric[];
+  customerSales: SalesCustomerReportRow[];
+  overdueCustomers: SalesCustomerReportRow[];
+};
+
 export type SalesDeliveryListResponse = {
   data: SalesDelivery[];
 };
 
 export type SalesInvoiceListResponse = {
   data: SalesInvoice[];
+};
+
+export type SalesPaymentListResponse = {
+  data: SalesPayment[];
+};
+
+export type SalesReturnListResponse = {
+  data: SalesReturn[];
 };
 
 export type CreateSalesDeliveryInput = {
@@ -213,4 +394,21 @@ export type CreateSalesInvoiceInput = {
   salesOrderId: string;
   dueDate?: string;
   notes?: string;
+};
+
+export type CreateSalesPaymentInput = {
+  salesInvoiceId: string;
+  paymentDate: string;
+  amount: number;
+  paymentMode: PaymentMode;
+  referenceNumber?: string;
+  remarks?: string;
+};
+
+export type CreateSalesReturnInput = {
+  salesOrderId: string;
+  salesInvoiceId?: string;
+  returnReason: string;
+  requestedAmount: number;
+  remarks?: string;
 };

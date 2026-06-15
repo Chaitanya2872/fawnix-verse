@@ -275,6 +275,24 @@ public class ProductService {
     productRepository.save(product);
   }
 
+  @Transactional
+  public void fulfillReservedStock(ProductEntity product, BigDecimal quantity) {
+    BigDecimal requested = scale(quantity);
+    BigDecimal reserved = defaultMoney(product.getReservedQty());
+    if (reserved.compareTo(requested) < 0) {
+      throw new BadRequestException("Reserved stock is insufficient for fulfillment.");
+    }
+    BigDecimal updatedStock = defaultMoney(product.getStockQty()).subtract(requested);
+    if (updatedStock.compareTo(BigDecimal.ZERO) < 0) {
+      throw new BadRequestException("Stock quantity cannot be negative.");
+    }
+    product.setStockQty(scale(updatedStock));
+    product.setReservedQty(scale(reserved.subtract(requested)));
+    product.setStatus(resolveStatus(product.getStockQty(), product.getReorderLevel()));
+    product.setUpdatedAt(Instant.now());
+    productRepository.save(product);
+  }
+
   public BigDecimal getAvailableStock(ProductEntity product) {
     BigDecimal available = defaultMoney(product.getStockQty()).subtract(defaultMoney(product.getReservedQty()));
     if (available.compareTo(BigDecimal.ZERO) < 0) {

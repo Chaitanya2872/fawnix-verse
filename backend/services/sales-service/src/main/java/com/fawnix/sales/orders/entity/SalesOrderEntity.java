@@ -11,6 +11,7 @@ import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -52,6 +53,21 @@ public class SalesOrderEntity {
   @Column(name = "currency", length = 10, nullable = false)
   private String currency;
 
+  @Column(name = "delivery_date")
+  private LocalDate deliveryDate;
+
+  @Column(name = "payment_terms", length = 120)
+  private String paymentTerms;
+
+  @Column(name = "customer_po_number", length = 120)
+  private String customerPoNumber;
+
+  @Column(name = "quotation_reference", length = 120)
+  private String quotationReference;
+
+  @Column(name = "payment_due_days")
+  private Integer paymentDueDays;
+
   @Enumerated(EnumType.STRING)
   @Column(name = "status", length = 40, nullable = false)
   private SalesOrderStatus status;
@@ -65,8 +81,41 @@ public class SalesOrderEntity {
   @Column(name = "tax_total", precision = 14, scale = 2, nullable = false)
   private BigDecimal taxTotal = BigDecimal.ZERO;
 
+  @Column(name = "discount_percent", precision = 5, scale = 2, nullable = false)
+  private BigDecimal discountPercent = BigDecimal.ZERO;
+
+  @Column(name = "discount_amount", precision = 14, scale = 2, nullable = false)
+  private BigDecimal discountAmount = BigDecimal.ZERO;
+
   @Column(name = "total", precision = 14, scale = 2, nullable = false)
   private BigDecimal total = BigDecimal.ZERO;
+
+  @Column(name = "customer_credit_limit", precision = 14, scale = 2, nullable = false)
+  private BigDecimal customerCreditLimit = BigDecimal.ZERO;
+
+  @Column(name = "customer_outstanding_amount", precision = 14, scale = 2, nullable = false)
+  private BigDecimal customerOutstandingAmount = BigDecimal.ZERO;
+
+  @Column(name = "credit_limit_exceeded", nullable = false)
+  private boolean creditLimitExceeded;
+
+  @Column(name = "stock_available", nullable = false)
+  private boolean stockAvailable;
+
+  @Column(name = "duplicate_order_flag", nullable = false)
+  private boolean duplicateOrderFlag;
+
+  @Column(name = "risky_payment_terms", nullable = false)
+  private boolean riskyPaymentTerms;
+
+  @Column(name = "special_discount_flag", nullable = false)
+  private boolean specialDiscountFlag;
+
+  @Column(name = "validation_summary", columnDefinition = "text")
+  private String validationSummary;
+
+  @Column(name = "approval_snapshot", columnDefinition = "text")
+  private String approvalSnapshot;
 
   @Column(name = "notes", columnDefinition = "text")
   private String notes;
@@ -79,6 +128,21 @@ public class SalesOrderEntity {
 
   @Column(name = "inventory_reserved_at")
   private Instant inventoryReservedAt;
+
+  @Column(name = "submitted_at")
+  private Instant submittedAt;
+
+  @Column(name = "confirmed_at")
+  private Instant confirmedAt;
+
+  @Column(name = "confirmed_by_name", length = 120)
+  private String confirmedByName;
+
+  @Column(name = "last_validated_at")
+  private Instant lastValidatedAt;
+
+  @Column(name = "confirmation_attachment_url", columnDefinition = "text")
+  private String confirmationAttachmentUrl;
 
   @Column(name = "created_by_user_id", length = 36)
   private String createdByUserId;
@@ -190,6 +254,46 @@ public class SalesOrderEntity {
     this.currency = currency;
   }
 
+  public LocalDate getDeliveryDate() {
+    return deliveryDate;
+  }
+
+  public void setDeliveryDate(LocalDate deliveryDate) {
+    this.deliveryDate = deliveryDate;
+  }
+
+  public String getPaymentTerms() {
+    return paymentTerms;
+  }
+
+  public void setPaymentTerms(String paymentTerms) {
+    this.paymentTerms = paymentTerms;
+  }
+
+  public String getCustomerPoNumber() {
+    return customerPoNumber;
+  }
+
+  public void setCustomerPoNumber(String customerPoNumber) {
+    this.customerPoNumber = customerPoNumber;
+  }
+
+  public String getQuotationReference() {
+    return quotationReference;
+  }
+
+  public void setQuotationReference(String quotationReference) {
+    this.quotationReference = quotationReference;
+  }
+
+  public Integer getPaymentDueDays() {
+    return paymentDueDays;
+  }
+
+  public void setPaymentDueDays(Integer paymentDueDays) {
+    this.paymentDueDays = paymentDueDays;
+  }
+
   public SalesOrderStatus getStatus() {
     return status;
   }
@@ -222,12 +326,100 @@ public class SalesOrderEntity {
     this.taxTotal = taxTotal;
   }
 
+  public BigDecimal getDiscountPercent() {
+    return discountPercent;
+  }
+
+  public void setDiscountPercent(BigDecimal discountPercent) {
+    this.discountPercent = discountPercent;
+  }
+
+  public BigDecimal getDiscountAmount() {
+    return discountAmount;
+  }
+
+  public void setDiscountAmount(BigDecimal discountAmount) {
+    this.discountAmount = discountAmount;
+  }
+
   public BigDecimal getTotal() {
     return total;
   }
 
   public void setTotal(BigDecimal total) {
     this.total = total;
+  }
+
+  public BigDecimal getCustomerCreditLimit() {
+    return customerCreditLimit;
+  }
+
+  public void setCustomerCreditLimit(BigDecimal customerCreditLimit) {
+    this.customerCreditLimit = customerCreditLimit;
+  }
+
+  public BigDecimal getCustomerOutstandingAmount() {
+    return customerOutstandingAmount;
+  }
+
+  public void setCustomerOutstandingAmount(BigDecimal customerOutstandingAmount) {
+    this.customerOutstandingAmount = customerOutstandingAmount;
+  }
+
+  public boolean isCreditLimitExceeded() {
+    return creditLimitExceeded;
+  }
+
+  public void setCreditLimitExceeded(boolean creditLimitExceeded) {
+    this.creditLimitExceeded = creditLimitExceeded;
+  }
+
+  public boolean isStockAvailable() {
+    return stockAvailable;
+  }
+
+  public void setStockAvailable(boolean stockAvailable) {
+    this.stockAvailable = stockAvailable;
+  }
+
+  public boolean isDuplicateOrderFlag() {
+    return duplicateOrderFlag;
+  }
+
+  public void setDuplicateOrderFlag(boolean duplicateOrderFlag) {
+    this.duplicateOrderFlag = duplicateOrderFlag;
+  }
+
+  public boolean isRiskyPaymentTerms() {
+    return riskyPaymentTerms;
+  }
+
+  public void setRiskyPaymentTerms(boolean riskyPaymentTerms) {
+    this.riskyPaymentTerms = riskyPaymentTerms;
+  }
+
+  public boolean isSpecialDiscountFlag() {
+    return specialDiscountFlag;
+  }
+
+  public void setSpecialDiscountFlag(boolean specialDiscountFlag) {
+    this.specialDiscountFlag = specialDiscountFlag;
+  }
+
+  public String getValidationSummary() {
+    return validationSummary;
+  }
+
+  public void setValidationSummary(String validationSummary) {
+    this.validationSummary = validationSummary;
+  }
+
+  public String getApprovalSnapshot() {
+    return approvalSnapshot;
+  }
+
+  public void setApprovalSnapshot(String approvalSnapshot) {
+    this.approvalSnapshot = approvalSnapshot;
   }
 
   public String getNotes() {
@@ -260,6 +452,46 @@ public class SalesOrderEntity {
 
   public void setInventoryReservedAt(Instant inventoryReservedAt) {
     this.inventoryReservedAt = inventoryReservedAt;
+  }
+
+  public Instant getSubmittedAt() {
+    return submittedAt;
+  }
+
+  public void setSubmittedAt(Instant submittedAt) {
+    this.submittedAt = submittedAt;
+  }
+
+  public Instant getConfirmedAt() {
+    return confirmedAt;
+  }
+
+  public void setConfirmedAt(Instant confirmedAt) {
+    this.confirmedAt = confirmedAt;
+  }
+
+  public String getConfirmedByName() {
+    return confirmedByName;
+  }
+
+  public void setConfirmedByName(String confirmedByName) {
+    this.confirmedByName = confirmedByName;
+  }
+
+  public Instant getLastValidatedAt() {
+    return lastValidatedAt;
+  }
+
+  public void setLastValidatedAt(Instant lastValidatedAt) {
+    this.lastValidatedAt = lastValidatedAt;
+  }
+
+  public String getConfirmationAttachmentUrl() {
+    return confirmationAttachmentUrl;
+  }
+
+  public void setConfirmationAttachmentUrl(String confirmationAttachmentUrl) {
+    this.confirmationAttachmentUrl = confirmationAttachmentUrl;
   }
 
   public String getCreatedByUserId() {

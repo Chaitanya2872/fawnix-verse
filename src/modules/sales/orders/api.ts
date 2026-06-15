@@ -3,6 +3,8 @@ import type {
   CreateSalesDeliveryInput,
   CreateSalesInvoiceInput,
   CreateSalesOrderInput,
+  CreateSalesPaymentInput,
+  CreateSalesReturnInput,
   PaginatedSalesOrders,
   SalesDelivery,
   SalesDeliveryListResponse,
@@ -11,8 +13,15 @@ import type {
   SalesInvoiceListResponse,
   SalesInvoiceStatus,
   SalesOrder,
+  SalesOrderApprovalRule,
   SalesOrderFilter,
   SalesOrderStatus,
+  SalesPayment,
+  SalesPaymentListResponse,
+  SalesReportOverview,
+  SalesReturn,
+  SalesReturnListResponse,
+  SalesReturnStatus,
 } from "./types";
 
 export async function fetchSalesOrders(filter: SalesOrderFilter): Promise<PaginatedSalesOrders> {
@@ -42,8 +51,32 @@ export async function convertQuoteToOrder(id: string): Promise<SalesOrder> {
   return response.data;
 }
 
-export async function updateSalesOrderStatus(id: string, status: SalesOrderStatus): Promise<SalesOrder> {
-  const response = await api.patch<SalesOrder>(`/sales/orders/${id}/status`, { status });
+export async function updateSalesOrderStatus(id: string, status: SalesOrderStatus, remarks?: string): Promise<SalesOrder> {
+  const response = await api.patch<SalesOrder>(`/sales/orders/${id}/status`, { status, remarks });
+  return response.data;
+}
+
+export async function submitSalesOrder(id: string): Promise<SalesOrder> {
+  const response = await api.post<SalesOrder>(`/sales/orders/${id}/submit`);
+  return response.data;
+}
+
+export async function confirmSalesOrder(id: string, confirmationAttachmentUrl?: string, remarks?: string): Promise<SalesOrder> {
+  const response = await api.post<SalesOrder>(`/sales/orders/${id}/confirm`, { confirmationAttachmentUrl, remarks });
+  return response.data;
+}
+
+export async function applySalesOrderApprovalAction(
+  id: string,
+  action: "APPROVE" | "REJECT" | "SEND_BACK",
+  remarks?: string
+): Promise<SalesOrder> {
+  const response = await api.post<SalesOrder>(`/sales/orders/${id}/approval-action`, { action, remarks });
+  return response.data;
+}
+
+export async function fetchApprovalRules(): Promise<SalesOrderApprovalRule[]> {
+  const response = await api.get<SalesOrderApprovalRule[]>("/sales/orders/approval-rules");
   return response.data;
 }
 
@@ -82,5 +115,39 @@ export async function updateSalesInvoiceStatus(
   balanceDue?: number
 ): Promise<SalesInvoice> {
   const response = await api.patch<SalesInvoice>(`/sales/invoices/${id}/status`, { status, balanceDue });
+  return response.data;
+}
+
+export async function fetchSalesPayments(salesInvoiceId?: string): Promise<SalesPaymentListResponse> {
+  const response = await api.get<SalesPaymentListResponse>("/sales/payments", {
+    params: salesInvoiceId ? { salesInvoiceId } : undefined,
+  });
+  return response.data;
+}
+
+export async function createSalesPayment(payload: CreateSalesPaymentInput): Promise<SalesPayment> {
+  const response = await api.post<SalesPayment>("/sales/payments", payload);
+  return response.data;
+}
+
+export async function fetchSalesReturns(salesOrderId?: string): Promise<SalesReturnListResponse> {
+  const response = await api.get<SalesReturnListResponse>("/sales/returns", {
+    params: salesOrderId ? { salesOrderId } : undefined,
+  });
+  return response.data;
+}
+
+export async function createSalesReturn(payload: CreateSalesReturnInput): Promise<SalesReturn> {
+  const response = await api.post<SalesReturn>("/sales/returns", payload);
+  return response.data;
+}
+
+export async function updateSalesReturnStatus(id: string, status: SalesReturnStatus, approvedAmount?: number, remarks?: string): Promise<SalesReturn> {
+  const response = await api.patch<SalesReturn>(`/sales/returns/${id}/status`, { status, approvedAmount, remarks });
+  return response.data;
+}
+
+export async function fetchSalesReportOverview(): Promise<SalesReportOverview> {
+  const response = await api.get<SalesReportOverview>("/sales/reports/overview");
   return response.data;
 }

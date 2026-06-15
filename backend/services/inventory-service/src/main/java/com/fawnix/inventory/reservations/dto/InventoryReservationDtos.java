@@ -49,4 +49,48 @@ public final class InventoryReservationDtos {
       List<ReserveInventoryLineResponse> items
   ) {
   }
+
+  public record ValidateInventoryRequest(
+      @NotBlank(message = "Order id is required.")
+      String orderId,
+      @NotEmpty(message = "At least one inventory line is required.")
+      @Valid
+      List<ReserveInventoryLineRequest> items
+  ) {
+  }
+
+  public record ValidateInventoryLineResponse(
+      String productId,
+      String sku,
+      String productName,
+      BigDecimal requestedQuantity,
+      BigDecimal availableQuantity,
+      boolean available
+  ) {
+  }
+
+  public record ValidateInventoryResponse(
+      String orderId,
+      boolean allAvailable,
+      String message,
+      List<ValidateInventoryLineResponse> items
+  ) {
+  }
+
+  public record FulfillInventoryRequest(
+      @NotBlank(message = "Order id is required.")
+      String orderId,
+      @NotEmpty(message = "At least one inventory line is required.")
+      @Valid
+      List<ReserveInventoryLineRequest> items
+  ) {
+  }
+
+  public record FulfillInventoryResponse(
+      String orderId,
+      boolean fulfilled,
+      String message,
+      List<ReserveInventoryLineResponse> items
+  ) {
+  }
 }

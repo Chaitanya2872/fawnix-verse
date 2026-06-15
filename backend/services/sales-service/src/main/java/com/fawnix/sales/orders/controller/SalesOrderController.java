@@ -70,4 +70,56 @@ public class SalesOrderController {
   ) {
     return salesOrderService.updateStatus(id, request, userDetails);
   }
+
+  @PostMapping("/{id}/submit")
+  @PreAuthorize("hasAnyRole('ADMIN','SALES_MANAGER','SALES_REP')")
+  public SalesOrderDtos.SalesOrderResponse submitOrder(
+      @PathVariable String id,
+      @AuthenticationPrincipal AppUserDetails userDetails
+  ) {
+    return salesOrderService.submitOrder(id, userDetails);
+  }
+
+  @PostMapping("/{id}/confirm")
+  @PreAuthorize("hasAnyRole('ADMIN','SALES_MANAGER','SALES_REP')")
+  public SalesOrderDtos.SalesOrderResponse confirmOrder(
+      @PathVariable String id,
+      @Valid @RequestBody SalesOrderDtos.ConfirmSalesOrderRequest request,
+      @AuthenticationPrincipal AppUserDetails userDetails
+  ) {
+    return salesOrderService.confirmOrder(id, request, userDetails);
+  }
+
+  @PostMapping("/{id}/approval-action")
+  @PreAuthorize("hasAnyRole('ADMIN','SALES_MANAGER','SALES_REP')")
+  public SalesOrderDtos.SalesOrderResponse applyApprovalAction(
+      @PathVariable String id,
+      @Valid @RequestBody SalesOrderDtos.ApprovalActionRequest request,
+      @AuthenticationPrincipal AppUserDetails userDetails
+  ) {
+    return salesOrderService.applyApprovalAction(id, request, userDetails);
+  }
+
+  @GetMapping("/approval-rules")
+  @PreAuthorize("hasAnyRole('ADMIN','SALES_MANAGER','SALES_REP')")
+  public java.util.List<SalesOrderDtos.SalesOrderApprovalRuleResponse> getApprovalRules() {
+    return salesOrderService.getApprovalRules();
+  }
+
+  @PostMapping("/approval-rules")
+  @PreAuthorize("hasAnyRole('ADMIN','SALES_MANAGER','SALES_REP')")
+  public SalesOrderDtos.SalesOrderApprovalRuleResponse createApprovalRule(
+      @Valid @RequestBody SalesOrderDtos.SalesOrderApprovalRuleRequest request
+  ) {
+    return salesOrderService.createApprovalRule(request);
+  }
+
+  @PatchMapping("/approval-rules/{id}")
+  @PreAuthorize("hasAnyRole('ADMIN','SALES_MANAGER','SALES_REP')")
+  public SalesOrderDtos.SalesOrderApprovalRuleResponse updateApprovalRule(
+      @PathVariable String id,
+      @Valid @RequestBody SalesOrderDtos.SalesOrderApprovalRuleRequest request
+  ) {
+    return salesOrderService.updateApprovalRule(id, request);
+  }
 }

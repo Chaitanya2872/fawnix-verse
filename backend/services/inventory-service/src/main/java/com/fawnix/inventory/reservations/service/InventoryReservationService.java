@@ -57,4 +57,66 @@ public class InventoryReservationService {
         responses
     );
   }
+
+  @Transactional(readOnly = true)
+  public InventoryReservationDtos.ValidateInventoryResponse validate(
+      InventoryReservationDtos.ValidateInventoryRequest request
+  ) {
+    List<InventoryReservationDtos.ValidateInventoryLineResponse> responses = new ArrayList<>();
+    boolean allAvailable = true;
+
+    for (InventoryReservationDtos.ReserveInventoryLineRequest item : request.items()) {
+      ProductEntity product = productRepository.findById(item.productId().trim())
+          .orElseThrow(() -> new ResourceNotFoundException("Product not found."));
+      BigDecimal available = productService.getAvailableStock(product);
+      boolean availableForLine = available.compareTo(item.quantity()) >= 0;
+      if (!availableForLine) {
+        allAvailable = false;
+      }
+      responses.add(new InventoryReservationDtos.ValidateInventoryLineResponse(
+          product.getId(),
+          product.getSku(),
+          product.getName(),
+          item.quantity(),
+          available,
+          availableForLine
+      ));
+    }
+
+    return new InventoryReservationDtos.ValidateInventoryResponse(
+        request.orderId(),
+        allAvailable,
+        allAvailable ? "Inventory is available." : "Some items do not have enough stock.",
+        responses
+    );
+  }
+
+  @Transactional
+  public InventoryReservationDtos.FulfillInventoryResponse fulfill(
+      InventoryReservationDtos.FulfillInventoryRequest request
+  ) {
+    List<InventoryReservationDtos.ReserveInventoryLineResponse> responses = new ArrayList<>();
+
+    for (InventoryReservationDtos.ReserveInventoryLineRequest item : request.items()) {
+      ProductEntity product = productRepository.findById(item.productId().trim())
+          .orElseThrow(() -> new ResourceNotFoundException("Product not found."));
+      BigDecimal availableBeforeReservation = productService.getAvailableStock(product);
+      productService.fulfillReservedStock(product, item.quantity());
+      responses.add(new InventoryReservationDtos.ReserveInventoryLineResponse(
+          product.getId(),
+          product.getSku(),
+          product.getName(),
+          item.quantity(),
+          availableBeforeReservation,
+          item.quantity()
+      ));
+    }
+
+    return new InventoryReservationDtos.FulfillInventoryResponse(
+        request.orderId(),
+        true,
+        "Reserved inventory fulfilled successfully.",
+        responses
+    );
+  }
 }

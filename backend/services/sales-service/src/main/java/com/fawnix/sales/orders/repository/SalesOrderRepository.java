@@ -1,6 +1,8 @@
 package com.fawnix.sales.orders.repository;
 
 import com.fawnix.sales.orders.entity.SalesOrderEntity;
+import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
@@ -9,4 +11,8 @@ public interface SalesOrderRepository extends JpaRepository<SalesOrderEntity, St
   boolean existsByOrderNumber(String orderNumber);
 
   Optional<SalesOrderEntity> findByQuoteId(String quoteId);
+
+  List<SalesOrderEntity> findTop10ByCustomerNameIgnoreCaseOrderByCreatedAtDesc(String customerName);
+
+  long countByCreatedAtAfter(Instant createdAt);
 }

@@ -8,4 +8,5 @@ public interface SalesInvoiceRepository extends JpaRepository<SalesInvoiceEntity
   boolean existsByInvoiceNumber(String invoiceNumber);
   List<SalesInvoiceEntity> findTop20ByOrderByCreatedAtDesc();
   List<SalesInvoiceEntity> findTop20BySalesOrderIdOrderByCreatedAtDesc(String salesOrderId);
+  List<SalesInvoiceEntity> findAllByOrderByCreatedAtDesc();
 }

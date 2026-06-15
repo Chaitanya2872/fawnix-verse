@@ -28,6 +28,22 @@ public class InventoryReservationClient {
     );
   }
 
+  public ValidateInventoryResponse validate(String orderId, List<ReserveInventoryLineRequest> items) {
+    return internalRestTemplate.postForObject(
+        inventoryServiceUrl + "/internal/inventory/reservations/validate",
+        new ValidateInventoryRequest(orderId, items),
+        ValidateInventoryResponse.class
+    );
+  }
+
+  public FulfillInventoryResponse fulfill(String orderId, List<ReserveInventoryLineRequest> items) {
+    return internalRestTemplate.postForObject(
+        inventoryServiceUrl + "/internal/inventory/reservations/fulfill",
+        new FulfillInventoryRequest(orderId, items),
+        FulfillInventoryResponse.class
+    );
+  }
+
   public record ReserveInventoryRequest(String orderId, List<ReserveInventoryLineRequest> items) {
   }
 
@@ -47,6 +63,38 @@ public class InventoryReservationClient {
   public record ReserveInventoryResponse(
       String orderId,
       boolean reserved,
+      String message,
+      List<ReserveInventoryLineResponse> items
+  ) {
+  }
+
+  public record ValidateInventoryRequest(String orderId, List<ReserveInventoryLineRequest> items) {
+  }
+
+  public record ValidateInventoryLineResponse(
+      String productId,
+      String sku,
+      String productName,
+      BigDecimal requestedQuantity,
+      BigDecimal availableQuantity,
+      boolean available
+  ) {
+  }
+
+  public record ValidateInventoryResponse(
+      String orderId,
+      boolean allAvailable,
+      String message,
+      List<ValidateInventoryLineResponse> items
+  ) {
+  }
+
+  public record FulfillInventoryRequest(String orderId, List<ReserveInventoryLineRequest> items) {
+  }
+
+  public record FulfillInventoryResponse(
+      String orderId,
+      boolean fulfilled,
       String message,
       List<ReserveInventoryLineResponse> items
   ) {
