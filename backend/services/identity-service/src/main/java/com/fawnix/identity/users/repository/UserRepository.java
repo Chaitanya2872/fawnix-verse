@@ -8,6 +8,10 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface UserRepository extends JpaRepository<UserEntity, String> {
 
+  @Override
+  @EntityGraph(attributePaths = {"roles", "roles.permissions", "permissions"})
+  Optional<UserEntity> findById(String id);
+
   @EntityGraph(attributePaths = {"roles", "roles.permissions", "permissions"})
   Optional<UserEntity> findByEmailIgnoreCase(String email);
 
