@@ -6,13 +6,17 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
+  CreatePaymentDrawer,
+  CreateReturnDrawer,
   CreateDeliveryDrawer,
   CreateInvoiceDrawer,
   CreateOrderDrawer,
   DeliveryBoardCard,
   InvoiceBoardCard,
   OrderDetailDrawer,
+  PaymentBoardCard,
   PendingApprovalsCard,
+  ReturnBoardCard,
   SalesOrdersHero,
   SalesOrdersKpis,
   SalesOrdersQueueCard,
@@ -163,6 +167,8 @@ export default function SalesOrdersPage() {
   const [isCreateDrawerOpen, setCreateDrawerOpen] = useState(false);
   const [isDeliveryDrawerOpen, setDeliveryDrawerOpen] = useState(false);
   const [isInvoiceDrawerOpen, setInvoiceDrawerOpen] = useState(false);
+  const [isPaymentDrawerOpen, setPaymentDrawerOpen] = useState(false);
+  const [isReturnDrawerOpen, setReturnDrawerOpen] = useState(false);
   const [manualForm, setManualForm] = useState<ManualOrderFormState>(() => createInitialManualForm());
   const [deliveryForm, setDeliveryForm] = useState<CreateSalesDeliveryInput>({ salesOrderId: "" });
   const [invoiceForm, setInvoiceForm] = useState<CreateSalesInvoiceInput>({ salesOrderId: "" });
@@ -308,6 +314,16 @@ export default function SalesOrdersPage() {
       },
     ];
   }, [approvalRules.length, deliveries, invoices.length, orders.length, payments.length, pendingApprovalOrders.length, report?.metrics, visibleOrders.length]);
+
+  const orderOptions = useMemo(
+    () => orders.map((order) => ({ id: order.id, label: `${order.orderNumber} • ${order.customerName}` })),
+    [orders]
+  );
+
+  const invoiceOptions = useMemo(
+    () => invoices.map((invoice) => ({ id: invoice.id, label: `${invoice.invoiceNumber} • ${invoice.customerName}` })),
+    [invoices]
+  );
 
   function updateManualField<K extends keyof ManualOrderFormState>(field: K, value: ManualOrderFormState[K]) {
     setManualForm((prev) => ({ ...prev, [field]: value }));
@@ -504,132 +520,88 @@ export default function SalesOrdersPage() {
         );
       case "Delivery":
         return (
-          <DeliveryBoardCard
-            deliveries={deliveries}
-            isLoading={deliveriesQuery.isLoading}
-            onCreate={() => setDeliveryDrawerOpen(true)}
-            onStatusChange={(id, status) => deliveryStatusMutation.mutate({ id, status })}
-            statusPending={deliveryStatusMutation.isPending}
-          />
+          <div className="grid gap-6 xl:grid-cols-[1.35fr_0.65fr]">
+            <DeliveryBoardCard
+              deliveries={deliveries}
+              isLoading={deliveriesQuery.isLoading}
+              onCreate={() => setDeliveryDrawerOpen(true)}
+              onStatusChange={(id, status) => deliveryStatusMutation.mutate({ id, status })}
+              statusPending={deliveryStatusMutation.isPending}
+            />
+            <section className="rounded-[28px] border border-slate-200/80 bg-white/90 p-5 shadow-sm">
+              <h3 className="text-lg font-semibold text-slate-950">Dispatch Notes</h3>
+              <p className="mt-1 text-sm text-slate-500">Use the floating panel to schedule or update dispatch without leaving the queue.</p>
+              <div className="mt-5 space-y-3">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3">
+                  <p className="text-sm font-semibold text-slate-950">Delivery coverage</p>
+                  <p className="mt-1 text-xs text-slate-500">{deliveries.length} delivery records active</p>
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3">
+                  <p className="text-sm font-semibold text-slate-950">Inventory sync</p>
+                  <p className="mt-1 text-xs text-slate-500">Dispatch transitions now fulfill reserved inventory automatically.</p>
+                </div>
+              </div>
+            </section>
+          </div>
         );
       case "Invoices":
         return (
-          <InvoiceBoardCard
-            invoices={invoices}
-            isLoading={invoicesQuery.isLoading}
-            onCreate={() => setInvoiceDrawerOpen(true)}
-            onStatusChange={(id, status) => invoiceStatusMutation.mutate({ id, status })}
-            statusPending={invoiceStatusMutation.isPending}
-          />
+          <div className="grid gap-6 xl:grid-cols-[1.35fr_0.65fr]">
+            <InvoiceBoardCard
+              invoices={invoices}
+              isLoading={invoicesQuery.isLoading}
+              onCreate={() => setInvoiceDrawerOpen(true)}
+              onStatusChange={(id, status) => invoiceStatusMutation.mutate({ id, status })}
+              statusPending={invoiceStatusMutation.isPending}
+            />
+            <section className="rounded-[28px] border border-slate-200/80 bg-white/90 p-5 shadow-sm">
+              <h3 className="text-lg font-semibold text-slate-950">Billing Controls</h3>
+              <p className="mt-1 text-sm text-slate-500">Invoice creation and updates stay in right-side panels for a smoother finance workflow.</p>
+              <div className="mt-5 space-y-3">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3">
+                  <p className="text-sm font-semibold text-slate-950">Draft to issued</p>
+                  <p className="mt-1 text-xs text-slate-500">Move billing records through issue, partial payment, and closure stages.</p>
+                </div>
+              </div>
+            </section>
+          </div>
         );
       case "Payments":
         return (
-          <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
+          <div className="grid gap-6 xl:grid-cols-[1.35fr_0.65fr]">
+            <PaymentBoardCard payments={payments} isLoading={paymentsQuery.isLoading} onCreate={() => setPaymentDrawerOpen(true)} />
             <section className="rounded-[28px] border border-slate-200/80 bg-white/90 p-5 shadow-sm">
-              <h3 className="text-lg font-semibold text-slate-950">Record Payment</h3>
-              <div className="mt-4 grid gap-3">
-                <select className="h-11 rounded-2xl border border-slate-200 bg-white px-4 text-sm" value={paymentForm.salesInvoiceId} onChange={(event) => setPaymentForm((prev) => ({ ...prev, salesInvoiceId: event.target.value }))}>
-                  <option value="">Select invoice</option>
-                  {invoices.map((invoice) => (
-                    <option key={invoice.id} value={invoice.id}>
-                      {invoice.invoiceNumber} • {invoice.customerName}
-                    </option>
-                  ))}
-                </select>
-                <Input type="date" value={paymentForm.paymentDate} onChange={(event) => setPaymentForm((prev) => ({ ...prev, paymentDate: event.target.value }))} />
-                <Input type="number" min="0" step="0.01" placeholder="Amount" value={paymentForm.amount || ""} onChange={(event) => setPaymentForm((prev) => ({ ...prev, amount: Number(event.target.value) }))} />
-                <select className="h-11 rounded-2xl border border-slate-200 bg-white px-4 text-sm" value={paymentForm.paymentMode} onChange={(event) => setPaymentForm((prev) => ({ ...prev, paymentMode: event.target.value as CreateSalesPaymentInput["paymentMode"] }))}>
-                  {Object.values(PaymentMode).map((mode) => <option key={mode} value={mode}>{toLabel(mode)}</option>)}
-                </select>
-                <Input placeholder="Reference number" value={paymentForm.referenceNumber ?? ""} onChange={(event) => setPaymentForm((prev) => ({ ...prev, referenceNumber: event.target.value }))} />
-                <Input placeholder="Remarks" value={paymentForm.remarks ?? ""} onChange={(event) => setPaymentForm((prev) => ({ ...prev, remarks: event.target.value }))} />
-                <Button
-                  onClick={() =>
-                    createPaymentMutation.mutate(paymentForm, {
-                      onSuccess: () => toast.success("Payment recorded."),
-                      onError: (error) => toast.error(error instanceof Error ? error.message : "Could not record payment."),
-                    })
-                  }
-                  disabled={!paymentForm.salesInvoiceId || paymentForm.amount <= 0}
-                >
-                  Record payment
-                </Button>
-              </div>
-            </section>
-            <section className="rounded-[28px] border border-slate-200/80 bg-white/90 p-5 shadow-sm">
-              <h3 className="text-lg font-semibold text-slate-950">Payment Register</h3>
-              <div className="mt-4 space-y-3">
-                {payments.length ? (
-                  payments.map((payment) => (
-                    <div key={payment.id} className="rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <p className="text-sm font-semibold text-slate-950">{payment.paymentNumber}</p>
-                          <p className="mt-1 text-xs text-slate-500">{payment.customerName} • {toLabel(payment.paymentMode)}</p>
-                        </div>
-                        <p className="text-sm font-semibold text-slate-950">{fmtCurrency(payment.amount, payment.currency)}</p>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-sm text-slate-500">No payments captured yet.</div>
-                )}
+              <h3 className="text-lg font-semibold text-slate-950">Collection Signals</h3>
+              <p className="mt-1 text-sm text-slate-500">All collection entries now open in a floating drawer instead of inline form blocks.</p>
+              <div className="mt-5 space-y-3">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3">
+                  <p className="text-sm font-semibold text-slate-950">Open invoices</p>
+                  <p className="mt-1 text-xs text-slate-500">{invoices.filter((invoice) => invoice.balanceDue > 0).length} invoices still need collection follow-up.</p>
+                </div>
               </div>
             </section>
           </div>
         );
       case "Returns":
         return (
-          <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
+          <div className="grid gap-6 xl:grid-cols-[1.35fr_0.65fr]">
+            <ReturnBoardCard
+              returns={returns}
+              isLoading={returnsQuery.isLoading}
+              onCreate={() => setReturnDrawerOpen(true)}
+              onStatusChange={(id, status) =>
+                returnStatusMutation.mutate({ id, status, approvedAmount: returns.find((item) => item.id === id)?.requestedAmount })
+              }
+              statusPending={returnStatusMutation.isPending}
+            />
             <section className="rounded-[28px] border border-slate-200/80 bg-white/90 p-5 shadow-sm">
-              <h3 className="text-lg font-semibold text-slate-950">Create Return Request</h3>
-              <div className="mt-4 grid gap-3">
-                <select className="h-11 rounded-2xl border border-slate-200 bg-white px-4 text-sm" value={returnForm.salesOrderId} onChange={(event) => setReturnForm((prev) => ({ ...prev, salesOrderId: event.target.value }))}>
-                  <option value="">Select order</option>
-                  {orders.map((order) => <option key={order.id} value={order.id}>{order.orderNumber} • {order.customerName}</option>)}
-                </select>
-                <select className="h-11 rounded-2xl border border-slate-200 bg-white px-4 text-sm" value={returnForm.salesInvoiceId ?? ""} onChange={(event) => setReturnForm((prev) => ({ ...prev, salesInvoiceId: cleanOptional(event.target.value) }))}>
-                  <option value="">Link invoice (optional)</option>
-                  {invoices.map((invoice) => <option key={invoice.id} value={invoice.id}>{invoice.invoiceNumber}</option>)}
-                </select>
-                <Input placeholder="Return reason" value={returnForm.returnReason} onChange={(event) => setReturnForm((prev) => ({ ...prev, returnReason: event.target.value }))} />
-                <Input type="number" min="0" step="0.01" placeholder="Requested amount" value={returnForm.requestedAmount || ""} onChange={(event) => setReturnForm((prev) => ({ ...prev, requestedAmount: Number(event.target.value) }))} />
-                <Input placeholder="Remarks" value={returnForm.remarks ?? ""} onChange={(event) => setReturnForm((prev) => ({ ...prev, remarks: event.target.value }))} />
-                <Button
-                  onClick={() =>
-                    createReturnMutation.mutate(returnForm, {
-                      onSuccess: () => toast.success("Return request created."),
-                      onError: (error) => toast.error(error instanceof Error ? error.message : "Could not create return request."),
-                    })
-                  }
-                  disabled={!returnForm.salesOrderId || !returnForm.returnReason.trim()}
-                >
-                  Create return request
-                </Button>
-              </div>
-            </section>
-            <section className="rounded-[28px] border border-slate-200/80 bg-white/90 p-5 shadow-sm">
-              <h3 className="text-lg font-semibold text-slate-950">Return Queue</h3>
-              <div className="mt-4 space-y-3">
-                {returns.length ? (
-                  returns.map((salesReturn) => (
-                    <div key={salesReturn.id} className="rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <p className="text-sm font-semibold text-slate-950">{salesReturn.returnNumber}</p>
-                          <p className="mt-1 text-xs text-slate-500">{salesReturn.customerName} • {toLabel(salesReturn.status)}</p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <select className="h-9 rounded-xl border border-slate-200 bg-white px-3 text-xs" value={salesReturn.status} onChange={(event) => returnStatusMutation.mutate({ id: salesReturn.id, status: event.target.value as typeof SalesReturnStatus[keyof typeof SalesReturnStatus], approvedAmount: salesReturn.requestedAmount })}>
-                            {Object.values(SalesReturnStatus).map((status) => <option key={status} value={status}>{toLabel(status)}</option>)}
-                          </select>
-                        </div>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-sm text-slate-500">No returns are open right now.</div>
-                )}
+              <h3 className="text-lg font-semibold text-slate-950">Recovery Workflow</h3>
+              <p className="mt-1 text-sm text-slate-500">Return creation now happens in a focused right-side panel with order and invoice context.</p>
+              <div className="mt-5 space-y-3">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3">
+                  <p className="text-sm font-semibold text-slate-950">Credit note automation</p>
+                  <p className="mt-1 text-xs text-slate-500">Approved returns will continue to generate and adjust credit notes in the backend flow.</p>
+                </div>
               </div>
             </section>
           </div>
@@ -674,20 +646,34 @@ export default function SalesOrdersPage() {
         );
       default:
         return (
-          <SalesOrdersQueueCard
-            orders={visibleOrders}
-            search={filter.search}
-            onSearchChange={(value) => setFilter((prev) => ({ ...prev, search: value, page: 1 }))}
-            tabs={queueCounts}
-            activeTab={queueTab}
-            onTabChange={(value) => setQueueTab(value as QueueTabKey)}
-            isLoading={ordersQuery.isLoading}
-            onOpenOrder={(orderId) => {
-              setDetailId(orderId);
-              setWorkspaceTab("Approvals");
-            }}
-            onCreateOrder={() => setCreateDrawerOpen(true)}
-          />
+          <div className="grid gap-6 xl:grid-cols-[1.35fr_0.65fr]">
+            <SalesOrdersQueueCard
+              orders={visibleOrders}
+              search={filter.search}
+              onSearchChange={(value) => setFilter((prev) => ({ ...prev, search: value, page: 1 }))}
+              tabs={queueCounts}
+              activeTab={queueTab}
+              onTabChange={(value) => setQueueTab(value as QueueTabKey)}
+              isLoading={ordersQuery.isLoading}
+              onOpenOrder={(orderId) => {
+                setDetailId(orderId);
+              }}
+              onCreateOrder={() => setCreateDrawerOpen(true)}
+            />
+            <div className="space-y-6">
+              <PendingApprovalsCard approvals={pendingApprovalOrders} onOpenOrder={setDetailId} />
+              <section className="rounded-[28px] border border-slate-200/80 bg-white/90 p-5 shadow-sm">
+                <h3 className="text-lg font-semibold text-slate-950">Operator View</h3>
+                <p className="mt-1 text-sm text-slate-500">Open any order to inspect it in a floating side panel while keeping the queue visible.</p>
+                <div className="mt-5 space-y-3">
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3">
+                    <p className="text-sm font-semibold text-slate-950">Drawer-first workflow</p>
+                    <p className="mt-1 text-xs text-slate-500">Create, delivery, invoice, payment, return, and order detail now stay in right-side panels.</p>
+                  </div>
+                </div>
+              </section>
+            </div>
+          </div>
         );
     }
   }
@@ -697,22 +683,31 @@ export default function SalesOrdersPage() {
       <SalesOrdersHero orderCount={visibleOrders.length} onCreateOrder={() => setCreateDrawerOpen(true)} onExport={handleExport} />
       <SalesOrdersKpis metrics={kpis as never} isLoading={ordersQuery.isLoading || reportsQuery.isLoading} />
 
-      <div className="flex flex-wrap gap-2">
-        {O2C_TABS.map((tab) => (
-          <button
-            key={tab}
-            type="button"
-            onClick={() => setWorkspaceTab(tab)}
-            className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${
-              workspaceTab === tab
-                ? "bg-slate-950 text-white"
-                : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50"
-            }`}
-          >
-            {tab}
-          </button>
-        ))}
-      </div>
+      <section className="overflow-hidden rounded-[28px] border border-slate-200/80 bg-[radial-gradient(circle_at_top_left,_rgba(125,211,252,0.25),_transparent_34%),linear-gradient(180deg,_rgba(255,255,255,0.98),_rgba(248,250,252,0.94))] p-4 shadow-[0_18px_45px_-30px_rgba(15,23,42,0.24)]">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Workspace</p>
+            <h2 className="mt-1 text-xl font-semibold text-slate-950">Orders command center</h2>
+            <p className="mt-1 text-sm text-slate-500">Compact queue on the left, floating action panels on the right, and process views across the lifecycle.</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {O2C_TABS.map((tab) => (
+              <button
+                key={tab}
+                type="button"
+                onClick={() => setWorkspaceTab(tab)}
+                className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${
+                  workspaceTab === tab
+                    ? "bg-slate-950 text-white shadow-lg shadow-slate-950/10"
+                    : "bg-white/90 text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50"
+                }`}
+              >
+                {tab}
+              </button>
+            ))}
+          </div>
+        </div>
+      </section>
 
       {renderWorkspaceTab()}
 
@@ -734,7 +729,7 @@ export default function SalesOrdersPage() {
       <CreateDeliveryDrawer
         open={isDeliveryDrawerOpen}
         onOpenChange={setDeliveryDrawerOpen}
-        orderOptions={orders.map((order) => ({ id: order.id, label: `${order.orderNumber} • ${order.customerName}` }))}
+        orderOptions={orderOptions}
         form={deliveryForm}
         pending={createDeliveryMutation.isPending}
         onFieldChange={(field, value) => setDeliveryForm((prev) => ({ ...prev, [field]: value }))}
@@ -753,7 +748,7 @@ export default function SalesOrdersPage() {
       <CreateInvoiceDrawer
         open={isInvoiceDrawerOpen}
         onOpenChange={setInvoiceDrawerOpen}
-        orderOptions={orders.map((order) => ({ id: order.id, label: `${order.orderNumber} • ${order.customerName}` }))}
+        orderOptions={orderOptions}
         form={invoiceForm}
         pending={createInvoiceMutation.isPending}
         onFieldChange={(field, value) => setInvoiceForm((prev) => ({ ...prev, [field]: value }))}
@@ -765,6 +760,54 @@ export default function SalesOrdersPage() {
               setInvoiceForm({ salesOrderId: "" });
             },
             onError: (error) => toast.error(error instanceof Error ? error.message : "Could not create invoice."),
+          })
+        }
+      />
+
+      <CreatePaymentDrawer
+        open={isPaymentDrawerOpen}
+        onOpenChange={setPaymentDrawerOpen}
+        invoiceOptions={invoiceOptions}
+        form={paymentForm}
+        pending={createPaymentMutation.isPending}
+        onFieldChange={(field, value) => setPaymentForm((prev) => ({ ...prev, [field]: value }))}
+        onSubmit={() =>
+          createPaymentMutation.mutate(paymentForm, {
+            onSuccess: () => {
+              toast.success("Payment recorded.");
+              setPaymentDrawerOpen(false);
+              setPaymentForm({
+                salesInvoiceId: "",
+                paymentDate: new Date().toISOString().slice(0, 10),
+                amount: 0,
+                paymentMode: PaymentMode.UPI,
+              });
+            },
+            onError: (error) => toast.error(error instanceof Error ? error.message : "Could not record payment."),
+          })
+        }
+      />
+
+      <CreateReturnDrawer
+        open={isReturnDrawerOpen}
+        onOpenChange={setReturnDrawerOpen}
+        orderOptions={orderOptions}
+        invoiceOptions={invoiceOptions}
+        form={returnForm}
+        pending={createReturnMutation.isPending}
+        onFieldChange={(field, value) => setReturnForm((prev) => ({ ...prev, [field]: value }))}
+        onSubmit={() =>
+          createReturnMutation.mutate(returnForm, {
+            onSuccess: () => {
+              toast.success("Return request created.");
+              setReturnDrawerOpen(false);
+              setReturnForm({
+                salesOrderId: "",
+                requestedAmount: 0,
+                returnReason: "",
+              });
+            },
+            onError: (error) => toast.error(error instanceof Error ? error.message : "Could not create return request."),
           })
         }
       />

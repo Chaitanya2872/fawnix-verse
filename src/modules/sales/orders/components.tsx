@@ -4,6 +4,7 @@ import * as DialogPrimitive from "@radix-ui/react-dialog";
 import type { LucideIcon } from "lucide-react";
 import {
   ArrowUpRight,
+  BadgeIndianRupee,
   CheckCircle2,
   ChevronRight,
   ClipboardList,
@@ -23,12 +24,16 @@ import { Input } from "@/components/ui/input";
 import { cn, getInitials, timeAgo } from "@/lib/utils";
 import type { QuoteSummary } from "@/modules/sales/types";
 import {
+  PaymentMode,
   SalesDeliveryStatus,
   SalesInvoiceStatus,
+  SalesReturnStatus,
 } from "./types";
 import type {
   CreateSalesDeliveryInput,
   CreateSalesInvoiceInput,
+  CreateSalesPaymentInput,
+  CreateSalesReturnInput,
   ManualOrderFormState,
   ManualOrderItemDraft,
   SalesDelivery,
@@ -36,6 +41,8 @@ import type {
   SalesOrder,
   SalesOrderStatus,
   SalesOrderSummary,
+  SalesPayment,
+  SalesReturn,
 } from "./types";
 
 export const ORDER_STATUS_TONE: Record<SalesOrderStatus, string> = {
@@ -182,6 +189,20 @@ type InvoiceBoardProps = {
   statusPending: boolean;
 };
 
+type PaymentBoardProps = {
+  payments: SalesPayment[];
+  isLoading: boolean;
+  onCreate: () => void;
+};
+
+type ReturnBoardProps = {
+  returns: SalesReturn[];
+  isLoading: boolean;
+  onCreate: () => void;
+  onStatusChange: (id: string, status: SalesReturnStatus) => void;
+  statusPending: boolean;
+};
+
 type CreateDeliveryDrawerProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -199,6 +220,27 @@ type CreateInvoiceDrawerProps = {
   form: CreateSalesInvoiceInput;
   pending: boolean;
   onFieldChange: <K extends keyof CreateSalesInvoiceInput>(field: K, value: CreateSalesInvoiceInput[K]) => void;
+  onSubmit: () => void;
+};
+
+type CreatePaymentDrawerProps = {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  invoiceOptions: SalesRecordOption[];
+  form: CreateSalesPaymentInput;
+  pending: boolean;
+  onFieldChange: <K extends keyof CreateSalesPaymentInput>(field: K, value: CreateSalesPaymentInput[K]) => void;
+  onSubmit: () => void;
+};
+
+type CreateReturnDrawerProps = {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  orderOptions: SalesRecordOption[];
+  invoiceOptions: SalesRecordOption[];
+  form: CreateSalesReturnInput;
+  pending: boolean;
+  onFieldChange: <K extends keyof CreateSalesReturnInput>(field: K, value: CreateSalesReturnInput[K]) => void;
   onSubmit: () => void;
 };
 
@@ -672,6 +714,97 @@ export function InvoiceBoardCard({
   );
 }
 
+export function PaymentBoardCard({ payments, isLoading, onCreate }: PaymentBoardProps) {
+  return (
+    <SurfaceCard title="Collections" subtitle="Receipts captured against customer invoices">
+      <div className="mb-4 flex justify-end">
+        <Button type="button" onClick={onCreate} className="h-9 rounded-xl bg-[#0F172A] px-4 text-white hover:bg-[#111827] dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200">
+          <Plus className="h-4 w-4" />
+          Record payment
+        </Button>
+      </div>
+      <div className="space-y-3">
+        {isLoading ? (
+          Array.from({ length: 3 }).map((_, index) => (
+            <div key={index} className="h-24 animate-pulse rounded-[22px] border border-slate-200/70 bg-slate-50/80 dark:border-slate-800 dark:bg-slate-900/60" />
+          ))
+        ) : payments.length ? (
+          payments.slice(0, 6).map((payment) => (
+            <div key={payment.id} className="rounded-[22px] border border-slate-200/70 bg-slate-50/80 p-4 dark:border-slate-800 dark:bg-slate-950/55">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-slate-950 dark:text-white">{payment.paymentNumber}</p>
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                    {payment.customerName} | {toLabel(payment.paymentMode)}
+                  </p>
+                  <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">{fmtDate(payment.paymentDate)}</p>
+                </div>
+                <p className="text-sm font-semibold text-slate-950 dark:text-white">{fmtCurrency(payment.amount, payment.currency)}</p>
+              </div>
+            </div>
+          ))
+        ) : (
+          <EmptyMiniState icon={<BadgeIndianRupee className="h-5 w-5" />} label="No payment receipts yet. Record the first customer collection." />
+        )}
+      </div>
+    </SurfaceCard>
+  );
+}
+
+export function ReturnBoardCard({
+  returns,
+  isLoading,
+  onCreate,
+  onStatusChange,
+  statusPending,
+}: ReturnBoardProps) {
+  return (
+    <SurfaceCard title="Returns & Credit Notes" subtitle="Customer returns, approvals, and settlement adjustments">
+      <div className="mb-4 flex justify-end">
+        <Button type="button" onClick={onCreate} className="h-9 rounded-xl bg-[#0F172A] px-4 text-white hover:bg-[#111827] dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200">
+          <Plus className="h-4 w-4" />
+          Create return
+        </Button>
+      </div>
+      <div className="space-y-3">
+        {isLoading ? (
+          Array.from({ length: 3 }).map((_, index) => (
+            <div key={index} className="h-24 animate-pulse rounded-[22px] border border-slate-200/70 bg-slate-50/80 dark:border-slate-800 dark:bg-slate-900/60" />
+          ))
+        ) : returns.length ? (
+          returns.slice(0, 6).map((salesReturn) => (
+            <div key={salesReturn.id} className="rounded-[22px] border border-slate-200/70 bg-slate-50/80 p-4 dark:border-slate-800 dark:bg-slate-950/55">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-slate-950 dark:text-white">{salesReturn.returnNumber}</p>
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                    {salesReturn.customerName} | {fmtCurrency(salesReturn.requestedAmount)}
+                  </p>
+                  <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">{salesReturn.returnReason}</p>
+                </div>
+                <select
+                  value={salesReturn.status}
+                  onChange={(event) => onStatusChange(salesReturn.id, event.target.value as SalesReturnStatus)}
+                  disabled={statusPending}
+                  className="h-9 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                >
+                  {Object.values(SalesReturnStatus).map((status) => (
+                    <option key={status} value={status}>
+                      {toLabel(status)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          ))
+        ) : (
+          <EmptyMiniState icon={<ReceiptText className="h-5 w-5" />} label="No return requests yet. Start the first return review." />
+        )}
+      </div>
+    </SurfaceCard>
+  );
+}
+
 export function PendingApprovalsCard({
   approvals,
   onOpenOrder,
@@ -942,7 +1075,7 @@ export function OrderDetailDrawer({
       onOpenChange={onOpenChange}
       title={order?.orderNumber ?? "Order detail"}
       description={order ? `${order.customerName} ${order.company ? `| ${order.company}` : ""}` : "Inspect order status, items, and addresses."}
-      presentation="fullPage"
+      widthClassName="max-w-[720px]"
       footer={
         order ? (
           <>
@@ -974,12 +1107,42 @@ export function OrderDetailDrawer({
         </div>
       ) : order ? (
         <div className="space-y-6">
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-4 sm:grid-cols-2">
             <DetailStat label="Status" value={toLabel(order.status)} tone={ORDER_STATUS_TONE[order.status]} />
             <DetailStat label="Total" value={fmtCurrency(order.total, order.currency)} />
-            <DetailStat label="Quote source" value={order.quoteId || "Manual order"} />
-            <DetailStat label="Reserved inventory" value={order.inventoryReserved ? "Reserved" : "Pending"} />
+            <DetailStat label="Delivery target" value={order.deliveryDate ? fmtDate(order.deliveryDate) : "Not scheduled"} />
+            <DetailStat label="Collection posture" value={order.creditLimitExceeded ? "Needs finance review" : "Within policy"} />
           </div>
+
+          <DrawerSection title="Execution Snapshot" description="Commercial, credit, and inventory readiness">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <AddressBlock title="Payment Terms" value={order.paymentTerms || "Not captured"} />
+              <AddressBlock title="Inventory Readiness" value={order.inventoryReserved ? "Reserved and staged for dispatch" : order.inventoryReservationMessage || "Reservation pending"} />
+              <AddressBlock title="Validation Summary" value={order.validation?.summary || "No validation notes"} />
+              <AddressBlock title="Customer PO / Quote" value={`${order.customerPoNumber || "No PO"}\n${order.quotationReference || order.quoteId || "No quote link"}`} />
+            </div>
+          </DrawerSection>
+
+          {order.approvals.length ? (
+            <DrawerSection title="Approval Timeline" description="Decision trail across the order lifecycle">
+              <div className="space-y-3">
+                {order.approvals.map((approval) => (
+                  <div key={approval.id} className="rounded-[22px] border border-slate-200/70 bg-slate-50/80 p-4 dark:border-slate-800 dark:bg-slate-950/50">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-slate-950 dark:text-white">{approval.roleLabel}</p>
+                        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                          Stage {approval.sequenceNo} | {toLabel(approval.status)}
+                        </p>
+                        {approval.remarks ? <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">{approval.remarks}</p> : null}
+                      </div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">{approval.approverName || "Pending"}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </DrawerSection>
+          ) : null}
 
           <DrawerSection title="Line Items" description="Commercial scope">
             <div className="space-y-3">
@@ -1012,6 +1175,24 @@ export function OrderDetailDrawer({
               {order.notes || "No notes captured for this order."}
             </div>
           </DrawerSection>
+
+          {order.auditLogs.length ? (
+            <DrawerSection title="Activity Log" description="Recent workflow events captured for this order">
+              <div className="space-y-3">
+                {order.auditLogs.slice(0, 6).map((log) => (
+                  <div key={log.id} className="rounded-[22px] border border-slate-200/70 bg-slate-50/80 p-4 dark:border-slate-800 dark:bg-slate-950/50">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-slate-950 dark:text-white">{toLabel(log.actionType)}</p>
+                        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{log.actorName || "System"} | {timeAgo(log.createdAt)}</p>
+                      </div>
+                    </div>
+                    {log.details ? <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">{log.details}</p> : null}
+                  </div>
+                ))}
+              </div>
+            </DrawerSection>
+          ) : null}
         </div>
       ) : (
         <EmptyMiniState icon={<ClipboardList className="h-5 w-5" />} label="Select an order to inspect details." />
@@ -1134,6 +1315,143 @@ export function CreateInvoiceDrawer({
             </DrawerField>
             <DrawerField label="Notes">
               <textarea rows={4} value={form.notes ?? ""} onChange={(event) => onFieldChange("notes", event.target.value || undefined)} className={drawerTextareaClassName} />
+            </DrawerField>
+          </div>
+        </DrawerSection>
+      </div>
+    </DrawerShell>
+  );
+}
+
+export function CreatePaymentDrawer({
+  open,
+  onOpenChange,
+  invoiceOptions,
+  form,
+  pending,
+  onFieldChange,
+  onSubmit,
+}: CreatePaymentDrawerProps) {
+  return (
+    <DrawerShell
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Record Payment"
+      description="Capture a receipt against an issued customer invoice."
+      footer={
+        <>
+          <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} className="rounded-2xl px-4 text-slate-600 dark:text-slate-300">
+            Cancel
+          </Button>
+          <Button type="button" onClick={onSubmit} disabled={pending} className="rounded-2xl bg-[#0F172A] px-5 text-white hover:bg-[#111827] dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200">
+            {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+            Save payment
+          </Button>
+        </>
+      }
+      widthClassName="max-w-[500px]"
+    >
+      <div className="space-y-6">
+        <DrawerSection title="Receipt Details" description="Map the payment to an invoice and settlement mode" icon={<BadgeIndianRupee className="h-4 w-4" />}>
+          <div className="grid gap-4">
+            <DrawerField label="Invoice">
+              <select value={form.salesInvoiceId} onChange={(event) => onFieldChange("salesInvoiceId", event.target.value)} className={drawerSelectClassName}>
+                <option value="">Select invoice</option>
+                {invoiceOptions.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </DrawerField>
+            <DrawerField label="Payment date">
+              <Input type="date" value={form.paymentDate} onChange={(event) => onFieldChange("paymentDate", event.target.value)} className={drawerInputClassName} />
+            </DrawerField>
+            <DrawerField label="Amount">
+              <Input type="number" min="0" step="0.01" value={String(form.amount || "")} onChange={(event) => onFieldChange("amount", Number(event.target.value))} className={drawerInputClassName} />
+            </DrawerField>
+            <DrawerField label="Payment mode">
+              <select value={form.paymentMode} onChange={(event) => onFieldChange("paymentMode", event.target.value as PaymentMode)} className={drawerSelectClassName}>
+                {Object.values(PaymentMode).map((mode) => (
+                  <option key={mode} value={mode}>
+                    {toLabel(mode)}
+                  </option>
+                ))}
+              </select>
+            </DrawerField>
+            <DrawerField label="Reference number">
+              <Input value={form.referenceNumber ?? ""} onChange={(event) => onFieldChange("referenceNumber", event.target.value || undefined)} className={drawerInputClassName} />
+            </DrawerField>
+            <DrawerField label="Remarks">
+              <textarea rows={4} value={form.remarks ?? ""} onChange={(event) => onFieldChange("remarks", event.target.value || undefined)} className={drawerTextareaClassName} />
+            </DrawerField>
+          </div>
+        </DrawerSection>
+      </div>
+    </DrawerShell>
+  );
+}
+
+export function CreateReturnDrawer({
+  open,
+  onOpenChange,
+  orderOptions,
+  invoiceOptions,
+  form,
+  pending,
+  onFieldChange,
+  onSubmit,
+}: CreateReturnDrawerProps) {
+  return (
+    <DrawerShell
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Create Return Request"
+      description="Capture a sales return, approval context, and financial adjustment request."
+      footer={
+        <>
+          <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} className="rounded-2xl px-4 text-slate-600 dark:text-slate-300">
+            Cancel
+          </Button>
+          <Button type="button" onClick={onSubmit} disabled={pending} className="rounded-2xl bg-[#0F172A] px-5 text-white hover:bg-[#111827] dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200">
+            {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+            Create return
+          </Button>
+        </>
+      }
+      widthClassName="max-w-[520px]"
+    >
+      <div className="space-y-6">
+        <DrawerSection title="Return Context" description="Tie the request to the original order and invoice" icon={<ReceiptText className="h-4 w-4" />}>
+          <div className="grid gap-4">
+            <DrawerField label="Sales order">
+              <select value={form.salesOrderId} onChange={(event) => onFieldChange("salesOrderId", event.target.value)} className={drawerSelectClassName}>
+                <option value="">Select order</option>
+                {orderOptions.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </DrawerField>
+            <DrawerField label="Related invoice">
+              <select value={form.salesInvoiceId ?? ""} onChange={(event) => onFieldChange("salesInvoiceId", event.target.value || undefined)} className={drawerSelectClassName}>
+                <option value="">Select invoice</option>
+                {invoiceOptions.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </DrawerField>
+            <DrawerField label="Return reason">
+              <Input value={form.returnReason} onChange={(event) => onFieldChange("returnReason", event.target.value)} className={drawerInputClassName} />
+            </DrawerField>
+            <DrawerField label="Requested amount">
+              <Input type="number" min="0" step="0.01" value={String(form.requestedAmount || "")} onChange={(event) => onFieldChange("requestedAmount", Number(event.target.value))} className={drawerInputClassName} />
+            </DrawerField>
+            <DrawerField label="Remarks">
+              <textarea rows={4} value={form.remarks ?? ""} onChange={(event) => onFieldChange("remarks", event.target.value || undefined)} className={drawerTextareaClassName} />
             </DrawerField>
           </div>
         </DrawerSection>
