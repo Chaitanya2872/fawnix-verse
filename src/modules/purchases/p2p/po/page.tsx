@@ -961,9 +961,10 @@ function CreatePurchaseOrderPanel({
             <>
               {[
                 ["Total Amount Before Tax", basicValue],
-                ["Add: IGST", igstAmount],
                 ["Add: CGST", cgstAmount],
                 ["Add: SGST", sgstAmount],
+                ["Add: IGST", igstAmount],
+
               ].map(([label, value]) => (
                 <div key={label as string} className="grid grid-cols-[1fr_150px] border-b border-slate-950 last:border-b-0">
                   <div className="px-3 py-2 font-semibold">{label}</div>
