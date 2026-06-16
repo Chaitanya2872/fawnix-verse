@@ -1083,6 +1083,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+
 import {
   Dialog,
   DialogContent,
@@ -1091,6 +1092,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+
+import { Sheet, 
+  SheetContent,
+   SheetDescription, 
+   SheetFooter,
+    SheetHeader, 
+    SheetTitle,
+   } from "@/components/ui/sheet"; 
+import { Pencil, Trash2, Copy, } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useCurrentUser } from "@/modules/auth/hooks";
@@ -1792,30 +1802,7 @@ export default function UsersPage() {
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex justify-end gap-2">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="text-slate-600 hover:text-slate-900"
-                              onClick={() => openEditDialog(user)}
-                            >
-                              ✏ Edit
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="text-slate-500 hover:text-slate-800"
-                              onClick={() => handleToggleStatus(user)}
-                            >
-                              {user.active ? "Deactivate" : "Activate"}
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="text-red-500 hover:text-red-700 hover:bg-red-50"
-                              onClick={() => openDeleteDialog(user)}
-                            >
-                              🗑 Delete
-                            </Button>
+                           <Button variant="ghost" size="icon" className="text-slate-600 hover:text-slate-900" onClick={() => openEditDialog(user)} > <Pencil className="h-4 w-4" /> </Button> <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-700 hover:bg-red-50" onClick={() => openDeleteDialog(user)} > <Trash2 className="h-4 w-4" /> </Button>
                           </div>
                         </td>
                       </tr>
@@ -1877,28 +1864,7 @@ export default function UsersPage() {
                         </p>
                       </div>
                       <div className="flex flex-wrap gap-2">
-                        <Button variant="outline" size="sm" onClick={() => openEditRoleDialog(role)}>
-                          Edit
-                        </Button>
-                        <Button variant="outline" size="sm" onClick={() => openCloneRoleDialog(role)}>
-                          Clone
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => updateRoleStatusMutation.mutate({ id: role.id, active: !role.active })}
-                          disabled={updateRoleStatusMutation.isPending || role.systemDefined}
-                        >
-                          {role.active ? "Deactivate" : "Activate"}
-                        </Button>
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          onClick={() => deleteRoleMutation.mutate(role.id)}
-                          disabled={deleteRoleMutation.isPending || role.systemDefined}
-                        >
-                          Delete
-                        </Button>
+                       
                       </div>
                     </div>
                   </div>
@@ -1951,17 +1917,7 @@ export default function UsersPage() {
                         )}
                       </div>
                       <div className="flex flex-wrap gap-2">
-                        <Button variant="outline" size="sm" onClick={() => openEditPermissionDialog(permission)}>
-                          Edit
-                        </Button>
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          onClick={() => deletePermissionMutation.mutate(permission.key)}
-                          disabled={deletePermissionMutation.isPending || permission.systemDefined}
-                        >
-                          Delete
-                        </Button>
+                        <Button variant="ghost" size="icon" onClick={() => openEditPermissionDialog(permission)} > <Pencil className="h-4 w-4" /> </Button> <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-700 hover:bg-red-50" onClick={() => deletePermissionMutation.mutate(permission.key)} disabled={deletePermissionMutation.isPending || permission.systemDefined} > <Trash2 className="h-4 w-4" /> </Button>
                       </div>
                     </div>
                   </div>
@@ -1973,43 +1929,15 @@ export default function UsersPage() {
       )}
 
       {/* ── Create User dialog ─────────────────────────────────────────────── */}
-      <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Create User</DialogTitle>
-            <DialogDescription>Add a new user and assign their role.</DialogDescription>
-          </DialogHeader>
-          <form onSubmit={handleCreateSubmit} className="space-y-5">
-            <UserFormFields
-              form={formState}
-              roleOptions={roleOptions}
-              onChange={handleFormChange}
-              onTogglePermission={handleTogglePermission}
-              onResetPermissions={resetPermissionsToRoleDefaults}
-              permissionGroups={permissionGroups}
-            />
-            {formError && (
-              <div className="rounded-md border border-red-100 bg-red-50 p-3 text-sm text-red-700">
-                {formError}
-              </div>
-            )}
-            <DialogFooter className="gap-2 sm:gap-0">
-              <Button type="button" variant="ghost" onClick={() => setIsCreateOpen(false)}>Cancel</Button>
-              <Button type="submit" disabled={createUserMutation.isPending}>
-                {createUserMutation.isPending ? "Creating…" : "Create User"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+      <Sheet open={isCreateOpen} onOpenChange={setIsCreateOpen}> <SheetContent side="right" className="w-full sm:max-w-2xl overflow-y-auto" > <SheetHeader> <SheetTitle>Create User</SheetTitle> <SheetDescription> Add a new user and assign their role. </SheetDescription> </SheetHeader> <form onSubmit={handleCreateSubmit} className="space-y-5 mt-6"> <UserFormFields form={formState} roleOptions={roleOptions} onChange={handleFormChange} onTogglePermission={handleTogglePermission} onResetPermissions={resetPermissionsToRoleDefaults} permissionGroups={permissionGroups} /> {formError && ( <div className="rounded-md border border-red-100 bg-red-50 p-3 text-sm text-red-700"> {formError} </div> )} <SheetFooter> <Button type="button" variant="ghost" onClick={() => setIsCreateOpen(false)} > Cancel </Button> <Button type="submit" disabled={createUserMutation.isPending} > {createUserMutation.isPending ? "Creating..." : "Create User"} </Button> </SheetFooter> </form> </SheetContent> </Sheet>
 
       {/* ── Edit User dialog ───────────────────────────────────────────────── */}
-      <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
-        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Edit User</DialogTitle>
-            <DialogDescription>Update profile details and access role.</DialogDescription>
-          </DialogHeader>
+      <Sheet open={isEditOpen} onOpenChange={setIsEditOpen}>
+        <SheetContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>Edit User</SheetTitle>
+            <SheetDescription>Update profile details and access role.</SheetDescription>
+          </SheetHeader>
           <form onSubmit={handleEditSubmit} className="space-y-5">
             <UserFormFields
               form={formState}
@@ -2037,20 +1965,20 @@ export default function UsersPage() {
               </Button>
             </DialogFooter>
           </form>
-        </DialogContent>
-      </Dialog>
+        </SheetContent>
+      </Sheet>
 
       {/* ── Role dialog (create / edit / clone) ───────────────────────────── */}
-      <Dialog open={isRoleDialogOpen} onOpenChange={setIsRoleDialogOpen}>
-        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>
+      <Sheet open={isRoleDialogOpen} onOpenChange={setIsRoleDialogOpen}>
+        <SheetContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>
               {roleCloneTarget ? "Clone Role" : activeRole ? "Edit Role" : "Create Role"}
-            </DialogTitle>
-            <DialogDescription>
+            </SheetTitle>
+            <SheetDescription>
               Manage dynamic roles and assign database-driven permissions.
-            </DialogDescription>
-          </DialogHeader>
+            </SheetDescription>
+          </SheetHeader>
           <form onSubmit={handleRoleSubmit} className="space-y-5">
             <div className="grid gap-4">
               <div className="grid gap-2">
@@ -2108,18 +2036,18 @@ export default function UsersPage() {
               </Button>
             </DialogFooter>
           </form>
-        </DialogContent>
-      </Dialog>
+        </SheetContent>
+      </Sheet>
 
       {/* ── Permission dialog (create / edit) ─────────────────────────────── */}
-      <Dialog open={isPermissionDialogOpen} onOpenChange={setIsPermissionDialogOpen}>
-        <DialogContent className="sm:max-w-xl">
-          <DialogHeader>
-            <DialogTitle>{activePermission ? "Edit Permission" : "Create Permission"}</DialogTitle>
-            <DialogDescription>
+      <Sheet open={isPermissionDialogOpen} onOpenChange={setIsPermissionDialogOpen}>
+        <SheetContent className="sm:max-w-xl">
+          <SheetHeader>
+            <SheetTitle>{activePermission ? "Edit Permission" : "Create Permission"}</SheetTitle>
+            <SheetDescription>
               Configure permission keys without shipping code changes.
-            </DialogDescription>
-          </DialogHeader>
+            </SheetDescription>
+          </SheetHeader>
           <form onSubmit={handlePermissionSubmit} className="space-y-5">
             <div className="grid gap-4">
               <div className="grid gap-2">
@@ -2197,8 +2125,8 @@ export default function UsersPage() {
               </Button>
             </DialogFooter>
           </form>
-        </DialogContent>
-      </Dialog>
+        </SheetContent>
+      </Sheet>
 
       {/* ── Delete User dialog ─────────────────────────────────────────────── */}
       <Dialog
