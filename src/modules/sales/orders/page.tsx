@@ -1,22 +1,32 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { CheckCircle2, ClipboardList, PackageCheck, ReceiptText, Wallet } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import {
+  ArrowRightLeft,
+  CheckCircle2,
+  ClipboardList,
+  FileText,
+  PackageCheck,
+  ReceiptText,
+  Sparkles,
+  Wallet,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { useLeadDetail } from "@/modules/crm/leads/hooks";
+import { useQuotes } from "@/modules/sales/hooks";
+import { QuoteStatus } from "@/modules/sales/types";
 import {
-  CreatePaymentDrawer,
-  CreateReturnDrawer,
+  AcceptedQuotesCard,
   CreateDeliveryDrawer,
   CreateInvoiceDrawer,
   CreateOrderDrawer,
-  DeliveryBoardCard,
-  InvoiceBoardCard,
+  CreatePaymentDrawer,
+  CreateReturnDrawer,
+  OperationsSnapshotCard,
   OrderDetailDrawer,
-  PaymentBoardCard,
   PendingApprovalsCard,
-  ReturnBoardCard,
+  QuickStatsCard,
   SalesOrdersHero,
   SalesOrdersKpis,
   SalesOrdersQueueCard,
@@ -26,6 +36,7 @@ import {
 import {
   useApprovalRules,
   useConfirmSalesOrder,
+  useConvertQuoteToOrder,
   useCreateSalesDelivery,
   useCreateSalesInvoice,
   useCreateSalesOrder,
@@ -50,7 +61,6 @@ import {
   SalesDeliveryStatus,
   SalesInvoiceStatus,
   SalesOrderStatus,
-  SalesReturnStatus,
   type CreateSalesDeliveryInput,
   type CreateSalesInvoiceInput,
   type CreateSalesOrderInput,
@@ -58,6 +68,7 @@ import {
   type CreateSalesReturnInput,
   type ManualOrderFormState,
   type ManualOrderItemDraft,
+  type SalesOrder,
   type SalesOrderFilter,
   type SalesOrderSummary,
 } from "./types";
@@ -80,9 +91,6 @@ const DRAWER_STATUS_OPTIONS: SalesOrderStatus[] = [
   SalesOrderStatus.CANCELLED,
 ];
 
-const O2C_TABS = ["Orders", "Approvals", "Delivery", "Invoices", "Payments", "Returns", "Reports"] as const;
-type O2CTab = (typeof O2C_TABS)[number];
-
 const QUEUE_TABS = [
   { key: "ALL", label: "All" },
   { key: "DRAFT", label: "Drafts" },
@@ -97,6 +105,7 @@ type QueueTabKey = (typeof QUEUE_TABS)[number]["key"];
 function createDraftItem(): ManualOrderItemDraft {
   return {
     key: globalThis.crypto.randomUUID(),
+    inventoryProductId: "",
     name: "",
     make: "",
     description: "",
@@ -160,9 +169,164 @@ function orderMatchesTab(order: SalesOrderSummary, tab: QueueTabKey) {
   }
 }
 
-export default function SalesOrdersPage() {
-  const [workspaceTab, setWorkspaceTab] = useState<O2CTab>("Orders");
+function formatDate(value?: string | null) {
+  if (!value) return "Not available";
+  return new Date(value).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+function signalTone(active: boolean, warning?: boolean) {
+  if (warning) {
+    return "border-amber-200 bg-amber-50 text-amber-700";
+  }
+  if (active) {
+    return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  }
+  return "border-slate-200 bg-slate-100 text-slate-600";
+}
+
+function FlowSignal({
+  label,
+  active,
+  warning,
+}: {
+  label: string;
+  active: boolean;
+  warning?: boolean;
+}) {
+  return (
+    <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${signalTone(active, warning)}`}>
+      {label}
+    </span>
+  );
+}
+
+function WorkflowStageCard({
+  title,
+  helper,
+  count,
+  icon: Icon,
+  toneClassName,
+}: {
+  title: string;
+  helper: string;
+  count: string;
+  icon: typeof ClipboardList;
+  toneClassName: string;
+}) {
+  return (
+    <article className="rounded-[24px] border border-slate-200/80 bg-white/88 p-4 shadow-[0_18px_45px_-30px_rgba(15,23,42,0.22)]">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">{title}</p>
+          <p className="mt-2 text-2xl font-semibold text-slate-950">{count}</p>
+        </div>
+        <div className={`flex h-10 w-10 items-center justify-center rounded-2xl text-white ${toneClassName}`}>
+          <Icon className="h-4 w-4" />
+        </div>
+      </div>
+      <p className="mt-3 text-sm text-slate-500">{helper}</p>
+    </article>
+  );
+}
+
+function JourneySection({
+  eyebrow,
+  title,
+  description,
+  actions,
+  children,
+}: {
+  eyebrow: string;
+  title: string;
+  description: string;
+  actions?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="rounded-[28px] border border-slate-200/80 bg-white/92 p-5 shadow-[0_18px_45px_-30px_rgba(15,23,42,0.24)]">
+      <div className="flex flex-col gap-4 border-b border-slate-200/80 pb-4 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">{eyebrow}</p>
+          <h3 className="mt-1 text-lg font-semibold text-slate-950">{title}</h3>
+          <p className="mt-1 text-sm text-slate-500">{description}</p>
+        </div>
+        {actions ? <div className="flex flex-wrap gap-2">{actions}</div> : null}
+      </div>
+      <div className="mt-5">{children}</div>
+    </section>
+  );
+}
+
+function InfoTile({ label, value, tone }: { label: string; value: string; tone?: string }) {
+  return (
+    <div className="rounded-[22px] border border-slate-200/70 bg-slate-50/85 px-4 py-3">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">{label}</p>
+      <p className={`mt-2 text-sm font-semibold ${tone ?? "text-slate-950"}`}>{value}</p>
+    </div>
+  );
+}
+
+function RecordList({
+  title,
+  emptyLabel,
+  records,
+}: {
+  title: string;
+  emptyLabel: string;
+  records: Array<{ id: string; title: string; subtitle: string; meta: string }>;
+}) {
+  return (
+    <div className="rounded-[24px] border border-slate-200/80 bg-slate-50/75 p-4">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm font-semibold text-slate-950">{title}</p>
+        <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-500 ring-1 ring-slate-200">
+          {records.length}
+        </span>
+      </div>
+      <div className="mt-4 space-y-3">
+        {records.length ? (
+          records.map((record) => (
+            <div key={record.id} className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-slate-950">{record.title}</p>
+                  <p className="mt-1 text-xs text-slate-500">{record.subtitle}</p>
+                </div>
+                <p className="text-xs font-medium text-slate-500">{record.meta}</p>
+              </div>
+            </div>
+          ))
+        ) : (
+          <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-4 py-8 text-sm text-slate-500">
+            {emptyLabel}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function SelectedOrderEmptyState() {
+  return (
+    <section className="rounded-[28px] border border-dashed border-slate-200 bg-white/88 px-6 py-12 text-center shadow-[0_18px_45px_-30px_rgba(15,23,42,0.18)]">
+      <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-3xl bg-slate-100 text-slate-500">
+        <Sparkles className="h-6 w-6" />
+      </div>
+      <h3 className="mt-4 text-lg font-semibold text-slate-950">Select an order to inspect the end-to-end flow</h3>
+      <p className="mt-2 text-sm text-slate-500">
+        The workspace will line up quote source, approval status, inventory readiness, delivery, billing, payment, and returns for the chosen customer order.
+      </p>
+    </section>
+  );
+}
+
+export function SalesOrdersWorkspacePage() {
   const [queueTab, setQueueTab] = useState<QueueTabKey>("ALL");
+  const [selectedOrderId, setSelectedOrderId] = useState("");
   const [detailId, setDetailId] = useState("");
   const [isCreateDrawerOpen, setCreateDrawerOpen] = useState(false);
   const [isDeliveryDrawerOpen, setDeliveryDrawerOpen] = useState(false);
@@ -192,7 +356,10 @@ export default function SalesOrdersPage() {
   });
 
   const ordersQuery = useSalesOrders(filter);
+  const selectedOrderQuery = useSalesOrder(selectedOrderId);
   const detailQuery = useSalesOrder(detailId);
+  const leadQuery = useLeadDetail(selectedOrderQuery.data?.leadId ?? null);
+  const quotesQuery = useQuotes({ search: "", status: "ALL", page: 1, pageSize: 200 });
   const rulesQuery = useApprovalRules();
   const deliveriesQuery = useSalesDeliveries();
   const invoicesQuery = useSalesInvoices();
@@ -200,6 +367,7 @@ export default function SalesOrdersPage() {
   const returnsQuery = useSalesReturns();
   const reportsQuery = useSalesReportOverview();
 
+  const convertQuoteMutation = useConvertQuoteToOrder();
   const createMutation = useCreateSalesOrder();
   const statusMutation = useUpdateSalesOrderStatus();
   const submitMutation = useSubmitSalesOrder();
@@ -214,7 +382,13 @@ export default function SalesOrdersPage() {
   const returnStatusMutation = useUpdateSalesReturnStatus();
 
   const orders = useMemo(() => ordersQuery.data?.data ?? [], [ordersQuery.data?.data]);
+  const selectedOrder = selectedOrderQuery.data ?? null;
   const detail = detailQuery.data ?? null;
+  const allQuotes = useMemo(() => quotesQuery.data?.data ?? [], [quotesQuery.data?.data]);
+  const acceptedQuotes = useMemo(
+    () => allQuotes.filter((quote) => quote.status === QuoteStatus.ACCEPTED).slice(0, 6),
+    [allQuotes]
+  );
   const deliveries = deliveriesQuery.data?.data ?? [];
   const invoices = invoicesQuery.data?.data ?? [];
   const payments = paymentsQuery.data?.data ?? [];
@@ -233,6 +407,20 @@ export default function SalesOrdersPage() {
   );
 
   const visibleOrders = useMemo(() => orders.filter((order) => orderMatchesTab(order, queueTab)), [orders, queueTab]);
+
+  useEffect(() => {
+    if (!visibleOrders.length) {
+      if (!filter.search && queueTab === "ALL") {
+        setSelectedOrderId("");
+      }
+      return;
+    }
+
+    const stillVisible = visibleOrders.some((order) => order.id === selectedOrderId);
+    if (!selectedOrderId || !stillVisible) {
+      setSelectedOrderId(visibleOrders[0].id);
+    }
+  }, [filter.search, queueTab, selectedOrderId, visibleOrders]);
 
   const manualSubtotal = manualForm.items.reduce((sum, item) => {
     const quantity = Number(item.quantity) || 0;
@@ -315,6 +503,27 @@ export default function SalesOrdersPage() {
     ];
   }, [approvalRules.length, deliveries, invoices.length, orders.length, payments.length, pendingApprovalOrders.length, report?.metrics, visibleOrders.length]);
 
+  const selectedQuote = useMemo(
+    () => allQuotes.find((quote) => quote.id === selectedOrder?.quoteId) ?? null,
+    [allQuotes, selectedOrder?.quoteId]
+  );
+  const selectedDeliveries = useMemo(
+    () => deliveries.filter((delivery) => delivery.salesOrderId === selectedOrderId),
+    [deliveries, selectedOrderId]
+  );
+  const selectedInvoices = useMemo(
+    () => invoices.filter((invoice) => invoice.salesOrderId === selectedOrderId),
+    [invoices, selectedOrderId]
+  );
+  const selectedPayments = useMemo(
+    () => payments.filter((payment) => payment.salesOrderId === selectedOrderId),
+    [payments, selectedOrderId]
+  );
+  const selectedReturns = useMemo(
+    () => returns.filter((item) => item.salesOrderId === selectedOrderId),
+    [returns, selectedOrderId]
+  );
+
   const orderOptions = useMemo(
     () => orders.map((order) => ({ id: order.id, label: `${order.orderNumber} • ${order.customerName}` })),
     [orders]
@@ -323,6 +532,121 @@ export default function SalesOrdersPage() {
   const invoiceOptions = useMemo(
     () => invoices.map((invoice) => ({ id: invoice.id, label: `${invoice.invoiceNumber} • ${invoice.customerName}` })),
     [invoices]
+  );
+
+  const workflowStages = useMemo(
+    () => [
+      {
+        title: "Lead / Quote Intake",
+        helper: "Accepted presales handoffs waiting for order conversion.",
+        count: String(acceptedQuotes.length),
+        icon: FileText,
+        toneClassName: "bg-sky-600",
+      },
+      {
+        title: "Sales Orders",
+        helper: "Orders currently tracked in the execution workspace.",
+        count: String(orders.length),
+        icon: ClipboardList,
+        toneClassName: "bg-slate-950",
+      },
+      {
+        title: "Approval Control",
+        helper: "Orders blocked behind governance or threshold checks.",
+        count: String(pendingApprovalOrders.length),
+        icon: CheckCircle2,
+        toneClassName: "bg-amber-500",
+      },
+      {
+        title: "Inventory & Delivery",
+        helper: "Orders needing reserve, dispatch, or final delivery actions.",
+        count: String(
+          orders.filter((order) => !order.inventoryReserved || !order.stockAvailable || ![SalesOrderStatus.DELIVERED, SalesOrderStatus.CLOSED].includes(order.status)).length
+        ),
+        icon: PackageCheck,
+        toneClassName: "bg-emerald-600",
+      },
+      {
+        title: "Invoice & Cash",
+        helper: "Invoices and collections still open in the cash cycle.",
+        count: String(invoices.filter((invoice) => invoice.balanceDue > 0).length),
+        icon: Wallet,
+        toneClassName: "bg-violet-600",
+      },
+      {
+        title: "Returns / Recovery",
+        helper: "Customer returns and credit adjustments being processed.",
+        count: String(returns.filter((item) => item.status !== "CLOSED").length),
+        icon: ArrowRightLeft,
+        toneClassName: "bg-rose-600",
+      },
+    ],
+    [acceptedQuotes.length, invoices, orders, pendingApprovalOrders.length, returns]
+  );
+
+  const quickStats = useMemo(
+    () => [
+      {
+        label: "Converted from quotes",
+        value: String(orders.filter((order) => Boolean(order.quoteId)).length),
+        helper: "Orders already linked to presales quotations.",
+      },
+      {
+        label: "Manual direct orders",
+        value: String(orders.filter((order) => !order.quoteId).length),
+        helper: "Sales orders created without a quote handoff.",
+      },
+      {
+        label: "Collection in progress",
+        value: String(invoices.filter((invoice) => invoice.balanceDue > 0).length),
+        helper: "Invoices with a remaining customer balance.",
+      },
+    ],
+    [invoices, orders]
+  );
+
+  const inventorySnapshot = useMemo(
+    () => [
+      {
+        label: "Stock shortages",
+        value: String(orders.filter((order) => !order.stockAvailable).length),
+        helper: "Orders that still need inventory intervention.",
+        tone: "text-amber-600",
+      },
+      {
+        label: "Reservations done",
+        value: String(orders.filter((order) => order.inventoryReserved).length),
+        helper: "Orders already reserved in inventory.",
+      },
+      {
+        label: "Pending dispatch",
+        value: String(selectedDeliveries.filter((delivery) => delivery.status !== SalesDeliveryStatus.DELIVERED).length),
+        helper: "Selected order delivery notes still in motion.",
+      },
+    ],
+    [orders, selectedDeliveries]
+  );
+
+  const financeSnapshot = useMemo(
+    () => [
+      {
+        label: "Outstanding balance",
+        value: fmtCurrency(selectedInvoices.reduce((sum, invoice) => sum + invoice.balanceDue, 0)),
+        helper: "Remaining amount due for the selected order.",
+        tone: selectedInvoices.some((invoice) => invoice.balanceDue > 0) ? "text-amber-600" : undefined,
+      },
+      {
+        label: "Payments captured",
+        value: fmtCurrency(selectedPayments.reduce((sum, payment) => sum + payment.amount, 0)),
+        helper: "Total receipts posted against the selected order.",
+      },
+      {
+        label: "Returns requested",
+        value: String(selectedReturns.length),
+        helper: "Recovery items raised for this customer journey.",
+      },
+    ],
+    [selectedInvoices, selectedPayments, selectedReturns.length]
   );
 
   function updateManualField<K extends keyof ManualOrderFormState>(field: K, value: ManualOrderFormState[K]) {
@@ -359,6 +683,7 @@ export default function SalesOrdersPage() {
     }
 
     const items = manualForm.items.map((item) => ({
+      inventoryProductId: cleanOptional(item.inventoryProductId ?? ""),
       name: item.name.trim(),
       make: cleanOptional(item.make),
       description: cleanOptional(item.description),
@@ -401,6 +726,7 @@ export default function SalesOrdersPage() {
         toast.success(`Order ${created.orderNumber} created.`);
         setCreateDrawerOpen(false);
         resetManualForm();
+        setSelectedOrderId(created.id);
         setDetailId(created.id);
       },
       onError: (error) => {
@@ -409,12 +735,105 @@ export default function SalesOrdersPage() {
     });
   }
 
-  function handleStatusChange(status: SalesOrderStatus) {
+  function openExecutionDrawer(orderId: string) {
+    setSelectedOrderId(orderId);
+    setDetailId(orderId);
+  }
+
+  function handleSelectedStatusChange(status: SalesOrderStatus) {
+    if (!selectedOrder) return;
+    statusMutation.mutate(
+      { id: selectedOrder.id, status },
+      { onError: (error) => toast.error(error instanceof Error ? error.message : "Could not update order status.") }
+    );
+  }
+
+  function handleDetailStatusChange(status: SalesOrderStatus) {
     if (!detail) return;
     statusMutation.mutate(
       { id: detail.id, status },
       { onError: (error) => toast.error(error instanceof Error ? error.message : "Could not update order status.") }
     );
+  }
+
+  function handleSubmitSelectedOrder() {
+    if (!selectedOrder) return;
+    submitMutation.mutate(selectedOrder.id, {
+      onError: (error) => toast.error(error instanceof Error ? error.message : "Could not submit the order."),
+    });
+  }
+
+  function handleConfirmSelectedOrder() {
+    if (!selectedOrder) return;
+    confirmMutation.mutate(
+      { id: selectedOrder.id, confirmationAttachmentUrl: selectedOrder.confirmationAttachmentUrl ?? undefined },
+      {
+        onError: (error) => toast.error(error instanceof Error ? error.message : "Could not confirm the order."),
+      }
+    );
+  }
+
+  function handleApprovalAction(action: "APPROVE" | "REJECT" | "SEND_BACK") {
+    if (!selectedOrder) return;
+    approvalMutation.mutate(
+      { id: selectedOrder.id, action },
+      {
+        onError: (error) => toast.error(error instanceof Error ? error.message : "Could not update approval."),
+      }
+    );
+  }
+
+  function handleConvertQuote(quoteId: string) {
+    convertQuoteMutation.mutate(quoteId, {
+      onSuccess: (created) => {
+        toast.success(`Converted to ${created.orderNumber}.`);
+        setSelectedOrderId(created.id);
+        setDetailId(created.id);
+      },
+      onError: (error) => {
+        toast.error(error instanceof Error ? error.message : "Could not convert quote.");
+      },
+    });
+  }
+
+  function primeDeliveryDrawer() {
+    if (!selectedOrderId) {
+      toast.error("Select an order first.");
+      return;
+    }
+    setDeliveryForm((prev) => ({ ...prev, salesOrderId: selectedOrderId }));
+    setDeliveryDrawerOpen(true);
+  }
+
+  function primeInvoiceDrawer() {
+    if (!selectedOrderId) {
+      toast.error("Select an order first.");
+      return;
+    }
+    setInvoiceForm((prev) => ({ ...prev, salesOrderId: selectedOrderId }));
+    setInvoiceDrawerOpen(true);
+  }
+
+  function primePaymentDrawer() {
+    const invoice = selectedInvoices[0];
+    setPaymentForm((prev) => ({
+      ...prev,
+      salesInvoiceId: invoice?.id ?? prev.salesInvoiceId,
+    }));
+    setPaymentDrawerOpen(true);
+  }
+
+  function primeReturnDrawer() {
+    if (!selectedOrderId) {
+      toast.error("Select an order first.");
+      return;
+    }
+    setReturnForm((prev) => ({
+      ...prev,
+      salesOrderId: selectedOrderId,
+      salesInvoiceId: selectedInvoices[0]?.id ?? prev.salesInvoiceId,
+    }));
+    setReturnDrawerOpen(true);
   }
 
   function handleExport() {
@@ -444,272 +863,257 @@ export default function SalesOrdersPage() {
     URL.revokeObjectURL(url);
   }
 
-  function renderWorkspaceTab() {
-    switch (workspaceTab) {
-      case "Approvals":
-        return (
-          <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-            <section className="rounded-[28px] border border-slate-200/80 bg-white/90 p-5 shadow-sm">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <h3 className="text-lg font-semibold text-slate-950">Approval Queue</h3>
-                  <p className="mt-1 text-sm text-slate-500">Review configured thresholds, pending orders, and approval history.</p>
-                </div>
-              </div>
-              <div className="mt-5 space-y-4">
-                {detail?.approvals?.length ? (
-                  detail.approvals.map((approval) => (
-                    <div key={approval.id} className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <p className="text-sm font-semibold text-slate-950">{approval.roleLabel}</p>
-                          <p className="mt-1 text-xs text-slate-500">Stage {approval.sequenceNo} • {toLabel(approval.status)}</p>
-                          {approval.remarks ? <p className="mt-2 text-sm text-slate-600">{approval.remarks}</p> : null}
-                        </div>
-                        <p className="text-xs text-slate-500">{approval.approverName || "Pending"}</p>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-sm text-slate-500">
-                    Open an order to view or action its approval timeline.
-                  </div>
-                )}
-              </div>
-              {detail ? (
-                <div className="mt-4 flex flex-wrap gap-2">
-                  <Button size="sm" onClick={() => approvalMutation.mutate({ id: detail.id, action: "APPROVE" })}>Approve</Button>
-                  <Button size="sm" variant="outline" onClick={() => approvalMutation.mutate({ id: detail.id, action: "SEND_BACK" })}>Send Back</Button>
-                  <Button size="sm" variant="destructive" onClick={() => approvalMutation.mutate({ id: detail.id, action: "REJECT" })}>Reject</Button>
-                  <Button size="sm" variant="secondary" onClick={() => submitMutation.mutate(detail.id)}>Submit / Re-submit</Button>
-                  <Button size="sm" variant="outline" onClick={() => confirmMutation.mutate({ id: detail.id })}>Confirm</Button>
-                </div>
-              ) : null}
-            </section>
-            <div className="space-y-6">
-              <PendingApprovalsCard approvals={pendingApprovalOrders} onOpenOrder={setDetailId} />
-              <section className="rounded-[28px] border border-slate-200/80 bg-white/90 p-5 shadow-sm">
-                <h3 className="text-lg font-semibold text-slate-950">Approval Rules</h3>
-                <p className="mt-1 text-sm text-slate-500">Dynamic thresholds driving O2C governance.</p>
-                <div className="mt-4 space-y-3">
-                  {approvalRules.length ? (
-                    approvalRules.map((rule) => (
-                      <div key={rule.id} className="rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3">
-                        <div className="flex items-center justify-between gap-3">
-                          <div>
-                            <p className="text-sm font-semibold text-slate-950">{rule.roleLabel}</p>
-                            <p className="mt-1 text-xs text-slate-500">
-                              Stage {rule.sequenceNo} • {rule.active ? "Active" : "Inactive"}
-                            </p>
-                          </div>
-                          <p className="text-xs text-slate-500">
-                            {rule.minOrderValue || rule.maxOrderValue ? `${rule.minOrderValue ?? 0} - ${rule.maxOrderValue ?? "∞"}` : "Conditional"}
-                          </p>
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-sm text-slate-500">
-                      No approval rules configured yet. Orders will auto-approve until dynamic rules are created.
-                    </div>
-                  )}
-                </div>
-              </section>
-            </div>
-          </div>
-        );
-      case "Delivery":
-        return (
-          <div className="grid gap-6 xl:grid-cols-[1.35fr_0.65fr]">
-            <DeliveryBoardCard
-              deliveries={deliveries}
-              isLoading={deliveriesQuery.isLoading}
-              onCreate={() => setDeliveryDrawerOpen(true)}
-              onStatusChange={(id, status) => deliveryStatusMutation.mutate({ id, status })}
-              statusPending={deliveryStatusMutation.isPending}
-            />
-            <section className="rounded-[28px] border border-slate-200/80 bg-white/90 p-5 shadow-sm">
-              <h3 className="text-lg font-semibold text-slate-950">Dispatch Notes</h3>
-              <p className="mt-1 text-sm text-slate-500">Use the floating panel to schedule or update dispatch without leaving the queue.</p>
-              <div className="mt-5 space-y-3">
-                <div className="rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3">
-                  <p className="text-sm font-semibold text-slate-950">Delivery coverage</p>
-                  <p className="mt-1 text-xs text-slate-500">{deliveries.length} delivery records active</p>
-                </div>
-                <div className="rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3">
-                  <p className="text-sm font-semibold text-slate-950">Inventory sync</p>
-                  <p className="mt-1 text-xs text-slate-500">Dispatch transitions now fulfill reserved inventory automatically.</p>
-                </div>
-              </div>
-            </section>
-          </div>
-        );
-      case "Invoices":
-        return (
-          <div className="grid gap-6 xl:grid-cols-[1.35fr_0.65fr]">
-            <InvoiceBoardCard
-              invoices={invoices}
-              isLoading={invoicesQuery.isLoading}
-              onCreate={() => setInvoiceDrawerOpen(true)}
-              onStatusChange={(id, status) => invoiceStatusMutation.mutate({ id, status })}
-              statusPending={invoiceStatusMutation.isPending}
-            />
-            <section className="rounded-[28px] border border-slate-200/80 bg-white/90 p-5 shadow-sm">
-              <h3 className="text-lg font-semibold text-slate-950">Billing Controls</h3>
-              <p className="mt-1 text-sm text-slate-500">Invoice creation and updates stay in right-side panels for a smoother finance workflow.</p>
-              <div className="mt-5 space-y-3">
-                <div className="rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3">
-                  <p className="text-sm font-semibold text-slate-950">Draft to issued</p>
-                  <p className="mt-1 text-xs text-slate-500">Move billing records through issue, partial payment, and closure stages.</p>
-                </div>
-              </div>
-            </section>
-          </div>
-        );
-      case "Payments":
-        return (
-          <div className="grid gap-6 xl:grid-cols-[1.35fr_0.65fr]">
-            <PaymentBoardCard payments={payments} isLoading={paymentsQuery.isLoading} onCreate={() => setPaymentDrawerOpen(true)} />
-            <section className="rounded-[28px] border border-slate-200/80 bg-white/90 p-5 shadow-sm">
-              <h3 className="text-lg font-semibold text-slate-950">Collection Signals</h3>
-              <p className="mt-1 text-sm text-slate-500">All collection entries now open in a floating drawer instead of inline form blocks.</p>
-              <div className="mt-5 space-y-3">
-                <div className="rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3">
-                  <p className="text-sm font-semibold text-slate-950">Open invoices</p>
-                  <p className="mt-1 text-xs text-slate-500">{invoices.filter((invoice) => invoice.balanceDue > 0).length} invoices still need collection follow-up.</p>
-                </div>
-              </div>
-            </section>
-          </div>
-        );
-      case "Returns":
-        return (
-          <div className="grid gap-6 xl:grid-cols-[1.35fr_0.65fr]">
-            <ReturnBoardCard
-              returns={returns}
-              isLoading={returnsQuery.isLoading}
-              onCreate={() => setReturnDrawerOpen(true)}
-              onStatusChange={(id, status) =>
-                returnStatusMutation.mutate({ id, status, approvedAmount: returns.find((item) => item.id === id)?.requestedAmount })
-              }
-              statusPending={returnStatusMutation.isPending}
-            />
-            <section className="rounded-[28px] border border-slate-200/80 bg-white/90 p-5 shadow-sm">
-              <h3 className="text-lg font-semibold text-slate-950">Recovery Workflow</h3>
-              <p className="mt-1 text-sm text-slate-500">Return creation now happens in a focused right-side panel with order and invoice context.</p>
-              <div className="mt-5 space-y-3">
-                <div className="rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3">
-                  <p className="text-sm font-semibold text-slate-950">Credit note automation</p>
-                  <p className="mt-1 text-xs text-slate-500">Approved returns will continue to generate and adjust credit notes in the backend flow.</p>
-                </div>
-              </div>
-            </section>
-          </div>
-        );
-      case "Reports":
-        return (
-          <div className="grid gap-6 xl:grid-cols-[1fr_1fr]">
-            <section className="rounded-[28px] border border-slate-200/80 bg-white/90 p-5 shadow-sm">
-              <h3 className="text-lg font-semibold text-slate-950">Customer-wise Sales</h3>
-              <div className="mt-4 space-y-3">
-                {report?.customerSales?.length ? (
-                  report.customerSales.map((row) => (
-                    <div key={row.customerName} className="flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3">
-                      <div>
-                        <p className="text-sm font-semibold text-slate-950">{row.customerName}</p>
-                        <p className="mt-1 text-xs text-slate-500">Outstanding {fmtCurrency(row.outstandingAmount)}</p>
-                      </div>
-                      <p className="text-sm font-semibold text-slate-950">{fmtCurrency(row.totalSales)}</p>
-                    </div>
-                  ))
-                ) : (
-                  <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-sm text-slate-500">No sales report data available yet.</div>
-                )}
-              </div>
-            </section>
-            <section className="rounded-[28px] border border-slate-200/80 bg-white/90 p-5 shadow-sm">
-              <h3 className="text-lg font-semibold text-slate-950">Overdue Customers</h3>
-              <div className="mt-4 space-y-3">
-                {report?.overdueCustomers?.length ? (
-                  report.overdueCustomers.map((row) => (
-                    <div key={`${row.customerName}-${row.outstandingAmount}`} className="flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3">
-                      <p className="text-sm font-semibold text-slate-950">{row.customerName}</p>
-                      <p className="text-sm font-semibold text-rose-600">{fmtCurrency(row.outstandingAmount)}</p>
-                    </div>
-                  ))
-                ) : (
-                  <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-sm text-slate-500">No overdue alerts right now.</div>
-                )}
-              </div>
-            </section>
-          </div>
-        );
-      default:
-        return (
-          <div className="grid gap-6 xl:grid-cols-[1.35fr_0.65fr]">
-            <SalesOrdersQueueCard
-              orders={visibleOrders}
-              search={filter.search}
-              onSearchChange={(value) => setFilter((prev) => ({ ...prev, search: value, page: 1 }))}
-              tabs={queueCounts}
-              activeTab={queueTab}
-              onTabChange={(value) => setQueueTab(value as QueueTabKey)}
-              isLoading={ordersQuery.isLoading}
-              onOpenOrder={(orderId) => {
-                setDetailId(orderId);
-              }}
-              onCreateOrder={() => setCreateDrawerOpen(true)}
-            />
-            <div className="space-y-6">
-              <PendingApprovalsCard approvals={pendingApprovalOrders} onOpenOrder={setDetailId} />
-              <section className="rounded-[28px] border border-slate-200/80 bg-white/90 p-5 shadow-sm">
-                <h3 className="text-lg font-semibold text-slate-950">Operator View</h3>
-                <p className="mt-1 text-sm text-slate-500">Open any order to inspect it in a floating side panel while keeping the queue visible.</p>
-                <div className="mt-5 space-y-3">
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3">
-                    <p className="text-sm font-semibold text-slate-950">Drawer-first workflow</p>
-                    <p className="mt-1 text-xs text-slate-500">Create, delivery, invoice, payment, return, and order detail now stay in right-side panels.</p>
-                  </div>
-                </div>
-              </section>
-            </div>
-          </div>
-        );
-    }
-  }
-
   return (
-    <div className="space-y-6 text-slate-900 dark:text-slate-100">
+    <div className="space-y-6 text-slate-900">
       <SalesOrdersHero orderCount={visibleOrders.length} onCreateOrder={() => setCreateDrawerOpen(true)} onExport={handleExport} />
       <SalesOrdersKpis metrics={kpis as never} isLoading={ordersQuery.isLoading || reportsQuery.isLoading} />
 
-      <section className="overflow-hidden rounded-[28px] border border-slate-200/80 bg-[radial-gradient(circle_at_top_left,_rgba(125,211,252,0.25),_transparent_34%),linear-gradient(180deg,_rgba(255,255,255,0.98),_rgba(248,250,252,0.94))] p-4 shadow-[0_18px_45px_-30px_rgba(15,23,42,0.24)]">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+      <section className="rounded-[28px] border border-slate-200/80 bg-[radial-gradient(circle_at_top_left,_rgba(125,211,252,0.22),_transparent_32%),linear-gradient(180deg,_rgba(255,255,255,0.98),_rgba(248,250,252,0.94))] p-5 shadow-[0_18px_45px_-30px_rgba(15,23,42,0.24)]">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Workspace</p>
-            <h2 className="mt-1 text-xl font-semibold text-slate-950">Orders command center</h2>
-            <p className="mt-1 text-sm text-slate-500">Compact queue on the left, floating action panels on the right, and process views across the lifecycle.</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Lifecycle Workspace</p>
+            <h2 className="mt-1 text-xl font-semibold text-slate-950">Lead → Quote → Order → Inventory → Delivery → Invoice → Payment</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              One orchestration page for presales handoff, order governance, inventory readiness, commercial execution, and recovery workflows.
+            </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            {O2C_TABS.map((tab) => (
-              <button
-                key={tab}
-                type="button"
-                onClick={() => setWorkspaceTab(tab)}
-                className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${
-                  workspaceTab === tab
-                    ? "bg-slate-950 text-white shadow-lg shadow-slate-950/10"
-                    : "bg-white/90 text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50"
-                }`}
-              >
-                {tab}
-              </button>
-            ))}
+            <Button type="button" variant="outline" onClick={primeDeliveryDrawer} className="rounded-2xl">
+              Create delivery
+            </Button>
+            <Button type="button" variant="outline" onClick={primeInvoiceDrawer} className="rounded-2xl">
+              Create invoice
+            </Button>
+            <Button type="button" variant="outline" onClick={primePaymentDrawer} className="rounded-2xl">
+              Record payment
+            </Button>
           </div>
+        </div>
+        <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-6">
+          {workflowStages.map((stage) => (
+            <WorkflowStageCard key={stage.title} {...stage} />
+          ))}
         </div>
       </section>
 
-      {renderWorkspaceTab()}
+      <div className="grid gap-6 xl:grid-cols-[1.02fr_1.18fr_0.8fr]">
+        <div className="space-y-6">
+          <SalesOrdersQueueCard
+            orders={visibleOrders}
+            search={filter.search}
+            onSearchChange={(value) => setFilter((prev) => ({ ...prev, search: value, page: 1 }))}
+            tabs={queueCounts}
+            activeTab={queueTab}
+            onTabChange={(value) => setQueueTab(value as QueueTabKey)}
+            isLoading={ordersQuery.isLoading}
+            onOpenOrder={(orderId) => setSelectedOrderId(orderId)}
+            onCreateOrder={() => setCreateDrawerOpen(true)}
+          />
+          <PendingApprovalsCard approvals={pendingApprovalOrders} onOpenOrder={openExecutionDrawer} />
+        </div>
+
+        <div className="space-y-6">
+          {selectedOrder ? (
+            <>
+              <JourneySection
+                eyebrow="Selected Journey"
+                title={`${selectedOrder.orderNumber} · ${selectedOrder.customerName}`}
+                description="Track the upstream source and downstream execution trail for the selected sales order."
+                actions={
+                  <>
+                    <Button type="button" variant="outline" onClick={() => openExecutionDrawer(selectedOrder.id)} className="rounded-2xl">
+                      Inspect full order
+                    </Button>
+                    <Button type="button" onClick={handleSubmitSelectedOrder} disabled={submitMutation.isPending} className="rounded-2xl bg-slate-950 text-white hover:bg-slate-800">
+                      Submit
+                    </Button>
+                  </>
+                }
+              >
+                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                  <InfoTile label="Order status" value={toLabel(selectedOrder.status)} />
+                  <InfoTile label="Commercial total" value={fmtCurrency(selectedOrder.total, selectedOrder.currency)} />
+                  <InfoTile label="Requested delivery" value={formatDate(selectedOrder.deliveryDate)} />
+                  <InfoTile label="Payment terms" value={selectedOrder.paymentTerms ?? "Not defined"} />
+                </div>
+
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <FlowSignal label={selectedOrder.quoteId ? "Quote linked" : "Manual intake"} active={Boolean(selectedOrder.quoteId)} />
+                  <FlowSignal label={selectedOrder.validation.stockAvailable ? "Stock available" : "Stock shortage"} active={selectedOrder.validation.stockAvailable} warning={!selectedOrder.validation.stockAvailable} />
+                  <FlowSignal label={selectedOrder.inventoryReserved ? "Inventory reserved" : "Reservation pending"} active={selectedOrder.inventoryReserved} warning={!selectedOrder.inventoryReserved} />
+                  <FlowSignal label={selectedOrder.validation.creditLimitExceeded ? "Credit check failed" : "Credit within limit"} active={!selectedOrder.validation.creditLimitExceeded} warning={selectedOrder.validation.creditLimitExceeded} />
+                  <FlowSignal label={selectedOrder.validation.riskyPaymentTerms ? "Risky terms" : "Terms acceptable"} active={!selectedOrder.validation.riskyPaymentTerms} warning={selectedOrder.validation.riskyPaymentTerms} />
+                </div>
+
+                <div className="mt-5 grid gap-4 xl:grid-cols-[1fr_1fr]">
+                  <div className="rounded-[24px] border border-slate-200/80 bg-slate-50/75 p-4">
+                    <p className="text-sm font-semibold text-slate-950">Presales and source context</p>
+                    <div className="mt-4 grid gap-3 md:grid-cols-2">
+                      <InfoTile label="Lead" value={leadQuery.data?.name ?? selectedOrder.leadId ?? "Direct order"} />
+                      <InfoTile label="Quote" value={selectedQuote?.quoteNumber ?? selectedOrder.quotationReference ?? "Not linked"} />
+                      <InfoTile label="Customer PO" value={selectedOrder.customerPoNumber ?? "Not attached"} />
+                      <InfoTile label="Expected close" value={leadQuery.data?.expectedTimeline ?? "Not available"} />
+                    </div>
+                    <div className="mt-4 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
+                      {leadQuery.data?.notes || selectedOrder.notes || "No contextual notes captured yet for this order journey."}
+                    </div>
+                  </div>
+
+                  <div className="rounded-[24px] border border-slate-200/80 bg-slate-50/75 p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-slate-950">Approval and confirmation control</p>
+                        <p className="mt-1 text-xs text-slate-500">Drive submission, approval, send-back, and confirmation from the same workspace.</p>
+                      </div>
+                      <select
+                        value={selectedOrder.status}
+                        onChange={(event) => handleSelectedStatusChange(event.target.value as SalesOrderStatus)}
+                        className="h-10 rounded-2xl border border-slate-200 bg-white px-3 text-sm text-slate-700"
+                      >
+                        {DRAWER_STATUS_OPTIONS.map((status) => (
+                          <option key={status} value={status}>
+                            {toLabel(status)}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <Button type="button" onClick={() => handleApprovalAction("APPROVE")} disabled={approvalMutation.isPending} className="rounded-2xl bg-emerald-600 text-white hover:bg-emerald-700">
+                        Approve
+                      </Button>
+                      <Button type="button" variant="outline" onClick={() => handleApprovalAction("SEND_BACK")} disabled={approvalMutation.isPending} className="rounded-2xl">
+                        Send back
+                      </Button>
+                      <Button type="button" variant="destructive" onClick={() => handleApprovalAction("REJECT")} disabled={approvalMutation.isPending} className="rounded-2xl">
+                        Reject
+                      </Button>
+                      <Button type="button" variant="outline" onClick={handleConfirmSelectedOrder} disabled={confirmMutation.isPending} className="rounded-2xl">
+                        Confirm order
+                      </Button>
+                    </div>
+                    <div className="mt-4 space-y-3">
+                      {selectedOrder.approvals.length ? (
+                        selectedOrder.approvals.map((approval) => (
+                          <div key={approval.id} className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <p className="text-sm font-semibold text-slate-950">{approval.roleLabel}</p>
+                                <p className="mt-1 text-xs text-slate-500">
+                                  Stage {approval.sequenceNo} · {toLabel(approval.status)}
+                                </p>
+                                {approval.remarks ? <p className="mt-2 text-sm text-slate-600">{approval.remarks}</p> : null}
+                              </div>
+                              <p className="text-xs text-slate-500">{approval.approverName || "Pending"}</p>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-4 py-8 text-sm text-slate-500">
+                          No approval stages have been recorded for this order yet.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </JourneySection>
+
+              <JourneySection
+                eyebrow="Execution Automation"
+                title="Inventory, delivery, invoice, and collection alignment"
+                description="This is where the order operationalizes into stock movement, customer billing, and cash realization."
+                actions={
+                  <>
+                    <Button type="button" variant="outline" onClick={primeDeliveryDrawer} className="rounded-2xl">
+                      Delivery
+                    </Button>
+                    <Button type="button" variant="outline" onClick={primeInvoiceDrawer} className="rounded-2xl">
+                      Invoice
+                    </Button>
+                    <Button type="button" variant="outline" onClick={primePaymentDrawer} className="rounded-2xl">
+                      Payment
+                    </Button>
+                    <Button type="button" variant="outline" onClick={primeReturnDrawer} className="rounded-2xl">
+                      Return
+                    </Button>
+                  </>
+                }
+              >
+                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                  <InfoTile label="Stock posture" value={selectedOrder.stockAvailable ? "Available" : "Shortage"} tone={selectedOrder.stockAvailable ? "text-emerald-600" : "text-amber-600"} />
+                  <InfoTile label="Reservation" value={selectedOrder.inventoryReserved ? "Completed" : "Pending"} tone={selectedOrder.inventoryReserved ? "text-emerald-600" : "text-amber-600"} />
+                  <InfoTile label="Invoice coverage" value={selectedInvoices.length ? `${selectedInvoices.length} invoice(s)` : "Not invoiced"} />
+                  <InfoTile label="Collections" value={selectedPayments.length ? `${selectedPayments.length} payment(s)` : "No payments"} />
+                </div>
+
+                <div className="mt-5 grid gap-4 xl:grid-cols-2">
+                  <RecordList
+                    title="Delivery records"
+                    emptyLabel="No delivery note created yet for this order."
+                    records={selectedDeliveries.map((delivery) => ({
+                      id: delivery.id,
+                      title: delivery.deliveryNumber,
+                      subtitle: `${delivery.status.replaceAll("_", " ")} · ${delivery.carrier || "Carrier pending"}`,
+                      meta: delivery.scheduledDate ? formatDate(delivery.scheduledDate) : "Not scheduled",
+                    }))}
+                  />
+                  <RecordList
+                    title="Invoice records"
+                    emptyLabel="No invoice generated yet for this order."
+                    records={selectedInvoices.map((invoice) => ({
+                      id: invoice.id,
+                      title: invoice.invoiceNumber,
+                      subtitle: `${toLabel(invoice.status)} · ${fmtCurrency(invoice.total, invoice.currency)}`,
+                      meta: invoice.dueDate ? `Due ${formatDate(invoice.dueDate)}` : "Due date pending",
+                    }))}
+                  />
+                  <RecordList
+                    title="Payment receipts"
+                    emptyLabel="No payments have been posted yet."
+                    records={selectedPayments.map((payment) => ({
+                      id: payment.id,
+                      title: payment.paymentNumber,
+                      subtitle: `${toLabel(payment.paymentMode)} · ${fmtCurrency(payment.amount, payment.currency)}`,
+                      meta: formatDate(payment.paymentDate),
+                    }))}
+                  />
+                  <RecordList
+                    title="Returns and credit recovery"
+                    emptyLabel="No return workflow exists for this order."
+                    records={selectedReturns.map((item) => ({
+                      id: item.id,
+                      title: item.returnNumber,
+                      subtitle: `${toLabel(item.status)} · ${item.returnReason}`,
+                      meta: fmtCurrency(item.requestedAmount),
+                    }))}
+                  />
+                </div>
+              </JourneySection>
+            </>
+          ) : (
+            <SelectedOrderEmptyState />
+          )}
+        </div>
+
+        <div className="space-y-6">
+          <AcceptedQuotesCard
+            quotes={acceptedQuotes}
+            isLoading={quotesQuery.isLoading}
+            isConverting={convertQuoteMutation.isPending}
+            onConvert={handleConvertQuote}
+          />
+          <QuickStatsCard stats={quickStats} />
+          <OperationsSnapshotCard
+            title="Inventory Sync"
+            subtitle="Expose where order execution still depends on inventory action."
+            stats={inventorySnapshot}
+          />
+          <OperationsSnapshotCard
+            title="Finance Pulse"
+            subtitle="Keep billing, collection, and recovery visible while working the order."
+            stats={financeSnapshot}
+          />
+        </div>
+      </div>
 
       <CreateOrderDrawer
         open={isCreateDrawerOpen}
@@ -738,7 +1142,7 @@ export default function SalesOrdersPage() {
             onSuccess: () => {
               toast.success("Delivery note created.");
               setDeliveryDrawerOpen(false);
-              setDeliveryForm({ salesOrderId: "" });
+              setDeliveryForm({ salesOrderId: selectedOrderId || "" });
             },
             onError: (error) => toast.error(error instanceof Error ? error.message : "Could not create delivery."),
           })
@@ -757,7 +1161,7 @@ export default function SalesOrdersPage() {
             onSuccess: () => {
               toast.success("Invoice generated.");
               setInvoiceDrawerOpen(false);
-              setInvoiceForm({ salesOrderId: "" });
+              setInvoiceForm({ salesOrderId: selectedOrderId || "" });
             },
             onError: (error) => toast.error(error instanceof Error ? error.message : "Could not create invoice."),
           })
@@ -777,7 +1181,7 @@ export default function SalesOrdersPage() {
               toast.success("Payment recorded.");
               setPaymentDrawerOpen(false);
               setPaymentForm({
-                salesInvoiceId: "",
+                salesInvoiceId: selectedInvoices[0]?.id ?? "",
                 paymentDate: new Date().toISOString().slice(0, 10),
                 amount: 0,
                 paymentMode: PaymentMode.UPI,
@@ -802,7 +1206,8 @@ export default function SalesOrdersPage() {
               toast.success("Return request created.");
               setReturnDrawerOpen(false);
               setReturnForm({
-                salesOrderId: "",
+                salesOrderId: selectedOrderId || "",
+                salesInvoiceId: selectedInvoices[0]?.id,
                 requestedAmount: 0,
                 returnReason: "",
               });
@@ -820,9 +1225,13 @@ export default function SalesOrdersPage() {
         order={detail}
         loading={detailQuery.isLoading}
         statusOptions={DRAWER_STATUS_OPTIONS}
-        onStatusChange={handleStatusChange}
+        onStatusChange={handleDetailStatusChange}
         statusPending={statusMutation.isPending || submitMutation.isPending || confirmMutation.isPending || approvalMutation.isPending}
       />
     </div>
   );
+}
+
+export default function SalesOrdersPage() {
+  return <SalesOrdersWorkspacePage />;
 }

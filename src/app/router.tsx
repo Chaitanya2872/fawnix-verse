@@ -163,6 +163,30 @@ export const router = createBrowserRouter([
             ),
           },
           {
+            path: "sales/orders/approvals",
+            element: <Navigate to="/sales/orders" replace />,
+          },
+          {
+            path: "sales/orders/delivery",
+            element: <Navigate to="/sales/orders" replace />,
+          },
+          {
+            path: "sales/orders/invoices",
+            element: <Navigate to="/sales/orders" replace />,
+          },
+          {
+            path: "sales/orders/payments",
+            element: <Navigate to="/sales/orders" replace />,
+          },
+          {
+            path: "sales/orders/returns",
+            element: <Navigate to="/sales/orders" replace />,
+          },
+          {
+            path: "sales/orders/reports",
+            element: <Navigate to="/sales/orders" replace />,
+          },
+          {
             path: "tasks",
             element: (
               <RequirePermission permission={PERMISSIONS.PAGE_TASKS}>

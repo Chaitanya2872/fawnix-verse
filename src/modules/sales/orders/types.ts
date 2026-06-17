@@ -67,6 +67,7 @@ export type CreateSalesOrderInput = {
 
 export type ManualOrderItemDraft = {
   key: string;
+  inventoryProductId?: string;
   name: string;
   make: string;
   description: string;

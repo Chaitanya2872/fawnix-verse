@@ -888,7 +888,8 @@ export function CreateOrderDrawer({
       open={open}
       onOpenChange={onOpenChange}
       title="Create Sales Order"
-      description="Build a premium order intake record without leaving the queue."
+      description="Capture commercial, fulfillment, billing, and risk context in one revenue-grade intake panel."
+      widthClassName="max-w-[920px]"
       footer={
         <>
           <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} className="rounded-2xl px-4 text-slate-600 dark:text-slate-300">
@@ -909,10 +910,11 @@ export function CreateOrderDrawer({
         </>
       }
     >
-      <div className="space-y-6">
+      <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+        <div className="space-y-6">
         <DrawerSection
-          title="Customer Information"
-          description="Primary contact and customer identity"
+          title="Account & Commercial Context"
+          description="Primary customer identity, order references, and commercial ownership"
           icon={<Sparkles className="h-4 w-4" />}
         >
           <div className="grid gap-4 sm:grid-cols-2">
@@ -928,15 +930,39 @@ export function CreateOrderDrawer({
             <DrawerField label="Phone">
               <Input value={form.phone} onChange={(event) => onFieldChange("phone", event.target.value)} className={drawerInputClassName} />
             </DrawerField>
+            <DrawerField label="Customer PO number">
+              <Input value={form.customerPoNumber} onChange={(event) => onFieldChange("customerPoNumber", event.target.value)} className={drawerInputClassName} />
+            </DrawerField>
+            <DrawerField label="Quotation reference">
+              <Input value={form.quotationReference} onChange={(event) => onFieldChange("quotationReference", event.target.value)} className={drawerInputClassName} />
+            </DrawerField>
+            <DrawerField label="Customer credit limit">
+              <Input type="number" min="0" step="0.01" value={form.customerCreditLimit} onChange={(event) => onFieldChange("customerCreditLimit", event.target.value)} className={drawerInputClassName} />
+            </DrawerField>
+            <DrawerField label="Current outstanding">
+              <Input type="number" min="0" step="0.01" value={form.customerOutstandingAmount} onChange={(event) => onFieldChange("customerOutstandingAmount", event.target.value)} className={drawerInputClassName} />
+            </DrawerField>
           </div>
         </DrawerSection>
 
         <DrawerSection
-          title="Billing & Shipping"
-          description="Logistics and invoicing context"
+          title="Fulfillment & Billing"
+          description="Delivery commitments, payment terms, and invoice-ready addresses"
           icon={<PackageCheck className="h-4 w-4" />}
         >
           <div className="grid gap-4 sm:grid-cols-2">
+            <DrawerField label="Requested delivery date">
+              <Input type="date" value={form.deliveryDate} onChange={(event) => onFieldChange("deliveryDate", event.target.value)} className={drawerInputClassName} />
+            </DrawerField>
+            <DrawerField label="Payment terms">
+              <Input value={form.paymentTerms} onChange={(event) => onFieldChange("paymentTerms", event.target.value)} className={drawerInputClassName} />
+            </DrawerField>
+            <DrawerField label="Payment due days">
+              <Input type="number" min="0" step="1" value={form.paymentDueDays} onChange={(event) => onFieldChange("paymentDueDays", event.target.value)} className={drawerInputClassName} />
+            </DrawerField>
+            <DrawerField label="Confirmation attachment URL">
+              <Input value={form.confirmationAttachmentUrl} onChange={(event) => onFieldChange("confirmationAttachmentUrl", event.target.value)} className={drawerInputClassName} />
+            </DrawerField>
             <DrawerField label="Billing address" className="sm:col-span-2">
               <textarea
                 rows={3}
@@ -958,7 +984,7 @@ export function CreateOrderDrawer({
 
         <DrawerSection
           title="Order Items"
-          description="Define the requested products and pricing"
+          description="Define the sellable lines with quantity, unit economics, and inventory traceability"
           icon={<ReceiptText className="h-4 w-4" />}
           action={
             <Button type="button" size="icon" variant="outline" onClick={onAddItem} className="h-9 w-9 rounded-xl border-slate-200 bg-white/70 dark:border-slate-700 dark:bg-slate-900/60">
@@ -981,6 +1007,9 @@ export function CreateOrderDrawer({
                   </button>
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2">
+                  <DrawerField label="Inventory product id">
+                    <Input value={item.inventoryProductId ?? ""} onChange={(event) => onItemChange(item.key, "inventoryProductId", event.target.value)} className={drawerInputClassName} />
+                  </DrawerField>
                   <DrawerField label="Item name">
                     <Input value={item.name} onChange={(event) => onItemChange(item.key, "name", event.target.value)} className={drawerInputClassName} />
                   </DrawerField>
@@ -1014,8 +1043,8 @@ export function CreateOrderDrawer({
         </DrawerSection>
 
         <DrawerSection
-          title="Pricing Summary"
-          description="Commercial guardrails and value snapshot"
+          title="Approval & Revenue Controls"
+          description="Set the financial posture before routing the order through approvals"
           icon={<TrendingUp className="h-4 w-4" />}
         >
           <div className="grid gap-4 sm:grid-cols-2">
@@ -1039,6 +1068,9 @@ export function CreateOrderDrawer({
             <DrawerField label="Tax rate (%)">
               <Input type="number" min="0" step="0.01" value={form.taxRate} onChange={(event) => onFieldChange("taxRate", event.target.value)} className={drawerInputClassName} />
             </DrawerField>
+            <DrawerField label="Discount (%)">
+              <Input type="number" min="0" step="0.01" value={form.discountPercent} onChange={(event) => onFieldChange("discountPercent", event.target.value)} className={drawerInputClassName} />
+            </DrawerField>
             <div className="rounded-[22px] border border-slate-200/70 bg-white/80 px-4 py-3 shadow-sm dark:border-slate-800 dark:bg-slate-900/70">
               <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Projected total</p>
               <p className="mt-2 text-2xl font-semibold text-slate-950 dark:text-white">{fmtCurrency(total, form.currency || "INR")}</p>
@@ -1055,6 +1087,46 @@ export function CreateOrderDrawer({
             className={drawerTextareaClassName}
           />
         </DrawerSection>
+        </div>
+
+        <div className="space-y-6 xl:sticky xl:top-0 self-start">
+          <section className="overflow-hidden rounded-[28px] border border-slate-200/80 bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.18),_transparent_42%),linear-gradient(180deg,_rgba(255,255,255,0.98),_rgba(248,250,252,0.92))] p-5 shadow-[0_18px_45px_-30px_rgba(15,23,42,0.24)] dark:border-slate-800 dark:bg-slate-900/90">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Revenue Posture</p>
+            <div className="mt-4 space-y-4">
+              <div className="rounded-[22px] border border-slate-200/70 bg-white/90 px-4 py-3 dark:border-slate-800 dark:bg-slate-950/70">
+                <p className="text-xs text-slate-500 dark:text-slate-400">Projected order value</p>
+                <p className="mt-2 text-2xl font-semibold text-slate-950 dark:text-white">{fmtCurrency(total, form.currency || "INR")}</p>
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Gross {fmtCurrency(subtotal, form.currency || "INR")} • Discount {(Number(form.discountPercent) || 0).toFixed(2)}%</p>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+                <div className="rounded-[22px] border border-slate-200/70 bg-white/90 px-4 py-3 dark:border-slate-800 dark:bg-slate-950/70">
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Credit exposure</p>
+                  <p className="mt-2 text-lg font-semibold text-slate-950 dark:text-white">
+                    {fmtCurrency((Number(form.customerOutstandingAmount) || 0) + total, form.currency || "INR")}
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Limit {fmtCurrency(Number(form.customerCreditLimit) || 0, form.currency || "INR")}</p>
+                </div>
+                <div className="rounded-[22px] border border-slate-200/70 bg-white/90 px-4 py-3 dark:border-slate-800 dark:bg-slate-950/70">
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Fulfillment shape</p>
+                  <p className="mt-2 text-lg font-semibold text-slate-950 dark:text-white">{form.items.length} line items</p>
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{form.deliveryDate ? `Target ${fmtDate(form.deliveryDate)}` : "No delivery target yet"}</p>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section className="rounded-[28px] border border-slate-200/80 bg-white/90 p-5 shadow-[0_18px_45px_-30px_rgba(15,23,42,0.18)] dark:border-slate-800 dark:bg-slate-900/90">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Governance Hints</p>
+            <div className="mt-4 space-y-3 text-sm text-slate-600 dark:text-slate-300">
+              <div className="rounded-2xl border border-slate-200/70 bg-slate-50/80 px-4 py-3 dark:border-slate-800 dark:bg-slate-950/50">
+                Orders with higher discount, risky payment terms, or credit exposure will route into dynamic approvals.
+              </div>
+              <div className="rounded-2xl border border-slate-200/70 bg-slate-50/80 px-4 py-3 dark:border-slate-800 dark:bg-slate-950/50">
+                Include customer PO, quotation reference, and delivery commitment up front to reduce rework later in fulfillment and billing.
+              </div>
+            </div>
+          </section>
+        </div>
       </div>
     </DrawerShell>
   );
@@ -1120,6 +1192,15 @@ export function OrderDetailDrawer({
               <AddressBlock title="Inventory Readiness" value={order.inventoryReserved ? "Reserved and staged for dispatch" : order.inventoryReservationMessage || "Reservation pending"} />
               <AddressBlock title="Validation Summary" value={order.validation?.summary || "No validation notes"} />
               <AddressBlock title="Customer PO / Quote" value={`${order.customerPoNumber || "No PO"}\n${order.quotationReference || order.quoteId || "No quote link"}`} />
+            </div>
+          </DrawerSection>
+
+          <DrawerSection title="Financial Breakdown" description="Gross, discount, tax, and exposure view">
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              <DetailStat label="Subtotal" value={fmtCurrency(order.subtotal, order.currency)} />
+              <DetailStat label="Discount" value={`${order.discountPercent.toFixed(2)}% • ${fmtCurrency(order.discountAmount, order.currency)}`} />
+              <DetailStat label="Tax" value={`${order.taxRate.toFixed(2)}% • ${fmtCurrency(order.taxTotal, order.currency)}`} />
+              <DetailStat label="Exposure" value={fmtCurrency(order.customerOutstandingAmount + order.total, order.currency)} />
             </div>
           </DrawerSection>
 
