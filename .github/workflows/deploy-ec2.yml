@@ -57,8 +57,18 @@ jobs:
         run: |
           set -euxo pipefail
 
-          ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i "$HOME/.ssh/ec2.pem" -p "${EC2_PORT:-22}" "${EC2_USER}@${EC2_HOST}" "sudo bash -s" <<EOF
-          set -e
+          ssh \
+            -o BatchMode=yes \
+            -o ServerAliveInterval=30 \
+            -o ServerAliveCountMax=10 \
+            -o TCPKeepAlive=yes \
+            -o StrictHostKeyChecking=no \
+            -o UserKnownHostsFile=/dev/null \
+            -i "$HOME/.ssh/ec2.pem" \
+            -p "${EC2_PORT:-22}" \
+            "${EC2_USER}@${EC2_HOST}" \
+            "sudo bash -s" <<EOF
+          set -euxo pipefail
 
           echo "Starting Deployment as root..."
 
