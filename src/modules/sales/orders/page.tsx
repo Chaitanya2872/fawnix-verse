@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { MoreHorizontal, Plus } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { ChevronDown, MoreHorizontal, Plus } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useQuotes } from "@/modules/sales/hooks";
+import { QuoteStatus } from "@/modules/sales/types";
 import {
   CreateOrderDrawer,
   OrderDetailDrawer,
@@ -24,6 +26,7 @@ import {
   useSalesOrder,
   useSalesPayments,
   useSalesOrders,
+  useUpdateSalesOrder,
   useUpdateSalesOrderStatus,
 } from "./hooks";
 import {
@@ -34,8 +37,10 @@ import {
   type CreateSalesOrderInput,
   type ManualOrderFormState,
   type ManualOrderItemDraft,
+  type SalesOrder,
   type SalesOrderFilter,
   type SalesOrderSummary,
+  type UpdateSalesOrderInput,
 } from "./types";
 
 const PAGE_SIZE = 50;
@@ -92,6 +97,48 @@ function createInitialManualForm(): ManualOrderFormState {
     confirmationAttachmentUrl: "",
     notes: "",
     items: [createDraftItem()],
+  };
+}
+
+function toStringValue(value: number | string | null | undefined) {
+  if (value === null || value === undefined) return "";
+  return String(value);
+}
+
+function buildManualFormFromOrder(order: SalesOrder): ManualOrderFormState {
+  return {
+    customerName: order.customerName ?? "",
+    company: order.company ?? "",
+    email: order.email ?? "",
+    phone: order.phone ?? "",
+    billingAddress: order.billingAddress ?? "",
+    shippingAddress: order.shippingAddress ?? "",
+    currency: order.currency ?? "INR",
+    status: order.status,
+    deliveryDate: order.deliveryDate ?? "",
+    paymentTerms: order.paymentTerms ?? "",
+    customerPoNumber: order.customerPoNumber ?? "",
+    quotationReference: order.quotationReference ?? "",
+    paymentDueDays: toStringValue(order.paymentDueDays),
+    taxRate: toStringValue(order.taxRate),
+    discountPercent: toStringValue(order.discountPercent),
+    customerCreditLimit: toStringValue(order.customerCreditLimit),
+    customerOutstandingAmount: toStringValue(order.customerOutstandingAmount),
+    confirmationAttachmentUrl: order.confirmationAttachmentUrl ?? "",
+    notes: order.notes ?? "",
+    items: order.items.length
+      ? order.items.map((item) => ({
+          key: item.id || globalThis.crypto.randomUUID(),
+          inventoryProductId: item.inventoryProductId ?? "",
+          name: item.name ?? "",
+          make: item.make ?? "",
+          description: item.description ?? "",
+          utility: item.utility ?? "",
+          quantity: toStringValue(item.quantity),
+          unit: item.unit ?? "",
+          unitPrice: toStringValue(item.unitPrice),
+        }))
+      : [createDraftItem()],
   };
 }
 
@@ -154,6 +201,7 @@ function getPaymentStatus(
 export default function SalesOrdersPage() {
   const navigate = useNavigate();
   const [detailId, setDetailId] = useState("");
+  const [editingOrderId, setEditingOrderId] = useState("");
   const [isCreateDrawerOpen, setCreateDrawerOpen] = useState(false);
   const [manualForm, setManualForm] = useState<ManualOrderFormState>(() => createInitialManualForm());
   const [filter, setFilter] = useState<SalesOrderFilter>({
@@ -165,17 +213,28 @@ export default function SalesOrdersPage() {
 
   const ordersQuery = useSalesOrders(filter);
   const detailQuery = useSalesOrder(detailId);
+  const editingOrderQuery = useSalesOrder(editingOrderId);
   const deliveriesQuery = useSalesDeliveries();
   const invoicesQuery = useSalesInvoices();
   const paymentsQuery = useSalesPayments();
+  const quotesQuery = useQuotes({ search: "", status: QuoteStatus.ACCEPTED, page: 1, pageSize: 200 });
   const createMutation = useCreateSalesOrder();
+  const updateMutation = useUpdateSalesOrder();
   const statusMutation = useUpdateSalesOrderStatus();
 
   const orders = useMemo(() => ordersQuery.data?.data ?? [], [ordersQuery.data?.data]);
   const deliveries = deliveriesQuery.data?.data ?? [];
   const invoices = invoicesQuery.data?.data ?? [];
   const payments = paymentsQuery.data?.data ?? [];
+  const acceptedQuotes = quotesQuery.data?.data ?? [];
   const detail = detailQuery.data ?? null;
+
+  useEffect(() => {
+    if (!editingOrderQuery.data || !isCreateDrawerOpen) {
+      return;
+    }
+    setManualForm(buildManualFormFromOrder(editingOrderQuery.data));
+  }, [editingOrderQuery.data, isCreateDrawerOpen]);
 
   const manualSubtotal = manualForm.items.reduce((sum, item) => {
     const quantity = Number(item.quantity) || 0;
@@ -263,6 +322,14 @@ export default function SalesOrdersPage() {
     setManualForm(createInitialManualForm());
   }
 
+  function handleOrderDrawerOpenChange(open: boolean) {
+    setCreateDrawerOpen(open);
+    if (!open) {
+      setEditingOrderId("");
+      resetManualForm();
+    }
+  }
+
   function handleCreateOrder() {
     const customerName = manualForm.customerName.trim();
     if (!customerName) {
@@ -283,6 +350,45 @@ export default function SalesOrdersPage() {
 
     if (items.some((item) => !item.name)) {
       toast.error("Each line item needs a name.");
+      return;
+    }
+
+    if (editingOrderId) {
+      const payload: UpdateSalesOrderInput = {
+        customerName,
+        company: cleanOptional(manualForm.company),
+        email: cleanOptional(manualForm.email),
+        phone: cleanOptional(manualForm.phone),
+        billingAddress: cleanOptional(manualForm.billingAddress),
+        shippingAddress: cleanOptional(manualForm.shippingAddress),
+        currency: cleanOptional(manualForm.currency) || "INR",
+        deliveryDate: cleanOptional(manualForm.deliveryDate),
+        paymentTerms: cleanOptional(manualForm.paymentTerms),
+        customerPoNumber: cleanOptional(manualForm.customerPoNumber),
+        quotationReference: cleanOptional(manualForm.quotationReference),
+        paymentDueDays: Number(manualForm.paymentDueDays) || 0,
+        taxRate: manualTaxRate,
+        discountPercent: Number(manualForm.discountPercent) || 0,
+        customerCreditLimit: Number(manualForm.customerCreditLimit) || 0,
+        customerOutstandingAmount: Number(manualForm.customerOutstandingAmount) || 0,
+        confirmationAttachmentUrl: cleanOptional(manualForm.confirmationAttachmentUrl),
+        notes: cleanOptional(manualForm.notes),
+        items,
+      };
+
+      updateMutation.mutate(
+        { id: editingOrderId, payload },
+        {
+          onSuccess: (updated) => {
+            toast.success(`Order ${updated.orderNumber} updated.`);
+            handleOrderDrawerOpenChange(false);
+            navigate(`/sales/orders/${updated.id}`);
+          },
+          onError: (error) => {
+            toast.error(error instanceof Error ? error.message : "Could not update order.");
+          },
+        }
+      );
       return;
     }
 
@@ -312,8 +418,7 @@ export default function SalesOrdersPage() {
     createMutation.mutate(payload, {
       onSuccess: (created) => {
         toast.success(`Order ${created.orderNumber} created.`);
-        setCreateDrawerOpen(false);
-        resetManualForm();
+        handleOrderDrawerOpenChange(false);
         navigate(`/sales/orders/${created.id}`);
       },
       onError: (error) => {
@@ -322,18 +427,42 @@ export default function SalesOrdersPage() {
     });
   }
 
+  function handleEditOrder(orderId: string) {
+    setEditingOrderId(orderId);
+    setCreateDrawerOpen(true);
+  }
+
   return (
     <div className="space-y-5 text-slate-900">
-      <section className="flex flex-col gap-4 rounded-[24px] border border-slate-200 bg-white px-5 py-4 shadow-sm lg:flex-row lg:items-end lg:justify-between">
+      <section className="flex flex-col gap-4 rounded-[24px] border border-slate-200 bg-white px-5 py-4 shadow-sm lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Order Management</p>
-          <h1 className="mt-1 text-2xl font-semibold text-slate-950">Manage Orders</h1>
-          <p className="mt-1 text-sm text-slate-500">Track orders only. Shipments and payments now live in their own pages, while invoices stay inside each order detail.</p>
+          <h1 className="text-2xl font-semibold text-slate-950">Order to Cash</h1>
         </div>
-        <Button type="button" onClick={() => setCreateDrawerOpen(true)} className="rounded-xl bg-slate-950 px-4 text-white hover:bg-slate-800">
-          <Plus className="h-4 w-4" />
-          Create Order
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button type="button" className="rounded-xl bg-blue-600 px-4 text-white hover:bg-blue-700">
+              <Plus className="h-4 w-4" />
+              Create Order
+              <ChevronDown className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56 border-slate-200 bg-white">
+            <DropdownMenuItem onClick={() => setCreateDrawerOpen(true)}>
+              Create Order
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => {
+                if (!acceptedQuotes.length) {
+                  toast.error("No accepted quotes are ready for conversion.");
+                  return;
+                }
+                navigate("/sales");
+              }}
+            >
+              Fetch from Accepted Quotes
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </section>
 
       <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -427,7 +556,7 @@ export default function SalesOrdersPage() {
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="w-52 border-slate-200 bg-white">
                             <DropdownMenuItem onClick={() => navigate(`/sales/orders/${order.id}`)}>View Details</DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => setDetailId(order.id)}>Edit Order</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleEditOrder(order.id)}>Edit Order</DropdownMenuItem>
                             <DropdownMenuItem onClick={() => navigate(`/sales/orders/${order.id}?panel=invoice`)}>
                               {invoiceExists ? "View Invoice" : "Create Invoice"}
                             </DropdownMenuItem>
@@ -457,11 +586,18 @@ export default function SalesOrdersPage() {
 
       <CreateOrderDrawer
         open={isCreateDrawerOpen}
-        onOpenChange={setCreateDrawerOpen}
+        onOpenChange={handleOrderDrawerOpenChange}
         form={manualForm}
         subtotal={manualSubtotal}
         total={manualTotal}
-        pending={createMutation.isPending}
+        pending={createMutation.isPending || updateMutation.isPending || editingOrderQuery.isLoading}
+        title={editingOrderId ? "Edit Sales Order" : "Create Sales Order"}
+        description={
+          editingOrderId
+            ? "Update customer, commercial, fulfillment, and line item details for the selected order."
+            : "Capture commercial, fulfillment, billing, and risk context in one revenue-grade intake panel."
+        }
+        submitLabel={editingOrderId ? "Save Changes" : "Create Order"}
         onFieldChange={updateManualField}
         onItemChange={updateManualItem}
         onAddItem={addManualItem}

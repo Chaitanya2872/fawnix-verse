@@ -22,6 +22,7 @@ import type {
   SalesReturn,
   SalesReturnListResponse,
   SalesReturnStatus,
+  UpdateSalesOrderInput,
 } from "./types";
 
 export async function fetchSalesOrders(filter: SalesOrderFilter): Promise<PaginatedSalesOrders> {
@@ -43,6 +44,11 @@ export async function fetchSalesOrder(id: string): Promise<SalesOrder> {
 
 export async function createSalesOrder(payload: CreateSalesOrderInput): Promise<SalesOrder> {
   const response = await api.post<SalesOrder>("/sales/orders", payload);
+  return response.data;
+}
+
+export async function updateSalesOrder(id: string, payload: UpdateSalesOrderInput): Promise<SalesOrder> {
+  const response = await api.patch<SalesOrder>(`/sales/orders/${id}`, payload);
   return response.data;
 }
 

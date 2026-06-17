@@ -19,6 +19,7 @@ import {
   submitSalesOrder,
   updateSalesDeliveryStatus,
   updateSalesInvoiceStatus,
+  updateSalesOrder,
   updateSalesOrderStatus,
   updateSalesReturnStatus,
 } from "./api";
@@ -33,6 +34,7 @@ import type {
   SalesOrderFilter,
   SalesOrderStatus,
   SalesReturnStatus,
+  UpdateSalesOrderInput,
 } from "./types";
 
 export const salesOrderKeys = {
@@ -131,6 +133,17 @@ export function useCreateSalesOrder() {
     onSuccess: (created) => {
       queryClient.invalidateQueries({ queryKey: salesOrderKeys.lists() });
       queryClient.invalidateQueries({ queryKey: salesOrderKeys.detail(created.id) });
+    },
+  });
+}
+
+export function useUpdateSalesOrder() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: UpdateSalesOrderInput }) => updateSalesOrder(id, payload),
+    onSuccess: (updated) => {
+      queryClient.invalidateQueries({ queryKey: salesOrderKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: salesOrderKeys.detail(updated.id) });
     },
   });
 }

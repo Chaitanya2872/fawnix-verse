@@ -155,6 +155,9 @@ type CreateDrawerProps = {
   subtotal: number;
   total: number;
   pending: boolean;
+  title?: string;
+  description?: string;
+  submitLabel?: string;
   onFieldChange: <K extends keyof ManualOrderFormState>(field: K, value: ManualOrderFormState[K]) => void;
   onItemChange: (key: string, field: keyof ManualOrderItemDraft, value: string) => void;
   onAddItem: () => void;
@@ -876,6 +879,9 @@ export function CreateOrderDrawer({
   subtotal,
   total,
   pending,
+  title = "Create Sales Order",
+  description = "Capture commercial, fulfillment, billing, and risk context in one revenue-grade intake panel.",
+  submitLabel = "Create Order",
   onFieldChange,
   onItemChange,
   onAddItem,
@@ -887,8 +893,8 @@ export function CreateOrderDrawer({
     <DrawerShell
       open={open}
       onOpenChange={onOpenChange}
-      title="Create Sales Order"
-      description="Capture commercial, fulfillment, billing, and risk context in one revenue-grade intake panel."
+      title={title}
+      description={description}
       widthClassName="max-w-[920px]"
       footer={
         <>
@@ -905,7 +911,7 @@ export function CreateOrderDrawer({
             className="rounded-2xl bg-slate-950 px-5 text-white shadow-[0_16px_30px_-18px_rgba(15,23,42,0.85)] hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200"
           >
             {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-            Create Order
+            {submitLabel}
           </Button>
         </>
       }

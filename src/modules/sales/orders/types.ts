@@ -65,6 +65,28 @@ export type CreateSalesOrderInput = {
   items: CreateSalesOrderLineItemInput[];
 };
 
+export type UpdateSalesOrderInput = {
+  customerName?: string;
+  company?: string;
+  email?: string;
+  phone?: string;
+  billingAddress?: string;
+  shippingAddress?: string;
+  currency?: string;
+  deliveryDate?: string;
+  paymentTerms?: string;
+  customerPoNumber?: string;
+  quotationReference?: string;
+  paymentDueDays?: number;
+  taxRate?: number;
+  discountPercent?: number;
+  customerCreditLimit?: number;
+  customerOutstandingAmount?: number;
+  confirmationAttachmentUrl?: string;
+  notes?: string;
+  items: CreateSalesOrderLineItemInput[];
+};
+
 export type ManualOrderItemDraft = {
   key: string;
   inventoryProductId?: string;
