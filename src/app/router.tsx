@@ -22,6 +22,9 @@ import UsersPage from "@/modules/users/page";
 import AccessRequestsPage from "@/modules/access/page";
 import SalesPage from "@/modules/sales/page";
 import SalesOrdersPage from "@/modules/sales/orders/page";
+import SalesOrderDetailPage from "@/modules/sales/orders/detail-page";
+import SalesShipmentsPage from "@/modules/sales/orders/shipments-page";
+import SalesPaymentsPage from "@/modules/sales/orders/payments-page";
 import TaskManagementPage from "@/modules/task-management/page";
 import TaskWorkspacePage from "@/modules/task-management/workspace-page";
 import HiringRequestsPage from "@/modules/recruitment/HiringRequestsPage";
@@ -163,12 +166,36 @@ export const router = createBrowserRouter([
             ),
           },
           {
+            path: "sales/orders/:orderId",
+            element: (
+              <RequirePermission permission={PERMISSIONS.PAGE_SALES_ORDERS}>
+                <SalesOrderDetailPage />
+              </RequirePermission>
+            ),
+          },
+          {
+            path: "sales/shipments",
+            element: (
+              <RequirePermission permission={PERMISSIONS.PAGE_SALES_ORDERS}>
+                <SalesShipmentsPage />
+              </RequirePermission>
+            ),
+          },
+          {
+            path: "sales/payments",
+            element: (
+              <RequirePermission permission={PERMISSIONS.PAGE_SALES_ORDERS}>
+                <SalesPaymentsPage />
+              </RequirePermission>
+            ),
+          },
+          {
             path: "sales/orders/approvals",
             element: <Navigate to="/sales/orders" replace />,
           },
           {
             path: "sales/orders/delivery",
-            element: <Navigate to="/sales/orders" replace />,
+            element: <Navigate to="/sales/shipments" replace />,
           },
           {
             path: "sales/orders/invoices",
@@ -176,7 +203,7 @@ export const router = createBrowserRouter([
           },
           {
             path: "sales/orders/payments",
-            element: <Navigate to="/sales/orders" replace />,
+            element: <Navigate to="/sales/payments" replace />,
           },
           {
             path: "sales/orders/returns",

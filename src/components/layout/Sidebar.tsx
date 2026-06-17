@@ -60,8 +60,15 @@ const ERP_NAV_SECTIONS: readonly SidebarNavSection[] = [
       { label: "Manage Inventory", to: "/inventory", icon: Boxes, end: true, permission: PERMISSIONS.PAGE_INVENTORY_MANAGE },
       { label: "Transactions", to: "/inventory/transactions", icon: ArrowLeftRight, permission: PERMISSIONS.PAGE_INVENTORY_TRANSACTIONS },
       { label: "Bills & Invoices", to: "/inventory/invoices", icon: ReceiptText, permission: PERMISSIONS.PAGE_INVENTORY_INVOICES },
-      // { label: "Quotations", to: "/sales", icon: FileText, permission: PERMISSIONS.PAGE_SALES },
+    ],
+  },
+  {
+    heading: "Sales",
+    items: [
+      { label: "Quotations", to: "/sales", icon: FileText, permission: PERMISSIONS.PAGE_SALES },
       { label: "Orders", to: "/sales/orders", icon: ClipboardList, permission: PERMISSIONS.PAGE_SALES_ORDERS },
+      { label: "Shipments", to: "/sales/shipments", icon: Truck, permission: PERMISSIONS.PAGE_SALES_ORDERS },
+      { label: "Payments", to: "/sales/payments", icon: CreditCard, permission: PERMISSIONS.PAGE_SALES_ORDERS },
     ],
   },
   {
@@ -92,7 +99,6 @@ const ERP_NAV_SECTIONS: readonly SidebarNavSection[] = [
     heading: "CRM",
     items: [
       { label: "Leads", to: "/crm/leads", icon: UserPlus, permission: PERMISSIONS.PAGE_CRM_LEADS },
-      { label: "Quotations", to: "/sales", icon: FileText, permission: PERMISSIONS.PAGE_SALES },
       { label: "Analytics", to: "/reports", icon: BarChart3, permission: PERMISSIONS.PAGE_REPORTS },
       {label: "Integrations", to: "/settings", icon: Settings, permission: PERMISSIONS.PAGE_ADMIN_SETTINGS },
     ],
