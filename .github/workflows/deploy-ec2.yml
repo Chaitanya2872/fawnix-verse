@@ -57,17 +57,33 @@ jobs:
         run: |
           set -euxo pipefail
 
-          ssh \
-            -o BatchMode=yes \
-            -o ServerAliveInterval=30 \
-            -o ServerAliveCountMax=10 \
-            -o TCPKeepAlive=yes \
-            -o StrictHostKeyChecking=no \
-            -o UserKnownHostsFile=/dev/null \
-            -i "$HOME/.ssh/ec2.pem" \
-            -p "${EC2_PORT:-22}" \
-            "${EC2_USER}@${EC2_HOST}" \
-            "sudo bash -s" <<EOF
+          SSH_OPTS=(
+            -o BatchMode=yes
+            -o ConnectTimeout=20
+            -o ConnectionAttempts=3
+            -o ServerAliveInterval=30
+            -o ServerAliveCountMax=10
+            -o TCPKeepAlive=yes
+            -o StrictHostKeyChecking=no
+            -o UserKnownHostsFile=/dev/null
+            -i "$HOME/.ssh/ec2.pem"
+            -p "${EC2_PORT:-22}"
+          )
+
+          for attempt in 1 2 3 4 5; do
+            if ssh "${SSH_OPTS[@]}" "${EC2_USER}@${EC2_HOST}" "echo 'SSH preflight ok'" >/dev/null 2>&1; then
+              break
+            fi
+            if [ "$attempt" -eq 5 ]; then
+              echo "Unable to establish SSH connection to ${EC2_HOST} after ${attempt} attempts."
+              exit 1
+            fi
+            echo "SSH preflight failed on attempt ${attempt}. Retrying in 15 seconds..."
+            sleep 15
+          done
+
+          for attempt in 1 2 3; do
+            if ssh "${SSH_OPTS[@]}" "${EC2_USER}@${EC2_HOST}" "sudo bash -s" <<EOF
           set -euxo pipefail
 
           echo "Starting Deployment as root..."
@@ -124,3 +140,15 @@ jobs:
 
           echo "Deployment Successful!"
           EOF
+            then
+              break
+            fi
+
+            if [ "$attempt" -eq 3 ]; then
+              echo "Remote deployment failed after ${attempt} attempts."
+              exit 1
+            fi
+
+            echo "Remote deployment SSH command failed on attempt ${attempt}. Retrying in 20 seconds..."
+            sleep 20
+          done
