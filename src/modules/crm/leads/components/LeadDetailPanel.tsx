@@ -35,6 +35,7 @@ import {
   REP_COLORS,
   StatusBadge,
 } from "../lead-ui";
+import { AssigneeSearchSelect } from "./AssigneeSearchSelect";
 
 const TABS = [
   { id: "overview", label: "Overview" },
@@ -376,18 +377,12 @@ export function LeadDetailPanel({
                   </div>
                 </div>
                 <div className="mt-3 grid gap-2">
-                  <select
+                  <AssigneeSearchSelect
+                    assignees={assignees}
                     value={draftAssigneeValue}
-                    onChange={(e) => setDraftAssignee({ leadId: lead.id, value: e.target.value })}
-                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-sky-500"
-                  >
-                    <option value="">Unassigned</option>
-                    {assignees.map((assignee) => (
-                      <option key={assignee.id} value={assignee.name}>
-                        {assignee.name}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(value) => setDraftAssignee({ leadId: lead.id, value })}
+                    placeholder="Search and select assignee"
+                  />
                   <button
                     onClick={() => {
                       if (assignmentBlockedReason) {

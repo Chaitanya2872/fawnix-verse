@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Check, ChevronLeft, MoreHorizontal, Trash2, Users } from "lucide-react";
 import { type AssigneeOption, type Lead, LeadStatus } from "../types";
 import { getMenuStageTargets, getStageActionLabel, STATUS_CFG } from "../lead-ui";
+import { AssigneeSearchSelect } from "./AssigneeSearchSelect";
 
 export function RowActions({
   lead,
@@ -26,6 +27,7 @@ export function RowActions({
 }) {
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<"menu" | "assign">("menu");
+  const [assigneeQueryValue, setAssigneeQueryValue] = useState(lead.assignedTo ?? "");
   const ref = useRef<HTMLDivElement>(null);
   const stageTargets = getMenuStageTargets(lead.status);
 
@@ -43,6 +45,7 @@ export function RowActions({
   function closeMenu() {
     setOpen(false);
     setMode("menu");
+    setAssigneeQueryValue(lead.assignedTo ?? "");
   }
 
   return (
@@ -101,21 +104,28 @@ export function RowActions({
                 Back to actions
               </button>
               <div className="mx-2 border-t border-border" />
-              {assignees.map((assignee) => {
-                const isCurrentRep = assignee.name === lead.assignedTo;
-
-                return (
-                  <button
-                    key={assignee.id}
-                    onClick={() => { closeMenu(); onAssign(assignee); }}
-                    disabled={isAssigning || isCurrentRep}
-                    className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left text-sm text-popover-foreground hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <span>{assignee.name}</span>
-                    {isCurrentRep && <Check className="h-3.5 w-3.5 text-sky-600" />}
-                  </button>
-                );
-              })}
+              <div className="p-2">
+                <AssigneeSearchSelect
+                  assignees={assignees}
+                  value={assigneeQueryValue}
+                  disabled={isAssigning}
+                  onChange={(value) => {
+                    setAssigneeQueryValue(value);
+                    const assignee = assignees.find((option) => option.name === value);
+                    if (assignee && assignee.name !== lead.assignedTo) {
+                      closeMenu();
+                      onAssign(assignee);
+                    }
+                  }}
+                  placeholder="Search assignee"
+                  className="w-full"
+                />
+              </div>
+              <div className="px-3 pb-3 text-xs text-muted-foreground">
+                {assigneeQueryValue && assigneeQueryValue === lead.assignedTo
+                  ? "This lead is already assigned to the selected sales rep."
+                  : "Search by name and choose a sales rep to assign this lead."}
+              </div>
             </>
           )}
         </div>

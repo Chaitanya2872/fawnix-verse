@@ -32,11 +32,7 @@ import org.springframework.util.StringUtils;
 @Service
 public class UserService {
 
-  private static final Set<String> ASSIGNEE_PERMISSION_KEYS = Set.of(
-      "feature.crm.leads.manage",
-      "page.crm.leads",
-      "module.crm"
-  );
+  private static final Set<String> ASSIGNEE_ROLE_NAMES = Set.of("ROLE_SALES_REP");
 
   private final UserRepository userRepository;
   private final UserMapper userMapper;
@@ -306,23 +302,15 @@ public class UserService {
     if (!user.isActive()) {
       return false;
     }
-    Set<String> permissions = effectivePermissions(user);
-    return ASSIGNEE_PERMISSION_KEYS.stream().anyMatch(permissions::contains);
+    return user.getRoles().stream()
+        .map(RoleEntity::getName)
+        .anyMatch(ASSIGNEE_ROLE_NAMES::contains);
   }
 
   private void validateAssignable(UserEntity user) {
     if (!isAssignable(user)) {
       throw new IllegalArgumentException("Assignee not found");
     }
-  }
-
-  private Set<String> effectivePermissions(UserEntity user) {
-    LinkedHashSet<String> permissions = new LinkedHashSet<>(user.getPermissions());
-    user.getRoles().forEach(role -> role.getPermissions().stream()
-        .filter(PermissionEntity::isActive)
-        .map(PermissionEntity::getKey)
-        .forEach(permissions::add));
-    return permissions;
   }
 
   private String derivePermissionLevel(String key) {

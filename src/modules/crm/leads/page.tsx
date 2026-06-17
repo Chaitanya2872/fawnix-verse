@@ -53,6 +53,7 @@ import { LeadsLayout } from "./layout";
 import { useCurrentUser } from "@/modules/auth/hooks";
 import { RowActions } from "./components/RowActions";
 import { LeadDetailPanel } from "./components/LeadDetailPanel";
+import { AssigneeSearchSelect } from "./components/AssigneeSearchSelect";
 import { fmt, fmtDate, fmtDateTime, PriorityDot, REP_COLORS, StatusBadge, getInitials } from "./lead-ui";
 
 const PAGE_SIZE = 10;
@@ -267,14 +268,12 @@ function CreateLeadDialog({
             </div>
             <div>
               <label className={labelCls}>Assign To</label>
-              <select value={form.assignedTo} onChange={(e) => updateAssignee(e.target.value)} className={inputCls}>
-                <option value="">Unassigned</option>
-                {assignees.map((assignee) => (
-                  <option key={assignee.id} value={assignee.name}>
-                    {assignee.name}
-                  </option>
-                ))}
-              </select>
+              <AssigneeSearchSelect
+                assignees={assignees}
+                value={form.assignedTo}
+                onChange={updateAssignee}
+                placeholder="Search and select assignee"
+              />
             </div>
             {form.status === LeadStatus.FOLLOW_UP ? (
               <div>
