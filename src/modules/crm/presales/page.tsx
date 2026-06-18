@@ -4,16 +4,20 @@ import type { ReactNode } from "react";
 import {
   AlertCircle,
   ArrowUpRight,
+  CalendarDays,
   ClipboardList,
+  Clock3,
   PhoneCall,
   Sparkles,
   Target,
   Users,
+  Video,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { LeadStatus, LEAD_STATUS_LABELS } from "@/modules/crm/leads/types";
 import { usePreSalesOverview } from "./hooks";
+import type { ReminderQuickView } from "./types";
 
 const fmtDate = (value: string | null) =>
   value
@@ -100,6 +104,75 @@ function KanbanColumn({
           </div>
         ) : (
           leads.map((lead) => <LeadKanbanCard key={lead.id} lead={lead} onOpen={onOpen} />)
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ReminderList({
+  title,
+  description,
+  reminders,
+  onOpen,
+}: {
+  title: string;
+  description: string;
+  reminders: ReminderQuickView[];
+  onOpen: (leadId: string) => void;
+}) {
+  return (
+    <div className="rounded-[24px] border border-slate-200/80 bg-white/95 p-5 shadow-sm">
+      <div className="mb-4 flex items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">{title}</p>
+          <p className="text-sm text-slate-500">{description}</p>
+        </div>
+        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
+          {reminders.length}
+        </span>
+      </div>
+
+      <div className="space-y-3">
+        {reminders.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/60 p-4 text-xs text-slate-500">
+            Nothing queued here right now.
+          </div>
+        ) : (
+          reminders.map((reminder) => (
+            <button
+              key={reminder.id}
+              onClick={() => onOpen(reminder.leadId)}
+              className="flex w-full items-start justify-between gap-3 rounded-2xl border border-slate-200/80 bg-white px-4 py-3 text-left transition hover:border-sky-200 hover:shadow-sm"
+            >
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-slate-900">{reminder.title}</p>
+                <p className="text-xs text-slate-500">
+                  {reminder.leadName} · {reminder.company}
+                </p>
+                <div className="mt-2 flex flex-wrap items-center gap-3 text-[11px] text-slate-500">
+                  <span className="inline-flex items-center gap-1">
+                    {reminder.type === "FOLLOW_UP_CALL" ? (
+                      <PhoneCall className="h-3.5 w-3.5" />
+                    ) : reminder.type === "DEMO_VISIT" || reminder.type === "DEMO" ? (
+                      <Video className="h-3.5 w-3.5" />
+                    ) : (
+                      <CalendarDays className="h-3.5 w-3.5" />
+                    )}
+                    {reminder.type.replace(/_/g, " ")}
+                  </span>
+                  <span className="inline-flex items-center gap-1">
+                    <Clock3 className="h-3.5 w-3.5" />
+                    {fmtDate(reminder.scheduledAt)} {new Date(reminder.scheduledAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
+                  </span>
+                  <span>{reminder.assignedToName}</span>
+                </div>
+              </div>
+              <span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-600">
+                {reminder.status.replace(/_/g, " ")}
+              </span>
+            </button>
+          ))
         )}
       </div>
     </div>
@@ -318,6 +391,33 @@ export default function PreSalesOverviewPage() {
         <span className="rounded-full bg-white/90 px-3 py-1 text-xs text-slate-600 shadow-sm">
           Assigned to Sales: {data.statusCounts?.[LeadStatus.ASSIGNED_TO_SALESPERSON] ?? 0}
         </span>
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-2">
+        <ReminderList
+          title="Today's Follow-ups"
+          description="Calls and callbacks due today."
+          reminders={data.todaysFollowUps}
+          onOpen={(leadId) => navigate(`/crm/leads/${leadId}`)}
+        />
+        <ReminderList
+          title="Today's Demo Visits"
+          description="Demo activities that need execution today."
+          reminders={data.todaysDemoVisits}
+          onOpen={(leadId) => navigate(`/crm/leads/${leadId}`)}
+        />
+        <ReminderList
+          title="Overdue Activities"
+          description="Pending work that has slipped past its scheduled time."
+          reminders={data.overdueActivities}
+          onOpen={(leadId) => navigate(`/crm/leads/${leadId}`)}
+        />
+        <ReminderList
+          title="Upcoming Activities"
+          description="The next scheduled reminder workload across your queue."
+          reminders={data.upcomingActivities}
+          onOpen={(leadId) => navigate(`/crm/leads/${leadId}`)}
+        />
       </div>
 
       <div className="flex gap-4 overflow-x-auto pb-2">

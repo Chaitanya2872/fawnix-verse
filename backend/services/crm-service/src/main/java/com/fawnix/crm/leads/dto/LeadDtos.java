@@ -250,11 +250,17 @@ public final class LeadDtos {
       String type,
       String status,
       Instant scheduledAt,
+      String title,
+      Integer durationMinutes,
+      String callType,
       String location,
       String mode,
+      String meetingLink,
       String notes,
       String assignedTo,
       String assignedToUserId,
+      Instant completedAt,
+      Instant cancelledAt,
       Instant createdAt,
       Instant updatedAt
   ) {
@@ -263,8 +269,12 @@ public final class LeadDtos {
   public record CreateLeadScheduleRequest(
       @NotBlank String type,
       Instant scheduledAt,
+      String title,
+      Integer durationMinutes,
+      String callType,
       String location,
       String mode,
+      String meetingLink,
       String notes,
       String assignedTo,
       String assignedToUserId
@@ -275,8 +285,12 @@ public final class LeadDtos {
       String type,
       String status,
       Instant scheduledAt,
+      String title,
+      Integer durationMinutes,
+      String callType,
       String location,
       String mode,
+      String meetingLink,
       String notes,
       String assignedTo,
       String assignedToUserId

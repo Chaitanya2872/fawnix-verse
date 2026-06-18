@@ -79,6 +79,12 @@ export type LeadActivityType =
   | "follow_up_reminder"
   | "scheduled"
   | "schedule_updated"
+  | "demo_visit"
+  | "follow_up_call"
+  | "site_visit"
+  | "reminder_completed"
+  | "reminder_rescheduled"
+  | "reminder_cancelled"
   | "converted";
 
 export interface LeadActivity {
@@ -153,6 +159,9 @@ export interface WhatsappDispatchLog {
 }
 
 export const LeadScheduleType = {
+  DEMO_VISIT: "DEMO_VISIT",
+  FOLLOW_UP_CALL: "FOLLOW_UP_CALL",
+  SITE_VISIT: "SITE_VISIT",
   VISIT: "VISIT",
   DEMO: "DEMO",
 } as const;
@@ -162,17 +171,28 @@ export type LeadScheduleType =
 export const LeadScheduleStatus = {
   SCHEDULED: "SCHEDULED",
   COMPLETED: "COMPLETED",
+  MISSED: "MISSED",
   CANCELLED: "CANCELLED",
 } as const;
 export type LeadScheduleStatus =
   (typeof LeadScheduleStatus)[keyof typeof LeadScheduleStatus];
 
 export const LeadScheduleMode = {
+  IN_PERSON: "IN_PERSON",
+  ONLINE: "ONLINE",
   ON_SITE: "ON_SITE",
   REMOTE: "REMOTE",
 } as const;
 export type LeadScheduleMode =
   (typeof LeadScheduleMode)[keyof typeof LeadScheduleMode];
+
+export const LeadScheduleCallType = {
+  PHONE: "PHONE",
+  WHATSAPP: "WHATSAPP",
+  VIDEO_CALL: "VIDEO_CALL",
+} as const;
+export type LeadScheduleCallType =
+  (typeof LeadScheduleCallType)[keyof typeof LeadScheduleCallType];
 
 export interface LeadSchedule {
   id: string;
@@ -180,11 +200,17 @@ export interface LeadSchedule {
   type: LeadScheduleType;
   status: LeadScheduleStatus;
   scheduledAt: string;
+  title: string | null;
+  durationMinutes: number | null;
+  callType: LeadScheduleCallType | null;
   location: string | null;
   mode: LeadScheduleMode | null;
+  meetingLink: string | null;
   notes: string | null;
   assignedTo: string;
   assignedToUserId: string | null;
+  completedAt: string | null;
+  cancelledAt: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -192,8 +218,12 @@ export interface LeadSchedule {
 export type CreateLeadScheduleInput = {
   type: LeadScheduleType;
   scheduledAt: string;
+  title?: string | null;
+  durationMinutes?: number | null;
+  callType?: LeadScheduleCallType | null;
   location?: string | null;
   mode?: LeadScheduleMode | null;
+  meetingLink?: string | null;
   notes?: string | null;
   assignedTo?: string | null;
   assignedToUserId?: string | null;
@@ -203,8 +233,12 @@ export type UpdateLeadScheduleInput = Partial<{
   type: LeadScheduleType;
   status: LeadScheduleStatus;
   scheduledAt: string;
+  title: string | null;
+  durationMinutes: number | null;
+  callType: LeadScheduleCallType | null;
   location: string | null;
   mode: LeadScheduleMode | null;
+  meetingLink: string | null;
   notes: string | null;
   assignedTo: string | null;
   assignedToUserId: string | null;
@@ -320,11 +354,21 @@ export interface LeadsSummary {
 export interface LeadNotifications {
   newLeadCount: number;
   followUpDueCount: number;
+  todayDemoVisitCount?: number;
+  overdueActivityCount?: number;
+  upcomingActivityCount?: number;
   updatedAt: string;
 }
 
 export interface LeadNotificationEvent {
-  type: "LEAD_CREATED" | "FOLLOW_UP_DUE" | string;
+  type:
+    | "LEAD_CREATED"
+    | "FOLLOW_UP_DUE"
+    | "REMINDER_ASSIGNED"
+    | "REMINDER_COMPLETED"
+    | "REMINDER_RESCHEDULED"
+    | "REMINDER_CANCELLED"
+    | string;
   eventAt: string;
 }
 

@@ -9,11 +9,14 @@ import com.fawnix.crm.integrations.whatsapp.WhatsappQuestionnaireService;
 import com.fawnix.crm.leads.dto.LeadDtos;
 import com.fawnix.crm.leads.entity.LeadEntity;
 import com.fawnix.crm.leads.entity.LeadPriority;
+import com.fawnix.crm.leads.entity.LeadScheduleStatus;
+import com.fawnix.crm.leads.entity.LeadScheduleType;
 import com.fawnix.crm.leads.entity.LeadSource;
 import com.fawnix.crm.leads.entity.LeadStatus;
 import com.fawnix.crm.leads.entity.LeadTagEntity;
 import com.fawnix.crm.leads.mapper.LeadMapper;
 import com.fawnix.crm.leads.repository.LeadRepository;
+import com.fawnix.crm.leads.repository.LeadScheduleRepository;
 import com.fawnix.crm.leads.service.IdentityUserClient.IdentityUser;
 import com.fawnix.crm.leads.specification.LeadSpecifications;
 import com.fawnix.crm.leads.validator.LeadRequestValidator;
@@ -52,6 +55,7 @@ public class LeadService {
   private final LeadRemarkService leadRemarkService;
   private final LeadActivityService leadActivityService;
   private final IdentityUserClient identityUserClient;
+  private final LeadScheduleRepository leadScheduleRepository;
   private final LeadContactRecordingService leadContactRecordingService;
   private final LeadStatusHistoryService leadStatusHistoryService;
   private final WhatsappQuestionnaireService whatsappQuestionnaireService;
@@ -64,6 +68,7 @@ public class LeadService {
       LeadRemarkService leadRemarkService,
       LeadActivityService leadActivityService,
       IdentityUserClient identityUserClient,
+      LeadScheduleRepository leadScheduleRepository,
       LeadContactRecordingService leadContactRecordingService,
       LeadStatusHistoryService leadStatusHistoryService,
       WhatsappQuestionnaireService whatsappQuestionnaireService,
@@ -75,6 +80,7 @@ public class LeadService {
     this.leadRemarkService = leadRemarkService;
     this.leadActivityService = leadActivityService;
     this.identityUserClient = identityUserClient;
+    this.leadScheduleRepository = leadScheduleRepository;
     this.leadContactRecordingService = leadContactRecordingService;
     this.leadStatusHistoryService = leadStatusHistoryService;
     this.whatsappQuestionnaireService = whatsappQuestionnaireService;
@@ -147,7 +153,14 @@ public class LeadService {
         : null;
 
     long newLeadCount = leadRepository.countByStatusAndAssignee(LeadStatus.NEW, normalized);
-    long followUpDueCount = leadRepository.countFollowUpsDue(Instant.now(), normalized);
+    long followUpDueCount = leadScheduleRepository
+        .findByStatusInAndScheduledAtBeforeOrderByScheduledAtAsc(List.of(LeadScheduleStatus.SCHEDULED), Instant.now())
+        .stream()
+        .filter(schedule -> schedule.getType() == LeadScheduleType.FOLLOW_UP_CALL)
+        .filter(schedule -> normalized == null
+            || (schedule.getAssignedToUserId() != null
+                && schedule.getAssignedToUserId().trim().toLowerCase(Locale.ROOT).equals(normalized)))
+        .count();
     return new LeadDtos.LeadNotificationsResponse(newLeadCount, followUpDueCount, Instant.now());
   }
 

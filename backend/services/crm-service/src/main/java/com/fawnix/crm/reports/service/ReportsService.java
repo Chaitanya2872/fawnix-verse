@@ -1,10 +1,14 @@
 package com.fawnix.crm.reports.service;
 
 import com.fawnix.crm.leads.entity.LeadEntity;
+import com.fawnix.crm.leads.entity.LeadScheduleEntity;
+import com.fawnix.crm.leads.entity.LeadScheduleStatus;
+import com.fawnix.crm.leads.entity.LeadScheduleType;
 import com.fawnix.crm.leads.entity.LeadSource;
 import com.fawnix.crm.leads.entity.LeadStatus;
 import com.fawnix.crm.leads.entity.LeadStatusHistoryEntity;
 import com.fawnix.crm.leads.repository.LeadRepository;
+import com.fawnix.crm.leads.repository.LeadScheduleRepository;
 import com.fawnix.crm.leads.repository.LeadStatusHistoryRepository;
 import com.fawnix.crm.leads.specification.LeadSpecifications;
 import com.fawnix.crm.reports.dto.ReportDtos;
@@ -12,6 +16,7 @@ import com.fawnix.crm.security.service.AppUserDetails;
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.EnumMap;
@@ -45,13 +50,16 @@ public class ReportsService {
   );
 
   private final LeadRepository leadRepository;
+  private final LeadScheduleRepository leadScheduleRepository;
   private final LeadStatusHistoryRepository historyRepository;
 
   public ReportsService(
       LeadRepository leadRepository,
+      LeadScheduleRepository leadScheduleRepository,
       LeadStatusHistoryRepository historyRepository
   ) {
     this.leadRepository = leadRepository;
+    this.leadScheduleRepository = leadScheduleRepository;
     this.historyRepository = historyRepository;
   }
 
@@ -100,6 +108,10 @@ public class ReportsService {
 
   public ReportDtos.PreSalesOverviewResponse getPreSalesOverview(AppUserDetails actor) {
     List<LeadEntity> leads = leadRepository.findAll();
+    Instant now = Instant.now();
+    Instant todayStart = now.truncatedTo(ChronoUnit.DAYS);
+    Instant tomorrowStart = todayStart.plus(1, ChronoUnit.DAYS);
+    List<LeadScheduleStatus> activeScheduleStatuses = List.of(LeadScheduleStatus.SCHEDULED, LeadScheduleStatus.MISSED);
 
     Map<String, Long> statusCounts = buildStatusCounts(leads);
     List<ReportDtos.LeadQuickView> myQueue = leads.stream()
@@ -133,12 +145,50 @@ public class ReportsService {
         .map(this::toQuickView)
         .toList();
 
+    List<ReportDtos.ReminderQuickView> todaysFollowUps = leadScheduleRepository
+        .findByStatusInAndScheduledAtBetweenOrderByScheduledAtAsc(activeScheduleStatuses, todayStart, tomorrowStart)
+        .stream()
+        .filter(schedule -> schedule.getType() == LeadScheduleType.FOLLOW_UP_CALL)
+        .filter(schedule -> matchesActor(schedule, actor))
+        .limit(8)
+        .map(this::toReminderQuickView)
+        .toList();
+
+    List<ReportDtos.ReminderQuickView> todaysDemoVisits = leadScheduleRepository
+        .findByStatusInAndScheduledAtBetweenOrderByScheduledAtAsc(activeScheduleStatuses, todayStart, tomorrowStart)
+        .stream()
+        .filter(schedule -> schedule.getType() == LeadScheduleType.DEMO_VISIT || schedule.getType() == LeadScheduleType.DEMO)
+        .filter(schedule -> matchesActor(schedule, actor))
+        .limit(8)
+        .map(this::toReminderQuickView)
+        .toList();
+
+    List<ReportDtos.ReminderQuickView> overdueActivities = leadScheduleRepository
+        .findByStatusInAndScheduledAtBeforeOrderByScheduledAtAsc(List.of(LeadScheduleStatus.SCHEDULED), now)
+        .stream()
+        .filter(schedule -> matchesActor(schedule, actor))
+        .limit(8)
+        .map(this::toReminderQuickView)
+        .toList();
+
+    List<ReportDtos.ReminderQuickView> upcomingActivities = leadScheduleRepository
+        .findByStatusInAndScheduledAtAfterOrderByScheduledAtAsc(List.of(LeadScheduleStatus.SCHEDULED), now)
+        .stream()
+        .filter(schedule -> matchesActor(schedule, actor))
+        .limit(8)
+        .map(this::toReminderQuickView)
+        .toList();
+
     return new ReportDtos.PreSalesOverviewResponse(
         statusCounts,
         myQueue,
         needsContact,
         followUps,
-        awaitingAssignment
+        awaitingAssignment,
+        todaysFollowUps,
+        todaysDemoVisits,
+        overdueActivities,
+        upcomingActivities
     );
   }
 
@@ -267,6 +317,31 @@ public class ReportsService {
         lead.getLastContactedAt(),
         lead.getCreatedAt()
     );
+  }
+
+  private ReportDtos.ReminderQuickView toReminderQuickView(LeadScheduleEntity schedule) {
+    LeadEntity lead = schedule.getLead();
+    String derivedStatus = schedule.getStatus() == LeadScheduleStatus.SCHEDULED && schedule.getScheduledAt().isBefore(Instant.now())
+        ? LeadScheduleStatus.MISSED.name()
+        : schedule.getStatus().name();
+    return new ReportDtos.ReminderQuickView(
+        schedule.getId(),
+        lead.getId(),
+        lead.getName(),
+        lead.getCompany(),
+        schedule.getType().name(),
+        schedule.getTitle() != null ? schedule.getTitle() : schedule.getType().name(),
+        derivedStatus,
+        schedule.getAssignedToName() != null ? schedule.getAssignedToName() : "Unassigned",
+        schedule.getScheduledAt()
+    );
+  }
+
+  private boolean matchesActor(LeadScheduleEntity schedule, AppUserDetails actor) {
+    if (actor.getRoleNames().contains("ROLE_SALES_REP")) {
+      return Objects.equals(schedule.getAssignedToUserId(), actor.getUserId());
+    }
+    return true;
   }
 
   private void recordDuration(

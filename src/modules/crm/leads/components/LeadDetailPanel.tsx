@@ -1,15 +1,18 @@
 import { useMemo, useState } from "react";
 import {
+  Bell,
   ArrowUpRight,
   Building2,
   CheckCircle2,
   Clock,
+  CalendarClock,
   ArrowDownRight,
   GitBranch,
   Loader2,
   Mail,
   MapPin,
   Phone,
+  PhoneCall,
   Tag,
   X,
   XCircle,
@@ -20,6 +23,7 @@ import {
   LeadPriority,
   LeadStatus,
   LEAD_SOURCE_LABELS,
+  LeadScheduleStatus,
   LEAD_STATUS_LABELS,
 } from "../types";
 import {
@@ -36,6 +40,15 @@ import {
   StatusBadge,
 } from "../lead-ui";
 import { AssigneeSearchSelect } from "./AssigneeSearchSelect";
+import { useCreateLeadSchedule, useLeadSchedules, useUpdateLeadSchedule } from "../hooks";
+import {
+  buildSchedulePayload,
+  createActionFormState,
+  LeadActionSheet,
+  LeadRemindersSheet,
+  type LeadActionFormState,
+  type LeadActionSheetKind,
+} from "./LeadReminderSheets";
 
 const TABS = [
   { id: "overview", label: "Overview" },
@@ -108,8 +121,22 @@ export function LeadDetailPanel({
   const [draftAssignee, setDraftAssignee] = useState<{ leadId: string; value: string } | null>(null);
   const [remarkInput, setRemarkInput] = useState("");
   const [editingRemark, setEditingRemark] = useState<{ id: string; value: string } | null>(null);
+  const [activeActionSheet, setActiveActionSheet] = useState<LeadActionSheetKind | null>(null);
+  const [editingScheduleId, setEditingScheduleId] = useState<string | null>(null);
+  const [showReminders, setShowReminders] = useState(false);
+  const [actionForm, setActionForm] = useState<LeadActionFormState>(() =>
+    createActionFormState("demo", lead.assignedTo, lead.assignedToUserId)
+  );
+
+  const schedulesQuery = useLeadSchedules(lead.id);
+  const createSchedule = useCreateLeadSchedule();
+  const updateSchedule = useUpdateLeadSchedule();
 
   const draftAssigneeValue = draftAssignee?.leadId === lead.id ? draftAssignee.value : lead.assignedTo;
+  const schedules = schedulesQuery.data ?? [];
+  const selectedSchedule = editingScheduleId
+    ? schedules.find((entry) => entry.id === editingScheduleId) ?? null
+    : null;
 
   const latestRemarks = useMemo(
     () =>
@@ -188,6 +215,51 @@ export function LeadDetailPanel({
     setEditingRemark(null);
   }
 
+  function openActionSheet(kind: LeadActionSheetKind, scheduleId?: string | null) {
+    const schedule = scheduleId
+      ? schedules.find((entry) => entry.id === scheduleId) ?? null
+      : null;
+    setEditingScheduleId(schedule?.id ?? null);
+    setActionForm(createActionFormState(kind, lead.assignedTo, lead.assignedToUserId, schedule));
+    setActiveActionSheet(kind);
+  }
+
+  function closeActionSheet() {
+    setActiveActionSheet(null);
+    setEditingScheduleId(null);
+  }
+
+  function handleSaveSchedule() {
+    if (!activeActionSheet) {
+      return;
+    }
+    const payload = buildSchedulePayload(activeActionSheet, actionForm);
+    if (editingScheduleId) {
+      updateSchedule.mutate({
+        leadId: lead.id,
+        scheduleId: editingScheduleId,
+        input: payload,
+      }, {
+        onSuccess: () => closeActionSheet(),
+      });
+      return;
+    }
+    createSchedule.mutate(
+      { leadId: lead.id, input: payload },
+      {
+        onSuccess: () => closeActionSheet(),
+      }
+    );
+  }
+
+  function handleScheduleStatusChange(scheduleId: string, status: typeof LeadScheduleStatus[keyof typeof LeadScheduleStatus]) {
+    updateSchedule.mutate({
+      leadId: lead.id,
+      scheduleId,
+      input: { status },
+    });
+  }
+
   return (
     <div className="flex h-full flex-col bg-background">
       <div className="flex items-start justify-between gap-4 border-b border-border px-6 py-4">
@@ -221,6 +293,50 @@ export function LeadDetailPanel({
       </div>
 
       <div className="border-b border-border px-6">
+        <div className="flex flex-wrap gap-2 py-4">
+          <button
+            onClick={() => openActionSheet("demo")}
+            className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-3 py-2 text-xs font-semibold text-foreground hover:bg-accent"
+          >
+            <CalendarClock className="h-3.5 w-3.5 text-sky-600" />
+            Schedule Demo Visit
+          </button>
+          <button
+            onClick={() => openActionSheet("followUp")}
+            className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-3 py-2 text-xs font-semibold text-foreground hover:bg-accent"
+          >
+            <PhoneCall className="h-3.5 w-3.5 text-amber-600" />
+            Schedule Follow-up Call
+          </button>
+          <button
+            onClick={() => openActionSheet("siteVisit")}
+            className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-3 py-2 text-xs font-semibold text-foreground hover:bg-accent"
+          >
+            <MapPin className="h-3.5 w-3.5 text-emerald-600" />
+            Schedule Site Visit
+          </button>
+          <button
+            onClick={() => setActiveTab("notes")}
+            className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-3 py-2 text-xs font-semibold text-foreground hover:bg-accent"
+          >
+            <Tag className="h-3.5 w-3.5 text-violet-600" />
+            Add Remark
+          </button>
+          <button
+            onClick={() => setActiveTab("history")}
+            className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-3 py-2 text-xs font-semibold text-foreground hover:bg-accent"
+          >
+            <GitBranch className="h-3.5 w-3.5 text-slate-600" />
+            Change Stage
+          </button>
+          <button
+            onClick={() => setShowReminders(true)}
+            className="inline-flex items-center gap-2 rounded-full bg-slate-950 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800"
+          >
+            <Bell className="h-3.5 w-3.5" />
+            Reminders
+          </button>
+        </div>
         <div className="flex flex-wrap gap-2 py-3">
           {TABS.map((tab) => {
             const isActive = tab.id === activeTab;
@@ -744,6 +860,40 @@ export function LeadDetailPanel({
           </div>
         )}
       </div>
+
+      <LeadActionSheet
+        open={activeActionSheet !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            closeActionSheet();
+          }
+        }}
+        kind={activeActionSheet ?? "demo"}
+        form={actionForm}
+        assignees={assignees}
+        pending={createSchedule.isPending || updateSchedule.isPending}
+        onFormChange={setActionForm}
+        onSubmit={handleSaveSchedule}
+        headingSuffix={selectedSchedule ? "Editing an existing reminder." : null}
+      />
+
+      <LeadRemindersSheet
+        open={showReminders}
+        onOpenChange={setShowReminders}
+        schedules={schedules}
+        onComplete={(schedule) => handleScheduleStatusChange(schedule.id, LeadScheduleStatus.COMPLETED)}
+        onCancel={(schedule) => handleScheduleStatusChange(schedule.id, LeadScheduleStatus.CANCELLED)}
+        onReschedule={(schedule) => {
+          setShowReminders(false);
+          const nextKind =
+            schedule.type === "FOLLOW_UP_CALL"
+              ? "followUp"
+              : schedule.type === "SITE_VISIT" || schedule.type === "VISIT"
+                ? "siteVisit"
+                : "demo";
+          openActionSheet(nextKind, schedule.id);
+        }}
+      />
 
     </div>
   );

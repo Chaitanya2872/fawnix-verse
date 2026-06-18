@@ -7,6 +7,7 @@ import com.fawnix.crm.common.exception.ResourceNotFoundException;
 import com.fawnix.crm.leads.dto.LeadDtos;
 import com.fawnix.crm.leads.entity.LeadEntity;
 import com.fawnix.crm.leads.entity.LeadScheduleEntity;
+import com.fawnix.crm.leads.entity.LeadScheduleCallType;
 import com.fawnix.crm.leads.entity.LeadScheduleMode;
 import com.fawnix.crm.leads.entity.LeadScheduleStatus;
 import com.fawnix.crm.leads.entity.LeadScheduleType;
@@ -28,17 +29,20 @@ public class LeadScheduleService {
   private final LeadScheduleRepository scheduleRepository;
   private final LeadActivityService leadActivityService;
   private final IdentityUserClient identityUserClient;
+  private final LeadNotificationStreamService notificationStreamService;
 
   public LeadScheduleService(
       LeadRepository leadRepository,
       LeadScheduleRepository scheduleRepository,
       LeadActivityService leadActivityService,
-      IdentityUserClient identityUserClient
+      IdentityUserClient identityUserClient,
+      LeadNotificationStreamService notificationStreamService
   ) {
     this.leadRepository = leadRepository;
     this.scheduleRepository = scheduleRepository;
     this.leadActivityService = leadActivityService;
     this.identityUserClient = identityUserClient;
+    this.notificationStreamService = notificationStreamService;
   }
 
   @Transactional(readOnly = true)
@@ -69,9 +73,15 @@ public class LeadScheduleService {
     schedule.setType(type);
     schedule.setStatus(LeadScheduleStatus.SCHEDULED);
     schedule.setScheduledAt(scheduledAt);
+    schedule.setTitle(resolveTitle(type, request.title()));
+    schedule.setDurationMinutes(normalizeDuration(request.durationMinutes()));
+    schedule.setCallType(parseCallType(request.callType()));
     schedule.setLocation(trimToNull(request.location()));
     schedule.setMode(parseMode(request.mode()));
+    schedule.setMeetingLink(trimToNull(request.meetingLink()));
     schedule.setNotes(trimToNull(request.notes()));
+    schedule.setCompletedAt(null);
+    schedule.setCancelledAt(null);
 
     applyAssignee(schedule, lead, request.assignedToUserId(), request.assignedTo());
 
@@ -86,11 +96,12 @@ public class LeadScheduleService {
     LeadScheduleEntity saved = scheduleRepository.save(schedule);
     leadActivityService.addActivity(
         lead,
-        LeadActivityType.SCHEDULED,
+        toCreatedActivityType(saved.getType()),
         buildActivityMessage("Scheduled", saved),
         actor,
         now
     );
+    notificationStreamService.sendReminderAssigned();
 
     return toResponse(saved);
   }
@@ -117,12 +128,28 @@ public class LeadScheduleService {
       schedule.setScheduledAt(request.scheduledAt());
       changed = true;
     }
+    if (request.title() != null) {
+      schedule.setTitle(resolveTitle(schedule.getType(), request.title()));
+      changed = true;
+    }
+    if (request.durationMinutes() != null) {
+      schedule.setDurationMinutes(normalizeDuration(request.durationMinutes()));
+      changed = true;
+    }
+    if (request.callType() != null) {
+      schedule.setCallType(parseCallType(request.callType()));
+      changed = true;
+    }
     if (request.location() != null) {
       schedule.setLocation(trimToNull(request.location()));
       changed = true;
     }
     if (request.mode() != null) {
       schedule.setMode(parseMode(request.mode()));
+      changed = true;
+    }
+    if (request.meetingLink() != null) {
+      schedule.setMeetingLink(trimToNull(request.meetingLink()));
       changed = true;
     }
     if (request.notes() != null) {
@@ -142,15 +169,24 @@ public class LeadScheduleService {
     schedule.setUpdatedAt(now);
     schedule.setUpdatedByUserId(actor.getUserId());
     schedule.setUpdatedByName(actor.getFullName());
+    syncTerminalTimestamps(schedule, now);
 
     LeadScheduleEntity saved = scheduleRepository.save(schedule);
+    LeadActivityType activityType = resolveUpdateActivityType(saved);
     leadActivityService.addActivity(
         schedule.getLead(),
-        LeadActivityType.SCHEDULE_UPDATED,
+        activityType,
         buildActivityMessage("Updated", saved),
         actor,
         now
     );
+    if (activityType == LeadActivityType.REMINDER_COMPLETED) {
+      notificationStreamService.sendReminderCompleted();
+    } else if (activityType == LeadActivityType.REMINDER_CANCELLED) {
+      notificationStreamService.sendReminderCancelled();
+    } else {
+      notificationStreamService.sendReminderRescheduled();
+    }
 
     return toResponse(saved);
   }
@@ -220,18 +256,39 @@ public class LeadScheduleService {
     }
   }
 
+  private LeadScheduleCallType parseCallType(String value) {
+    if (!StringUtils.hasText(value)) {
+      return null;
+    }
+    try {
+      return LeadScheduleCallType.valueOf(value.trim().toUpperCase(Locale.ROOT));
+    } catch (Exception ex) {
+      throw new BadRequestException("Invalid call type.");
+    }
+  }
+
   private LeadDtos.LeadScheduleResponse toResponse(LeadScheduleEntity schedule) {
+    String status = schedule.getStatus().name();
+    if (schedule.getStatus() == LeadScheduleStatus.SCHEDULED && schedule.getScheduledAt().isBefore(Instant.now())) {
+      status = LeadScheduleStatus.MISSED.name();
+    }
     return new LeadDtos.LeadScheduleResponse(
         schedule.getId(),
         schedule.getLead().getId(),
         schedule.getType().name(),
-        schedule.getStatus().name(),
+        status,
         schedule.getScheduledAt(),
+        schedule.getTitle(),
+        schedule.getDurationMinutes(),
+        schedule.getCallType() != null ? schedule.getCallType().name() : null,
         schedule.getLocation(),
         schedule.getMode() != null ? schedule.getMode().name() : null,
+        schedule.getMeetingLink(),
         schedule.getNotes(),
         schedule.getAssignedToName() != null ? schedule.getAssignedToName() : "",
         schedule.getAssignedToUserId(),
+        schedule.getCompletedAt(),
+        schedule.getCancelledAt(),
         schedule.getCreatedAt(),
         schedule.getUpdatedAt()
     );
@@ -247,11 +304,62 @@ public class LeadScheduleService {
 
   private String buildActivityMessage(String verb, LeadScheduleEntity schedule) {
     StringBuilder builder = new StringBuilder();
-    builder.append(verb).append(" ").append(schedule.getType().name().toLowerCase(Locale.ROOT));
-    builder.append(" on ").append(schedule.getScheduledAt());
-    if (schedule.getStatus() != null) {
-      builder.append(" (status: ").append(schedule.getStatus().name().toLowerCase(Locale.ROOT)).append(")");
+    builder.append(schedule.getTitle() != null ? schedule.getTitle() : readableType(schedule.getType()));
+    builder.append(" ").append(verb.toLowerCase(Locale.ROOT));
+    builder.append(" for ").append(schedule.getScheduledAt());
+    if (schedule.getAssignedToName() != null && !schedule.getAssignedToName().isBlank()) {
+      builder.append(" with ").append(schedule.getAssignedToName());
     }
     return builder.toString();
+  }
+
+  private String resolveTitle(LeadScheduleType type, String requestedTitle) {
+    String trimmed = trimToNull(requestedTitle);
+    return trimmed != null ? trimmed : readableType(type);
+  }
+
+  private Integer normalizeDuration(Integer value) {
+    if (value == null) {
+      return null;
+    }
+    if (value < 0) {
+      throw new BadRequestException("Duration must be zero or greater.");
+    }
+    return value;
+  }
+
+  private void syncTerminalTimestamps(LeadScheduleEntity schedule, Instant now) {
+    if (schedule.getStatus() == LeadScheduleStatus.COMPLETED) {
+      schedule.setCompletedAt(now);
+    } else if (schedule.getStatus() == LeadScheduleStatus.CANCELLED) {
+      schedule.setCancelledAt(now);
+    } else {
+      schedule.setCompletedAt(null);
+      schedule.setCancelledAt(null);
+    }
+  }
+
+  private LeadActivityType toCreatedActivityType(LeadScheduleType type) {
+    return switch (type) {
+      case DEMO_VISIT, DEMO -> LeadActivityType.DEMO_VISIT;
+      case FOLLOW_UP_CALL -> LeadActivityType.FOLLOW_UP_CALL;
+      case SITE_VISIT, VISIT -> LeadActivityType.SITE_VISIT;
+    };
+  }
+
+  private LeadActivityType resolveUpdateActivityType(LeadScheduleEntity schedule) {
+    return switch (schedule.getStatus()) {
+      case COMPLETED -> LeadActivityType.REMINDER_COMPLETED;
+      case CANCELLED -> LeadActivityType.REMINDER_CANCELLED;
+      case MISSED, SCHEDULED -> LeadActivityType.REMINDER_RESCHEDULED;
+    };
+  }
+
+  private String readableType(LeadScheduleType type) {
+    return switch (type) {
+      case DEMO_VISIT, DEMO -> "Demo Visit";
+      case FOLLOW_UP_CALL -> "Follow-up Call";
+      case SITE_VISIT, VISIT -> "Site Visit";
+    };
   }
 }

@@ -33,12 +33,25 @@ public class LeadScheduleEntity {
   @Column(name = "scheduled_at", nullable = false)
   private Instant scheduledAt;
 
+  @Column(length = 160)
+  private String title;
+
   @Column(length = 200)
   private String location;
 
   @Enumerated(EnumType.STRING)
   @Column(length = 20)
   private LeadScheduleMode mode;
+
+  @Enumerated(EnumType.STRING)
+  @Column(name = "call_type", length = 30)
+  private LeadScheduleCallType callType;
+
+  @Column(name = "duration_minutes")
+  private Integer durationMinutes;
+
+  @Column(name = "meeting_link", length = 500)
+  private String meetingLink;
 
   @Column(columnDefinition = "text")
   private String notes;
@@ -66,6 +79,12 @@ public class LeadScheduleEntity {
 
   @Column(name = "updated_at", nullable = false)
   private Instant updatedAt;
+
+  @Column(name = "completed_at")
+  private Instant completedAt;
+
+  @Column(name = "cancelled_at")
+  private Instant cancelledAt;
 
   public String getId() {
     return id;
@@ -107,6 +126,14 @@ public class LeadScheduleEntity {
     this.scheduledAt = scheduledAt;
   }
 
+  public String getTitle() {
+    return title;
+  }
+
+  public void setTitle(String title) {
+    this.title = title;
+  }
+
   public String getLocation() {
     return location;
   }
@@ -121,6 +148,30 @@ public class LeadScheduleEntity {
 
   public void setMode(LeadScheduleMode mode) {
     this.mode = mode;
+  }
+
+  public LeadScheduleCallType getCallType() {
+    return callType;
+  }
+
+  public void setCallType(LeadScheduleCallType callType) {
+    this.callType = callType;
+  }
+
+  public Integer getDurationMinutes() {
+    return durationMinutes;
+  }
+
+  public void setDurationMinutes(Integer durationMinutes) {
+    this.durationMinutes = durationMinutes;
+  }
+
+  public String getMeetingLink() {
+    return meetingLink;
+  }
+
+  public void setMeetingLink(String meetingLink) {
+    this.meetingLink = meetingLink;
   }
 
   public String getNotes() {
@@ -193,5 +244,21 @@ public class LeadScheduleEntity {
 
   public void setUpdatedAt(Instant updatedAt) {
     this.updatedAt = updatedAt;
+  }
+
+  public Instant getCompletedAt() {
+    return completedAt;
+  }
+
+  public void setCompletedAt(Instant completedAt) {
+    this.completedAt = completedAt;
+  }
+
+  public Instant getCancelledAt() {
+    return cancelledAt;
+  }
+
+  public void setCancelledAt(Instant cancelledAt) {
+    this.cancelledAt = cancelledAt;
   }
 }

@@ -1,5 +1,5 @@
-import { useState, type FocusEvent } from "react";
-import { NavLink } from "react-router-dom";
+import { useEffect, useState, type FocusEvent } from "react";
+import { NavLink, useLocation } from "react-router-dom";
 import type { LucideIcon } from "lucide-react";
 import {
   ArrowLeftRight,
@@ -27,6 +27,7 @@ import {
   UserPlus,
   Users,
   CreditCard,
+  ChevronDown,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -148,7 +149,11 @@ const ERP_NAV_SECTIONS: readonly SidebarNavSection[] = [
 
 export function Sidebar() {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(ERP_NAV_SECTIONS.map((section) => [section.heading, true]))
+  );
   const isCollapsed = !isExpanded;
+  const location = useLocation();
   const { data: currentUser } = useCurrentUser({ enabled: hasStoredSession() });
 
   const isItemVisible = (item: SidebarNavItem) => {
@@ -166,6 +171,26 @@ export function Sidebar() {
     }
     setIsExpanded(false);
   }
+
+  useEffect(() => {
+    const activeSection = ERP_NAV_SECTIONS.find((section) =>
+      section.items.some((item) => {
+        if (item.end) {
+          return location.pathname === item.to;
+        }
+        return location.pathname === item.to || location.pathname.startsWith(`${item.to}/`);
+      })
+    );
+
+    if (!activeSection) {
+      return;
+    }
+
+    setExpandedSections((previous) => ({
+      ...previous,
+      [activeSection.heading]: true,
+    }));
+  }, [location.pathname]);
 
   return (
     <aside
@@ -211,16 +236,38 @@ export function Sidebar() {
             }
             return (
             <section key={section.heading} className="space-y-2">
-              <h2
-                className={cn(
-                  "px-3 text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-slate-400",
-                  isCollapsed && "sr-only"
-                )}
-              >
-                {section.heading}
-              </h2>
+              {isCollapsed ? (
+                <h2
+                  className={cn(
+                    "px-3 text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-slate-400",
+                    isCollapsed && "sr-only"
+                  )}
+                >
+                  {section.heading}
+                </h2>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setExpandedSections((previous) => ({
+                      ...previous,
+                      [section.heading]: !previous[section.heading],
+                    }))
+                  }
+                  className="flex w-full items-center justify-between gap-3 rounded-md px-3 py-1 text-left text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-slate-400 transition-colors hover:bg-slate-50 hover:text-slate-600"
+                >
+                  <span>{section.heading}</span>
+                  <ChevronDown
+                    className={cn(
+                      "h-3.5 w-3.5 shrink-0 transition-transform duration-200",
+                      expandedSections[section.heading] ? "rotate-0" : "-rotate-90"
+                    )}
+                    aria-hidden="true"
+                  />
+                </button>
+              )}
 
-              <ul className="space-y-1">
+              <ul className={cn("space-y-1", !isCollapsed && !expandedSections[section.heading] && "hidden")}>
                 {visibleItems.map((item) => {
                   const Icon = item.icon;
                   return (

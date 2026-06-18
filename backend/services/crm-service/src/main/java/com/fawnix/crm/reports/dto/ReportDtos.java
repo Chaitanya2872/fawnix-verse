@@ -46,6 +46,19 @@ public final class ReportDtos {
   ) {
   }
 
+  public record ReminderQuickView(
+      String id,
+      String leadId,
+      String leadName,
+      String company,
+      String type,
+      String title,
+      String status,
+      String assignedToName,
+      Instant scheduledAt
+  ) {
+  }
+
   public record OverviewResponse(
       long totalLeads,
       BigDecimal pipelineValue,
@@ -67,7 +80,11 @@ public final class ReportDtos {
       List<LeadQuickView> myQueue,
       List<LeadQuickView> needsContact,
       List<LeadQuickView> followUps,
-      List<LeadQuickView> awaitingAssignment
+      List<LeadQuickView> awaitingAssignment,
+      List<ReminderQuickView> todaysFollowUps,
+      List<ReminderQuickView> todaysDemoVisits,
+      List<ReminderQuickView> overdueActivities,
+      List<ReminderQuickView> upcomingActivities
   ) {
   }
 }

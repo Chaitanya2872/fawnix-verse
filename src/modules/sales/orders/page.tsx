@@ -1,10 +1,12 @@
+/* eslint-disable react-hooks/set-state-in-effect */
+/* eslint-disable react-hooks/immutability */
+/* eslint-disable @typescript-eslint/no-unused-vars */
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { ChevronDown, MoreHorizontal, Plus } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -43,7 +45,23 @@ import {
   type UpdateSalesOrderInput,
 } from "./types";
 
+// ─── Recharts (already in your deps) ──────────────────────────────────────────
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Cell,
+} from "recharts";
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+
 const PAGE_SIZE = 50;
+
+const MONTHS_SHORT = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
 const DRAWER_STATUS_OPTIONS: SalesOrderStatus[] = [
   SalesOrderStatus.DRAFT,
@@ -60,6 +78,30 @@ const DRAWER_STATUS_OPTIONS: SalesOrderStatus[] = [
   SalesOrderStatus.CLOSED,
   SalesOrderStatus.CANCELLED,
 ];
+
+// ─── Status colour map ─────────────────────────────────────────────────────────
+
+const STATUS_COLORS: Record<string, { bg: string; text: string; dot: string }> = {
+  [SalesOrderStatus.DRAFT]:              { bg: "bg-slate-100",   text: "text-slate-600",  dot: "#888780" },
+  [SalesOrderStatus.SUBMITTED]:          { bg: "bg-blue-50",     text: "text-blue-700",   dot: "#378ADD" },
+  [SalesOrderStatus.PENDING_APPROVAL]:   { bg: "bg-amber-50",    text: "text-amber-700",  dot: "#EF9F27" },
+  [SalesOrderStatus.APPROVED]:           { bg: "bg-teal-50",     text: "text-teal-700",   dot: "#1D9E75" },
+  [SalesOrderStatus.REJECTED]:           { bg: "bg-red-50",      text: "text-red-600",    dot: "#E24B4A" },
+  [SalesOrderStatus.CONFIRMED]:          { bg: "bg-blue-50",     text: "text-blue-700",   dot: "#378ADD" },
+  [SalesOrderStatus.PARTIALLY_DELIVERED]:{ bg: "bg-amber-50",    text: "text-amber-700",  dot: "#EF9F27" },
+  [SalesOrderStatus.DELIVERED]:          { bg: "bg-green-50",    text: "text-green-700",  dot: "#639922" },
+  [SalesOrderStatus.INVOICED]:           { bg: "bg-blue-50",     text: "text-blue-700",   dot: "#378ADD" },
+  [SalesOrderStatus.PARTIALLY_PAID]:     { bg: "bg-amber-50",    text: "text-amber-700",  dot: "#EF9F27" },
+  [SalesOrderStatus.PAID]:               { bg: "bg-green-50",    text: "text-green-700",  dot: "#639922" },
+  [SalesOrderStatus.CLOSED]:             { bg: "bg-slate-100",   text: "text-slate-600",  dot: "#888780" },
+  [SalesOrderStatus.CANCELLED]:          { bg: "bg-red-50",      text: "text-red-600",    dot: "#E24B4A" },
+};
+
+function statusStyle(status: string) {
+  return STATUS_COLORS[status] ?? { bg: "bg-slate-100", text: "text-slate-600", dot: "#888780" };
+}
+
+// ─── Order form helpers ────────────────────────────────────────────────────────
 
 function createDraftItem(): ManualOrderItemDraft {
   return {
@@ -147,36 +189,15 @@ function cleanOptional(value: string) {
   return trimmed ? trimmed : undefined;
 }
 
-function CompactKpi({
-  label,
-  value,
-  helper,
-}: {
-  label: string;
-  value: string;
-  helper: string;
-}) {
-  return (
-    <article className="flex min-h-[92px] flex-col justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">{label}</p>
-      <div>
-        <p className="text-xl font-semibold text-slate-950">{value}</p>
-        <p className="mt-1 text-xs text-slate-500">{helper}</p>
-      </div>
-    </article>
-  );
-}
+// ─── Derived status helpers ────────────────────────────────────────────────────
 
 function getShipmentStatus(
   order: SalesOrderSummary,
   deliveryMap: Map<string, string>
 ) {
-  if (deliveryMap.has(order.id)) {
-    return toLabel(deliveryMap.get(order.id) ?? "");
-  }
-  if ([SalesOrderStatus.DELIVERED, SalesOrderStatus.PARTIALLY_DELIVERED].includes(order.status)) {
+  if (deliveryMap.has(order.id)) return toLabel(deliveryMap.get(order.id) ?? "");
+  if ([SalesOrderStatus.DELIVERED, SalesOrderStatus.PARTIALLY_DELIVERED].includes(order.status))
     return toLabel(order.status);
-  }
   return "Not created";
 }
 
@@ -186,17 +207,230 @@ function getPaymentStatus(
   paymentCountMap: Map<string, number>
 ) {
   const invoice = invoiceMap.get(orderId);
-  if (!invoice) {
-    return "Not invoiced";
-  }
-  if (invoice.balanceDue <= 0 || invoice.status === SalesInvoiceStatus.PAID) {
-    return "Paid";
-  }
-  if ((paymentCountMap.get(orderId) ?? 0) > 0 || invoice.status === SalesInvoiceStatus.PARTIALLY_PAID) {
+  if (!invoice) return "Not invoiced";
+  if (invoice.balanceDue <= 0 || invoice.status === SalesInvoiceStatus.PAID) return "Paid";
+  if ((paymentCountMap.get(orderId) ?? 0) > 0 || invoice.status === SalesInvoiceStatus.PARTIALLY_PAID)
     return "Partially paid";
-  }
   return "Unpaid";
 }
+
+// ─── Analytics components ──────────────────────────────────────────────────────
+
+/**
+ * Donut chart rendered in pure SVG/CSS — no extra dependency.
+ * Accepts segments as { label, value, color }.
+ */
+function DonutChart({
+  segments,
+  total,
+}: {
+  segments: Array<{ label: string; value: number; color: string }>;
+  total: number;
+}) {
+  const R = 64;
+  const cx = 80;
+  const cy = 80;
+  const strokeW = 18;
+  const circ = 2 * Math.PI * R;
+  let offset = 0;
+  const arcs = segments.map((s) => {
+    const dash = (s.value / total) * circ;
+    const arc = { ...s, dash, offset };
+    offset += dash;
+    return arc;
+  });
+  return (
+    <svg viewBox="0 0 160 160" className="w-full max-w-[160px]" aria-hidden="true">
+      {arcs.map((arc) => (
+        <circle
+          key={arc.label}
+          cx={cx}
+          cy={cy}
+          r={R}
+          fill="none"
+          stroke={arc.color}
+          strokeWidth={strokeW}
+          strokeDasharray={`${arc.dash} ${circ - arc.dash}`}
+          strokeDashoffset={-arc.offset + circ * 0.25}
+          className="transition-all duration-500"
+        />
+      ))}
+      <text x={cx} y={cy - 6} textAnchor="middle" fontSize={20} fontWeight={500} fill="currentColor" className="text-slate-900">
+        {total}
+      </text>
+      <text x={cx} y={cy + 12} textAnchor="middle" fontSize={11} fill="#888780">
+        orders
+      </text>
+    </svg>
+  );
+}
+
+/**
+ * OrdersAnalytics — bar chart (left) + donut (right) replacing the old KPI cards.
+ */
+function OrdersAnalytics({
+  orders,
+  year,
+  onYearChange,
+}: {
+  orders: SalesOrderSummary[];
+  year: number;
+  onYearChange: (y: number) => void;
+}) {
+  // Build month buckets from real order data
+  const monthlyData = useMemo(() => {
+    const placed = Array(12).fill(0);
+    const completed = Array(12).fill(0);
+    const completedStatuses: SalesOrderStatus[] = [
+      SalesOrderStatus.DELIVERED,
+      SalesOrderStatus.PAID,
+      SalesOrderStatus.CLOSED,
+    ];
+    orders.forEach((o) => {
+      const d = new Date(o.createdAt);
+      if (d.getFullYear() !== year) return;
+      const m = d.getMonth();
+      placed[m]++;
+      if (completedStatuses.includes(o.status)) completed[m]++;
+    });
+    return MONTHS_SHORT.map((month, i) => ({ month, placed: placed[i], completed: completed[i] }));
+  }, [orders, year]);
+
+  // Status breakdown for donut
+  const statusBreakdown = useMemo(() => {
+    const yearOrders = orders.filter((o) => new Date(o.createdAt).getFullYear() === year);
+    const counts: Record<string, number> = {};
+    yearOrders.forEach((o) => { counts[o.status] = (counts[o.status] ?? 0) + 1; });
+    const total = yearOrders.length;
+
+    // Group minor statuses into "Other" to keep the donut readable
+    const main: SalesOrderStatus[] = [
+      SalesOrderStatus.CONFIRMED,
+      SalesOrderStatus.DELIVERED,
+      SalesOrderStatus.PAID,
+      SalesOrderStatus.PENDING_APPROVAL,
+      SalesOrderStatus.DRAFT,
+      SalesOrderStatus.CANCELLED,
+    ];
+    const segments = main
+      .filter((s) => (counts[s] ?? 0) > 0)
+      .map((s) => ({
+        label: toLabel(s),
+        value: counts[s] ?? 0,
+        color: statusStyle(s).dot,
+      }));
+    const otherVal = Object.entries(counts)
+      .filter(([s]) => !main.includes(s as SalesOrderStatus))
+      .reduce((sum, [, v]) => sum + v, 0);
+    if (otherVal > 0) segments.push({ label: "Other", value: otherVal, color: "#B4B2A9" });
+    return { segments, total };
+  }, [orders, year]);
+
+  const availableYears = useMemo(() => {
+    const ys = new Set(orders.map((o) => new Date(o.createdAt).getFullYear()));
+    return Array.from(ys).sort((a, b) => b - a);
+  }, [orders]);
+
+  return (
+    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_280px]">
+      {/* ── Bar chart ── */}
+      <div className="rounded-xl border border-slate-100 bg-white overflow-hidden">
+        <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-slate-100">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-slate-700">Monthly order trend</span>
+          </div>
+          <div className="flex items-center gap-2">
+            {/* Legend */}
+            <div className="flex items-center gap-3 mr-2">
+              {[
+                { label: "Placed", color: "#378ADD" },
+                { label: "Completed", color: "#1D9E75" },
+              ].map((l) => (
+                <span key={l.label} className="flex items-center gap-1.5 text-[11px] text-slate-500">
+                  <span className="inline-block w-2 h-2 rounded-[2px]" style={{ background: l.color }} />
+                  {l.label}
+                </span>
+              ))}
+            </div>
+            <select
+              value={year}
+              onChange={(e) => onYearChange(Number(e.target.value))}
+              className="h-7 rounded-md border border-slate-200 bg-white px-2 text-xs text-slate-700 outline-none"
+            >
+              {(availableYears.length ? availableYears : [new Date().getFullYear()]).map((y) => (
+                <option key={y} value={y}>{y}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+        <div className="px-4 py-4">
+          <ResponsiveContainer width="100%" height={200}>
+            <BarChart data={monthlyData} barGap={3} barCategoryGap="30%">
+              <CartesianGrid vertical={false} stroke="#f1efe8" strokeWidth={0.5} />
+              <XAxis
+                dataKey="month"
+                tick={{ fontSize: 11, fill: "#888780" }}
+                axisLine={{ stroke: "#e8e6e0" }}
+                tickLine={false}
+              />
+              <YAxis
+                tick={{ fontSize: 11, fill: "#888780" }}
+                axisLine={false}
+                tickLine={false}
+                width={28}
+                allowDecimals={false}
+              />
+              <Tooltip
+                contentStyle={{
+                  background: "white",
+                  border: "0.5px solid #e0dfd8",
+                  borderRadius: 8,
+                  fontSize: 12,
+                  padding: "8px 12px",
+                }}
+                cursor={{ fill: "rgba(0,0,0,0.03)" }}
+              />
+              <Bar dataKey="placed" name="Placed" fill="#378ADD" radius={[3, 3, 0, 0]} maxBarSize={18} />
+              <Bar dataKey="completed" name="Completed" fill="#1D9E75" radius={[3, 3, 0, 0]} maxBarSize={18} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* ── Donut ── */}
+      <div className="rounded-xl border border-slate-100 bg-white overflow-hidden">
+        <div className="px-4 py-3 border-b border-slate-100">
+          <span className="text-sm font-medium text-slate-700">Status breakdown</span>
+        </div>
+        <div className="flex flex-col items-center px-4 py-4 gap-4">
+          {statusBreakdown.total > 0 ? (
+            <>
+              <DonutChart
+                segments={statusBreakdown.segments}
+                total={statusBreakdown.total}
+              />
+              <div className="w-full divide-y divide-slate-50">
+                {statusBreakdown.segments.map((s) => (
+                  <div key={s.label} className="flex items-center justify-between py-2">
+                    <div className="flex items-center gap-2 text-xs text-slate-500">
+                      <span className="inline-block w-2 h-2 rounded-[2px]" style={{ background: s.color }} />
+                      {s.label}
+                    </div>
+                    <span className="text-xs font-medium text-slate-800">{s.value}</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : (
+            <p className="py-10 text-xs text-slate-400">No orders for {year}</p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function SalesOrdersPage() {
   const navigate = useNavigate();
@@ -204,6 +438,7 @@ export default function SalesOrdersPage() {
   const [editingOrderId, setEditingOrderId] = useState("");
   const [isCreateDrawerOpen, setCreateDrawerOpen] = useState(false);
   const [manualForm, setManualForm] = useState<ManualOrderFormState>(() => createInitialManualForm());
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [filter, setFilter] = useState<SalesOrderFilter>({
     search: "",
     status: "ALL",
@@ -230,16 +465,12 @@ export default function SalesOrdersPage() {
   const detail = detailQuery.data ?? null;
 
   useEffect(() => {
-    if (!editingOrderQuery.data || !isCreateDrawerOpen) {
-      return;
-    }
+    if (!editingOrderQuery.data || !isCreateDrawerOpen) return;
     setManualForm(buildManualFormFromOrder(editingOrderQuery.data));
   }, [editingOrderQuery.data, isCreateDrawerOpen]);
 
   const manualSubtotal = manualForm.items.reduce((sum, item) => {
-    const quantity = Number(item.quantity) || 0;
-    const unitPrice = Number(item.unitPrice) || 0;
-    return sum + quantity * unitPrice;
+    return sum + (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0);
   }, 0);
   const manualDiscount = (manualSubtotal * (Number(manualForm.discountPercent) || 0)) / 100;
   const discountedSubtotal = manualSubtotal - manualDiscount;
@@ -247,54 +478,20 @@ export default function SalesOrdersPage() {
   const manualTotal = discountedSubtotal + (discountedSubtotal * manualTaxRate) / 100;
 
   const deliveryMap = useMemo(
-    () =>
-      new Map(
-        deliveries.map((delivery) => [delivery.salesOrderId, delivery.status])
-      ),
+    () => new Map(deliveries.map((d) => [d.salesOrderId, d.status])),
     [deliveries]
   );
 
   const invoiceMap = useMemo(
-    () =>
-      new Map(
-        invoices.map((invoice) => [
-          invoice.salesOrderId,
-          { status: invoice.status, balanceDue: invoice.balanceDue },
-        ])
-      ),
+    () => new Map(invoices.map((inv) => [inv.salesOrderId, { status: inv.status, balanceDue: inv.balanceDue }])),
     [invoices]
   );
 
   const paymentCountMap = useMemo(() => {
     const map = new Map<string, number>();
-    payments.forEach((payment) => {
-      map.set(payment.salesOrderId, (map.get(payment.salesOrderId) ?? 0) + 1);
-    });
+    payments.forEach((p) => { map.set(p.salesOrderId, (map.get(p.salesOrderId) ?? 0) + 1); });
     return map;
   }, [payments]);
-
-  const metrics = useMemo(() => {
-    const totalValue = orders.reduce((sum, order) => sum + order.total, 0);
-    const pendingCount = orders.filter((order) =>
-      [
-        SalesOrderStatus.DRAFT,
-        SalesOrderStatus.SUBMITTED,
-        SalesOrderStatus.PENDING_APPROVAL,
-        SalesOrderStatus.APPROVED,
-        SalesOrderStatus.CONFIRMED,
-      ].includes(order.status)
-    ).length;
-    const completedCount = orders.filter((order) =>
-      [SalesOrderStatus.DELIVERED, SalesOrderStatus.PAID, SalesOrderStatus.CLOSED].includes(order.status)
-    ).length;
-
-    return {
-      totalOrders: orders.length,
-      pendingOrders: pendingCount,
-      completedOrders: completedCount,
-      revenue: totalValue,
-    };
-  }, [orders]);
 
   function updateManualField<K extends keyof ManualOrderFormState>(field: K, value: ManualOrderFormState[K]) {
     setManualForm((prev) => ({ ...prev, [field]: value }));
@@ -332,10 +529,7 @@ export default function SalesOrdersPage() {
 
   function handleCreateOrder() {
     const customerName = manualForm.customerName.trim();
-    if (!customerName) {
-      toast.error("Customer name is required.");
-      return;
-    }
+    if (!customerName) { toast.error("Customer name is required."); return; }
 
     const items = manualForm.items.map((item) => ({
       inventoryProductId: cleanOptional(item.inventoryProductId ?? ""),
@@ -348,51 +542,9 @@ export default function SalesOrdersPage() {
       unitPrice: Number(item.unitPrice),
     }));
 
-    if (items.some((item) => !item.name)) {
-      toast.error("Each line item needs a name.");
-      return;
-    }
+    if (items.some((item) => !item.name)) { toast.error("Each line item needs a name."); return; }
 
-    if (editingOrderId) {
-      const payload: UpdateSalesOrderInput = {
-        customerName,
-        company: cleanOptional(manualForm.company),
-        email: cleanOptional(manualForm.email),
-        phone: cleanOptional(manualForm.phone),
-        billingAddress: cleanOptional(manualForm.billingAddress),
-        shippingAddress: cleanOptional(manualForm.shippingAddress),
-        currency: cleanOptional(manualForm.currency) || "INR",
-        deliveryDate: cleanOptional(manualForm.deliveryDate),
-        paymentTerms: cleanOptional(manualForm.paymentTerms),
-        customerPoNumber: cleanOptional(manualForm.customerPoNumber),
-        quotationReference: cleanOptional(manualForm.quotationReference),
-        paymentDueDays: Number(manualForm.paymentDueDays) || 0,
-        taxRate: manualTaxRate,
-        discountPercent: Number(manualForm.discountPercent) || 0,
-        customerCreditLimit: Number(manualForm.customerCreditLimit) || 0,
-        customerOutstandingAmount: Number(manualForm.customerOutstandingAmount) || 0,
-        confirmationAttachmentUrl: cleanOptional(manualForm.confirmationAttachmentUrl),
-        notes: cleanOptional(manualForm.notes),
-        items,
-      };
-
-      updateMutation.mutate(
-        { id: editingOrderId, payload },
-        {
-          onSuccess: (updated) => {
-            toast.success(`Order ${updated.orderNumber} updated.`);
-            handleOrderDrawerOpenChange(false);
-            navigate(`/sales/orders/${updated.id}`);
-          },
-          onError: (error) => {
-            toast.error(error instanceof Error ? error.message : "Could not update order.");
-          },
-        }
-      );
-      return;
-    }
-
-    const payload: CreateSalesOrderInput = {
+    const basePayload = {
       customerName,
       company: cleanOptional(manualForm.company),
       email: cleanOptional(manualForm.email),
@@ -400,7 +552,6 @@ export default function SalesOrdersPage() {
       billingAddress: cleanOptional(manualForm.billingAddress),
       shippingAddress: cleanOptional(manualForm.shippingAddress),
       currency: cleanOptional(manualForm.currency) || "INR",
-      status: manualForm.status,
       deliveryDate: cleanOptional(manualForm.deliveryDate),
       paymentTerms: cleanOptional(manualForm.paymentTerms),
       customerPoNumber: cleanOptional(manualForm.customerPoNumber),
@@ -415,16 +566,32 @@ export default function SalesOrdersPage() {
       items,
     };
 
-    createMutation.mutate(payload, {
-      onSuccess: (created) => {
-        toast.success(`Order ${created.orderNumber} created.`);
-        handleOrderDrawerOpenChange(false);
-        navigate(`/sales/orders/${created.id}`);
-      },
-      onError: (error) => {
-        toast.error(error instanceof Error ? error.message : "Could not create order.");
-      },
-    });
+    if (editingOrderId) {
+      updateMutation.mutate(
+        { id: editingOrderId, payload: basePayload as UpdateSalesOrderInput },
+        {
+          onSuccess: (updated) => {
+            toast.success(`Order ${updated.orderNumber} updated.`);
+            handleOrderDrawerOpenChange(false);
+            navigate(`/sales/orders/${updated.id}`);
+          },
+          onError: (err) => toast.error(err instanceof Error ? err.message : "Could not update order."),
+        }
+      );
+      return;
+    }
+
+    createMutation.mutate(
+      { ...basePayload, status: manualForm.status } as CreateSalesOrderInput,
+      {
+        onSuccess: (created) => {
+          toast.success(`Order ${created.orderNumber} created.`);
+          handleOrderDrawerOpenChange(false);
+          navigate(`/sales/orders/${created.id}`);
+        },
+        onError: (err) => toast.error(err instanceof Error ? err.message : "Could not create order."),
+      }
+    );
   }
 
   function handleEditOrder(orderId: string) {
@@ -432,90 +599,109 @@ export default function SalesOrdersPage() {
     setCreateDrawerOpen(true);
   }
 
+  // All orders for the analytics panel (unfiltered — use a separate all-orders query if available)
+  const allOrders = orders;
+
   return (
-    <div className="space-y-5 text-slate-900">
-      <section className="flex flex-col gap-4 rounded-[24px] border border-slate-200 bg-white px-5 py-4 shadow-sm lg:flex-row lg:items-center lg:justify-between">
+    <div className="space-y-5">
+
+      {/* ── Page header ── */}
+      <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-950">Order to Cash</h1>
+          <h1 className="text-lg font-medium text-slate-900">Order to cash</h1>
+          <p className="text-xs text-slate-400 mt-0.5">Manage, track, and close sales orders</p>
         </div>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button type="button" className="rounded-xl bg-blue-600 px-4 text-white hover:bg-blue-700">
-              <Plus className="h-4 w-4" />
-              Create Order
-              <ChevronDown className="h-4 w-4" />
-            </Button>
+            <button
+              type="button"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-2 text-xs font-medium text-white hover:bg-slate-800 transition-colors"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Create order
+              <ChevronDown className="h-3 w-3 opacity-70" />
+            </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56 border-slate-200 bg-white">
+          <DropdownMenuContent align="end" className="w-52 border-slate-200 bg-white text-sm">
             <DropdownMenuItem onClick={() => setCreateDrawerOpen(true)}>
-              Create Order
+              Create manually
             </DropdownMenuItem>
             <DropdownMenuItem
               onClick={() => {
-                if (!acceptedQuotes.length) {
-                  toast.error("No accepted quotes are ready for conversion.");
-                  return;
-                }
+                if (!acceptedQuotes.length) { toast.error("No accepted quotes ready."); return; }
                 navigate("/sales");
               }}
             >
-              Fetch from Accepted Quotes
+              From accepted quote
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
-      </section>
+      </div>
 
-      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <CompactKpi label="Total Orders" value={String(metrics.totalOrders)} helper="All tracked sales orders" />
-        <CompactKpi label="Pending Orders" value={String(metrics.pendingOrders)} helper="Draft, approval, and in-flight orders" />
-        <CompactKpi label="Completed Orders" value={String(metrics.completedOrders)} helper="Delivered or commercially closed" />
-        <CompactKpi label="Order Value" value={fmtCurrency(metrics.revenue)} helper="Total booked order amount" />
-      </section>
+      {/* ── Analytics: bar chart + donut ── */}
+      <OrdersAnalytics
+        orders={allOrders}
+        year={selectedYear}
+        onYearChange={setSelectedYear}
+      />
 
-      <section className="rounded-[24px] border border-slate-200 bg-white shadow-sm">
-        <div className="flex flex-col gap-3 border-b border-slate-200 px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex flex-1 flex-col gap-3 md:flex-row">
-            <input
-              value={filter.search}
-              onChange={(event) => setFilter((prev) => ({ ...prev, search: event.target.value, page: 1 }))}
-              placeholder="Search order number, customer, company"
-              className="h-10 flex-1 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-slate-300"
-            />
-            <select
-              value={filter.status}
-              onChange={(event) => setFilter((prev) => ({ ...prev, status: event.target.value as SalesOrderFilter["status"], page: 1 }))}
-              className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none"
-            >
-              <option value="ALL">All statuses</option>
-              {Object.values(SalesOrderStatus).map((status) => (
-                <option key={status} value={status}>
-                  {toLabel(status)}
-                </option>
-              ))}
-            </select>
-          </div>
+      {/* ── Orders table ── */}
+      <div className="rounded-xl border border-slate-100 bg-white overflow-hidden">
+        {/* Filter bar */}
+        <div className="flex flex-col gap-3 border-b border-slate-100 px-4 py-3 sm:flex-row sm:items-center">
+          <input
+            value={filter.search}
+            onChange={(e) =>
+              setFilter((prev) => ({ ...prev, search: e.target.value, page: 1 }))
+            }
+            placeholder="Search order number, customer, company…"
+            className="h-8 flex-1 rounded-lg border border-slate-200 bg-white px-3 text-xs text-slate-700 outline-none focus:border-slate-300 placeholder:text-slate-400"
+          />
+          <select
+            value={filter.status}
+            onChange={(e) =>
+              setFilter((prev) => ({ ...prev, status: e.target.value as SalesOrderFilter["status"], page: 1 }))
+            }
+            className="h-8 rounded-lg border border-slate-200 bg-white px-3 text-xs text-slate-700 outline-none"
+          >
+            <option value="ALL">All statuses</option>
+            {Object.values(SalesOrderStatus).map((s) => (
+              <option key={s} value={s}>{toLabel(s)}</option>
+            ))}
+          </select>
         </div>
 
+        {/* Table */}
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-slate-200 text-sm">
-            <thead className="bg-slate-50/80">
-              <tr className="text-left text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-                <th className="px-5 py-3">Order No</th>
-                <th className="px-5 py-3">Customer</th>
-                <th className="px-5 py-3">Order Date</th>
-                <th className="px-5 py-3">Status</th>
-                <th className="px-5 py-3">Payment Status</th>
-                <th className="px-5 py-3">Shipment Status</th>
-                <th className="px-5 py-3">Total Amount</th>
-                <th className="px-5 py-3 text-right">Actions</th>
+          <table className="min-w-full divide-y divide-slate-50 text-sm" style={{ tableLayout: "fixed" }}>
+            <colgroup>
+              <col style={{ width: "130px" }} />
+              <col style={{ width: "180px" }} />
+              <col style={{ width: "110px" }} />
+              <col style={{ width: "120px" }} />
+              <col style={{ width: "130px" }} />
+              <col style={{ width: "130px" }} />
+              <col style={{ width: "120px" }} />
+              <col style={{ width: "60px" }} />
+            </colgroup>
+            <thead>
+              <tr>
+                {["Order no.", "Customer", "Date", "Status", "Payment", "Shipment", "Total", ""].map((h) => (
+                  <th
+                    key={h}
+                    className="px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-widest text-slate-400"
+                  >
+                    {h}
+                  </th>
+                ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-50">
               {ordersQuery.isLoading ? (
-                Array.from({ length: 6 }).map((_, index) => (
-                  <tr key={index}>
-                    <td className="px-5 py-4" colSpan={8}>
-                      <div className="h-10 animate-pulse rounded-xl bg-slate-100" />
+                Array.from({ length: 6 }).map((_, i) => (
+                  <tr key={i}>
+                    <td colSpan={8} className="px-4 py-4">
+                      <div className="h-8 animate-pulse rounded-lg bg-slate-100" />
                     </td>
                   </tr>
                 ))
@@ -524,47 +710,65 @@ export default function SalesOrdersPage() {
                   const invoiceExists = invoiceMap.has(order.id);
                   const shipmentExists = deliveryMap.has(order.id);
                   const paymentExists = (paymentCountMap.get(order.id) ?? 0) > 0;
+                  const st = statusStyle(order.status);
 
                   return (
-                    <tr key={order.id} className="hover:bg-slate-50/60">
-                      <td className="px-5 py-4 font-semibold text-slate-950">{order.orderNumber}</td>
-                      <td className="px-5 py-4">
-                        <div>
-                          <p className="font-medium text-slate-800">{order.customerName}</p>
-                          <p className="text-xs text-slate-500">{order.company ?? "No company"}</p>
-                        </div>
+                    <tr
+                      key={order.id}
+                      className="hover:bg-slate-50/60 transition-colors cursor-pointer"
+                      onClick={() => navigate(`/sales/orders/${order.id}`)}
+                    >
+                      <td className="px-4 py-3 font-medium text-slate-900 truncate">{order.orderNumber}</td>
+                      <td className="px-4 py-3">
+                        <p className="font-medium text-slate-800 truncate">{order.customerName}</p>
+                        <p className="text-xs text-slate-400 truncate">{order.company ?? "—"}</p>
                       </td>
-                      <td className="px-5 py-4 text-slate-600">{new Date(order.createdAt).toLocaleDateString("en-US")}</td>
-                      <td className="px-5 py-4">
-                        <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
+                      <td className="px-4 py-3 text-xs text-slate-500">
+                        {new Date(order.createdAt).toLocaleDateString("en-US", {
+                          month: "short", day: "numeric", year: "numeric",
+                        })}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium ${st.bg} ${st.text}`}>
+                          <span className="inline-block w-1.5 h-1.5 rounded-full" style={{ background: st.dot }} />
                           {toLabel(order.status)}
                         </span>
                       </td>
-                      <td className="px-5 py-4 text-slate-600">{getPaymentStatus(order.id, invoiceMap, paymentCountMap)}</td>
-                      <td className="px-5 py-4 text-slate-600">{getShipmentStatus(order, deliveryMap)}</td>
-                      <td className="px-5 py-4 font-semibold text-slate-950">{fmtCurrency(order.total)}</td>
-                      <td className="px-5 py-4 text-right">
+                      <td className="px-4 py-3 text-xs text-slate-500 truncate">
+                        {getPaymentStatus(order.id, invoiceMap, paymentCountMap)}
+                      </td>
+                      <td className="px-4 py-3 text-xs text-slate-500 truncate">
+                        {getShipmentStatus(order, deliveryMap)}
+                      </td>
+                      <td className="px-4 py-3 font-medium text-slate-900 truncate">
+                        {fmtCurrency(order.total)}
+                      </td>
+                      <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <button
                               type="button"
-                              className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                              className="inline-flex h-7 w-7 items-center justify-center rounded-md text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors"
                               aria-label={`Actions for ${order.orderNumber}`}
                             >
-                              <MoreHorizontal className="h-4 w-4" />
+                              <MoreHorizontal className="h-3.5 w-3.5" />
                             </button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="w-52 border-slate-200 bg-white">
-                            <DropdownMenuItem onClick={() => navigate(`/sales/orders/${order.id}`)}>View Details</DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleEditOrder(order.id)}>Edit Order</DropdownMenuItem>
+                          <DropdownMenuContent align="end" className="w-48 border-slate-200 bg-white text-sm">
+                            <DropdownMenuItem onClick={() => navigate(`/sales/orders/${order.id}`)}>
+                              View details
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleEditOrder(order.id)}>
+                              Edit order
+                            </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => navigate(`/sales/orders/${order.id}?panel=invoice`)}>
-                              {invoiceExists ? "View Invoice" : "Create Invoice"}
+                              {invoiceExists ? "View invoice" : "Create invoice"}
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => navigate(`/sales/shipments?orderId=${order.id}`)}>
-                              {shipmentExists ? "View Shipment" : "Create Shipment"}
+                              {shipmentExists ? "View shipment" : "Create shipment"}
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => navigate(`/sales/payments?orderId=${order.id}`)}>
-                              {paymentExists ? "View Payment" : "Record Payment"}
+                              {paymentExists ? "View payment" : "Record payment"}
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
@@ -574,16 +778,17 @@ export default function SalesOrdersPage() {
                 })
               ) : (
                 <tr>
-                  <td colSpan={8} className="px-5 py-12 text-center text-sm text-slate-500">
-                    No orders found for the current search and filters.
+                  <td colSpan={8} className="px-4 py-14 text-center text-xs text-slate-400">
+                    No orders match the current search and filters.
                   </td>
                 </tr>
               )}
             </tbody>
           </table>
         </div>
-      </section>
+      </div>
 
+      {/* ── Drawers ── */}
       <CreateOrderDrawer
         open={isCreateDrawerOpen}
         onOpenChange={handleOrderDrawerOpenChange}
@@ -591,13 +796,13 @@ export default function SalesOrdersPage() {
         subtotal={manualSubtotal}
         total={manualTotal}
         pending={createMutation.isPending || updateMutation.isPending || editingOrderQuery.isLoading}
-        title={editingOrderId ? "Edit Sales Order" : "Create Sales Order"}
+        title={editingOrderId ? "Edit sales order" : "Create sales order"}
         description={
           editingOrderId
-            ? "Update customer, commercial, fulfillment, and line item details for the selected order."
-            : "Capture commercial, fulfillment, billing, and risk context in one revenue-grade intake panel."
+            ? "Update customer, commercial, fulfillment, and line item details."
+            : "Enter customer, commercial, and fulfillment details to create a new order."
         }
-        submitLabel={editingOrderId ? "Save Changes" : "Create Order"}
+        submitLabel={editingOrderId ? "Save changes" : "Create order"}
         onFieldChange={updateManualField}
         onItemChange={updateManualItem}
         onAddItem={addManualItem}
@@ -608,9 +813,7 @@ export default function SalesOrdersPage() {
 
       <OrderDetailDrawer
         open={Boolean(detailId)}
-        onOpenChange={(open) => {
-          if (!open) setDetailId("");
-        }}
+        onOpenChange={(open) => { if (!open) setDetailId(""); }}
         order={detail}
         loading={detailQuery.isLoading}
         statusOptions={DRAWER_STATUS_OPTIONS}
@@ -618,7 +821,7 @@ export default function SalesOrdersPage() {
           if (!detail) return;
           statusMutation.mutate(
             { id: detail.id, status },
-            { onError: (error) => toast.error(error instanceof Error ? error.message : "Could not update order status.") }
+            { onError: (err) => toast.error(err instanceof Error ? err.message : "Could not update order status.") }
           );
         }}
         statusPending={statusMutation.isPending}

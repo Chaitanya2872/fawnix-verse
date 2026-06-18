@@ -29,6 +29,22 @@ public class LeadNotificationStreamService {
     sendEvent(new LeadDtos.LeadNotificationEvent("FOLLOW_UP_DUE", Instant.now()));
   }
 
+  public void sendReminderAssigned() {
+    sendEvent(new LeadDtos.LeadNotificationEvent("REMINDER_ASSIGNED", Instant.now()));
+  }
+
+  public void sendReminderCompleted() {
+    sendEvent(new LeadDtos.LeadNotificationEvent("REMINDER_COMPLETED", Instant.now()));
+  }
+
+  public void sendReminderRescheduled() {
+    sendEvent(new LeadDtos.LeadNotificationEvent("REMINDER_RESCHEDULED", Instant.now()));
+  }
+
+  public void sendReminderCancelled() {
+    sendEvent(new LeadDtos.LeadNotificationEvent("REMINDER_CANCELLED", Instant.now()));
+  }
+
   private void sendEvent(LeadDtos.LeadNotificationEvent event) {
     for (SseEmitter emitter : emitters) {
       try {
