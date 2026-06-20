@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import acsLogo from "@/assets/purchase-order/ACS_logo.png";
 import acsSeal from "@/assets/purchase-order/ACS_seal.png";
+import iotiqStamp from "@/assets/purchase-order/IOTIQ_stamp.svg";
 import iotiqLogo from "@/assets/purchase-order/IOTIQ_logo.png";
 import { PurchaseOrderDocument, type PurchaseOrderDocumentData } from "@/modules/purchases/PurchaseOrderDocument";
 import { usePurchaseOrders, usePurchaseRequisitions, useVendors } from "@/modules/purchases/hooks";
@@ -30,10 +31,16 @@ type PoLineItemDraft = {
   productName: string;
   sku: string;
   category: string;
+  customValues: Record<string, string>;
   unit: string;
   quantity: number;
   unitPrice: number;
   lineTotal: number;
+};
+
+type PoItemColumnDraft = {
+  id: string;
+  label: string;
 };
 
 type PoTermDraft = {
@@ -72,6 +79,7 @@ type PoTemplateDraft = {
   vendorQuoteReference: string;
   poDraftDetails: PoDraftDetails;
   poTerms: PoTermDraft[];
+  poItemColumns: PoItemColumnDraft[];
   poLineItems: PoLineItemDraft[];
 };
 
@@ -349,6 +357,7 @@ function createLineItemDraft(item?: PurchaseRequisition["items"][number] | null)
     productName: item?.productName ?? "",
     sku: item?.sku ?? "",
     category: item?.category ?? "",
+    customValues: {},
     unit: item?.unit ?? "Nos",
     quantity,
     unitPrice,
@@ -410,6 +419,7 @@ function createTemplateDraft(template: PoTemplate): PoTemplateDraft {
     vendorQuoteReference: "",
     poDraftDetails: createDefaultPoDraftDetails(template),
     poTerms: createTermsDraft(template),
+    poItemColumns: [],
     poLineItems: [],
   };
 }
@@ -474,6 +484,7 @@ function draftDoc(
   vendorQuoteReference: string,
   details: PoDraftDetails,
   terms: PoTermDraft[],
+  itemColumns: PoItemColumnDraft[] = [],
   lineItems?: PoLineItemDraft[]
 ): PurchaseOrderDocumentData {
   const documentItems = lineItems?.length ? lineItems : requisition.items.map(createLineItemDraft);
@@ -513,11 +524,16 @@ function draftDoc(
       addressLines: splitAddressLines(details.shippingAddress, company.addressLines),
     },
     billTo: template === "ACS" ? ACS_BUYER : IOTIQ_BILLING,
+    customItemColumns: itemColumns.map((column, index) => ({
+      id: column.id,
+      label: column.label.trim() || `Column ${index + 1}`,
+    })),
     items: documentItems.map((item) => ({
       id: item.id,
       description: item.productName,
       make: item.category,
       hsnOrSku: item.sku,
+      customValues: item.customValues,
       quantity: item.quantity,
       unit: item.unit,
       rate: item.unitPrice,
@@ -531,10 +547,6 @@ function draftDoc(
     grandTotal,
     amountInWords: numberToIndianWords(grandTotal),
     terms: terms.map((term) => ({ title: term.title, body: term.body })),
-    importantNote:
-      template === "ACS"
-        ? "Important Notes: On account of wrong selection of HSN code & Tax portion in the Invoice and correction at the later stage, differential amount will be collected/ returned."
-        : undefined,
     internalNotes: requisition.purpose || undefined,
   };
 }
@@ -669,6 +681,7 @@ function CreatePurchaseOrderPanel({
   vendorQuoteReference,
   poDraftDetails,
   terms,
+  itemColumns,
   lineItems,
   selectedRequisition,
   selectedVendor,
@@ -681,6 +694,7 @@ function CreatePurchaseOrderPanel({
   onVendorQuoteReferenceChange,
   onPoDraftDetailsChange,
   onTermsChange,
+  onItemColumnsChange,
   onLineItemsChange,
   onGenerate,
 }: {
@@ -694,6 +708,7 @@ function CreatePurchaseOrderPanel({
   vendorQuoteReference: string;
   poDraftDetails: PoDraftDetails;
   terms: PoTermDraft[];
+  itemColumns: PoItemColumnDraft[];
   lineItems: PoLineItemDraft[];
   selectedRequisition: PurchaseRequisition | null;
   selectedVendor: Vendor | null;
@@ -706,6 +721,7 @@ function CreatePurchaseOrderPanel({
   onVendorQuoteReferenceChange: (value: string) => void;
   onPoDraftDetailsChange: (value: PoDraftDetails) => void;
   onTermsChange: (value: PoTermDraft[]) => void;
+  onItemColumnsChange: (value: PoItemColumnDraft[]) => void;
   onLineItemsChange: (value: PoLineItemDraft[]) => void;
   onGenerate: () => void;
 }) {
@@ -745,7 +761,6 @@ function CreatePurchaseOrderPanel({
     !poDraftDetails.contactNumber.trim() ? "Contact Number" : "",
     selectedTemplate === "IOTIQ" && !poDraftDetails.mailId.trim() ? "Mail ID" : "",
     !vendorQuoteReference.trim() ? (selectedTemplate === "ACS" ? "Reference" : "Vendor PI / Quote Number") : "",
-    selectedTemplate === "IOTIQ" && !poDraftDetails.referenceDate ? "Reference Date" : "",
     selectedTemplate === "IOTIQ" && !poDraftDetails.shippingAddress.trim() ? "Shipping Address Details" : "",
     hasInvalidLineItems ? "Complete Item Details" : "",
   ].filter(Boolean);
@@ -764,6 +779,47 @@ function CreatePurchaseOrderPanel({
 
   function updateLineItem(itemId: string, patch: Partial<PoLineItemDraft>) {
     onLineItemsChange(lineItems.map((item) => (item.id === itemId ? recalculateLineItem({ ...item, ...patch }) : item)));
+  }
+
+  function updateItemColumn(columnId: string, patch: Partial<PoItemColumnDraft>) {
+    onItemColumnsChange(itemColumns.map((column) => (column.id === columnId ? { ...column, ...patch } : column)));
+  }
+
+  function addItemColumn() {
+    onItemColumnsChange([
+      ...itemColumns,
+      {
+        id: `item-column-${crypto.randomUUID()}`,
+        label: `Column ${itemColumns.length + 1}`,
+      },
+    ]);
+  }
+
+  function deleteItemColumn(columnId: string) {
+    onItemColumnsChange(itemColumns.filter((column) => column.id !== columnId));
+    onLineItemsChange(
+      lineItems.map((item) => {
+        const customValues = { ...item.customValues };
+        delete customValues[columnId];
+        return { ...item, customValues };
+      })
+    );
+  }
+
+  function updateLineItemCustomValue(itemId: string, columnId: string, value: string) {
+    onLineItemsChange(
+      lineItems.map((item) =>
+        item.id === itemId
+          ? {
+              ...item,
+              customValues: {
+                ...item.customValues,
+                [columnId]: value,
+              },
+            }
+          : item
+      )
+    );
   }
 
   function updateTerm(termId: string, patch: Partial<PoTermDraft>) {
@@ -839,14 +895,6 @@ function CreatePurchaseOrderPanel({
             <>
               <div className="border-r border-slate-300 px-3 py-2 font-semibold">Mail ID</div>
               <input type="email" value={poDraftDetails.mailId} onChange={(event) => updateDraftDetail("mailId", event.target.value)} placeholder="Enter mail ID" className={sheetInputClass} />
-              <div className="border-r border-slate-300 px-3 py-2 font-semibold">Reference Date</div>
-              <input type="date" value={poDraftDetails.referenceDate} onChange={(event) => updateDraftDetail("referenceDate", event.target.value)} className={sheetInputClass} />
-              <div className="border-r border-slate-300 px-3 py-2 font-semibold">Prepared By</div>
-              <div className={readonlyValueClass}>{poDraftDetails.preparedBy}</div>
-              <div className="border-r border-slate-300 px-3 py-2 font-semibold">Status</div>
-              <div className={readonlyValueClass}>{poDraftDetails.status}</div>
-              <div className="border-r border-slate-300 px-3 py-2 font-semibold">Approval Information</div>
-              <div className={readonlyValueClass}>{poDraftDetails.approvalInformation}</div>
             </>
           ) : null}
         </div>
@@ -855,20 +903,49 @@ function CreatePurchaseOrderPanel({
   }
 
   function renderItemTable() {
-    const columns = selectedTemplate === "ACS" ? ["S.No.", "Description", "HSN", "UoM", "Qty", "Rate/ Unit (Rs)", "Amount (Rs)"] : ["S.No", "Description", "Make", "HSN Code", "Qty", "UOM", "Rate", "Amount (INR)"];
+    const leadingColumns = selectedTemplate === "ACS" ? ["S.No.", "Description", "HSN"] : ["S.No", "Description", "Make", "HSN Code"];
+    const trailingColumns = selectedTemplate === "ACS" ? ["UoM", "Qty", "Rate/ Unit (Rs)", "Amount (Rs)"] : ["Qty", "UOM", "Rate", "Amount (INR)"];
+    const totalColumnCount = leadingColumns.length + itemColumns.length + trailingColumns.length;
     return (
       <div className="border-b-2 border-slate-950">
         <div className="flex items-center justify-between border-b border-slate-950 bg-slate-100 px-3 py-2">
           <span className="font-bold uppercase">Item Details</span>
-          <button type="button" onClick={() => onLineItemsChange([...lineItems, createLineItemDraft(null)])} className="inline-flex items-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50">
-            <Plus className="h-3.5 w-3.5" />
-            Add Item
-          </button>
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={addItemColumn} className="inline-flex items-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50">
+              <Plus className="h-3.5 w-3.5" />
+              Add Column
+            </button>
+            <button type="button" onClick={() => onLineItemsChange([...lineItems, createLineItemDraft(null)])} className="inline-flex items-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50">
+              <Plus className="h-3.5 w-3.5" />
+              Add Item
+            </button>
+          </div>
         </div>
         <table className="w-full border-collapse text-[12px]">
           <thead>
             <tr className="bg-[#f8ecd1]">
-              {columns.map((heading) => (
+              {leadingColumns.map((heading) => (
+                <th key={heading} className="border border-slate-950 px-2 py-2 text-left font-bold">
+                  {heading}
+                </th>
+              ))}
+              {itemColumns.map((column, index) => (
+                <th key={column.id} className="min-w-[150px] border border-slate-950 px-2 py-1 text-left font-bold">
+                  <div className="flex items-center gap-1">
+                    <input
+                      value={column.label}
+                      onChange={(event) => updateItemColumn(column.id, { label: event.target.value })}
+                      placeholder={`Column ${index + 1}`}
+                      className="min-w-0 flex-1 border-0 bg-transparent px-1 py-1 font-bold outline-none focus:bg-amber-50"
+                      aria-label={`Item column ${index + 1} name`}
+                    />
+                    <button type="button" onClick={() => deleteItemColumn(column.id)} className="rounded-full p-1 text-rose-600 hover:bg-rose-50" aria-label={`Remove ${column.label || `column ${index + 1}`}`}>
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                </th>
+              ))}
+              {trailingColumns.map((heading) => (
                 <th key={heading} className="border border-slate-950 px-2 py-2 text-left font-bold">
                   {heading}
                 </th>
@@ -904,6 +981,16 @@ function CreatePurchaseOrderPanel({
                   <td className="min-w-[130px] border border-slate-950">
                     <input value={item.sku} onChange={(event) => updateLineItem(item.id, { sku: event.target.value })} placeholder={selectedTemplate === "ACS" ? "HSN" : "HSN Code"} className={sheetInputClass} />
                   </td>
+                  {itemColumns.map((column) => (
+                    <td key={column.id} className="min-w-[150px] border border-slate-950">
+                      <input
+                        value={item.customValues[column.id] ?? ""}
+                        onChange={(event) => updateLineItemCustomValue(item.id, column.id, event.target.value)}
+                        placeholder={column.label || "Value"}
+                        className={sheetInputClass}
+                      />
+                    </td>
+                  ))}
                   {selectedTemplate === "ACS" ? (
                     <>
                       <td className="w-[110px] border border-slate-950">
@@ -938,7 +1025,7 @@ function CreatePurchaseOrderPanel({
               ))
             ) : (
               <tr>
-                <td colSpan={columns.length} className="border border-slate-950 px-4 py-10 text-center text-slate-500">
+                <td colSpan={totalColumnCount} className="border border-slate-950 px-4 py-10 text-center text-slate-500">
                   Select an approved requisition to load item rows, or add an item manually.
                 </td>
               </tr>
@@ -1126,10 +1213,6 @@ function CreatePurchaseOrderPanel({
               {selectedTemplate === "IOTIQ" ? (
                 <div className="grid grid-cols-2 border-b-2 border-slate-950">
                   <div className="border-r-2 border-slate-950">
-                    <div className="border-b border-slate-950 bg-slate-100 px-3 py-2 font-bold uppercase">Shipping Address Details</div>
-                    <textarea value={poDraftDetails.shippingAddress} onChange={(event) => updateDraftDetail("shippingAddress", event.target.value)} placeholder="Enter shipping address details" className={`${sheetTextareaClass} min-h-[130px]`} />
-                  </div>
-                  <div>
                     <div className="border-b border-slate-950 bg-slate-100 px-3 py-2 font-bold uppercase">Billing To Details</div>
                     <div className="space-y-1 px-3 py-3 leading-5">
                       <p className="font-semibold">{billing.name}</p>
@@ -1140,6 +1223,10 @@ function CreatePurchaseOrderPanel({
                       <p>Contact Person: {billing.contactName}</p>
                       <p>Contact Number: {billing.contactNumber}</p>
                     </div>
+                  </div>
+                  <div>
+                    <div className="border-b border-slate-950 bg-slate-100 px-3 py-2 font-bold uppercase">Shipping Address Details</div>
+                    <textarea value={poDraftDetails.shippingAddress} onChange={(event) => updateDraftDetail("shippingAddress", event.target.value)} placeholder="Enter shipping address details" className={`${sheetTextareaClass} min-h-[130px]`} />
                   </div>
                 </div>
               ) : null}
@@ -1187,12 +1274,6 @@ function CreatePurchaseOrderPanel({
                 </div>
               </div>
 
-              {selectedTemplate === "ACS" ? (
-                <div className="border-b-2 border-slate-950 bg-amber-50 px-3 py-2 font-semibold">
-                  Important Notes: On account of wrong selection of HSN code & Tax portion in the Invoice and correction at the later stage, differential amount will be collected/ returned.
-                </div>
-              ) : null}
-
               <div className="grid grid-cols-[1fr_320px]">
                 <div className="p-3" />
                 <div className="border-l-2 border-slate-950 p-3 text-center">
@@ -1202,7 +1283,9 @@ function CreatePurchaseOrderPanel({
                       <img src={acsSeal} alt="ACS seal" className="h-20 w-20 object-contain" />
                     </div>
                   ) : (
-                    <div className="h-20" />
+                    <div className="flex h-20 items-center justify-center">
+                      <img src={iotiqStamp} alt="IOTIQ stamp" className="h-20 w-20 object-contain" />
+                    </div>
                   )}
                   <p className="font-semibold">{selectedTemplate === "ACS" ? "Authorised Signatory" : "Authorized Signatory"}</p>
                 </div>
@@ -1493,6 +1576,7 @@ export default function P2PPurchaseOrderPage() {
         activeDraft.vendorQuoteReference,
         activeDraft.poDraftDetails,
         activeDraft.poTerms,
+        activeDraft.poItemColumns,
         activeDraft.poLineItems
       ),
     });
@@ -1661,6 +1745,7 @@ export default function P2PPurchaseOrderPage() {
           vendorQuoteReference={activeDraft.vendorQuoteReference}
           poDraftDetails={activeDraft.poDraftDetails}
           terms={activeDraft.poTerms}
+          itemColumns={activeDraft.poItemColumns}
           lineItems={activeDraft.poLineItems}
           selectedRequisition={selectedRequisition}
           selectedVendor={selectedVendor}
@@ -1676,6 +1761,7 @@ export default function P2PPurchaseOrderPage() {
           onVendorQuoteReferenceChange={(value) => updateActiveDraft({ vendorQuoteReference: value })}
           onPoDraftDetailsChange={(value) => updateActiveDraft({ poDraftDetails: value })}
           onTermsChange={(value) => updateActiveDraft({ poTerms: value })}
+          onItemColumnsChange={(value) => updateActiveDraft({ poItemColumns: value })}
           onLineItemsChange={(value) => updateActiveDraft({ poLineItems: value })}
           onGenerate={handlePreviewDraft}
         />

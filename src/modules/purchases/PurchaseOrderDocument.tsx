@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import acsLogo from "@/assets/purchase-order/ACS_logo.png";
 import acsSeal from "@/assets/purchase-order/ACS_seal.png";
+import iotiqStamp from "@/assets/purchase-order/IOTIQ_stamp.svg";
 import iotiqLogo from "@/assets/purchase-order/IOTIQ_logo.png";
 
 type PartyDetails = {
@@ -17,10 +18,16 @@ export type PurchaseOrderDocumentItem = {
   description: string;
   make?: string | null;
   hsnOrSku?: string | null;
+  customValues?: Record<string, string>;
   quantity: number;
   unit: string;
   rate: number;
   amount: number;
+};
+
+export type PurchaseOrderDocumentItemColumn = {
+  id: string;
+  label: string;
 };
 
 export type PurchaseOrderDocumentData = {
@@ -49,6 +56,7 @@ export type PurchaseOrderDocumentData = {
   shipTo: PartyDetails;
   billTo: PartyDetails;
   items: PurchaseOrderDocumentItem[];
+  customItemColumns?: PurchaseOrderDocumentItemColumn[];
   subtotal: number;
   igstAmount?: number;
   cgstAmount?: number;
@@ -118,6 +126,14 @@ export function PurchaseOrderDocument({ document }: { document: PurchaseOrderDoc
   const sgstAmount = document.sgstAmount ?? 0;
   const otherCharges = document.otherCharges ?? 0;
   const amountInWords = document.amountInWords || `INR ${formatCurrency(document.grandTotal)} only`;
+  const customItemColumns =
+    document.customItemColumns?.map((column, index) => ({
+      id: column.id,
+      label: column.label.trim() || `Column ${index + 1}`,
+    })) ?? [];
+  const itemHeadings = isAcs
+    ? ["S.No.", "Description", "HSN", ...customItemColumns.map((column) => column.label), "UoM", "Qty", "Rate/ Unit (Rs)", "Amount (Rs)"]
+    : ["S.No", "Description", "Make", "HSN Code", ...customItemColumns.map((column) => column.label), "Qty", "UOM", "Rate", "Amount (INR)"];
 
   return (
     <div className="quotation-sheet mx-auto bg-white text-[10px] leading-tight text-black">
@@ -170,10 +186,6 @@ export function PurchaseOrderDocument({ document }: { document: PurchaseOrderDoc
               {!isAcs ? (
                 <>
                   <Row label="Mail ID">{document.mailId || "-"}</Row>
-                  <Row label="Reference Date">{formatDate(document.referenceDate)}</Row>
-                  <Row label="Prepared By">{document.preparedBy || "Logged-in User"}</Row>
-                  <Row label="Status">{document.status || "-"}</Row>
-                  <Row label="Approval Information">{document.approvalInformation || "-"}</Row>
                 </>
               ) : null}
             </div>
@@ -183,14 +195,6 @@ export function PurchaseOrderDocument({ document }: { document: PurchaseOrderDoc
         {!isAcs ? (
           <div className="grid grid-cols-2 border-b-2 border-black">
             <div className="border-r-2 border-black">
-              <div className="border-b border-black bg-slate-100 px-2 py-1.5 font-bold uppercase">Shipping Address Details</div>
-              <div className="min-h-[78px] p-2 leading-5">
-                {document.shipTo.addressLines.map((line) => (
-                  <p key={line}>{line}</p>
-                ))}
-              </div>
-            </div>
-            <div>
               <div className="border-b border-black bg-slate-100 px-2 py-1.5 font-bold uppercase">Billing To Details</div>
               <div className="p-2 leading-5">
                 <p className="font-semibold">{document.billTo.name}</p>
@@ -202,17 +206,22 @@ export function PurchaseOrderDocument({ document }: { document: PurchaseOrderDoc
                 <p>Contact Number: {document.billTo.contactNumber || "-"}</p>
               </div>
             </div>
+            <div>
+              <div className="border-b border-black bg-slate-100 px-2 py-1.5 font-bold uppercase">Shipping Address Details</div>
+              <div className="min-h-[78px] p-2 leading-5">
+                {document.shipTo.addressLines.map((line) => (
+                  <p key={line}>{line}</p>
+                ))}
+              </div>
+            </div>
           </div>
         ) : null}
 
         <table className="w-full border-collapse text-[9px]">
           <thead>
             <tr className="bg-[#f8ecd1]">
-              {(isAcs
-                ? ["S.No.", "Description", "HSN", "UoM", "Qty", "Rate/ Unit (Rs)", "Amount (Rs)"]
-                : ["S.No", "Description", "Make", "HSN Code", "Qty", "UOM", "Rate", "Amount (INR)"]
-              ).map((heading) => (
-                <th key={heading} className="border border-black px-1.5 py-1 text-left font-semibold">
+              {itemHeadings.map((heading, index) => (
+                <th key={`${heading}-${index}`} className="border border-black px-1.5 py-1 text-left font-semibold">
                   {heading}
                 </th>
               ))}
@@ -225,6 +234,11 @@ export function PurchaseOrderDocument({ document }: { document: PurchaseOrderDoc
                 <td className="whitespace-pre-line border border-black px-1.5 py-1">{item.description}</td>
                 {!isAcs ? <td className="border border-black px-1.5 py-1">{item.make || "-"}</td> : null}
                 <td className="border border-black px-1.5 py-1">{item.hsnOrSku || "-"}</td>
+                {customItemColumns.map((column) => (
+                  <td key={column.id} className="whitespace-pre-line border border-black px-1.5 py-1">
+                    {item.customValues?.[column.id] || "-"}
+                  </td>
+                ))}
                 {isAcs ? (
                   <>
                     <td className="border border-black px-1.5 py-1">{item.unit}</td>
@@ -290,10 +304,6 @@ export function PurchaseOrderDocument({ document }: { document: PurchaseOrderDoc
           </div>
         </div>
 
-        {isAcs && document.importantNote ? (
-          <div className="border-b-2 border-black bg-amber-50 px-2 py-1.5 font-semibold">{document.importantNote}</div>
-        ) : null}
-
         <div className="grid grid-cols-[1fr_220px]">
           <div className="p-2" />
           <div className="border-l-2 border-black p-2 text-center">
@@ -303,7 +313,9 @@ export function PurchaseOrderDocument({ document }: { document: PurchaseOrderDoc
                 <img src={acsSeal} alt="ACS seal" className="h-16 w-16 object-contain" />
               </div>
             ) : (
-              <div className="h-14" />
+              <div className="flex h-16 items-center justify-center">
+                <img src={iotiqStamp} alt="IOTIQ stamp" className="h-16 w-16 object-contain" />
+              </div>
             )}
             <p className="font-semibold">{isAcs ? "Authorised Signatory" : "Authorized Signatory"}</p>
           </div>
