@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import acsLogo from "@/assets/purchase-order/ACS_logo.png";
 import acsSeal from "@/assets/purchase-order/ACS_seal.png";
-import iotiqStamp from "@/assets/purchase-order/IOTIQ_stamp.svg";
+import iotiqStamp from "@/assets/purchase-order/IOTIQ_stamp.png";
 import iotiqLogo from "@/assets/purchase-order/IOTIQ_logo.png";
 
 type PartyDetails = {
@@ -116,6 +116,14 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
+function itemColumnWidths(isAcs: boolean, customColumnCount: number) {
+  const weights = isAcs
+    ? [5, 30, 8, ...Array(customColumnCount).fill(8), 7, 6, 11, 12]
+    : [5, 24, 9, 8, ...Array(customColumnCount).fill(8), 6, 7, 9, 11];
+  const total = weights.reduce((sum, weight) => sum + weight, 0);
+  return weights.map((weight) => `${(weight / total) * 100}%`);
+}
+
 export function PurchaseOrderDocument({ document }: { document: PurchaseOrderDocumentData }) {
   const isAcs = document.template === "ACS";
   const logoSrc = isAcs ? acsLogo : iotiqLogo;
@@ -134,6 +142,8 @@ export function PurchaseOrderDocument({ document }: { document: PurchaseOrderDoc
   const itemHeadings = isAcs
     ? ["S.No.", "Description", "HSN", ...customItemColumns.map((column) => column.label), "UoM", "Qty", "Rate/ Unit (Rs)", "Amount (Rs)"]
     : ["S.No", "Description", "Make", "HSN Code", ...customItemColumns.map((column) => column.label), "Qty", "UOM", "Rate", "Amount (INR)"];
+  const itemWidths = itemColumnWidths(isAcs, customItemColumns.length);
+  const itemTextSize = itemHeadings.length > 10 ? "text-[7px]" : itemHeadings.length > 8 ? "text-[8px]" : "text-[9px]";
 
   return (
     <div className="quotation-sheet mx-auto bg-white text-[10px] leading-tight text-black">
@@ -217,11 +227,16 @@ export function PurchaseOrderDocument({ document }: { document: PurchaseOrderDoc
           </div>
         ) : null}
 
-        <table className="w-full border-collapse text-[9px]">
+        <table className={`w-full table-fixed border-collapse ${itemTextSize}`}>
+          <colgroup>
+            {itemWidths.map((width, index) => (
+              <col key={`${width}-${index}`} style={{ width }} />
+            ))}
+          </colgroup>
           <thead>
             <tr className="bg-[#f8ecd1]">
               {itemHeadings.map((heading, index) => (
-                <th key={`${heading}-${index}`} className="border border-black px-1.5 py-1 text-left font-semibold">
+                <th key={`${heading}-${index}`} className="max-w-0 break-words border border-black px-1 py-1 text-left align-top font-semibold">
                   {heading}
                 </th>
               ))}
@@ -230,28 +245,28 @@ export function PurchaseOrderDocument({ document }: { document: PurchaseOrderDoc
           <tbody>
             {document.items.map((item, index) => (
               <tr key={item.id}>
-                <td className="border border-black px-1.5 py-1">{index + 1}</td>
-                <td className="whitespace-pre-line border border-black px-1.5 py-1">{item.description}</td>
-                {!isAcs ? <td className="border border-black px-1.5 py-1">{item.make || "-"}</td> : null}
-                <td className="border border-black px-1.5 py-1">{item.hsnOrSku || "-"}</td>
+                <td className="max-w-0 break-words border border-black px-1 py-1 align-top">{index + 1}</td>
+                <td className="max-w-0 whitespace-pre-line break-words border border-black px-1 py-1 align-top">{item.description}</td>
+                {!isAcs ? <td className="max-w-0 break-words border border-black px-1 py-1 align-top">{item.make || "-"}</td> : null}
+                <td className="max-w-0 break-words border border-black px-1 py-1 align-top">{item.hsnOrSku || "-"}</td>
                 {customItemColumns.map((column) => (
-                  <td key={column.id} className="whitespace-pre-line border border-black px-1.5 py-1">
+                  <td key={column.id} className="max-w-0 whitespace-pre-line break-words border border-black px-1 py-1 align-top">
                     {item.customValues?.[column.id] || "-"}
                   </td>
                 ))}
                 {isAcs ? (
                   <>
-                    <td className="border border-black px-1.5 py-1">{item.unit}</td>
-                    <td className="border border-black px-1.5 py-1">{item.quantity}</td>
+                    <td className="max-w-0 break-words border border-black px-1 py-1 align-top">{item.unit}</td>
+                    <td className="max-w-0 break-words border border-black px-1 py-1 align-top">{item.quantity}</td>
                   </>
                 ) : (
                   <>
-                    <td className="border border-black px-1.5 py-1">{item.quantity}</td>
-                    <td className="border border-black px-1.5 py-1">{item.unit}</td>
+                    <td className="max-w-0 break-words border border-black px-1 py-1 align-top">{item.quantity}</td>
+                    <td className="max-w-0 break-words border border-black px-1 py-1 align-top">{item.unit}</td>
                   </>
                 )}
-                <td className="border border-black px-1.5 py-1 text-right">{formatCurrency(item.rate)}</td>
-                <td className="border border-black px-1.5 py-1 text-right">{formatCurrency(item.amount)}</td>
+                <td className="max-w-0 break-words border border-black px-1 py-1 text-right align-top">{formatCurrency(item.rate)}</td>
+                <td className="max-w-0 break-words border border-black px-1 py-1 text-right align-top">{formatCurrency(item.amount)}</td>
               </tr>
             ))}
           </tbody>

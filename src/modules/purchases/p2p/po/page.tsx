@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import acsLogo from "@/assets/purchase-order/ACS_logo.png";
 import acsSeal from "@/assets/purchase-order/ACS_seal.png";
-import iotiqStamp from "@/assets/purchase-order/IOTIQ_stamp.svg";
+import iotiqStamp from "@/assets/purchase-order/IOTIQ_stamp.png";
 import iotiqLogo from "@/assets/purchase-order/IOTIQ_logo.png";
 import { PurchaseOrderDocument, type PurchaseOrderDocumentData } from "@/modules/purchases/PurchaseOrderDocument";
 import { usePurchaseOrders, usePurchaseRequisitions, useVendors } from "@/modules/purchases/hooks";
@@ -448,6 +448,15 @@ function recalculateLineItem(item: PoLineItemDraft): PoLineItemDraft {
   };
 }
 
+function itemColumnWidths(template: PoTemplate, customColumnCount: number) {
+  const weights =
+    template === "ACS"
+      ? [5, 30, 8, ...Array(customColumnCount).fill(8), 7, 6, 11, 12]
+      : [5, 24, 9, 8, ...Array(customColumnCount).fill(8), 6, 7, 9, 11];
+  const total = weights.reduce((sum, weight) => sum + weight, 0);
+  return weights.map((weight) => `${(weight / total) * 100}%`);
+}
+
 function vendorParty(vendor?: Vendor | null) {
   if (!vendor) {
     return {
@@ -765,7 +774,7 @@ function CreatePurchaseOrderPanel({
     hasInvalidLineItems ? "Complete Item Details" : "",
   ].filter(Boolean);
   const canGenerate = missingFields.length === 0;
-  const sheetInputClass = "w-full border-0 bg-transparent px-2 py-1.5 text-[12px] text-slate-950 outline-none ring-0 placeholder:text-slate-400 focus:bg-amber-50";
+  const sheetInputClass = "min-w-0 w-full border-0 bg-transparent px-2 py-1.5 text-[12px] text-slate-950 outline-none ring-0 placeholder:text-slate-400 focus:bg-amber-50";
   const sheetTextareaClass = `${sheetInputClass} min-h-[76px] resize-none leading-5`;
   const readonlyValueClass = "min-h-[30px] px-2 py-1.5 text-[12px] leading-5 text-slate-900";
 
@@ -906,6 +915,8 @@ function CreatePurchaseOrderPanel({
     const leadingColumns = selectedTemplate === "ACS" ? ["S.No.", "Description", "HSN"] : ["S.No", "Description", "Make", "HSN Code"];
     const trailingColumns = selectedTemplate === "ACS" ? ["UoM", "Qty", "Rate/ Unit (Rs)", "Amount (Rs)"] : ["Qty", "UOM", "Rate", "Amount (INR)"];
     const totalColumnCount = leadingColumns.length + itemColumns.length + trailingColumns.length;
+    const columnWidths = itemColumnWidths(selectedTemplate, itemColumns.length);
+    const itemTableTextSize = totalColumnCount > 10 ? "text-[10px]" : totalColumnCount > 8 ? "text-[11px]" : "text-[12px]";
     return (
       <div className="border-b-2 border-slate-950">
         <div className="flex items-center justify-between border-b border-slate-950 bg-slate-100 px-3 py-2">
@@ -921,16 +932,21 @@ function CreatePurchaseOrderPanel({
             </button>
           </div>
         </div>
-        <table className="w-full border-collapse text-[12px]">
+        <table className={`w-full table-fixed border-collapse ${itemTableTextSize}`}>
+          <colgroup>
+            {columnWidths.map((width, index) => (
+              <col key={`${width}-${index}`} style={{ width }} />
+            ))}
+          </colgroup>
           <thead>
             <tr className="bg-[#f8ecd1]">
               {leadingColumns.map((heading) => (
-                <th key={heading} className="border border-slate-950 px-2 py-2 text-left font-bold">
+                <th key={heading} className="max-w-0 break-words border border-slate-950 px-1.5 py-2 text-left align-top font-bold">
                   {heading}
                 </th>
               ))}
               {itemColumns.map((column, index) => (
-                <th key={column.id} className="min-w-[150px] border border-slate-950 px-2 py-1 text-left font-bold">
+                <th key={column.id} className="max-w-0 border border-slate-950 px-1 py-1 text-left align-top font-bold">
                   <div className="flex items-center gap-1">
                     <input
                       value={column.label}
@@ -946,7 +962,7 @@ function CreatePurchaseOrderPanel({
                 </th>
               ))}
               {trailingColumns.map((heading) => (
-                <th key={heading} className="border border-slate-950 px-2 py-2 text-left font-bold">
+                <th key={heading} className="max-w-0 break-words border border-slate-950 px-1.5 py-2 text-left align-top font-bold">
                   {heading}
                 </th>
               ))}
@@ -956,7 +972,7 @@ function CreatePurchaseOrderPanel({
             {lineItems.length ? (
               lineItems.map((item, index) => (
                 <tr key={item.id}>
-                  <td className="w-[82px] border border-slate-950 px-2 py-1.5">
+                  <td className="max-w-0 border border-slate-950 px-1 py-1.5 align-top">
                     <div className="flex items-center justify-between gap-2">
                       <span className="font-semibold">{index + 1}</span>
                       <button type="button" onClick={() => onLineItemsChange(lineItems.filter((entry) => entry.id !== item.id))} className="rounded-full p-1 text-rose-600 hover:bg-rose-50" aria-label={`Remove item ${index + 1}`}>
@@ -964,7 +980,7 @@ function CreatePurchaseOrderPanel({
                       </button>
                     </div>
                   </td>
-                  <td className="min-w-[260px] border border-slate-950">
+                  <td className="max-w-0 border border-slate-950 align-top">
                     <textarea
                       rows={2}
                       value={item.productName}
@@ -974,15 +990,15 @@ function CreatePurchaseOrderPanel({
                     />
                   </td>
                   {selectedTemplate === "IOTIQ" ? (
-                    <td className="min-w-[140px] border border-slate-950">
+                    <td className="max-w-0 border border-slate-950 align-top">
                       <input value={item.category} onChange={(event) => updateLineItem(item.id, { category: event.target.value })} placeholder="Make" className={sheetInputClass} />
                     </td>
                   ) : null}
-                  <td className="min-w-[130px] border border-slate-950">
+                  <td className="max-w-0 border border-slate-950 align-top">
                     <input value={item.sku} onChange={(event) => updateLineItem(item.id, { sku: event.target.value })} placeholder={selectedTemplate === "ACS" ? "HSN" : "HSN Code"} className={sheetInputClass} />
                   </td>
                   {itemColumns.map((column) => (
-                    <td key={column.id} className="min-w-[150px] border border-slate-950">
+                    <td key={column.id} className="max-w-0 border border-slate-950 align-top">
                       <input
                         value={item.customValues[column.id] ?? ""}
                         onChange={(event) => updateLineItemCustomValue(item.id, column.id, event.target.value)}
@@ -993,27 +1009,27 @@ function CreatePurchaseOrderPanel({
                   ))}
                   {selectedTemplate === "ACS" ? (
                     <>
-                      <td className="w-[110px] border border-slate-950">
+                      <td className="max-w-0 border border-slate-950 align-top">
                         <input value={item.unit} onChange={(event) => updateLineItem(item.id, { unit: event.target.value })} placeholder="UoM" className={sheetInputClass} />
                       </td>
-                      <td className="w-[90px] border border-slate-950">
+                      <td className="max-w-0 border border-slate-950 align-top">
                         <input type="number" min={0} step="0.01" value={item.quantity} onChange={(event) => updateLineItem(item.id, { quantity: parseAmountInput(event.target.value) })} className={sheetInputClass} />
                       </td>
                     </>
                   ) : (
                     <>
-                      <td className="w-[90px] border border-slate-950">
+                      <td className="max-w-0 border border-slate-950 align-top">
                         <input type="number" min={0} step="0.01" value={item.quantity} onChange={(event) => updateLineItem(item.id, { quantity: parseAmountInput(event.target.value) })} className={sheetInputClass} />
                       </td>
-                      <td className="w-[110px] border border-slate-950">
+                      <td className="max-w-0 border border-slate-950 align-top">
                         <input value={item.unit} onChange={(event) => updateLineItem(item.id, { unit: event.target.value })} placeholder="UOM" className={sheetInputClass} />
                       </td>
                     </>
                   )}
-                  <td className="w-[130px] border border-slate-950">
+                  <td className="max-w-0 border border-slate-950 align-top">
                     <input type="number" min={0} step="0.01" value={item.unitPrice} onChange={(event) => updateLineItem(item.id, { unitPrice: parseAmountInput(event.target.value) })} className={sheetInputClass} />
                   </td>
-                  <td className="w-[150px] border border-slate-950">
+                  <td className="max-w-0 border border-slate-950 align-top">
                     <input
                       readOnly
                       value={formatPlain(calculateLineTotal(item))}
