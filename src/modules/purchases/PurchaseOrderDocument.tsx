@@ -202,30 +202,28 @@ export function PurchaseOrderDocument({ document }: { document: PurchaseOrderDoc
           </div>
         </div>
 
-        {!isAcs ? (
-          <div className="grid grid-cols-2 border-b-2 border-black">
-            <div className="border-r-2 border-black">
-              <div className="border-b border-black bg-slate-100 px-2 py-1.5 font-bold uppercase">Billing To Details</div>
-              <div className="p-2 leading-5">
-                <p className="font-semibold">{document.billTo.name}</p>
-                {document.billTo.addressLines.map((line) => (
-                  <p key={line}>{line}</p>
-                ))}
-                <p>{displayGst(document.billTo.gst)}</p>
-                <p>Contact Person: {document.billTo.contactName || "-"}</p>
-                <p>Contact Number: {document.billTo.contactNumber || "-"}</p>
-              </div>
-            </div>
-            <div>
-              <div className="border-b border-black bg-slate-100 px-2 py-1.5 font-bold uppercase">Shipping Address Details</div>
-              <div className="min-h-[78px] p-2 leading-5">
-                {document.shipTo.addressLines.map((line) => (
-                  <p key={line}>{line}</p>
-                ))}
-              </div>
+        <div className="grid grid-cols-2 border-b-2 border-black">
+          <div className="border-r-2 border-black">
+            <div className="border-b border-black bg-slate-100 px-2 py-1.5 font-bold uppercase">Billing To Details</div>
+            <div className="p-2 leading-5">
+              <p className="font-semibold">{document.billTo.name}</p>
+              {document.billTo.addressLines.map((line) => (
+                <p key={line}>{line}</p>
+              ))}
+              <p>{displayGst(document.billTo.gst)}</p>
+              <p>Contact Person: {document.billTo.contactName || "-"}</p>
+              <p>Contact Number: {document.billTo.contactNumber || "-"}</p>
             </div>
           </div>
-        ) : null}
+          <div>
+            <div className="border-b border-black bg-slate-100 px-2 py-1.5 font-bold uppercase">Shipping Address Details</div>
+            <div className="min-h-[78px] p-2 leading-5">
+              {document.shipTo.addressLines.map((line) => (
+                <p key={line}>{line}</p>
+              ))}
+            </div>
+          </div>
+        </div>
 
         <table className={`w-full table-fixed border-collapse ${itemTextSize}`}>
           <colgroup>
