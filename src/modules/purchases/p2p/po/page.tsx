@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { toast } from "sonner";
 import {
   ChevronDown,
   CircleDollarSign,
@@ -22,7 +23,7 @@ import acsSeal from "@/assets/purchase-order/ACS_seal.png";
 import iotiqStamp from "@/assets/purchase-order/IOTIQ_stamp.png";
 import iotiqLogo from "@/assets/purchase-order/IOTIQ_logo.png";
 import { PurchaseOrderDocument, type PurchaseOrderDocumentData } from "@/modules/purchases/PurchaseOrderDocument";
-import { usePurchaseOrders, usePurchaseRequisitions, useVendors } from "@/modules/purchases/hooks";
+import { useCreatePurchaseOrder, usePurchaseOrders, usePurchaseRequisitions, useVendors } from "@/modules/purchases/hooks";
 import type { PurchaseOrder, PurchaseOrderStatus, PurchaseRequisition, Vendor } from "@/modules/purchases/types";
 import { P2PCard, P2PFormField, P2PLayout, P2PStatusBadge, P2PTable } from "../components";
 
@@ -706,6 +707,7 @@ function CreatePurchaseOrderPanel({
   onItemColumnsChange,
   onLineItemsChange,
   onGenerate,
+  isGenerating,
 }: {
   approvedRequisitions: PurchaseRequisition[];
   vendors: Vendor[];
@@ -733,6 +735,7 @@ function CreatePurchaseOrderPanel({
   onItemColumnsChange: (value: PoItemColumnDraft[]) => void;
   onLineItemsChange: (value: PoLineItemDraft[]) => void;
   onGenerate: () => void;
+  isGenerating: boolean;
 }) {
   const [showValidation, setShowValidation] = useState(false);
   const [draftSavedAt, setDraftSavedAt] = useState<string | null>(null);
@@ -1324,9 +1327,14 @@ function CreatePurchaseOrderPanel({
                 <FileText className="h-4 w-4" />
                 Save Draft
               </button>
-              <button type="button" onClick={handleGeneratePo} className="inline-flex items-center gap-2 rounded-full bg-slate-950 px-5 py-2.5 text-sm font-semibold text-white shadow-sm shadow-slate-950/20 hover:bg-slate-800">
-                <Printer className="h-4 w-4" />
-                Generate PO
+              <button
+                type="button"
+                onClick={handleGeneratePo}
+                disabled={isGenerating}
+                className="inline-flex items-center gap-2 rounded-full bg-slate-950 px-5 py-2.5 text-sm font-semibold text-white shadow-sm shadow-slate-950/20 hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400 disabled:shadow-none"
+              >
+                {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}
+                {isGenerating ? "Saving PO..." : "Generate PO"}
               </button>
             </div>
           </div>
@@ -1477,6 +1485,7 @@ export default function P2PPurchaseOrderPage() {
   const { data: purchaseOrders = [], isLoading, isError, error } = usePurchaseOrders();
   const { data: requisitions = [] } = usePurchaseRequisitions();
   const { data: vendors = [] } = useVendors();
+  const createPurchaseOrderMutation = useCreatePurchaseOrder();
 
   const [selectedTemplate, setSelectedTemplate] = useState<PoTemplate>("IOTIQ");
   const [templateDrafts, setTemplateDrafts] = useState<Record<PoTemplate, PoTemplateDraft>>(() => createInitialTemplateDrafts());
@@ -1579,23 +1588,58 @@ export default function P2PPurchaseOrderPage() {
     setSelectedTemplate(template);
   }
 
-  function handlePreviewDraft() {
-    if (!selectedRequisition) return;
-    setPreview({
-      title: `${draftPoNumber(selectedRequisition, selectedTemplate)} - ${selectedTemplate}`,
-      data: draftDoc(
+  async function handleCreatePurchaseOrder() {
+    if (!selectedRequisition || !selectedVendor) {
+      toast.error("Select an approved requisition and vendor before generating the PO.");
+      return;
+    }
+
+    try {
+      const createdOrder = await createPurchaseOrderMutation.mutateAsync({
+        purchaseRequisitionId: selectedRequisition.id,
+        payload: {
+          vendorId: selectedVendor.id,
+          orderDate: activeDraft.orderDate,
+          notes: [
+            activeDraft.project ? `Project: ${activeDraft.project}` : "",
+            activeDraft.vendorQuoteReference ? `Reference: ${activeDraft.vendorQuoteReference}` : "",
+          ]
+            .filter(Boolean)
+            .join(" | "),
+        },
+      });
+
+      const previewData = draftDoc(
         selectedTemplate,
         selectedRequisition,
         selectedVendor,
-        activeDraft.orderDate,
+        createdOrder.orderDate,
         activeDraft.project,
         activeDraft.vendorQuoteReference,
-        activeDraft.poDraftDetails,
+        {
+          ...activeDraft.poDraftDetails,
+          status: createdOrder.status,
+        },
         activeDraft.poTerms,
         activeDraft.poItemColumns,
         activeDraft.poLineItems
-      ),
-    });
+      );
+
+      setIsCreatePanelOpen(false);
+      resetCreateForm();
+      setSelectedPurchaseOrderId(createdOrder.id);
+      setPreview({
+        title: createdOrder.poNumber,
+        data: {
+          ...previewData,
+          poNumber: createdOrder.poNumber,
+          internalNotes: createdOrder.notes ?? previewData.internalNotes,
+        },
+      });
+      toast.success(`Purchase order ${createdOrder.poNumber} saved successfully.`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to create purchase order.");
+    }
   }
 
   const columns = [
@@ -1779,7 +1823,8 @@ export default function P2PPurchaseOrderPage() {
           onTermsChange={(value) => updateActiveDraft({ poTerms: value })}
           onItemColumnsChange={(value) => updateActiveDraft({ poItemColumns: value })}
           onLineItemsChange={(value) => updateActiveDraft({ poLineItems: value })}
-          onGenerate={handlePreviewDraft}
+          onGenerate={() => void handleCreatePurchaseOrder()}
+          isGenerating={createPurchaseOrderMutation.isPending}
         />
       ) : null}
 
