@@ -1,220 +1,119 @@
-import { useEffect, useState } from "react";
-import Alert from "../../components/common/Alert";
-import ConfirmDialog from "../../components/common/ConfirmDialog";
-import { Icons } from "../../components/common/Icons";
-import StatusBadge from "../../components/common/StatusBadge";
-import Table from "../../components/common/Table";
-import visitorRequestService from "../../services/visitorRequestService";
-import { initials } from "../../utils/visitorUtils";
+import { useState } from "react";
+import { Link } from "react-router-dom";
+import { Plus, RefreshCcw, Users, XCircle } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { VisitorActionDialog } from "../../components/vms/VisitorActionDialog";
+import { VisitorTable } from "../../components/vms/VisitorTable";
+import { EmptyState, VmsPage } from "../../components/vms/VmsPage";
+import { useVisitorActions, useVisitors } from "../../hooks/useVisitors";
+import { VMS_PATHS } from "../../routes/paths";
+import type { VisitorAction, VisitorRecord } from "../../types";
+import { downloadCsv, toVisitorCsv } from "../../utils/visitorWorkflow";
 
 function VisitorRequests() {
-  const [visitors, setVisitors] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [alert, setAlert] = useState(null);
-  const [confirmAction, setConfirmAction] = useState(null);
-  const [rejectionReason, setRejectionReason] = useState("");
+  const { visitors, loading, error, refresh } = useVisitors();
+  const [pendingAction, setPendingAction] = useState<VisitorAction | null>(null);
+  const [selectedVisitor, setSelectedVisitor] = useState<VisitorRecord | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const { runAction, busyAction, error: actionError, setError: setActionError } = useVisitorActions(async () => {
+    await refresh();
+  });
 
-  const refresh = async () => {
+  const openAction = (action: VisitorAction, visitor: VisitorRecord) => {
+    setSelectedVisitor(visitor);
+    setPendingAction(action);
+    setNotice(null);
+    setActionError(null);
+  };
+
+  const completeAction = async (reason: string) => {
+    if (!selectedVisitor || !pendingAction) return;
     try {
-      const data = await visitorRequestService.getAll();
-      console.log("[API] GET /api/visitor-requests:", data);
-      setVisitors(data);
-    } catch (err) {
-      console.error("[API] getAll error:", err);
-      setAlert({ type: "error", title: "Load failed", message: err.message || "Could not load visitor requests." });
+      await runAction(pendingAction, selectedVisitor, reason);
+      setNotice(`${selectedVisitor.name} updated successfully.`);
+      setPendingAction(null);
+      setSelectedVisitor(null);
+    } catch {
+      // Hook exposes the message for display.
     }
   };
 
-  useEffect(() => {
-    const load = async () => {
-      await refresh();
-      setLoading(false);
-    };
-
-    void load();
-  }, []);
-
-  const runAction = async (type, visitor) => {
-    if (type === "delete" || type === "reject") {
-      setRejectionReason("");
-      setConfirmAction({ type, visitor });
-      return;
-    }
-
-    try {
-      if (type === "approve") {
-        await visitorRequestService.approve(visitor.id);
-        setAlert({ type: "success", title: "Approved", message: `${visitor.name} has been approved.` });
-      } else if (type === "checkIn") {
-        await visitorRequestService.checkIn(visitor.id, visitor.qrCodeData);
-        setAlert({ type: "success", title: "Checked in", message: `${visitor.name} has checked in.` });
-      } else if (type === "checkOut") {
-        await visitorRequestService.checkOut(visitor.id, visitor.qrCodeData);
-        setAlert({ type: "success", title: "Checked out", message: `${visitor.name} has checked out.` });
-      }
-      await refresh();
-    } catch (err) {
-      console.error(`[API] ${type} error:`, err);
-      setAlert({ type: "error", title: "Action failed", message: err.message || "Operation failed. Try again." });
-    }
+  const exportVisitors = () => {
+    downloadCsv("visitor-requests.csv", toVisitorCsv(visitors));
   };
-
-  const confirmComplete = async () => {
-    if (!confirmAction) return;
-    const { type, visitor } = confirmAction;
-
-    try {
-      if (type === "delete") {
-        await visitorRequestService.delete(visitor.id);
-        setAlert({ type: "success", title: "Deleted", message: `${visitor.name} was removed.` });
-      } else if (type === "reject") {
-        await visitorRequestService.reject(visitor.id, rejectionReason);
-        setAlert({ type: "success", title: "Rejected", message: `${visitor.name} has been rejected.` });
-      }
-      await refresh();
-    } catch (err) {
-      console.error(`[API] ${type} error:`, err);
-      setAlert({ type: "error", title: "Action failed", message: err.message || "Operation failed. Try again." });
-    } finally {
-      setConfirmAction(null);
-      setRejectionReason("");
-    }
-  };
-
-  const exportCsv = () => {
-    const rows = [
-      ["Visitor ID", "Name", "Email", "Mobile", "Company", "Purpose", "Host", "From", "To", "Status", "Check In", "Check Out"],
-      ...visitors.map((v) => [
-        v.visitorId, v.name, v.email, v.mobile, v.company, v.purpose,
-        v.employeeToMeet, v.fromDateTime, v.toDateTime, v.status,
-        v.checkIn || "", v.checkOut || "",
-      ]),
-    ];
-    const blob = new Blob(
-      [rows.map((row) => row.map((cell) => `"${String(cell || "").replace(/"/g, '""')}"`).join(",")).join("\n")],
-      { type: "text/csv;charset=utf-8;" }
-    );
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "visitor-requests.csv";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-  };
-
-  const columns = [
-    {
-      header: "Visitor",
-      accessor: "name",
-      render: (visitor) => (
-        <div className="visitor-cell">
-          {visitor.photo ? (
-            <img className="visitor-photo" src={visitor.photo} alt="" />
-          ) : (
-            <span className="visitor-avatar">{initials(visitor.name)}</span>
-          )}
-          <div>
-            <div className="cell-title">{visitor.name}</div>
-            <div className="cell-subtitle">{visitor.mobile || "No mobile"}</div>
-          </div>
-        </div>
-      ),
-    },
-    { header: "Visitor ID", accessor: "visitorId", render: (_, value) => <span className="mono">{value || "-"}</span> },
-    { header: "Company", accessor: "company", render: (_, value) => value || "-" },
-    { header: "Host", accessor: "employeeToMeet", render: (_, value) => value || "-" },
-    { header: "From", accessor: "fromDateTime", render: (_, value) => value ? value.replace("T", " ").slice(0, 16) : "-" },
-    { header: "Status", accessor: "status", render: (visitor) => <StatusBadge status={visitor.status} /> },
-    {
-      id: "actions",
-      header: "Actions",
-      accessor: "id",
-      sortable: false,
-      searchable: false,
-      render: (visitor) => (
-        <div className="row-actions">
-          {visitor.status === "Pending" && (
-            <>
-              <button className="btn btn-success btn-sm" type="button" onClick={() => runAction("approve", visitor)}>Approve</button>
-              <button className="btn btn-danger btn-sm" type="button" onClick={() => runAction("reject", visitor)}>Reject</button>
-            </>
-          )}
-          {visitor.status === "Approved" && !visitor.checkIn && (
-            <button className="btn btn-primary btn-sm" type="button" onClick={() => runAction("checkIn", visitor)}>Check In</button>
-          )}
-          {visitor.checkIn && !visitor.checkOut && (
-            <button className="btn btn-secondary btn-sm" type="button" onClick={() => runAction("checkOut", visitor)}>Check Out</button>
-          )}
-          <button className="icon-button" type="button" onClick={() => runAction("delete", visitor)} aria-label={`Delete ${visitor.name}`}>
-            <Icons.Trash />
-          </button>
-        </div>
-      ),
-    },
-  ];
 
   return (
-    <div className="page-stack">
-      {/* <div className="page-header"> */}
-        {/* <div className="page-title">
-          <h1>Visitor Requests</h1>
-          <p className="page-description">Search, sort, approve, check in, and export visitor request records.</p>
-        </div> */}
-      {/* </div> */}
+    <VmsPage
+      title="Visitors"
+      description="Search and manage all visitor records from a single operational table. Every row links to details, badge preview, and the next valid workflow action."
+      actions={
+        <>
+          <Button type="button" variant="outline" onClick={() => void refresh()} disabled={loading}>
+            <RefreshCcw className="h-4 w-4" aria-hidden="true" />
+            Refresh
+          </Button>
+          <Button asChild className="bg-blue-600 text-white hover:bg-blue-700">
+            <Link to={VMS_PATHS.newVisitor}>
+              <Plus className="h-4 w-4" aria-hidden="true" />
+              New Visitor
+            </Link>
+          </Button>
+        </>
+      }
+    >
+      {error ? (
+        <EmptyState
+          icon={<XCircle className="h-5 w-5" aria-hidden="true" />}
+          title="Could not load visitors"
+          description={error}
+        />
+      ) : null}
 
-      {alert && (
-        <Alert type={alert.type} title={alert.title} onClose={() => setAlert(null)}>
-          {alert.message}
-        </Alert>
-      )}
-
-      {loading ? (
-        <div className="card empty-state">
-          <Icons.Activity />
-          <strong>Loading visitor requests...</strong>
+      {notice ? (
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+          {notice}
         </div>
-      ) : (
-        <Table
-          columns={columns}
-          data={visitors}
-          searchable
-          searchPlaceholder="Search name, ID, host, company"
-          emptyMessage="No visitor requests found."
-          toolbar={
-            <button className="btn btn-outline" type="button" onClick={exportCsv} disabled={visitors.length === 0}>
-              <Icons.Download />
-              Export CSV
-            </button>
+      ) : null}
+
+      {actionError ? (
+        <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          {actionError}
+        </div>
+      ) : null}
+
+      <VisitorTable
+        visitors={visitors}
+        loading={loading}
+        actionScope="full"
+        onAction={openAction}
+        onExport={exportVisitors}
+        emptyMessage="No visitors are registered yet."
+      />
+
+      {!loading && visitors.length === 0 ? (
+        <EmptyState
+          icon={<Users className="h-5 w-5" aria-hidden="true" />}
+          title="Start with a visitor request"
+          description="Create the first visitor request to unlock approvals, badge preview, and desk processing."
+          actions={
+            <Button asChild className="bg-blue-600 text-white hover:bg-blue-700">
+              <Link to={VMS_PATHS.newVisitor}>Create Visitor</Link>
+            </Button>
           }
         />
-      )}
+      ) : null}
 
-      <ConfirmDialog
-        open={Boolean(confirmAction)}
-        title={confirmAction?.type === "delete" ? "Delete visitor request" : "Reject visitor"}
-        message={
-          confirmAction?.type === "reject"
-            ? `Reject ${confirmAction?.visitor.name || "this visitor"}? Enter a reason below.`
-            : `Delete ${confirmAction?.visitor.name || "this visitor"} from the request log? This cannot be undone.`
-        }
-        confirmLabel={confirmAction?.type === "delete" ? "Delete" : "Reject"}
-        tone="danger"
-        onCancel={() => { setConfirmAction(null); setRejectionReason(""); }}
-        onConfirm={confirmComplete}
-      >
-        {confirmAction?.type === "reject" && (
-          <textarea
-            className="form-control"
-            placeholder="Rejection reason (optional)"
-            value={rejectionReason}
-            onChange={(e) => setRejectionReason(e.target.value)}
-            style={{ width: "100%", marginTop: 8, minHeight: 72 }}
-          />
-        )}
-      </ConfirmDialog>
-    </div>
+      <VisitorActionDialog
+        action={pendingAction}
+        visitor={selectedVisitor}
+        busy={Boolean(busyAction)}
+        onCancel={() => {
+          setPendingAction(null);
+          setSelectedVisitor(null);
+        }}
+        onConfirm={completeAction}
+      />
+    </VmsPage>
   );
 }
 

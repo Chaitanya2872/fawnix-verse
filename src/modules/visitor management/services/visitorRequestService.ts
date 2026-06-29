@@ -72,6 +72,7 @@ const visitorRequestService = {
       email: form.email,
       whatsappMobile: form.mobile,
       company: form.company,
+      requestedByEmployeeName: form.employeeToMeet,
       purposeOfVisit: form.purpose,
       otherPurpose: form.purpose === "OTHERS" ? (form.otherPurpose || "") : null,
       fromDateTime: form.fromDateTime,
@@ -109,7 +110,7 @@ const visitorRequestService = {
         checkIn: null,
         checkOut: null,
         createdAt: new Date().toISOString(),
-        employeeToMeet: "",
+        employeeToMeet: form.employeeToMeet || "",
         registrationToken: "",
         rejectionReason: null,
       };

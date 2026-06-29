@@ -1,4 +1,5 @@
 import { API_BASE_URL } from "./apiConfig";
+import { clearAuthTokens, getAccessToken } from "@/services/api-client";
 
 const TOKEN_KEY = "vms_auth_token";
 const USER_KEY = "vms_auth_user";
@@ -7,7 +8,7 @@ const USER_KEY = "vms_auth_user";
 // Skips Content-Type for FormData (browser sets it with boundary).
 // On 401, clears stored credentials and redirects to login.
 export const authFetch = async (url: string | URL, options: RequestInit = {}) => {
-  const token = localStorage.getItem(TOKEN_KEY);
+  const token = localStorage.getItem(TOKEN_KEY) || getAccessToken();
   const isFormData = options.body instanceof FormData;
 
   const res = await fetch(url, {
@@ -23,7 +24,8 @@ export const authFetch = async (url: string | URL, options: RequestInit = {}) =>
   if (res.status === 401) {
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
-    window.location.href = "/vms/login";
+    clearAuthTokens();
+    window.location.href = "/login";
   }
 
   return res;
@@ -70,7 +72,7 @@ const authService = {
     localStorage.removeItem(USER_KEY);
   },
 
-  getToken: () => localStorage.getItem(TOKEN_KEY),
+  getToken: () => localStorage.getItem(TOKEN_KEY) || getAccessToken(),
 
   getUser: () => {
     try {
@@ -81,7 +83,7 @@ const authService = {
     }
   },
 
-  isLoggedIn: () => Boolean(localStorage.getItem(TOKEN_KEY)),
+  isLoggedIn: () => Boolean(localStorage.getItem(TOKEN_KEY) || getAccessToken()),
 
   me: async () => {
     const res = await authFetch(`${API_BASE_URL}/api/auth/me`);

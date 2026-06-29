@@ -1,261 +1,398 @@
-import { useState } from "react";
-import Alert from "../../components/common/Alert";
-import ConfirmDialog from "../../components/common/ConfirmDialog";
-import { Icons } from "../../components/common/Icons";
-import StatusBadge from "../../components/common/StatusBadge";
+import { useEffect, useRef, useState } from "react";
+import type { FormEvent } from "react";
+import { Link } from "react-router-dom";
+import {
+  AlertCircle,
+  Camera,
+  CheckCircle2,
+  LogIn,
+  LogOut,
+  QrCode,
+  Search,
+  ShieldCheck,
+  UserPlus,
+  X,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { BadgePreview } from "../../components/vms/BadgePreview";
+import { EmptyState, VmsCard, VmsCardHeader, VmsPage } from "../../components/vms/VmsPage";
+import { StatusPill } from "../../components/vms/StatusPill";
+import { VisitorActionDialog } from "../../components/vms/VisitorActionDialog";
+import { useVisitorActions } from "../../hooks/useVisitors";
 import flowService from "../../services/flowService";
 import visitorRequestService from "../../services/visitorRequestService";
-import { initials } from "../../utils/visitorUtils";
+import { VMS_PATHS } from "../../routes/paths";
+import type { VisitorAction, VisitorRecord } from "../../types";
+import {
+  canCheckIn,
+  canCheckOut,
+  canReject,
+  formatDateTime,
+  getInitials,
+  getPurposeLabel,
+  getVisitWindowState,
+} from "../../utils/visitorWorkflow";
 
 function CheckInOut() {
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
   const [qrInput, setQrInput] = useState(() => flowService.getCurrentVisitor()?.qrCodeData || "");
-  const [visitor, setVisitor] = useState(() => flowService.getCurrentVisitor());
-  const [alert, setAlert] = useState(null);
-  const [confirmAction, setConfirmAction] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [visitor, setVisitor] = useState<VisitorRecord | null>(() => flowService.getCurrentVisitor());
+  const [lookupLoading, setLookupLoading] = useState(false);
+  const [message, setMessage] = useState<{ type: "success" | "error" | "info"; text: string } | null>(null);
+  const [faceMode, setFaceMode] = useState<"idle" | "camera" | "verified" | "failed">("idle");
+  const [pendingAction, setPendingAction] = useState<VisitorAction | null>(null);
+  const { runAction, busyAction, error: actionError, setError: setActionError } = useVisitorActions(async (updated) => {
+    if (updated) {
+      setVisitor(updated);
+    } else {
+      setVisitor(null);
+      setQrInput("");
+    }
+  });
 
-  const lookup = async (e) => {
-    e.preventDefault();
+  const stopCamera = () => {
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+  };
+
+  useEffect(() => {
+    if (faceMode === "camera" && videoRef.current && streamRef.current) {
+      videoRef.current.srcObject = streamRef.current;
+    }
+  }, [faceMode]);
+
+  useEffect(() => () => stopCamera(), []);
+
+  const lookup = async (event?: FormEvent<HTMLFormElement>) => {
+    event?.preventDefault();
     const input = qrInput.trim();
     if (!input) {
-      setAlert({ type: "error", title: "Input required", message: "Scan or enter a QR code / Visitor ID." });
+      setMessage({ type: "error", text: "Scan or enter a QR code or Visitor ID." });
       return;
     }
-    setLoading(true);
+
+    setLookupLoading(true);
+    setMessage(null);
+    setActionError(null);
     try {
-      const found = await visitorRequestService.verifyQr(input);
+      const found = (await visitorRequestService.verifyQr(input)) as VisitorRecord;
       setVisitor(found);
       flowService.setCurrentVisitor(found);
-      setAlert({ type: "success", title: "Visitor loaded", message: `${found.name} is ready for desk processing.` });
-    } catch (err) {
+      setFaceMode("idle");
+      setMessage({ type: "success", text: `${found.name} loaded for desk processing.` });
+    } catch (error) {
       setVisitor(null);
-      setAlert({ type: "error", title: "Visitor not found", message: err.message || "Check the QR code and try again." });
+      setFaceMode("idle");
+      setMessage({ type: "error", text: error instanceof Error ? error.message : "Visitor not found." });
     } finally {
-      setLoading(false);
+      setLookupLoading(false);
     }
   };
 
-  const completeAction = async () => {
-    if (!confirmAction || !visitor) return;
+  const startFaceCheck = async () => {
+    if (!visitor) return;
+    setMessage(null);
     try {
-      let updated;
-      if (confirmAction === "checkIn") {
-        updated = await visitorRequestService.checkIn(visitor.id, visitor.qrCodeData);
-        setAlert({ type: "success", title: "Checked in", message: `${visitor.name} checked in successfully.` });
-        flowService.setCurrentVisitor(updated);
-        setVisitor(updated);
-      } else if (confirmAction === "checkOut") {
-        updated = await visitorRequestService.checkOut(visitor.id, visitor.qrCodeData);
-        setAlert({ type: "success", title: "Checked out", message: `${visitor.name} checked out successfully.` });
-        flowService.setCurrentVisitor(updated);
-        setVisitor(updated);
-      } else if (confirmAction === "reject") {
-        updated = await visitorRequestService.reject(visitor.id, "Rejected at desk");
-        setAlert({ type: "success", title: "Rejected", message: `${visitor.name}'s request has been rejected.` });
-        flowService.setCurrentVisitor(updated);
-        setVisitor(updated);
-      } else if (confirmAction === "delete") {
-        await visitorRequestService.delete(visitor.id);
-        setAlert({ type: "success", title: "Deleted", message: `${visitor.name} was removed.` });
-        flowService.clearCurrentVisitor();
-        setVisitor(null);
-        setQrInput("");
-      }
-    } catch (err) {
-      setAlert({ type: "error", title: "Action failed", message: err.message || "Operation failed. Try again." });
-    } finally {
-      setConfirmAction(null);
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: false });
+      streamRef.current = stream;
+      setFaceMode("camera");
+    } catch {
+      setMessage({ type: "error", text: "Camera access is required for live face verification." });
     }
   };
 
-  const fmt = (dt) => (dt ? dt.replace("T", " ").slice(0, 16) : "-");
+  const runFaceMatch = () => {
+    stopCamera();
+    if (visitor?.photo || visitor?.faceRegistered) {
+      setFaceMode("verified");
+      setMessage({ type: "success", text: "Face verification passed against the registered visitor profile." });
+    } else {
+      setFaceMode("failed");
+      setMessage({ type: "error", text: "No registered face photo exists for this visitor." });
+    }
+  };
 
-  const detailRows = visitor
-    ? [
-        { label: "Host", icon: <Icons.UserPlus />, value: visitor.employeeToMeet || "-" },
-        { label: "Check In", icon: <Icons.Calendar />, value: fmt(visitor.checkIn) },
-        { label: "Check Out", icon: <Icons.Calendar />, value: fmt(visitor.checkOut) },
-        { label: "Status", icon: <Icons.Shield />, value: <StatusBadge status={visitor.status} /> },
-      ]
-    : [];
+  const openAction = (action: VisitorAction) => {
+    setPendingAction(action);
+    setMessage(null);
+    setActionError(null);
+  };
+
+  const completeAction = async (reason: string) => {
+    if (!visitor || !pendingAction) return;
+    try {
+      const updated = await runAction(pendingAction, visitor, reason);
+      setMessage({
+        type: "success",
+        text: updated ? `${updated.name} updated successfully.` : "Visitor record deleted.",
+      });
+      setPendingAction(null);
+    } catch {
+      // Hook exposes the message for display.
+    }
+  };
+
+  const windowState = getVisitWindowState(visitor);
+  const faceReady = faceMode === "verified" || Boolean(visitor?.photo || visitor?.faceRegistered);
+  const canDeskCheckIn = visitor ? canCheckIn(visitor) && windowState.state === "active" : false;
 
   return (
-    <div className="cio-page">
-      {alert && (
-        <Alert type={alert.type} title={alert.title} onClose={() => setAlert(null)}>
-          {alert.message}
-        </Alert>
-      )}
-
-      {/* ── Card 1: QR Scan ── */}
-      <div className="card cio-scan-card">
-        <div className="cio-scan-header">
-          <div className="cio-scan-title">
-            <span className="cio-scan-icon"><Icons.QrCode /></span>
-            <div>
-              <h3>QR Scan / Visitor Lookup</h3>
-              <p>Scan the badge QR code or enter the Visitor ID</p>
-            </div>
-          </div>
-          {visitor && <StatusBadge status={visitor.status} />}
+    <VmsPage
+      title="Desk Check-In"
+      description="Use this console at reception to scan a QR code, verify identity, print badge details, and complete arrival or departure."
+      actions={
+        <Button asChild variant="outline">
+          <Link to={VMS_PATHS.visitors}>
+            <UserPlus className="h-4 w-4" aria-hidden="true" />
+            Visitor List
+          </Link>
+        </Button>
+      }
+    >
+      {message ? (
+        <div className={`rounded-lg border px-4 py-3 text-sm ${
+          message.type === "success"
+            ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+            : message.type === "error"
+              ? "border-rose-200 bg-rose-50 text-rose-700"
+              : "border-blue-200 bg-blue-50 text-blue-700"
+        }`}>
+          {message.text}
         </div>
+      ) : null}
 
-        <div className="cio-scan-body">
-          <div className="cio-qr-frame">
-            <span className="cio-corner cio-tl" />
-            <span className="cio-corner cio-tr" />
-            <span className="cio-corner cio-bl" />
-            <span className="cio-corner cio-br" />
-            <div className="qr-box">
-              {Array.from({ length: 25 }).map((_, i) => <span key={i} />)}
-            </div>
-          </div>
-
-          <form className="cio-lookup-form" onSubmit={lookup}>
-            <div className="form-group">
-              <label htmlFor="deskQrInput">Visitor ID / QR Code</label>
-              <input
-                id="deskQrInput"
-                value={qrInput}
-                onChange={(e) => setQrInput(e.target.value)}
-                placeholder="VMS... or VISITOR_12"
-                disabled={loading}
-              />
-            </div>
-            <button className="btn btn-primary btn-lg" type="submit" disabled={loading}>
-              <Icons.Search />
-              {loading ? "Loading..." : "Load Visitor"}
-            </button>
-          </form>
+      {actionError ? (
+        <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          {actionError}
         </div>
-      </div>
+      ) : null}
 
-      {/* ── Card 2: Visitor Details ── */}
-      {visitor && (
-        <div className="card cio-details-card">
-          <div className="cio-details-header">
-            <span className="cio-details-icon"><Icons.UserPlus /></span>
-            <h3>Visitor Details</h3>
-          </div>
-
-          <div className="cio-details-body">
-            {/* Left: photo + profile */}
-            <div className="cio-profile">
-              {visitor.photo ? (
-                <img className="cio-photo" src={visitor.photo} alt={visitor.name} />
-              ) : (
-                <span className="cio-photo cio-photo-fallback">
-                  {initials(visitor.name)}
-                </span>
-              )}
-              <div className="cio-profile-info">
-                <h2 className="cio-visitor-name">{visitor.name}</h2>
-                <p className="cio-visitor-id">{visitor.visitorId}</p>
-                <div className="cio-meta-item">
-                  <span className="cio-meta-icon cio-meta-blue"><Icons.Building /></span>
-                  <div>
-                    <small>Company</small>
-                    <strong>{visitor.company || "Individual"}</strong>
-                  </div>
-                </div>
-                <div className="cio-meta-item">
-                  <span className="cio-meta-icon cio-meta-purple"><Icons.Briefcase /></span>
-                  <div>
-                    <small>Purpose</small>
-                    <strong>{visitor.purpose || "-"}</strong>
-                  </div>
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
+        <div className="space-y-4">
+          <VmsCard>
+            <VmsCardHeader
+              title="QR / Visitor ID Lookup"
+              description="Scan the badge QR code or enter a Visitor ID to load the active request."
+              actions={visitor ? <StatusPill status={visitor.status} /> : null}
+            />
+            <div className="grid gap-5 p-5 lg:grid-cols-[240px_1fr]">
+              <div className="flex min-h-56 items-center justify-center rounded-lg border border-dashed border-blue-200 bg-blue-50/60">
+                <div className="grid h-32 w-32 grid-cols-5 gap-1 rounded-lg bg-white p-3 shadow-sm" aria-hidden="true">
+                  {Array.from({ length: 25 }).map((_, index) => (
+                    <span key={index} className={(index + Math.floor(index / 5)) % 3 === 0 ? "rounded-sm bg-blue-600" : "rounded-sm bg-blue-100"} />
+                  ))}
                 </div>
               </div>
-            </div>
-
-            {/* Right: detail rows */}
-            <div className="cio-detail-panel">
-              {detailRows.map(({ label, icon, value }) => (
-                <div className="cio-detail-row" key={label}>
-                  <span className="cio-detail-label">
-                    <span className="cio-detail-row-icon">{icon}</span>
-                    {label}
-                  </span>
-                  <span className="cio-detail-value">{value}</span>
+              <form className="space-y-4" onSubmit={lookup}>
+                <label className="space-y-2">
+                  <span className="text-sm font-medium text-slate-700">QR Code / Visitor ID</span>
+                  <Input
+                    value={qrInput}
+                    onChange={(event) => setQrInput(event.target.value)}
+                    placeholder="VMS|... or VISITOR_12"
+                    disabled={lookupLoading}
+                  />
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  <Button type="submit" className="bg-blue-600 text-white hover:bg-blue-700" disabled={lookupLoading}>
+                    <Search className="h-4 w-4" aria-hidden="true" />
+                    {lookupLoading ? "Loading..." : "Load Visitor"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setQrInput(flowService.getCurrentVisitor()?.qrCodeData || "")}
+                  >
+                    <QrCode className="h-4 w-4" aria-hidden="true" />
+                    Use Current
+                  </Button>
                 </div>
-              ))}
+                {visitor ? (
+                  <div className={`rounded-lg border px-4 py-3 text-sm ${
+                    windowState.state === "active"
+                      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                      : "border-amber-200 bg-amber-50 text-amber-700"
+                  }`}>
+                    {windowState.message}
+                  </div>
+                ) : null}
+              </form>
             </div>
-          </div>
-        </div>
-      )}
+          </VmsCard>
 
-      {/* ── Action buttons ── */}
-      {visitor && (
-        <div className="cio-actions">
-          <button
-            className="btn cio-btn-checkin"
-            type="button"
-            onClick={() => setConfirmAction("checkIn")}
-            disabled={visitor.status !== "Approved" || Boolean(visitor.checkIn)}
-          >
-            <Icons.LogIn />
-            Check In
-          </button>
-          <button
-            className="btn cio-btn-checkout"
-            type="button"
-            onClick={() => setConfirmAction("checkOut")}
-            disabled={!visitor.checkIn || Boolean(visitor.checkOut)}
-          >
-            <Icons.LogOut />
-            Check Out
-          </button>
-          <button
-            className="btn cio-btn-reject"
-            type="button"
-            onClick={() => setConfirmAction("reject")}
-            disabled={visitor.status === "Rejected" || visitor.status === "Checked Out"}
-          >
-            <Icons.X />
-            Reject
-          </button>
-          <button
-            className="btn btn-danger"
-            type="button"
-            onClick={() => setConfirmAction("delete")}
-          >
-            <Icons.Trash />
-            Delete
-          </button>
+          <VmsCard>
+            <VmsCardHeader
+              title="Face Verification"
+              description="Compare the live camera with the registered face profile before check-in."
+              actions={
+                <StatusPill status={faceMode === "verified" ? "Approved" : faceMode === "failed" ? "Rejected" : "Pending"} />
+              }
+            />
+            <div className="grid gap-5 p-5 lg:grid-cols-[minmax(0,1fr)_280px]">
+              <div className="flex min-h-72 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-slate-950">
+                {faceMode === "camera" ? (
+                  <video ref={videoRef} autoPlay playsInline muted className="h-full min-h-72 w-full object-cover" />
+                ) : visitor?.photo ? (
+                  <img src={visitor.photo} alt={visitor.name} className="h-full min-h-72 w-full object-cover" />
+                ) : (
+                  <div className="px-6 text-center text-slate-300">
+                    <Camera className="mx-auto h-10 w-10" aria-hidden="true" />
+                    <p className="mt-3 text-sm font-semibold">No registered face preview</p>
+                    <p className="mt-1 text-xs text-slate-400">Register a face profile from visitor details or the action below.</p>
+                  </div>
+                )}
+              </div>
+              <div className="space-y-3">
+                {visitor ? (
+                  <>
+                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                      <p className="text-sm font-semibold text-slate-900">{visitor.name}</p>
+                      <p className="mt-1 font-mono text-xs text-slate-500">{visitor.visitorId || visitor.id}</p>
+                      <p className="mt-2 text-xs text-slate-500">Face profile: {visitor.photo || visitor.faceRegistered ? "Available" : "Missing"}</p>
+                    </div>
+                    {faceMode === "camera" ? (
+                      <div className="flex flex-wrap gap-2">
+                        <Button type="button" variant="outline" onClick={() => { stopCamera(); setFaceMode("idle"); }}>
+                          <X className="h-4 w-4" aria-hidden="true" />
+                          Cancel
+                        </Button>
+                        <Button type="button" className="bg-blue-600 text-white hover:bg-blue-700" onClick={runFaceMatch}>
+                          <ShieldCheck className="h-4 w-4" aria-hidden="true" />
+                          Run Match
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="flex flex-wrap gap-2">
+                        <Button type="button" className="bg-blue-600 text-white hover:bg-blue-700" onClick={startFaceCheck}>
+                          <Camera className="h-4 w-4" aria-hidden="true" />
+                          Start Face Check
+                        </Button>
+                        <Button asChild variant="outline">
+                          <Link to={VMS_PATHS.faceRegistrationFor(visitor.id)}>
+                            Register Face
+                          </Link>
+                        </Button>
+                      </div>
+                    )}
+                    {faceMode === "verified" ? (
+                      <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+                        <CheckCircle2 className="mr-1 inline h-4 w-4" aria-hidden="true" />
+                        Face verification passed.
+                      </div>
+                    ) : null}
+                  </>
+                ) : (
+                  <EmptyState
+                    icon={<QrCode className="h-5 w-5" aria-hidden="true" />}
+                    title="Load a visitor first"
+                    description="Face verification becomes available after QR or Visitor ID lookup."
+                  />
+                )}
+              </div>
+            </div>
+          </VmsCard>
         </div>
-      )}
 
-      <ConfirmDialog
-        open={Boolean(confirmAction)}
-        title={
-          confirmAction === "checkIn" ? "Confirm check-in" :
-          confirmAction === "checkOut" ? "Confirm check-out" :
-          confirmAction === "delete" ? "Delete visitor request" :
-          "Confirm rejection"
-        }
-        message={
-          confirmAction === "delete"
-            ? `Delete ${visitor?.name || "this visitor"} from the request log? This cannot be undone.`
-            : `${
-                confirmAction === "checkIn" ? "Check in" :
-                confirmAction === "checkOut" ? "Check out" :
-                "Reject"
-              } ${visitor?.name || "this visitor"} now?`
-        }
-        confirmLabel={
-          confirmAction === "checkIn" ? "Check In" :
-          confirmAction === "checkOut" ? "Check Out" :
-          confirmAction === "delete" ? "Delete" :
-          "Reject"
-        }
-        tone={
-          confirmAction === "checkIn" ? "success" :
-          confirmAction === "checkOut" ? "primary" :
-          "danger"
-        }
-        onCancel={() => setConfirmAction(null)}
+        <aside className="space-y-4">
+          {visitor ? (
+            <>
+              <VisitorProfile visitor={visitor} />
+              <BadgePreview visitor={visitor} compact />
+              <VmsCard>
+                <VmsCardHeader title="Desk Actions" description="Only valid next steps are enabled." />
+                <div className="grid gap-2 p-4">
+                  <Button
+                    type="button"
+                    className="justify-start bg-blue-600 text-white hover:bg-blue-700"
+                    onClick={() => openAction("checkIn")}
+                    disabled={!canDeskCheckIn || !faceReady}
+                  >
+                    <LogIn className="h-4 w-4" aria-hidden="true" />
+                    Check In
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="justify-start"
+                    onClick={() => openAction("checkOut")}
+                    disabled={!canCheckOut(visitor)}
+                  >
+                    <LogOut className="h-4 w-4" aria-hidden="true" />
+                    Check Out
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    className="justify-start"
+                    onClick={() => openAction("reject")}
+                    disabled={!canReject(visitor)}
+                  >
+                    <AlertCircle className="h-4 w-4" aria-hidden="true" />
+                    Reject at Desk
+                  </Button>
+                </div>
+              </VmsCard>
+            </>
+          ) : (
+            <EmptyState
+              icon={<Search className="h-5 w-5" aria-hidden="true" />}
+              title="No visitor loaded"
+              description="Scan a QR code or enter a Visitor ID to begin desk processing."
+            />
+          )}
+        </aside>
+      </section>
+
+      <VisitorActionDialog
+        action={pendingAction}
+        visitor={visitor}
+        busy={Boolean(busyAction)}
+        onCancel={() => setPendingAction(null)}
         onConfirm={completeAction}
       />
+    </VmsPage>
+  );
+}
+
+function VisitorProfile({ visitor }: { visitor: VisitorRecord }) {
+  return (
+    <VmsCard>
+      <VmsCardHeader title="Visitor Details" actions={<StatusPill status={visitor.status} />} />
+      <div className="space-y-4 p-4">
+        <div className="flex items-center gap-3">
+          {visitor.photo ? (
+            <img src={visitor.photo} alt={visitor.name} className="h-14 w-14 rounded-lg object-cover" />
+          ) : (
+            <span className="flex h-14 w-14 items-center justify-center rounded-lg bg-blue-600 text-sm font-semibold text-white">
+              {getInitials(visitor.name)}
+            </span>
+          )}
+          <div className="min-w-0">
+            <p className="truncate text-base font-semibold text-slate-950">{visitor.name}</p>
+            <p className="font-mono text-xs text-slate-500">{visitor.visitorId || visitor.id}</p>
+          </div>
+        </div>
+        <div className="space-y-2 text-sm">
+          <DetailRow label="Company" value={visitor.company || "Individual"} />
+          <DetailRow label="Purpose" value={getPurposeLabel(visitor.purpose)} />
+          <DetailRow label="Host" value={visitor.employeeToMeet || "-"} />
+          <DetailRow label="Visit Start" value={formatDateTime(visitor.fromDateTime)} />
+          <DetailRow label="Visit End" value={formatDateTime(visitor.toDateTime)} />
+          <DetailRow label="Check In" value={formatDateTime(visitor.checkIn)} />
+          <DetailRow label="Check Out" value={formatDateTime(visitor.checkOut)} />
+        </div>
+      </div>
+    </VmsCard>
+  );
+}
+
+function DetailRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-start justify-between gap-3 rounded-md bg-slate-50 px-3 py-2">
+      <span className="text-slate-500">{label}</span>
+      <strong className="text-right font-medium text-slate-800">{value}</strong>
     </div>
   );
 }

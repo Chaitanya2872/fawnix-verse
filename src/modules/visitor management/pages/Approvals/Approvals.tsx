@@ -1,191 +1,157 @@
-import { useEffect, useState } from "react";
-import Alert from "../../components/common/Alert";
-import ConfirmDialog from "../../components/common/ConfirmDialog";
-import { Icons } from "../../components/common/Icons";
-import StatusBadge from "../../components/common/StatusBadge";
-import visitorRequestService from "../../services/visitorRequestService";
-import { initials } from "../../utils/visitorUtils";
+import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
+import { CheckCircle2, ClipboardCheck, RefreshCcw, Users } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { EmptyState, VmsCard, VmsCardHeader, VmsPage } from "../../components/vms/VmsPage";
+import { VisitorActionDialog } from "../../components/vms/VisitorActionDialog";
+import { VisitorTable } from "../../components/vms/VisitorTable";
+import { StatusPill } from "../../components/vms/StatusPill";
+import { useVisitorActions, useVisitors } from "../../hooks/useVisitors";
+import { VMS_PATHS } from "../../routes/paths";
+import type { VisitorAction, VisitorRecord } from "../../types";
+import { getVisitorStats, isPending } from "../../utils/visitorWorkflow";
 
 function Approvals() {
-  const [visitors, setVisitors] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [alert, setAlert] = useState(null);
-  const [confirmAction, setConfirmAction] = useState(null);
-  const [rejectionReason, setRejectionReason] = useState("");
+  const { visitors, loading, error, refresh } = useVisitors();
+  const [pendingAction, setPendingAction] = useState<VisitorAction | null>(null);
+  const [selectedVisitor, setSelectedVisitor] = useState<VisitorRecord | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const pendingVisitors = useMemo(() => visitors.filter(isPending), [visitors]);
+  const stats = useMemo(() => getVisitorStats(visitors), [visitors]);
+  const { runAction, busyAction, error: actionError, setError: setActionError } = useVisitorActions(async () => {
+    await refresh();
+  });
 
-  const refresh = async () => {
-    try {
-      const data = await visitorRequestService.getAll();
-      console.log("[API] GET /api/visitor-requests (approvals):", data);
-      setVisitors(data);
-    } catch (err) {
-      console.error("[API] Approvals load error:", err);
-      setAlert({ type: "error", title: "Load failed", message: err.message || "Could not load visitor requests." });
-    }
+  const openAction = (action: VisitorAction, visitor: VisitorRecord) => {
+    setSelectedVisitor(visitor);
+    setPendingAction(action);
+    setNotice(null);
+    setActionError(null);
   };
 
-  useEffect(() => {
-    const load = async () => {
-      await refresh();
-      setLoading(false);
-    };
-
-    void load();
-  }, []);
-
-  const pendingVisitors = visitors.filter((v) => v.status === "Pending");
-
-  const completeAction = async () => {
-    if (!confirmAction) return;
-    const { type, visitor } = confirmAction;
-
+  const completeAction = async (reason: string) => {
+    if (!selectedVisitor || !pendingAction) return;
     try {
-      if (type === "approve") {
-        await visitorRequestService.approve(visitor.id);
-        setAlert({ type: "success", title: "Approved", message: `${visitor.name} has been approved.` });
-      } else if (type === "reject") {
-        await visitorRequestService.reject(visitor.id, rejectionReason);
-        setAlert({ type: "success", title: "Rejected", message: `${visitor.name} has been rejected.` });
-      } else if (type === "delete") {
-        await visitorRequestService.delete(visitor.id);
-        setAlert({ type: "success", title: "Deleted", message: `${visitor.name} was removed.` });
-      }
-      await refresh();
-    } catch (err) {
-      console.error(`[API] ${type} error:`, err);
-      setAlert({ type: "error", title: "Action failed", message: err.message || "Operation failed. Try again." });
-    } finally {
-      setConfirmAction(null);
-      setRejectionReason("");
+      await runAction(pendingAction, selectedVisitor, reason);
+      setNotice(`${selectedVisitor.name} moved out of the pending queue.`);
+      setPendingAction(null);
+      setSelectedVisitor(null);
+    } catch {
+      // Hook exposes the message for display.
     }
   };
 
   return (
-    <div className="page-stack">
-      {/* <div className="page-header"> */}
-        {/* <div className="page-title">
-          <h1>Approvals</h1>
-          <p className="page-description">Review pending visitor requests before allowing arrival at reception.</p>
-        </div> */}
-      {/* </div> */}
-
-      {alert && (
-        <Alert type={alert.type} title={alert.title} onClose={() => setAlert(null)}>
-          {alert.message}
-        </Alert>
-      )}
-
-      <section className="two-column-grid">
-        <div className="card">
-          <div className="card-header">
-            <div>
-              <h3>Pending Queue</h3>
-              <p>{pendingVisitors.length} request{pendingVisitors.length === 1 ? "" : "s"} awaiting approval</p>
-            </div>
-            <StatusBadge status="Pending" />
-          </div>
-
-          {loading ? (
-            <div className="empty-state">
-              <Icons.Activity />
-              <strong>Loading approvals...</strong>
-            </div>
-          ) : pendingVisitors.length === 0 ? (
-            <div className="empty-state">
-              <Icons.Check />
-              <strong>No pending approvals</strong>
-              <span>New visitor requests will appear here.</span>
-            </div>
-          ) : (
-            <div className="approval-list">
-              {pendingVisitors.map((visitor) => (
-                <article className="approval-item" key={visitor.id}>
-                  <div className="visitor-cell">
-                    {visitor.photo ? (
-                      <img className="visitor-photo" src={visitor.photo} alt="" />
-                    ) : (
-                      <span className="visitor-avatar">{initials(visitor.name)}</span>
-                    )}
-                    <div>
-                      <div className="cell-title">{visitor.name}</div>
-                      <div className="cell-subtitle">{visitor.visitorId}</div>
-                    </div>
-                  </div>
-                  <div className="row-actions">
-                    <button className="btn btn-success btn-sm" type="button" onClick={() => setConfirmAction({ type: "approve", visitor })}>
-                      Approve
-                    </button>
-                    <button className="btn btn-danger btn-sm" type="button" onClick={() => { setRejectionReason(""); setConfirmAction({ type: "reject", visitor }); }}>
-                      Reject
-                    </button>
-                    <button className="icon-button" type="button" onClick={() => setConfirmAction({ type: "delete", visitor })} aria-label={`Delete ${visitor.name}`}>
-                      <Icons.Trash />
-                    </button>
-                  </div>
-                </article>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <aside className="card">
-          <div className="card-header">
-            <div>
-              <h3>Review Context</h3>
-              <p>Use host, purpose, and visit details when approving access.</p>
-            </div>
-          </div>
-          <div className="detail-list">
-            <div className="detail-row">
-              <span>Total requests</span>
-              <strong>{visitors.length}</strong>
-            </div>
-            <div className="detail-row">
-              <span>Pending approvals</span>
-              <strong>{pendingVisitors.length}</strong>
-            </div>
-            <div className="detail-row">
-              <span>Approved</span>
-              <strong>{visitors.filter((v) => v.status === "Approved" || v.status === "Checked In").length}</strong>
-            </div>
-            <div className="detail-row">
-              <span>Rejected</span>
-              <strong>{visitors.filter((v) => v.status === "Rejected").length}</strong>
-            </div>
-          </div>
-        </aside>
+    <VmsPage
+      title="Approvals"
+      description="A focused queue for pending visitor requests. Review, approve, reject, or open the full visitor profile for more context."
+      actions={
+        <>
+          <Button type="button" variant="outline" onClick={() => void refresh()} disabled={loading}>
+            <RefreshCcw className="h-4 w-4" aria-hidden="true" />
+            Refresh
+          </Button>
+          <Button asChild variant="outline">
+            <Link to={VMS_PATHS.visitors}>
+              <Users className="h-4 w-4" aria-hidden="true" />
+              All Visitors
+            </Link>
+          </Button>
+        </>
+      }
+    >
+      <section className="grid gap-4 md:grid-cols-4">
+        <ApprovalMetric label="Pending" value={stats.pendingRequests} status="Pending" />
+        <ApprovalMetric label="Approved" value={stats.approvedRequests} status="Approved" />
+        <ApprovalMetric label="Rejected" value={stats.rejectedRequests} status="Rejected" />
+        <ApprovalMetric label="Total" value={stats.totalRequests} status="Completed" />
       </section>
 
-      <ConfirmDialog
-        open={Boolean(confirmAction)}
-        title={
-          confirmAction?.type === "approve" ? "Approve visitor" :
-          confirmAction?.type === "delete" ? "Delete visitor request" :
-          "Reject visitor"
-        }
-        message={
-          confirmAction?.type === "delete"
-            ? `Delete ${confirmAction?.visitor.name || "this visitor"} from the request log? This cannot be undone.`
-            : `${confirmAction?.type === "approve" ? "Approve" : "Reject"} ${confirmAction?.visitor.name || "this visitor"} for the scheduled visit?`
-        }
-        confirmLabel={
-          confirmAction?.type === "approve" ? "Approve" :
-          confirmAction?.type === "delete" ? "Delete" :
-          "Reject"
-        }
-        tone={confirmAction?.type === "approve" ? "success" : "danger"}
-        onCancel={() => { setConfirmAction(null); setRejectionReason(""); }}
+      {error ? (
+        <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          {error}
+        </div>
+      ) : null}
+
+      {notice ? (
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+          {notice}
+        </div>
+      ) : null}
+
+      {actionError ? (
+        <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          {actionError}
+        </div>
+      ) : null}
+
+      <VmsCard>
+        <VmsCardHeader
+          title="Pending Queue"
+          description={`${pendingVisitors.length} request${pendingVisitors.length === 1 ? "" : "s"} awaiting approval.`}
+          actions={<StatusPill status="Pending" />}
+        />
+        <div className="p-4">
+          {pendingVisitors.length === 0 && !loading ? (
+            <EmptyState
+              icon={<CheckCircle2 className="h-5 w-5" aria-hidden="true" />}
+              title="No pending approvals"
+              description="New visitor requests will appear here automatically."
+              actions={
+                <Button asChild variant="outline">
+                  <Link to={VMS_PATHS.newVisitor}>Create Visitor</Link>
+                </Button>
+              }
+            />
+          ) : (
+            <VisitorTable
+              visitors={pendingVisitors}
+              loading={loading}
+              actionScope="approval"
+              onAction={openAction}
+              emptyMessage="No pending approvals."
+            />
+          )}
+        </div>
+      </VmsCard>
+
+      <VisitorActionDialog
+        action={pendingAction}
+        visitor={selectedVisitor}
+        busy={Boolean(busyAction)}
+        onCancel={() => {
+          setPendingAction(null);
+          setSelectedVisitor(null);
+        }}
         onConfirm={completeAction}
-      >
-        {confirmAction?.type === "reject" && (
-          <textarea
-            placeholder="Rejection reason (optional)"
-            value={rejectionReason}
-            onChange={(e) => setRejectionReason(e.target.value)}
-            style={{ width: "100%", marginTop: 8, minHeight: 72 }}
-          />
-        )}
-      </ConfirmDialog>
+      />
+    </VmsPage>
+  );
+}
+
+function ApprovalMetric({
+  label,
+  value,
+  status,
+}: {
+  label: string;
+  value: number;
+  status: string;
+}) {
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-medium text-slate-500">{label}</p>
+          <p className="mt-2 text-2xl font-semibold text-slate-950">{value}</p>
+        </div>
+        <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-700">
+          <ClipboardCheck className="h-5 w-5" aria-hidden="true" />
+        </span>
+      </div>
+      <div className="mt-3">
+        <StatusPill status={status} />
+      </div>
     </div>
   );
 }

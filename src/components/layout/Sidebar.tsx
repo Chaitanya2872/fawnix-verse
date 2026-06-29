@@ -150,11 +150,13 @@ const ERP_NAV_SECTIONS: readonly SidebarNavSection[] = [
     heading: "Operations",
     items: [
       { label: "VMS Dashboard",       to: "/vms/dashboard",            icon: UserCheck,     end: true },
-      { label: "New Visitor",          to: "/vms/create-visitor",       icon: UserPlus },
-      { label: "Visitors",             to: "/vms/visitor-requests",     icon: ClipboardList },
+      { label: "New Visitor",          to: "/vms/visitors/new",         icon: UserPlus },
+      { label: "Visitors",             to: "/vms/visitors",             icon: ClipboardList },
       { label: "Approvals",            to: "/vms/approvals",            icon: CheckSquare },
-      { label: "Visitor Verification", to: "/vms/visitor-verification", icon: KeyRound },
-      { label: "Check-In / Check-Out", to: "/vms/check-in-out",         icon: ArrowLeftRight },
+      { label: "Desk Check-In",        to: "/vms/desk",                 icon: ArrowLeftRight },
+      { label: "Visitor History",      to: "/vms/history",              icon: CalendarClock },
+      { label: "VMS Reports",          to: "/vms/reports",              icon: BarChart3 },
+      { label: "VMS Settings",         to: "/vms/settings",             icon: Settings },
     ],
   },
 ];

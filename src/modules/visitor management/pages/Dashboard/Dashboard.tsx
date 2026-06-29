@@ -1,239 +1,219 @@
-import { useEffect, useState } from "react";
-import type { CSSProperties, ReactNode } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import Table from "../../components/common/Table";
-import StatusBadge from "../../components/common/StatusBadge";
-import { Icons } from "../../components/common/Icons";
-import visitorRequestService from "../../services/visitorRequestService";
-import { initials } from "../../utils/visitorUtils";
+import { useMemo } from "react";
+import type { ReactNode } from "react";
+import { Link } from "react-router-dom";
+import {
+  BarChart3,
+  CheckCircle2,
+  ClipboardList,
+  Clock3,
+  DoorOpen,
+  LogIn,
+  Plus,
+  ShieldCheck,
+  Users,
+  XCircle,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { VMS_PATHS } from "../../routes/paths";
+import { useVisitors } from "../../hooks/useVisitors";
+import { VisitorTable } from "../../components/vms/VisitorTable";
+import { EmptyState, VmsCard, VmsCardHeader, VmsPage } from "../../components/vms/VmsPage";
+import {
+  getVisitorStats,
+  isToday,
+  sortVisitorsNewest,
+} from "../../utils/visitorWorkflow";
 
-type MetricCardProps = {
-  label: string;
-  value: ReactNode;
-  note: string;
-  icon?: ReactNode;
-  onClick?: () => void;
-  highlight?: boolean;
-};
+function Dashboard() {
+  const { visitors, loading, error } = useVisitors();
 
-function MetricCard({ label, value, note, icon, onClick, highlight = false }: MetricCardProps) {
-  const Tag = onClick ? "button" : "div";
-  const extraStyle: CSSProperties = {
-    ...(onClick ? { cursor: "pointer", width: "100%", textAlign: "left" } : {}),
-    ...(highlight ? { borderColor: "var(--blue-200)", background: "linear-gradient(135deg,#ffffff 0%,var(--blue-50) 100%)" } : {}),
-  };
+  const stats = useMemo(() => getVisitorStats(visitors), [visitors]);
+  const todaysVisitors = useMemo(
+    () =>
+      sortVisitorsNewest(visitors)
+        .filter((visitor) => isToday(visitor.fromDateTime) || isToday(visitor.createdAt))
+        .slice(0, 8),
+    [visitors],
+  );
+  const recentVisitors = todaysVisitors.length > 0 ? todaysVisitors : sortVisitorsNewest(visitors).slice(0, 8);
+
   return (
-    <Tag
-      type={onClick ? "button" : undefined}
-      className="metric-card"
-      style={extraStyle}
-      onClick={onClick}
-      title={onClick ? `Go to ${label}` : undefined}
+    <VmsPage
+      title="Visitor Operations"
+      description="Manage the complete visitor lifecycle from registration and approval to identity verification, badge issue, check-in, and check-out."
+      actions={
+        <>
+          <Button asChild className="bg-blue-600 text-white hover:bg-blue-700">
+            <Link to={VMS_PATHS.newVisitor}>
+              <Plus className="h-4 w-4" aria-hidden="true" />
+              New Visitor
+            </Link>
+          </Button>
+          <Button asChild variant="outline">
+            <Link to={VMS_PATHS.desk}>
+              <LogIn className="h-4 w-4" aria-hidden="true" />
+              Open Desk
+            </Link>
+          </Button>
+        </>
+      }
     >
-      <div className="metric-card-header">
-        <div className="metric-label">{label}</div>
-        {icon && <span className="metric-icon">{icon}</span>}
-      </div>
-      <div className="metric-value">{value ?? "—"}</div>
-      <div className="metric-change">{note}</div>
-    </Tag>
+      {error ? (
+        <EmptyState
+          icon={<XCircle className="h-5 w-5" aria-hidden="true" />}
+          title="Unable to load VMS data"
+          description={error}
+        />
+      ) : null}
+
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <MetricCard
+          label="Today"
+          value={loading ? "..." : stats.todayVisitors}
+          helper="Scheduled or created today"
+          icon={<DoorOpen className="h-5 w-5" aria-hidden="true" />}
+          to={VMS_PATHS.visitors}
+        />
+        <MetricCard
+          label="Pending Approval"
+          value={loading ? "..." : stats.pendingRequests}
+          helper="Waiting for host/security review"
+          icon={<Clock3 className="h-5 w-5" aria-hidden="true" />}
+          to={VMS_PATHS.approvals}
+          highlight={stats.pendingRequests > 0}
+        />
+        <MetricCard
+          label="On Premises"
+          value={loading ? "..." : stats.currentlyArrived}
+          helper="Currently checked in"
+          icon={<ShieldCheck className="h-5 w-5" aria-hidden="true" />}
+          to={VMS_PATHS.desk}
+          highlight={stats.currentlyArrived > 0}
+        />
+        <MetricCard
+          label="Completed"
+          value={loading ? "..." : stats.completedRequests}
+          helper="Checked out visitors"
+          icon={<CheckCircle2 className="h-5 w-5" aria-hidden="true" />}
+          to={VMS_PATHS.history}
+        />
+      </section>
+
+      <section className="grid gap-4 xl:grid-cols-4">
+        <WorkflowCard
+          title="Register"
+          description="Create a visitor request with visit timing and contact details."
+          icon={<Plus className="h-5 w-5" aria-hidden="true" />}
+          to={VMS_PATHS.newVisitor}
+        />
+        <WorkflowCard
+          title="Approve"
+          description="Review pending requests and approve or reject access."
+          icon={<ClipboardList className="h-5 w-5" aria-hidden="true" />}
+          to={VMS_PATHS.approvals}
+        />
+        <WorkflowCard
+          title="Desk"
+          description="Scan QR codes, verify identity, and process entry or exit."
+          icon={<LogIn className="h-5 w-5" aria-hidden="true" />}
+          to={VMS_PATHS.desk}
+        />
+        <WorkflowCard
+          title="Analyze"
+          description="Track trends, history, current premises, and exports."
+          icon={<BarChart3 className="h-5 w-5" aria-hidden="true" />}
+          to={VMS_PATHS.reports}
+        />
+      </section>
+
+      <VmsCard>
+        <VmsCardHeader
+          title={todaysVisitors.length > 0 ? "Today's Visitors" : "Recent Visitors"}
+          description="A live view of the records most likely to need desk action."
+          actions={
+            <Button asChild variant="outline" size="sm">
+              <Link to={VMS_PATHS.visitors}>
+                <Users className="h-4 w-4" aria-hidden="true" />
+                View All
+              </Link>
+            </Button>
+          }
+        />
+        <div className="p-4">
+          <VisitorTable
+            visitors={recentVisitors}
+            loading={loading}
+            actionScope="readonly"
+            emptyMessage="No visitor records available yet."
+          />
+        </div>
+      </VmsCard>
+    </VmsPage>
   );
 }
 
-function WorkflowCard({ to, title, description, icon }) {
+function MetricCard({
+  label,
+  value,
+  helper,
+  icon,
+  to,
+  highlight = false,
+}: {
+  label: string;
+  value: string | number;
+  helper: string;
+  icon: ReactNode;
+  to: string;
+  highlight?: boolean;
+}) {
   return (
-    <Link className="action-card" to={to}>
-      <div className="action-card-top">
+    <Link
+      to={to}
+      className={`rounded-lg border bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md ${
+        highlight ? "border-blue-200 bg-blue-50/70" : "border-slate-200"
+      }`}
+    >
+      <div className="flex items-start justify-between gap-4">
         <div>
-          <h3>{title}</h3>
-          <p>{description}</p>
+          <p className="text-sm font-medium text-slate-500">{label}</p>
+          <p className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">{value}</p>
         </div>
-        {icon && (
-          <span style={{ flex: "0 0 auto", width: 40, height: 40, display: "grid", placeItems: "center", borderRadius: 12, background: "linear-gradient(135deg,var(--blue-50),#e0f2fe)", color: "var(--blue-700)" }}>
-            {icon}
-          </span>
-        )}
+        <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-700">
+          {icon}
+        </span>
       </div>
+      <p className="mt-3 text-sm text-slate-500">{helper}</p>
     </Link>
   );
 }
 
-function isToday(dateStr) {
-  if (!dateStr) return false;
-  const d = new Date(dateStr);
-  const now = new Date();
-  return d.getFullYear() === now.getFullYear() &&
-    d.getMonth() === now.getMonth() &&
-    d.getDate() === now.getDate();
-}
-
-function Dashboard() {
-  const navigate = useNavigate();
-  const [stats, setStats] = useState(null);
-  const [recent, setRecent] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const [statsData, visitors] = await Promise.all([
-          visitorRequestService.getStatistics(),
-          visitorRequestService.getAll(),
-        ]);
-        setStats(statsData);
-
-        // Today's visitors first; fall back to latest 6 if none today
-        const todayVisitors = visitors.filter((v) => isToday(v.fromDateTime) || isToday(v.createdAt));
-        const sorted = [...visitors].sort((a, b) => b.id - a.id);
-        setRecent(todayVisitors.length > 0 ? todayVisitors.sort((a, b) => b.id - a.id).slice(0, 8) : sorted.slice(0, 6));
-      } catch (err) {
-        setError(err.message || "Failed to load dashboard data.");
-      } finally {
-        setLoading(false);
-      }
-    };
-    load();
-  }, []);
-
-  const columns = [
-    {
-      header: "Visitor",
-      accessor: "name",
-      render: (visitor) => (
-        <div className="visitor-cell">
-          {visitor.photo ? (
-            <img className="visitor-photo" src={visitor.photo} alt="" />
-          ) : (
-            <span className="visitor-avatar">{initials(visitor.name)}</span>
-          )}
-          <div>
-            <div className="cell-title">{visitor.name}</div>
-            <div className="cell-subtitle">{visitor.company || "Individual visitor"}</div>
-          </div>
-        </div>
-      ),
-    },
-    {
-      header: "Visitor ID",
-      accessor: "visitorId",
-      render: (_, value) => <span className="mono">{value || "—"}</span>,
-    },
-    { header: "Host", accessor: "employeeToMeet", render: (_, value) => value || "—" },
-    {
-      header: "From",
-      accessor: "fromDateTime",
-      render: (_, value) => value ? value.replace("T", " ").slice(0, 16) : "—",
-    },
-    {
-      header: "Status",
-      accessor: "status",
-      render: (visitor) => <StatusBadge status={visitor.status} />,
-    },
-  ];
-
+function WorkflowCard({
+  title,
+  description,
+  icon,
+  to,
+}: {
+  title: string;
+  description: string;
+  icon: ReactNode;
+  to: string;
+}) {
   return (
-    <div className="dashboard-page">
-      {/* ── Header row ── */}
-      <div className="page-header">
-        <button className="btn btn-primary" type="button" onClick={() => navigate("/create-visitor")}>
-          <Icons.UserPlus />
-          New Visitor
-        </button>
+    <Link
+      to={to}
+      className="group rounded-lg border border-slate-200 bg-white p-4 shadow-sm transition hover:border-blue-200 hover:bg-blue-50/50"
+    >
+      <div className="flex items-start gap-3">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600 transition group-hover:bg-blue-600 group-hover:text-white">
+          {icon}
+        </span>
+        <div>
+          <h3 className="text-sm font-semibold text-slate-950">{title}</h3>
+          <p className="mt-1 text-sm leading-6 text-slate-500">{description}</p>
+        </div>
       </div>
-
-      {error && (
-        <div className="card empty-state">
-          <Icons.AlertCircle />
-          <strong>Failed to load</strong>
-          <span>{error}</span>
-        </div>
-      )}
-
-      {/* ── Stat cards ── */}
-      <section className="stat-grid" aria-label="Visitor statistics">
-        <MetricCard
-          label="Total Requests"
-          value={loading ? "…" : stats?.totalRequests}
-          note="All visitor records"
-          icon={<Icons.FileText />}
-        />
-        <MetricCard
-          label="Pending"
-          value={loading ? "…" : stats?.pendingRequests}
-          note="Awaiting approval"
-          icon={<Icons.Clock />}
-          highlight={Boolean(!loading && stats?.pendingRequests > 0)}
-          onClick={() => navigate("/approvals")}
-        />
-        <MetricCard
-          label="Approved"
-          value={loading ? "…" : stats?.approvedRequests}
-          note="Cleared by host"
-          icon={<Icons.Check />}
-        />
-        <MetricCard
-          label="Rejected"
-          value={loading ? "…" : stats?.rejectedRequests}
-          note="Not permitted"
-          icon={<Icons.X />}
-        />
-        <MetricCard
-          label="On Premises"
-          value={loading ? "…" : stats?.currentlyArrived}
-          note="Currently checked in"
-          icon={<Icons.Shield />}
-          highlight={Boolean(!loading && stats?.currentlyArrived > 0)}
-          onClick={() => navigate("/check-in-out")}
-        />
-      </section>
-
-      {/* ── Quick-action cards ── */}
-      <section className="workflow-grid" aria-label="Primary workflows">
-        <WorkflowCard
-          to="/visitor-requests"
-          title="Visitors"
-          description="Search, sort, export, and act on all registered visitor records."
-          icon={<Icons.FileText />}
-        />
-        <WorkflowCard
-          to="/approvals"
-          title="Approvals"
-          description="Review pending requests and approve or reject from a focused queue."
-          icon={<Icons.Approvals />}
-        />
-        <WorkflowCard
-          to="/check-in-out"
-          title="Check-In / Check-Out"
-          description="Scan QR codes, process arrivals, and record departures at the desk."
-          icon={<Icons.QrCode />}
-        />
-      </section>
-
-      {/* ── Recent visitors ── */}
-      <section className="recent-visitors-section">
-        <div className="section-header" style={{ marginBottom: 14 }}>
-          <div className="section-title">
-            <h2>Today's Visitors</h2>
-            <p>Visitors scheduled or registered today.</p>
-          </div>
-          <Link className="btn btn-outline" to="/visitor-requests">View All</Link>
-        </div>
-
-        {loading ? (
-          <div className="card empty-state">
-            <Icons.Activity />
-            <strong>Loading visitors…</strong>
-          </div>
-        ) : (
-          <Table
-            columns={columns}
-            data={recent}
-            emptyMessage="No visitors registered today."
-          />
-        )}
-      </section>
-    </div>
+    </Link>
   );
 }
 

@@ -1,117 +1,184 @@
 import { useState } from "react";
-import Alert from "../../components/common/Alert";
-import { Icons } from "../../components/common/Icons";
+import { Bell, BadgeCheck, Clock3, Mail, Printer, Save, ShieldCheck, SlidersHorizontal } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { VmsCard, VmsCardHeader, VmsPage } from "../../components/vms/VmsPage";
 
 const initialSettings = {
   emailAlerts: true,
+  hostNotifications: true,
   badgePrinting: true,
   faceVerification: true,
+  requireApprovalBeforeCheckIn: true,
   autoCheckout: false,
 };
 
+type SettingsState = typeof initialSettings;
+
 function Settings() {
-  const [settings, setSettings] = useState(initialSettings);
+  const [settings, setSettings] = useState<SettingsState>(initialSettings);
   const [saved, setSaved] = useState(false);
 
-  const toggle = (key) => {
+  const toggle = (key: keyof SettingsState) => {
     setSettings((current) => ({ ...current, [key]: !current[key] }));
     setSaved(false);
   };
 
   const saveSettings = () => {
     setSaved(true);
-    window.setTimeout(() => setSaved(false), 2200);
+    window.setTimeout(() => setSaved(false), 2400);
   };
 
   return (
-    <div className="page-stack">
-      {/* <div className="page-header"> */}
-        {/* <div className="page-title">
-          <h1>Settings</h1>
-          <p className="page-description">Manage security desk preferences, notifications, and verification behavior.</p>
-        </div> */}
-        <button className="btn btn-primary" type="button" onClick={saveSettings}>
+    <VmsPage
+      title="Settings"
+      description="Configure security desk behavior, notification preferences, badge prompts, and verification policy."
+      actions={
+        <Button type="button" className="bg-blue-600 text-white hover:bg-blue-700" onClick={saveSettings}>
+          <Save className="h-4 w-4" aria-hidden="true" />
           Save Changes
-        </button>
-      {/* </div> */}
+        </Button>
+      }
+    >
+      {saved ? (
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+          Visitor Management settings saved.
+        </div>
+      ) : null}
 
-      {saved && (
-        <Alert type="success" title="Settings saved">
-          Your workspace preferences have been updated.
-        </Alert>
-      )}
-
-      <section className="settings-grid">
+      <section className="grid gap-4 xl:grid-cols-3">
         <SettingsPanel
-          icon={<Icons.Bell />}
+          icon={<Bell className="h-5 w-5" aria-hidden="true" />}
           title="Notifications"
           description="Keep hosts and security users informed."
           rows={[
-            ["Email alerts", "Notify hosts when a visitor request is created.", settings.emailAlerts, () => toggle("emailAlerts")],
-            ["Badge printing", "Prompt reception to print passes after check-in.", settings.badgePrinting, () => toggle("badgePrinting")],
+            {
+              label: "Email alerts",
+              helper: "Notify security users when requests are created or updated.",
+              icon: <Mail className="h-4 w-4" aria-hidden="true" />,
+              checked: settings.emailAlerts,
+              onChange: () => toggle("emailAlerts"),
+            },
+            {
+              label: "Host notifications",
+              helper: "Send approval and arrival messages to the host.",
+              icon: <Bell className="h-4 w-4" aria-hidden="true" />,
+              checked: settings.hostNotifications,
+              onChange: () => toggle("hostNotifications"),
+            },
           ]}
         />
 
         <SettingsPanel
-          icon={<Icons.Shield />}
-          title="Validation"
-          description="Control identity verification at the desk."
+          icon={<ShieldCheck className="h-5 w-5" aria-hidden="true" />}
+          title="Verification"
+          description="Define what is required before desk entry."
           rows={[
-            ["Face verification", "Require a registered photo before validation.", settings.faceVerification, () => toggle("faceVerification")],
-            ["Auto checkout", "Mark visitors completed after office hours.", settings.autoCheckout, () => toggle("autoCheckout")],
+            {
+              label: "Face verification",
+              helper: "Require a registered face profile before check-in.",
+              icon: <ShieldCheck className="h-4 w-4" aria-hidden="true" />,
+              checked: settings.faceVerification,
+              onChange: () => toggle("faceVerification"),
+            },
+            {
+              label: "Approval gate",
+              helper: "Block desk check-in until a request is approved.",
+              icon: <BadgeCheck className="h-4 w-4" aria-hidden="true" />,
+              checked: settings.requireApprovalBeforeCheckIn,
+              onChange: () => toggle("requireApprovalBeforeCheckIn"),
+            },
           ]}
         />
 
-        <div className="settings-panel">
-          <div className="card-header">
-            <div>
-              <h3>System Profile</h3>
-              <p>Default workspace context</p>
-            </div>
-            <Icons.Settings />
-          </div>
-          <div className="detail-list">
-            <div className="detail-row">
-              <span>Workspace</span>
-              <strong>Head Office</strong>
-            </div>
-            <div className="detail-row">
-              <span>Desk</span>
-              <strong>Security Reception</strong>
-            </div>
-            <div className="detail-row">
-              <span>Timezone</span>
-              <strong>Asia/Calcutta</strong>
-            </div>
-          </div>
-        </div>
+        <SettingsPanel
+          icon={<SlidersHorizontal className="h-5 w-5" aria-hidden="true" />}
+          title="Desk Behavior"
+          description="Reception workflow defaults."
+          rows={[
+            {
+              label: "Badge printing",
+              helper: "Prompt reception to print badges after successful check-in.",
+              icon: <Printer className="h-4 w-4" aria-hidden="true" />,
+              checked: settings.badgePrinting,
+              onChange: () => toggle("badgePrinting"),
+            },
+            {
+              label: "Auto checkout",
+              helper: "Mark active visitors complete after office hours.",
+              icon: <Clock3 className="h-4 w-4" aria-hidden="true" />,
+              checked: settings.autoCheckout,
+              onChange: () => toggle("autoCheckout"),
+            },
+          ]}
+        />
       </section>
-    </div>
+
+      <VmsCard>
+        <VmsCardHeader title="Workspace Profile" description="Default security desk context used for reporting and badge metadata." />
+        <div className="grid gap-3 p-5 md:grid-cols-3">
+          <ProfileField label="Workspace" value="Head Office" />
+          <ProfileField label="Desk" value="Security Reception" />
+          <ProfileField label="Timezone" value="Asia/Calcutta" />
+        </div>
+      </VmsCard>
+    </VmsPage>
   );
 }
 
-function SettingsPanel({ icon, title, description, rows }) {
-  return (
-    <div className="settings-panel">
-      <div className="card-header">
-        <div>
-          <h3>{title}</h3>
-          <p>{description}</p>
-        </div>
-        {icon}
-      </div>
+type SettingRow = {
+  label: string;
+  helper: string;
+  icon: React.ReactNode;
+  checked: boolean;
+  onChange: () => void;
+};
 
-      <div className="detail-list">
-        {rows.map(([label, helper, checked, onChange]) => (
-          <label className="setting-row" key={label}>
-            <span>
-              <strong>{label}</strong>
-              <small>{helper}</small>
+function SettingsPanel({
+  icon,
+  title,
+  description,
+  rows,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+  rows: SettingRow[];
+}) {
+  return (
+    <VmsCard>
+      <VmsCardHeader
+        title={title}
+        description={description}
+        actions={<span className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-700">{icon}</span>}
+      />
+      <div className="space-y-3 p-4">
+        {rows.map((row) => (
+          <label key={row.label} className="flex cursor-pointer items-start justify-between gap-4 rounded-lg border border-slate-100 bg-slate-50 px-4 py-3 transition hover:border-blue-200 hover:bg-blue-50/60">
+            <span className="flex gap-3">
+              <span className="mt-0.5 text-slate-500">{row.icon}</span>
+              <span>
+                <strong className="block text-sm font-semibold text-slate-900">{row.label}</strong>
+                <small className="mt-1 block text-sm leading-5 text-slate-500">{row.helper}</small>
+              </span>
             </span>
-            <input type="checkbox" checked={checked} onChange={onChange} />
+            <input
+              type="checkbox"
+              checked={row.checked}
+              onChange={row.onChange}
+              className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+            />
           </label>
         ))}
       </div>
+    </VmsCard>
+  );
+}
+
+function ProfileField({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-slate-100 bg-slate-50 px-4 py-3">
+      <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">{label}</p>
+      <p className="mt-1 text-sm font-medium text-slate-900">{value}</p>
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import authService from "../../services/authService";
+import { VMS_PATHS } from "../../routes/paths";
 import "./Login.css";
 
 const DEMO = { username: "admin", password: "secret" };
@@ -63,10 +64,10 @@ export default function Login() {
       setError("Enter both username and password to continue.");
       return;
     }
-    setLoading(true);
+      setLoading(true);
     try {
       await authService.login(form.username.trim(), form.password);
-      navigate("/dashboard");
+      navigate(VMS_PATHS.dashboard);
     } catch (err) {
       setError(err.message || "Login failed. Check your credentials and try again.");
     } finally {

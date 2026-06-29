@@ -240,6 +240,7 @@ import { Icons } from "../../components/common/Icons";
 import StatusBadge from "../../components/common/StatusBadge";
 import flowService from "../../services/flowService";
 import faceCaptureService from "../../services/faceCaptureService";
+import { VMS_PATHS } from "../../routes/paths";
 
 const POSES = [
   { id: "front", label: "Look straight ahead", hint: "Center your face in the frame, neutral expression." },
@@ -404,7 +405,7 @@ function CameraCapture() {
     setCurrentVisitor(updated);
     setSaving(false);
     setAlert({ type: "success", title: "Face registered", message: `All ${POSES.length} angles saved for validation.` });
-    window.setTimeout(() => navigate("/visitor-verification"), 650);
+    window.setTimeout(() => navigate(VMS_PATHS.desk), 650);
   };
 
   return (
@@ -540,7 +541,7 @@ function CameraCapture() {
             <Icons.UserPlus />
             <strong>No visitor selected</strong>
             <span>Create a visitor request before registering a face photo.</span>
-            <button className="btn btn-primary" type="button" onClick={() => navigate("/create-visitor")}>
+            <button className="btn btn-primary" type="button" onClick={() => navigate(VMS_PATHS.newVisitor)}>
               Create Visitor
             </button>
           </div>

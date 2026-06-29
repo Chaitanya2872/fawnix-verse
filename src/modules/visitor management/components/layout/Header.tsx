@@ -4,14 +4,13 @@ import authService from "../../services/authService";
 
 const routeTitles: Record<string, [string, string]> = {
   "/vms/dashboard":            ["Dashboard",            "Today's overview and visitor activity"],
-  "/vms/create-visitor":       ["New Visitor",           "Register a new visitor request"],
-  "/vms/visitor-requests":     ["Visitors",              "Search, manage and act on visitor records"],
+  "/vms/visitors/new":         ["New Visitor",           "Register a new visitor request"],
+  "/vms/visitors":             ["Visitors",              "Search, manage and act on visitor records"],
   "/vms/approvals":            ["Approvals",             "Review and approve pending visitor requests"],
-  "/vms/visitor-verification": ["Visitor Verification",  "Verify QR code and face match at the desk"],
+  "/vms/desk":                 ["Desk Check-In",         "Verify identity and process arrivals or departures"],
   "/vms/face-registration":    ["Face Registration",     "Capture and register visitor identity photo"],
-  "/vms/face-capture":         ["Face Registration",     "Capture and register visitor identity photo"],
-  "/vms/visitor-validation":   ["Visitor Verification",  "Verify QR code and face match at the desk"],
-  "/vms/check-in-out":         ["Check-In / Check-Out",  "Process visitor arrivals and departures"],
+  "/vms/history":              ["Visitor History",       "Review completed and rejected visitor records"],
+  "/vms/reports":              ["Reports",               "Visitor traffic and operational reporting"],
   "/vms/settings":             ["Settings",              "Workspace and security preferences"],
 };
 
