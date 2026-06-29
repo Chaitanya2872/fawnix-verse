@@ -21,7 +21,6 @@ import {
   X,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { toast } from "sonner";
 import acsLogo from "@/assets/purchase-order/ACS_logo.png";
 import acsSeal from "@/assets/purchase-order/ACS_seal.png";
 import iotiqStamp from "@/assets/purchase-order/IOTIQ_stamp.png";
@@ -786,14 +785,9 @@ function CreatePurchaseOrderPanel({
   onTermsChange,
   onItemColumnsChange,
   onLineItemsChange,
-<<<<<<< HEAD
   onSubmit,
   isSubmitting = false,
   errorMessage,
-=======
-  onGenerate,
-  isGenerating,
->>>>>>> 040f33acb2fc91e2c9722e38a142c504a4725bf1
 }: {
   approvedRequisitions: PurchaseRequisition[];
   vendors: Vendor[];
@@ -820,14 +814,9 @@ function CreatePurchaseOrderPanel({
   onTermsChange: (value: PoTermDraft[]) => void;
   onItemColumnsChange: (value: PoItemColumnDraft[]) => void;
   onLineItemsChange: (value: PoLineItemDraft[]) => void;
-<<<<<<< HEAD
   onSubmit: () => void;
   isSubmitting?: boolean;
   errorMessage?: string;
-=======
-  onGenerate: () => void;
-  isGenerating: boolean;
->>>>>>> 040f33acb2fc91e2c9722e38a142c504a4725bf1
 }) {
   const [showValidation, setShowValidation] = useState(false);
   const [draftSavedAt, setDraftSavedAt] = useState<string | null>(null);
@@ -1616,20 +1605,9 @@ function CreatePurchaseOrderPanel({
                 <FileText className="h-4 w-4" />
                 Save Draft
               </button>
-<<<<<<< HEAD
               <button type="button" onClick={handleSubmitPo} disabled={!canSubmit} className={buttonPrimary}>
                 {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                 Submit
-=======
-              <button
-                type="button"
-                onClick={handleGeneratePo}
-                disabled={isGenerating}
-                className="inline-flex items-center gap-2 rounded-full bg-slate-950 px-5 py-2.5 text-sm font-semibold text-white shadow-sm shadow-slate-950/20 hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400 disabled:shadow-none"
-              >
-                {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}
-                {isGenerating ? "Saving PO..." : "Generate PO"}
->>>>>>> 040f33acb2fc91e2c9722e38a142c504a4725bf1
               </button>
             </div>
           </div>
@@ -1781,11 +1759,7 @@ export default function P2PPurchaseOrderPage() {
   const { data: purchaseOrders = [], isLoading, isError, error } = usePurchaseOrders();
   const { data: requisitions = [] } = usePurchaseRequisitions();
   const { data: vendors = [] } = useVendors();
-<<<<<<< HEAD
   const createPurchaseOrder = useCreatePurchaseOrder();
-=======
-  const createPurchaseOrderMutation = useCreatePurchaseOrder();
->>>>>>> 040f33acb2fc91e2c9722e38a142c504a4725bf1
 
   const [selectedTemplate, setSelectedTemplate] = useState<PoTemplate>("IOTIQ");
   const [templateDrafts, setTemplateDrafts] = useState<Record<PoTemplate, PoTemplateDraft>>(() => createInitialTemplateDrafts());
@@ -1900,7 +1874,6 @@ export default function P2PPurchaseOrderPage() {
     setSelectedTemplate(template);
   }
 
-<<<<<<< HEAD
   function buildSubmittedDocument(order?: PurchaseOrder) {
     if (!selectedRequisition) return null;
     const document = draftDoc(
@@ -1957,62 +1930,10 @@ export default function P2PPurchaseOrderPage() {
       }
       setIsCreatePanelOpen(false);
       resetCreateForm();
-      toast.success("Purchase order submitted and template generated.");
+      setSelectedPurchaseOrderId(created.id);
+      toast.success(`Purchase order ${created.poNumber} submitted and template generated.`);
     } catch (submitError) {
       toast.error(submitError instanceof Error ? submitError.message : "Failed to submit purchase order.");
-=======
-  async function handleCreatePurchaseOrder() {
-    if (!selectedRequisition || !selectedVendor) {
-      toast.error("Select an approved requisition and vendor before generating the PO.");
-      return;
-    }
-
-    try {
-      const createdOrder = await createPurchaseOrderMutation.mutateAsync({
-        purchaseRequisitionId: selectedRequisition.id,
-        payload: {
-          vendorId: selectedVendor.id,
-          orderDate: activeDraft.orderDate,
-          notes: [
-            activeDraft.project ? `Project: ${activeDraft.project}` : "",
-            activeDraft.vendorQuoteReference ? `Reference: ${activeDraft.vendorQuoteReference}` : "",
-          ]
-            .filter(Boolean)
-            .join(" | "),
-        },
-      });
-
-      const previewData = draftDoc(
-        selectedTemplate,
-        selectedRequisition,
-        selectedVendor,
-        createdOrder.orderDate,
-        activeDraft.project,
-        activeDraft.vendorQuoteReference,
-        {
-          ...activeDraft.poDraftDetails,
-          status: createdOrder.status,
-        },
-        activeDraft.poTerms,
-        activeDraft.poItemColumns,
-        activeDraft.poLineItems
-      );
-
-      setIsCreatePanelOpen(false);
-      resetCreateForm();
-      setSelectedPurchaseOrderId(createdOrder.id);
-      setPreview({
-        title: createdOrder.poNumber,
-        data: {
-          ...previewData,
-          poNumber: createdOrder.poNumber,
-          internalNotes: createdOrder.notes ?? previewData.internalNotes,
-        },
-      });
-      toast.success(`Purchase order ${createdOrder.poNumber} saved successfully.`);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to create purchase order.");
->>>>>>> 040f33acb2fc91e2c9722e38a142c504a4725bf1
     }
   }
 
@@ -2197,14 +2118,9 @@ export default function P2PPurchaseOrderPage() {
           onTermsChange={(value) => updateActiveDraft({ poTerms: value })}
           onItemColumnsChange={(value) => updateActiveDraft({ poItemColumns: value })}
           onLineItemsChange={(value) => updateActiveDraft({ poLineItems: value })}
-<<<<<<< HEAD
           onSubmit={handleSubmitPurchaseOrder}
           isSubmitting={createPurchaseOrder.isPending}
           errorMessage={createPurchaseOrder.error instanceof Error ? createPurchaseOrder.error.message : undefined}
-=======
-          onGenerate={() => void handleCreatePurchaseOrder()}
-          isGenerating={createPurchaseOrderMutation.isPending}
->>>>>>> 040f33acb2fc91e2c9722e38a142c504a4725bf1
         />
       ) : null}
 
