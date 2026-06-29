@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ComponentProps, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import {
@@ -20,7 +20,6 @@ import {
   Truck,
   X,
 } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
 import acsLogo from "@/assets/purchase-order/ACS_logo.png";
 import acsSeal from "@/assets/purchase-order/ACS_seal.png";
 import iotiqStamp from "@/assets/purchase-order/IOTIQ_stamp.png";
@@ -195,7 +194,7 @@ const PO_TEMPLATE_OPTIONS: Array<{ code: PoTemplate; label: string; companyName:
 
 const PO_CREATE_SECTIONS = [
   { key: "source", title: "Source & Template", hint: "Approved PR, template, and PO date", icon: ClipboardList },
-  { key: "vendor", title: "Vendor Details", hint: "Vendor identity, GST, and contact", icon: Truck },
+  { key: "vendor", title: "Vendor Information", hint: "Master data, statutory numbers, communication", icon: Truck },
   { key: "commercial", title: "PO Details", hint: "Project, reference, contact, and ship-to", icon: FileText },
   { key: "items", title: "Items", hint: "Line items, tax, and total value", icon: PackageCheck },
   { key: "terms", title: "Terms", hint: "Terms and conditions for the order", icon: Send },
@@ -357,26 +356,13 @@ const microLabel = "text-xs font-semibold uppercase tracking-wide text-slate-400
 
 function panelFieldClass(hasError = false, disabled = false) {
   return cn(
-    "w-full rounded-md border bg-white px-3.5 py-2.5 text-sm text-slate-700 outline-none transition",
+    "w-full rounded-xl border bg-white px-4 py-3 text-base font-semibold text-slate-700 outline-none transition",
     "placeholder:text-slate-400",
     disabled
       ? "cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400"
       : hasError
         ? "border-rose-400 focus:border-rose-500 focus:ring-2 focus:ring-rose-500/15"
         : "border-slate-300 hover:border-blue-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15"
-  );
-}
-
-function PoInputWithIcon({
-  icon: Icon,
-  className,
-  ...props
-}: ComponentProps<"input"> & { icon: LucideIcon }) {
-  return (
-    <div className="relative">
-      <Icon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-      <input {...props} className={cn(className, "pl-9")} />
-    </div>
   );
 }
 
@@ -526,15 +512,6 @@ function recalculateLineItem(item: PoLineItemDraft): PoLineItemDraft {
     ...item,
     lineTotal: calculateLineTotal(item),
   };
-}
-
-function itemColumnWidths(template: PoTemplate, customColumnCount: number) {
-  const weights =
-    template === "ACS"
-      ? [5, 30, 8, ...Array(customColumnCount).fill(8), 7, 6, 11, 12]
-      : [5, 24, 9, 8, ...Array(customColumnCount).fill(8), 6, 7, 9, 11];
-  const total = weights.reduce((sum, weight) => sum + weight, 0);
-  return weights.map((weight) => `${(weight / total) * 100}%`);
 }
 
 function vendorParty(vendor?: Vendor | null) {
@@ -868,9 +845,6 @@ function CreatePurchaseOrderPanel({
   ].filter(Boolean);
   const canGenerate = missingFields.length === 0;
   const canSubmit = canGenerate && !isSubmitting;
-  const sheetInputClass = "min-w-0 w-full border-0 bg-transparent px-2 py-1.5 text-[12px] text-slate-950 outline-none ring-0 placeholder:text-slate-400 focus:bg-amber-50";
-  const sheetTextareaClass = `${sheetInputClass} min-h-[76px] resize-none leading-5`;
-  const readonlyValueClass = "min-h-[30px] px-2 py-1.5 text-[12px] leading-5 text-slate-900";
 
   function updateDraftDetail(key: keyof PoDraftDetails, value: string) {
     onPoDraftDetailsChange({ ...poDraftDetails, [key]: value });
@@ -1009,273 +983,326 @@ function CreatePurchaseOrderPanel({
 
   function renderVendorDetails() {
     return (
-      <div className="border-r-2 border-slate-950">
-        <div className="border-b border-slate-950 bg-slate-100 px-3 py-2 font-bold uppercase">Vendor Details:</div>
-        <div className="grid grid-cols-[170px_1fr] divide-y divide-slate-300">
-          <div className="border-r border-slate-300 px-3 py-2 font-semibold">Vendor Name</div>
-          <input value={poDraftDetails.vendorName} onChange={(event) => updateDraftDetail("vendorName", event.target.value)} placeholder="Enter vendor name" className={sheetInputClass} />
-          <div className="border-r border-slate-300 px-3 py-2 font-semibold">Vendor Address</div>
-          <textarea value={poDraftDetails.vendorAddress} onChange={(event) => updateDraftDetail("vendorAddress", event.target.value)} placeholder="Enter vendor address" className={sheetTextareaClass} />
-          <div className="border-r border-slate-300 px-3 py-2 font-semibold">Vendor GST Number</div>
-          <input value={poDraftDetails.vendorGst} onChange={(event) => updateDraftDetail("vendorGst", event.target.value)} placeholder="Enter vendor GST number" className={sheetInputClass} />
-          {selectedTemplate === "ACS" ? (
-            <>
-              <div className="border-r border-slate-300 px-3 py-2 font-semibold">PAN</div>
-              <input value={poDraftDetails.vendorPan} onChange={(event) => updateDraftDetail("vendorPan", event.target.value)} placeholder="Enter vendor PAN" className={sheetInputClass} />
-              <div className="border-r border-slate-300 px-3 py-2 font-semibold">Contact Name</div>
-              <input value={poDraftDetails.vendorContactName} onChange={(event) => updateDraftDetail("vendorContactName", event.target.value)} placeholder="Enter vendor contact name" className={sheetInputClass} />
-              <div className="border-r border-slate-300 px-3 py-2 font-semibold">Contact No.</div>
-              <input value={poDraftDetails.vendorContactNumber} onChange={(event) => updateDraftDetail("vendorContactNumber", event.target.value)} placeholder="Enter vendor contact number" className={sheetInputClass} />
-            </>
-          ) : null}
+      <div className="grid gap-x-5 gap-y-5 sm:grid-cols-2">
+        <P2PFormField label="Vendor Name">
+          <input
+            value={poDraftDetails.vendorName}
+            onChange={(event) => updateDraftDetail("vendorName", event.target.value)}
+            placeholder="A N Projects Works"
+            className={panelFieldClass(showValidation && !poDraftDetails.vendorName.trim())}
+          />
+        </P2PFormField>
+        <P2PFormField label="Vendor GST Number">
+          <input
+            value={poDraftDetails.vendorGst}
+            onChange={(event) => updateDraftDetail("vendorGst", event.target.value.toUpperCase())}
+            placeholder="37DQWPP6101C1ZN"
+            className={cn(panelFieldClass(showValidation && !poDraftDetails.vendorGst.trim()), "uppercase")}
+          />
+        </P2PFormField>
+        <div className="sm:col-span-2">
+          <P2PFormField label="Vendor Address">
+            <textarea
+              rows={3}
+              value={poDraftDetails.vendorAddress}
+              onChange={(event) => updateDraftDetail("vendorAddress", event.target.value)}
+              placeholder="Enter vendor address"
+              className={cn(panelFieldClass(showValidation && !poDraftDetails.vendorAddress.trim()), "resize-y leading-6")}
+            />
+          </P2PFormField>
         </div>
+        {selectedTemplate === "ACS" ? (
+          <>
+            <P2PFormField label="PAN Number">
+              <input
+                value={poDraftDetails.vendorPan}
+                onChange={(event) => updateDraftDetail("vendorPan", event.target.value.toUpperCase())}
+                placeholder="DQWPP6101C"
+                className={cn(panelFieldClass(showValidation && !poDraftDetails.vendorPan.trim()), "uppercase")}
+              />
+            </P2PFormField>
+            <P2PFormField label="Vendor Contact Name">
+              <input
+                value={poDraftDetails.vendorContactName}
+                onChange={(event) => updateDraftDetail("vendorContactName", event.target.value)}
+                className={panelFieldClass(showValidation && !poDraftDetails.vendorContactName.trim())}
+              />
+            </P2PFormField>
+            <P2PFormField label="Vendor Contact Number">
+              <input
+                value={poDraftDetails.vendorContactNumber}
+                onChange={(event) => updateDraftDetail("vendorContactNumber", event.target.value)}
+                className={panelFieldClass(showValidation && !poDraftDetails.vendorContactNumber.trim())}
+              />
+            </P2PFormField>
+          </>
+        ) : null}
       </div>
     );
   }
 
   function renderPoDetails() {
     return (
-      <div>
-        <div className="border-b border-slate-950 bg-slate-100 px-3 py-2 font-bold uppercase">PO Details</div>
-        <div className="grid grid-cols-[190px_1fr] divide-y divide-slate-300">
-          <div className="border-r border-slate-300 px-3 py-2 font-semibold">{selectedTemplate === "ACS" ? "PO No." : "Purchase Order Number"}</div>
-          <div className={readonlyValueClass}>{poNumber}</div>
-          <div className="border-r border-slate-300 px-3 py-2 font-semibold">PO Date</div>
-          <input type="date" value={orderDate} onChange={(event) => onOrderDateChange(event.target.value)} className={sheetInputClass} />
-          <div className="border-r border-slate-300 px-3 py-2 font-semibold">Project</div>
-          <input value={project} onChange={(event) => onProjectChange(event.target.value)} placeholder="Enter project" className={sheetInputClass} />
-          <div className="border-r border-slate-300 px-3 py-2 font-semibold">{selectedTemplate === "ACS" ? "Reference" : "Vendor PI / Quote Number"}</div>
-          <input value={vendorQuoteReference} onChange={(event) => onVendorQuoteReferenceChange(event.target.value)} placeholder={selectedTemplate === "ACS" ? "Enter reference" : "Enter PI / quote number"} className={sheetInputClass} />
-          <div className="border-r border-slate-300 px-3 py-2 font-semibold">Contact Name</div>
-          <input value={poDraftDetails.contactName} onChange={(event) => updateDraftDetail("contactName", event.target.value)} placeholder="Enter contact name" className={sheetInputClass} />
-          <div className="border-r border-slate-300 px-3 py-2 font-semibold">Contact No.</div>
-          <input value={poDraftDetails.contactNumber} onChange={(event) => updateDraftDetail("contactNumber", event.target.value)} placeholder="Enter contact number" className={sheetInputClass} />
-          {selectedTemplate === "IOTIQ" ? (
-            <>
-              <div className="border-r border-slate-300 px-3 py-2 font-semibold">Mail ID</div>
-              <input type="email" value={poDraftDetails.mailId} onChange={(event) => updateDraftDetail("mailId", event.target.value)} placeholder="Enter mail ID" className={sheetInputClass} />
-            </>
-          ) : null}
-        </div>
+      <div className="grid gap-x-5 gap-y-5 sm:grid-cols-2">
+        <P2PFormField label={selectedTemplate === "ACS" ? "PO Number" : "Purchase Order Number"} hint="Generated from the selected PR until submit.">
+          <input value={poNumber} disabled className={panelFieldClass(false, true)} />
+        </P2PFormField>
+        <P2PFormField label="PO Date">
+          <input
+            type="date"
+            value={orderDate}
+            onChange={(event) => onOrderDateChange(event.target.value)}
+            className={panelFieldClass(showValidation && !orderDate)}
+          />
+        </P2PFormField>
+        <P2PFormField label="Project">
+          <input
+            value={project}
+            onChange={(event) => onProjectChange(event.target.value)}
+            placeholder="Enter project"
+            className={panelFieldClass(showValidation && !project.trim())}
+          />
+        </P2PFormField>
+        <P2PFormField label={selectedTemplate === "ACS" ? "Reference" : "Vendor PI / Quote Number"}>
+          <input
+            value={vendorQuoteReference}
+            onChange={(event) => onVendorQuoteReferenceChange(event.target.value)}
+            placeholder={selectedTemplate === "ACS" ? "Enter reference" : "Enter PI / quote number"}
+            className={panelFieldClass(showValidation && !vendorQuoteReference.trim())}
+          />
+        </P2PFormField>
+        <P2PFormField label="Contact Name">
+          <input
+            value={poDraftDetails.contactName}
+            onChange={(event) => updateDraftDetail("contactName", event.target.value)}
+            className={panelFieldClass(showValidation && !poDraftDetails.contactName.trim())}
+          />
+        </P2PFormField>
+        <P2PFormField label="Contact Number">
+          <input
+            value={poDraftDetails.contactNumber}
+            onChange={(event) => updateDraftDetail("contactNumber", event.target.value)}
+            className={panelFieldClass(showValidation && !poDraftDetails.contactNumber.trim())}
+          />
+        </P2PFormField>
+        {selectedTemplate === "IOTIQ" ? (
+          <P2PFormField label="Mail ID">
+            <input
+              type="email"
+              value={poDraftDetails.mailId}
+              onChange={(event) => updateDraftDetail("mailId", event.target.value)}
+              placeholder="purchase@company.com"
+              className={panelFieldClass(showValidation && !poDraftDetails.mailId.trim())}
+            />
+          </P2PFormField>
+        ) : null}
       </div>
     );
   }
 
   function renderItemTable() {
-    const leadingColumns = selectedTemplate === "ACS" ? ["S.No.", "Description", "HSN"] : ["S.No", "Description", "Make", "HSN Code"];
-    const trailingColumns = selectedTemplate === "ACS" ? ["UoM", "Qty", "Rate/ Unit (Rs)", "Amount (Rs)"] : ["Qty", "UOM", "Rate", "Amount (INR)"];
-    const totalColumnCount = leadingColumns.length + itemColumns.length + trailingColumns.length;
-    const columnWidths = itemColumnWidths(selectedTemplate, itemColumns.length);
-    const itemTableTextSize = totalColumnCount > 10 ? "text-[10px]" : totalColumnCount > 8 ? "text-[11px]" : "text-[12px]";
     return (
-      <div className="border-b-2 border-slate-950">
-        <div className="flex items-center justify-between border-b border-slate-950 bg-slate-100 px-3 py-2">
-          <span className="font-bold uppercase">Item Details</span>
-          <div className="flex items-center gap-2">
-            <button type="button" onClick={addItemColumn} className="inline-flex items-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50">
-              <Plus className="h-3.5 w-3.5" />
+      <div className="space-y-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-semibold text-slate-900">Item Details</p>
+            <p className="text-xs text-slate-500">{lineItems.length} item(s) loaded from the selected PR.</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <button type="button" onClick={addItemColumn} className={buttonSecondary}>
+              <Plus className="h-4 w-4" />
               Add Column
             </button>
-            <button type="button" onClick={() => onLineItemsChange([...lineItems, createLineItemDraft(null)])} className="inline-flex items-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50">
-              <Plus className="h-3.5 w-3.5" />
+            <button type="button" onClick={() => onLineItemsChange([...lineItems, createLineItemDraft(null)])} className={buttonSecondary}>
+              <Plus className="h-4 w-4" />
               Add Item
             </button>
           </div>
         </div>
-        <table className={`w-full table-fixed border-collapse ${itemTableTextSize}`}>
-          <colgroup>
-            {columnWidths.map((width, index) => (
-              <col key={`${width}-${index}`} style={{ width }} />
+
+        {itemColumns.length ? (
+          <div className="grid gap-x-4 gap-y-4 rounded-xl border border-slate-200 bg-slate-50 p-4 sm:grid-cols-2">
+            {itemColumns.map((column, index) => (
+              <P2PFormField key={column.id} label={`Custom Column ${index + 1}`}>
+                <div className="flex gap-2">
+                  <input
+                    value={column.label}
+                    onChange={(event) => updateItemColumn(column.id, { label: event.target.value })}
+                    placeholder={`Column ${index + 1}`}
+                    className={panelFieldClass()}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => deleteItemColumn(column.id)}
+                    className="flex h-[50px] w-[50px] shrink-0 items-center justify-center rounded-xl border border-rose-200 text-rose-600 transition hover:bg-rose-50"
+                    aria-label={`Remove ${column.label || `column ${index + 1}`}`}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              </P2PFormField>
             ))}
-          </colgroup>
-          <thead>
-            <tr className="bg-[#f8ecd1]">
-              {leadingColumns.map((heading) => (
-                <th key={heading} className="max-w-0 break-words border border-slate-950 px-1.5 py-2 text-left align-top font-bold">
-                  {heading}
-                </th>
-              ))}
-              {itemColumns.map((column, index) => (
-                <th key={column.id} className="max-w-0 border border-slate-950 px-1 py-1 text-left align-top font-bold">
-                  <div className="flex items-center gap-1">
-                    <input
-                      value={column.label}
-                      onChange={(event) => updateItemColumn(column.id, { label: event.target.value })}
-                      placeholder={`Column ${index + 1}`}
-                      className="min-w-0 flex-1 border-0 bg-transparent px-1 py-1 font-bold outline-none focus:bg-amber-50"
-                      aria-label={`Item column ${index + 1} name`}
-                    />
-                    <button type="button" onClick={() => deleteItemColumn(column.id)} className="rounded-full p-1 text-rose-600 hover:bg-rose-50" aria-label={`Remove ${column.label || `column ${index + 1}`}`}>
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
+          </div>
+        ) : null}
+
+        {lineItems.length ? (
+          <div className="space-y-4">
+            {lineItems.map((item, index) => (
+              <div key={item.id} className="rounded-xl border border-slate-200 bg-white p-4">
+                <div className="mb-4 flex items-center justify-between gap-3">
+                  <p className="text-sm font-semibold text-slate-900">Item {index + 1}</p>
+                  <button
+                    type="button"
+                    onClick={() => onLineItemsChange(lineItems.filter((entry) => entry.id !== item.id))}
+                    className={cn(buttonGhostSmall, "inline-flex items-center gap-1.5 text-rose-600 hover:bg-rose-50")}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Remove
+                  </button>
+                </div>
+                <div className="grid gap-x-4 gap-y-4 sm:grid-cols-2">
+                  <div className="sm:col-span-2">
+                    <P2PFormField label="Description">
+                      <textarea
+                        rows={2}
+                        value={item.productName}
+                        onChange={(event) => updateLineItem(item.id, { productName: event.target.value })}
+                        placeholder="Description"
+                        className={cn(panelFieldClass(showValidation && !item.productName.trim()), "resize-y leading-6")}
+                      />
+                    </P2PFormField>
                   </div>
-                </th>
-              ))}
-              {trailingColumns.map((heading) => (
-                <th key={heading} className="max-w-0 break-words border border-slate-950 px-1.5 py-2 text-left align-top font-bold">
-                  {heading}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {lineItems.length ? (
-              lineItems.map((item, index) => (
-                <tr key={item.id}>
-                  <td className="max-w-0 border border-slate-950 px-1 py-1.5 align-top">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-semibold">{index + 1}</span>
-                      <button type="button" onClick={() => onLineItemsChange(lineItems.filter((entry) => entry.id !== item.id))} className="rounded-full p-1 text-rose-600 hover:bg-rose-50" aria-label={`Remove item ${index + 1}`}>
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  </td>
-                  <td className="max-w-0 border border-slate-950 align-top">
-                    <textarea
-                      rows={2}
-                      value={item.productName}
-                      onChange={(event) => updateLineItem(item.id, { productName: event.target.value })}
-                      placeholder="Description"
-                      className={`${sheetInputClass} min-h-[52px] resize-y whitespace-pre-wrap leading-5`}
-                    />
-                  </td>
                   {selectedTemplate === "IOTIQ" ? (
-                    <td className="max-w-0 border border-slate-950 align-top">
-                      <input value={item.category} onChange={(event) => updateLineItem(item.id, { category: event.target.value })} placeholder="Make" className={sheetInputClass} />
-                    </td>
+                    <P2PFormField label="Make">
+                      <input
+                        value={item.category}
+                        onChange={(event) => updateLineItem(item.id, { category: event.target.value })}
+                        className={panelFieldClass(showValidation && !item.category.trim())}
+                      />
+                    </P2PFormField>
                   ) : null}
-                  <td className="max-w-0 border border-slate-950 align-top">
-                    <input value={item.sku} onChange={(event) => updateLineItem(item.id, { sku: event.target.value })} placeholder={selectedTemplate === "ACS" ? "HSN" : "HSN Code"} className={sheetInputClass} />
-                  </td>
+                  <P2PFormField label={selectedTemplate === "ACS" ? "HSN" : "HSN Code"}>
+                    <input
+                      value={item.sku}
+                      onChange={(event) => updateLineItem(item.id, { sku: event.target.value })}
+                      className={panelFieldClass(showValidation && !item.sku.trim())}
+                    />
+                  </P2PFormField>
                   {itemColumns.map((column) => (
-                    <td key={column.id} className="max-w-0 border border-slate-950 align-top">
+                    <P2PFormField key={`${item.id}-${column.id}`} label={column.label || "Custom Value"}>
                       <input
                         value={item.customValues[column.id] ?? ""}
                         onChange={(event) => updateLineItemCustomValue(item.id, column.id, event.target.value)}
-                        placeholder={column.label || "Value"}
-                        className={sheetInputClass}
+                        className={panelFieldClass()}
                       />
-                    </td>
+                    </P2PFormField>
                   ))}
-                  {selectedTemplate === "ACS" ? (
-                    <>
-                      <td className="max-w-0 border border-slate-950 align-top">
-                        <input value={item.unit} onChange={(event) => updateLineItem(item.id, { unit: event.target.value })} placeholder="UoM" className={sheetInputClass} />
-                      </td>
-                      <td className="max-w-0 border border-slate-950 align-top">
-                        <input type="number" min={0} step="0.01" value={item.quantity} onChange={(event) => updateLineItem(item.id, { quantity: parseAmountInput(event.target.value) })} className={sheetInputClass} />
-                      </td>
-                    </>
-                  ) : (
-                    <>
-                      <td className="max-w-0 border border-slate-950 align-top">
-                        <input type="number" min={0} step="0.01" value={item.quantity} onChange={(event) => updateLineItem(item.id, { quantity: parseAmountInput(event.target.value) })} className={sheetInputClass} />
-                      </td>
-                      <td className="max-w-0 border border-slate-950 align-top">
-                        <input value={item.unit} onChange={(event) => updateLineItem(item.id, { unit: event.target.value })} placeholder="UOM" className={sheetInputClass} />
-                      </td>
-                    </>
-                  )}
-                  <td className="max-w-0 border border-slate-950 align-top">
-                    <input type="number" min={0} step="0.01" value={item.unitPrice} onChange={(event) => updateLineItem(item.id, { unitPrice: parseAmountInput(event.target.value) })} className={sheetInputClass} />
-                  </td>
-                  <td className="max-w-0 border border-slate-950 align-top">
+                  <P2PFormField label={selectedTemplate === "ACS" ? "UoM" : "UOM"}>
                     <input
-                      readOnly
-                      value={formatPlain(calculateLineTotal(item))}
-                      className="w-full border-0 bg-slate-50 px-2 py-1.5 text-right font-semibold text-slate-950 outline-none"
-                      aria-label={`Amount for item ${index + 1}`}
+                      value={item.unit}
+                      onChange={(event) => updateLineItem(item.id, { unit: event.target.value })}
+                      className={panelFieldClass(showValidation && !item.unit.trim())}
                     />
-                  </td>
-                </tr>
-              ))
-            ) : (
-              <tr>
-                <td colSpan={totalColumnCount} className="border border-slate-950 px-4 py-10 text-center text-slate-500">
-                  Select an approved requisition to load item rows, or add an item manually.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+                  </P2PFormField>
+                  <P2PFormField label="Quantity">
+                    <input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      value={item.quantity}
+                      onChange={(event) => updateLineItem(item.id, { quantity: parseAmountInput(event.target.value) })}
+                      className={panelFieldClass(showValidation && Number(item.quantity) <= 0)}
+                    />
+                  </P2PFormField>
+                  <P2PFormField label="Rate">
+                    <input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      value={item.unitPrice}
+                      onChange={(event) => updateLineItem(item.id, { unitPrice: parseAmountInput(event.target.value) })}
+                      className={panelFieldClass(showValidation && Number(item.unitPrice) <= 0)}
+                    />
+                  </P2PFormField>
+                  <P2PFormField label="Amount">
+                    <input value={formatPlain(calculateLineTotal(item))} disabled className={panelFieldClass(false, true)} />
+                  </P2PFormField>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-10 text-center text-sm text-slate-500">
+            Select an approved requisition to load item rows, or add an item manually.
+          </div>
+        )}
       </div>
     );
   }
 
   function renderSummary() {
-    return (
-      <div className="grid grid-cols-[1fr_380px] border-b-2 border-slate-950">
-        <div className="border-r-2 border-slate-950 p-3">
-          <p className="font-bold uppercase">Amount in Words</p>
-          <p className="mt-2 min-h-[46px] leading-5">{amountInWords}</p>
-        </div>
-        <div>
-          {selectedTemplate === "ACS" ? (
-            <>
-              {[
-                ["Total Amount Before Tax", basicValue],
-                ["Add: CGST", cgstAmount],
-                ["Add: SGST", sgstAmount],
-                ["Add: IGST", igstAmount],
+    const summaryRows =
+      selectedTemplate === "ACS"
+        ? [
+            ["Total Amount Before Tax", basicValue],
+            ["Add: CGST", cgstAmount],
+            ["Add: SGST", sgstAmount],
+            ["Add: IGST", igstAmount],
+            ["Others", taxes.otherCharges],
+            ["Total Amount after Tax in Rs.", totalPurchaseOrderValue],
+          ]
+        : [
+            ["Basic Value", basicValue],
+            ["Add: IGST Amount", igstAmount],
+            ["Add: CGST @ 9%", cgstAmount],
+            ["Add: SGST @ 9%", sgstAmount],
+            ["Total Purchase Order Value", totalPurchaseOrderValue],
+          ];
 
-              ].map(([label, value]) => (
-                <div key={label as string} className="grid grid-cols-[1fr_150px] border-b border-slate-950 last:border-b-0">
-                  <div className="px-3 py-2 font-semibold">{label}</div>
-                  <div className="border-l border-slate-950 px-3 py-2 text-right font-semibold">{formatPlain(value as number)}</div>
-                </div>
-              ))}
-            </>
-          ) : (
-            <>
-              <div className="grid grid-cols-[1fr_150px] border-b border-slate-950">
-                <div className="px-3 py-2 font-semibold">Basic Value</div>
-                <div className="border-l border-slate-950 px-3 py-2 text-right font-semibold">{formatPlain(basicValue)}</div>
-              </div>
-              <div className="grid grid-cols-[1fr_150px] border-b border-slate-950">
-                <div className="px-3 py-2 font-semibold">Add: IGST Amount</div>
-                <input
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  value={poDraftDetails.igstAmountMode === "MANUAL" ? poDraftDetails.igstAmount || "" : formatEditableAmount(basicValue * IOTIQ_TAX_RATE)}
-                  onChange={(event) =>
-                    updateDraftDetails({
-                      igstAmountMode: "MANUAL",
-                      igstAmount: event.target.value,
-                    })
-                  }
-                  className="border-0 border-l border-slate-950 bg-transparent px-3 py-2 text-right font-semibold outline-none focus:bg-amber-50"
-                  aria-label="IGST amount"
-                />
-              </div>
-              <div className="grid grid-cols-[1fr_150px] border-b border-slate-950">
-                <div className="px-3 py-2 font-semibold">Add: CGST @ 9%</div>
-                <div className="border-l border-slate-950 px-3 py-2 text-right font-semibold">{formatPlain(cgstAmount)}</div>
-              </div>
-              <div className="grid grid-cols-[1fr_150px] border-b border-slate-950">
-                <div className="px-3 py-2 font-semibold">Add: SGST @ 9%</div>
-                <div className="border-l border-slate-950 px-3 py-2 text-right font-semibold">{formatPlain(sgstAmount)}</div>
-              </div>
-            </>
-          )}
+    return (
+      <div className="rounded-xl border border-slate-200 bg-white p-4">
+        <div className="grid gap-x-5 gap-y-5 sm:grid-cols-2">
+          <div className="sm:col-span-2">
+            <P2PFormField label="Amount in Words">
+              <textarea value={amountInWords} readOnly rows={2} className={cn(panelFieldClass(false, true), "resize-none leading-6")} />
+            </P2PFormField>
+          </div>
           {selectedTemplate === "ACS" ? (
-            <div className="grid grid-cols-[1fr_150px] border-b border-slate-950">
-              <div className="px-3 py-2 font-semibold">Others</div>
+            <P2PFormField label="Other Charges">
               <input
                 type="number"
                 min={0}
                 step="0.01"
                 value={poDraftDetails.otherCharges}
                 onChange={(event) => updateDraftDetail("otherCharges", event.target.value)}
-                className="border-0 border-l border-slate-950 bg-transparent px-3 py-2 text-right font-semibold outline-none focus:bg-amber-50"
-                aria-label="Other charges"
+                className={panelFieldClass()}
               />
-            </div>
+            </P2PFormField>
+          ) : selectedTemplate === "IOTIQ" ? (
+            <P2PFormField label="IGST Amount">
+              <input
+                type="number"
+                min={0}
+                step="0.01"
+                value={poDraftDetails.igstAmountMode === "MANUAL" ? poDraftDetails.igstAmount || "" : formatEditableAmount(basicValue * IOTIQ_TAX_RATE)}
+                onChange={(event) =>
+                  updateDraftDetails({
+                    igstAmountMode: "MANUAL",
+                    igstAmount: event.target.value,
+                  })
+                }
+                className={panelFieldClass()}
+              />
+            </P2PFormField>
           ) : null}
-          <div className="grid grid-cols-[1fr_150px] border-b border-slate-950 last:border-b-0">
-            <div className="px-3 py-2 font-semibold">{selectedTemplate === "ACS" ? "Total  Amount after Tax in Rs." : "Total Purchase Order Value"}</div>
-            <div className="border-l border-slate-950 px-3 py-2 text-right font-semibold">{formatPlain(totalPurchaseOrderValue)}</div>
-          </div>
+        </div>
+        <div className="mt-5 grid gap-3 sm:grid-cols-2">
+          {summaryRows.map(([label, value]) => (
+            <div key={label as string} className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+              <p className="text-xs font-semibold text-slate-500">{label as string}</p>
+              <p className="mt-1 text-base font-semibold tabular-nums text-slate-900">{formatPlain(value as number)}</p>
+            </div>
+          ))}
         </div>
       </div>
     );
@@ -1384,11 +1411,10 @@ function CreatePurchaseOrderPanel({
                   <div className="grid gap-x-4 gap-y-4 sm:grid-cols-2">
                     <P2PFormField label="Approved Requisition" hint="Only approved PRs are available.">
                       <div className="relative">
-                        <ShoppingCart className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                         <select
                           value={purchaseRequisitionId}
                           onChange={(event) => onPurchaseRequisitionIdChange(event.target.value)}
-                          className={cn(panelFieldClass(showValidation && !purchaseRequisitionId), "appearance-none pl-9 pr-10")}
+                          className={cn(panelFieldClass(showValidation && !purchaseRequisitionId), "appearance-none pr-10")}
                         >
                           <option value="">Select approved requisition</option>
                           {approvedRequisitions.map((requisition) => (
@@ -1401,8 +1427,7 @@ function CreatePurchaseOrderPanel({
                       </div>
                     </P2PFormField>
                     <P2PFormField label="PO Date">
-                      <PoInputWithIcon
-                        icon={FileText}
+                      <input
                         type="date"
                         value={orderDate}
                         onChange={(event) => onOrderDateChange(event.target.value)}
@@ -1438,11 +1463,10 @@ function CreatePurchaseOrderPanel({
                 <div className="space-y-4">
                   <P2PFormField label="Vendor Record" hint="Auto-fills editable vendor cells.">
                     <div className="relative">
-                      <Truck className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                       <select
                         value={vendorId}
                         onChange={(event) => onVendorIdChange(event.target.value)}
-                        className={cn(panelFieldClass(showValidation && !vendorId), "appearance-none pl-9 pr-10")}
+                        className={cn(panelFieldClass(showValidation && !vendorId), "appearance-none pr-10")}
                       >
                         <option value="">Select vendor</option>
                         {vendors.map((vendor) => (
@@ -1454,9 +1478,7 @@ function CreatePurchaseOrderPanel({
                       <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                     </div>
                   </P2PFormField>
-                  <div className="overflow-hidden rounded-lg border-2 border-slate-950 bg-white text-[12px] text-slate-950">
-                    {renderVendorDetails()}
-                  </div>
+                  {renderVendorDetails()}
                 </div>
               </PoFlatSection>
 
@@ -1468,15 +1490,13 @@ function CreatePurchaseOrderPanel({
                 onToggle={() => toggleSection("commercial")}
               >
                 <div className="space-y-4">
-                  <div className="overflow-hidden rounded-lg border-2 border-slate-950 bg-white text-[12px] text-slate-950">
-                    {renderPoDetails()}
-                  </div>
+                  {renderPoDetails()}
                   {selectedTemplate === "IOTIQ" ? (
-                    <div className="grid overflow-hidden rounded-lg border-2 border-slate-950 bg-white text-[12px] text-slate-950 md:grid-cols-2">
-                      <div className="border-b-2 border-slate-950 md:border-b-0 md:border-r-2">
-                        <div className="border-b border-slate-950 bg-slate-100 px-3 py-2 font-bold uppercase">Billing To Details</div>
-                        <div className="space-y-1 px-3 py-3 leading-5">
-                          <p className="font-semibold">{billing.name}</p>
+                    <div className="grid gap-x-5 gap-y-5 sm:grid-cols-2">
+                      <div>
+                        <p className="mb-1 text-sm font-semibold text-slate-600">Billing To Details</p>
+                        <div className="min-h-[132px] rounded-xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-700">
+                          <p className="font-semibold text-slate-800">{billing.name}</p>
                           {billing.addressLines.map((line) => (
                             <p key={line}>{line}</p>
                           ))}
@@ -1485,15 +1505,15 @@ function CreatePurchaseOrderPanel({
                           <p>Contact Number: {billing.contactNumber}</p>
                         </div>
                       </div>
-                      <div>
-                        <div className="border-b border-slate-950 bg-slate-100 px-3 py-2 font-bold uppercase">Shipping Address Details</div>
+                      <P2PFormField label="Shipping Address Details">
                         <textarea
+                          rows={5}
                           value={poDraftDetails.shippingAddress}
                           onChange={(event) => updateDraftDetail("shippingAddress", event.target.value)}
                           placeholder="Enter shipping address details"
-                          className={`${sheetTextareaClass} min-h-[130px]`}
+                          className={cn(panelFieldClass(showValidation && !poDraftDetails.shippingAddress.trim()), "min-h-[132px] resize-y leading-6")}
                         />
-                      </div>
+                      </P2PFormField>
                     </div>
                   ) : null}
                 </div>
@@ -1507,13 +1527,9 @@ function CreatePurchaseOrderPanel({
                 isOpen={openSections.items}
                 onToggle={() => toggleSection("items")}
               >
-                <div className="space-y-4">
-                  <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
-                    <div className="min-w-[920px] text-[12px] text-slate-950">
-                      {renderItemTable()}
-                      {renderSummary()}
-                    </div>
-                  </div>
+                <div className="space-y-5">
+                  {renderItemTable()}
+                  {renderSummary()}
                 </div>
               </PoFlatSection>
 
@@ -1562,20 +1578,24 @@ function CreatePurchaseOrderPanel({
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-[1fr_260px] overflow-hidden rounded-lg border-2 border-slate-950 bg-white text-[12px] text-slate-950">
-                    <div className="p-3" />
-                    <div className="border-l-2 border-slate-950 p-3 text-center">
-                      <p className="font-semibold">For {selectedTemplate === "ACS" ? "ACS Technologies Ltd" : "IOTIQ Innovations Pvt. Ltd."}</p>
-                      {selectedTemplate === "ACS" ? (
-                        <div className="flex h-20 items-center justify-center">
-                          <img src={acsSeal} alt="ACS seal" className="h-20 w-20 object-contain" />
-                        </div>
-                      ) : (
-                        <div className="flex h-20 items-center justify-center">
-                          <img src={iotiqStamp} alt="IOTIQ stamp" className="h-20 w-20 object-contain" />
-                        </div>
-                      )}
-                      <p className="font-semibold">{selectedTemplate === "ACS" ? "Authorised Signatory" : "Authorized Signatory"}</p>
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4">
+                    <p className="text-sm font-semibold text-slate-900">Signatory</p>
+                    <div className="mt-3 flex flex-wrap items-center gap-4">
+                      <div className="flex h-20 w-20 items-center justify-center rounded-xl border border-slate-200 bg-white">
+                        <img
+                          src={selectedTemplate === "ACS" ? acsSeal : iotiqStamp}
+                          alt={`${selectedTemplate} signatory seal`}
+                          className="h-16 w-16 object-contain"
+                        />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-slate-900">
+                          For {selectedTemplate === "ACS" ? "ACS Technologies Ltd" : "IOTIQ Innovations Pvt. Ltd."}
+                        </p>
+                        <p className="mt-1 text-sm text-slate-500">
+                          {selectedTemplate === "ACS" ? "Authorised Signatory" : "Authorized Signatory"}
+                        </p>
+                      </div>
                     </div>
                   </div>
                 </div>
