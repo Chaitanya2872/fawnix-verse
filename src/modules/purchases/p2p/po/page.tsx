@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ComponentProps, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import {
+  Check,
   ChevronDown,
   CircleDollarSign,
+  ClipboardList,
   Eye,
   FileText,
   Loader2,
@@ -17,12 +19,15 @@ import {
   Truck,
   X,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import { toast } from "sonner";
 import acsLogo from "@/assets/purchase-order/ACS_logo.png";
 import acsSeal from "@/assets/purchase-order/ACS_seal.png";
 import iotiqStamp from "@/assets/purchase-order/IOTIQ_stamp.png";
 import iotiqLogo from "@/assets/purchase-order/IOTIQ_logo.png";
+import { cn } from "@/lib/utils";
 import { PurchaseOrderDocument, type PurchaseOrderDocumentData } from "@/modules/purchases/PurchaseOrderDocument";
-import { usePurchaseOrders, usePurchaseRequisitions, useVendors } from "@/modules/purchases/hooks";
+import { useCreatePurchaseOrder, usePurchaseOrders, usePurchaseRequisitions, useVendors } from "@/modules/purchases/hooks";
 import type { PurchaseOrder, PurchaseOrderStatus, PurchaseRequisition, Vendor } from "@/modules/purchases/types";
 import { P2PCard, P2PFormField, P2PLayout, P2PStatusBadge, P2PTable } from "../components";
 
@@ -188,6 +193,16 @@ const PO_TEMPLATE_OPTIONS: Array<{ code: PoTemplate; label: string; companyName:
   { code: "IOTIQ", label: "IOTIQ", companyName: IOTIQ_COMPANY.name, accent: "border-blue-500 bg-blue-50 text-blue-700" },
 ];
 
+const PO_CREATE_SECTIONS = [
+  { key: "source", title: "Source & Template", hint: "Approved PR, template, and PO date", icon: ClipboardList },
+  { key: "vendor", title: "Vendor Details", hint: "Vendor identity, GST, and contact", icon: Truck },
+  { key: "commercial", title: "PO Details", hint: "Project, reference, contact, and ship-to", icon: FileText },
+  { key: "items", title: "Items", hint: "Line items, tax, and total value", icon: PackageCheck },
+  { key: "terms", title: "Terms", hint: "Terms and conditions for the order", icon: Send },
+] as const;
+
+type CreatePoSectionKey = (typeof PO_CREATE_SECTIONS)[number]["key"];
+
 function createTermsDraft(template: PoTemplate): PoTermDraft[] {
   const sourceTerms = template === "ACS" ? ACS_TERMS : IOTIQ_TERMS;
   return sourceTerms.map((term, index) => ({
@@ -332,12 +347,77 @@ function formatDate(value?: string | null) {
   }).format(new Date(value));
 }
 
-function fieldShellClass(disabled = false) {
-  return `w-full rounded-2xl border px-4 py-3 text-sm text-slate-700 transition focus:outline-none ${
+const buttonPrimary =
+  "inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 disabled:opacity-50";
+const buttonSecondary =
+  "inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-400 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30 disabled:opacity-50";
+const buttonGhostSmall =
+  "rounded-md px-2.5 py-1.5 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30";
+const microLabel = "text-xs font-semibold uppercase tracking-wide text-slate-400";
+
+function panelFieldClass(hasError = false, disabled = false) {
+  return cn(
+    "w-full rounded-md border bg-white px-3.5 py-2.5 text-sm text-slate-700 outline-none transition",
+    "placeholder:text-slate-400",
     disabled
-      ? "border-slate-200 bg-slate-100 text-slate-400"
-      : "border-slate-200 bg-slate-50/80 hover:border-slate-300 focus:border-blue-500 focus:bg-white"
-  }`;
+      ? "cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400"
+      : hasError
+        ? "border-rose-400 focus:border-rose-500 focus:ring-2 focus:ring-rose-500/15"
+        : "border-slate-300 hover:border-blue-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15"
+  );
+}
+
+function PoInputWithIcon({
+  icon: Icon,
+  className,
+  ...props
+}: ComponentProps<"input"> & { icon: LucideIcon }) {
+  return (
+    <div className="relative">
+      <Icon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+      <input {...props} className={cn(className, "pl-9")} />
+    </div>
+  );
+}
+
+function PoFlatSection({
+  title,
+  hint,
+  badge,
+  isOpen,
+  onToggle,
+  anchorId,
+  children,
+}: {
+  title: string;
+  hint: string;
+  badge?: string;
+  isOpen: boolean;
+  onToggle: () => void;
+  anchorId: string;
+  children: ReactNode;
+}) {
+  return (
+    <section id={anchorId} className="scroll-mt-4 border-b border-slate-200 last:border-b-0">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="flex w-full items-center gap-3 py-4 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500/30"
+      >
+        <span className="min-w-0 flex-1">
+          <span className="flex items-center gap-2">
+            <span className="text-sm font-semibold text-slate-900">{title}</span>
+            {badge ? (
+              <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[11px] font-semibold tabular-nums text-slate-600">{badge}</span>
+            ) : null}
+          </span>
+          <span className="mt-0.5 block truncate text-xs text-slate-500">{hint}</span>
+        </span>
+        <ChevronDown className={cn("h-4 w-4 shrink-0 text-slate-400 transition-transform", isOpen && "rotate-180")} />
+      </button>
+      {isOpen ? <div className="pb-6">{children}</div> : null}
+    </section>
+  );
 }
 
 function calculateLineTotal(item: Pick<PoLineItemDraft, "quantity" | "unitPrice">) {
@@ -705,7 +785,9 @@ function CreatePurchaseOrderPanel({
   onTermsChange,
   onItemColumnsChange,
   onLineItemsChange,
-  onGenerate,
+  onSubmit,
+  isSubmitting = false,
+  errorMessage,
 }: {
   approvedRequisitions: PurchaseRequisition[];
   vendors: Vendor[];
@@ -732,10 +814,21 @@ function CreatePurchaseOrderPanel({
   onTermsChange: (value: PoTermDraft[]) => void;
   onItemColumnsChange: (value: PoItemColumnDraft[]) => void;
   onLineItemsChange: (value: PoLineItemDraft[]) => void;
-  onGenerate: () => void;
+  onSubmit: () => void;
+  isSubmitting?: boolean;
+  errorMessage?: string;
 }) {
   const [showValidation, setShowValidation] = useState(false);
   const [draftSavedAt, setDraftSavedAt] = useState<string | null>(null);
+  const [openSections, setOpenSections] = useState<Record<CreatePoSectionKey, boolean>>({
+    source: true,
+    vendor: true,
+    commercial: true,
+    items: true,
+    terms: true,
+  });
+  const [activeSection, setActiveSection] = useState<CreatePoSectionKey>("source");
+  const scrollRef = useRef<HTMLDivElement>(null);
   const company = selectedTemplate === "ACS" ? ACS_COMPANY : IOTIQ_COMPANY;
   const billing = selectedTemplate === "ACS" ? ACS_BUYER : IOTIQ_BILLING;
   const basicValue = lineItems.reduce((sum, item) => sum + calculateLineTotal(item), 0);
@@ -774,6 +867,7 @@ function CreatePurchaseOrderPanel({
     hasInvalidLineItems ? "Complete Item Details" : "",
   ].filter(Boolean);
   const canGenerate = missingFields.length === 0;
+  const canSubmit = canGenerate && !isSubmitting;
   const sheetInputClass = "min-w-0 w-full border-0 bg-transparent px-2 py-1.5 text-[12px] text-slate-950 outline-none ring-0 placeholder:text-slate-400 focus:bg-amber-50";
   const sheetTextareaClass = `${sheetInputClass} min-h-[76px] resize-none leading-5`;
   const readonlyValueClass = "min-h-[30px] px-2 py-1.5 text-[12px] leading-5 text-slate-900";
@@ -848,13 +942,69 @@ function CreatePurchaseOrderPanel({
     setDraftSavedAt(new Date().toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" }));
   }
 
-  function handleGeneratePo() {
+  function sectionIsComplete(key: CreatePoSectionKey) {
+    switch (key) {
+      case "source":
+        return Boolean(purchaseRequisitionId && orderDate);
+      case "vendor":
+        return Boolean(
+          vendorId &&
+            poDraftDetails.vendorName.trim() &&
+            poDraftDetails.vendorAddress.trim() &&
+            poDraftDetails.vendorGst.trim() &&
+            (selectedTemplate !== "ACS" ||
+              (poDraftDetails.vendorPan.trim() &&
+                poDraftDetails.vendorContactName.trim() &&
+                poDraftDetails.vendorContactNumber.trim()))
+        );
+      case "commercial":
+        return Boolean(
+          project.trim() &&
+            vendorQuoteReference.trim() &&
+            poDraftDetails.contactName.trim() &&
+            poDraftDetails.contactNumber.trim() &&
+            (selectedTemplate !== "IOTIQ" || (poDraftDetails.mailId.trim() && poDraftDetails.shippingAddress.trim()))
+        );
+      case "items":
+        return !hasInvalidLineItems;
+      case "terms":
+        return terms.length > 0 && terms.every((term) => term.title.trim() && term.body.trim());
+    }
+  }
+
+  const handlePanelScroll = () => {
+    const container = scrollRef.current;
+    if (!container) return;
+    const containerTop = container.getBoundingClientRect().top;
+    let current: CreatePoSectionKey = PO_CREATE_SECTIONS[0].key;
+    for (const section of PO_CREATE_SECTIONS) {
+      const element = container.querySelector(`#po-section-${section.key}`);
+      if (element && element.getBoundingClientRect().top - containerTop <= 96) {
+        current = section.key;
+      }
+    }
+    setActiveSection(current);
+  };
+
+  const jumpToSection = (key: CreatePoSectionKey) => {
+    setOpenSections((current) => ({ ...current, [key]: true }));
+    setActiveSection(key);
+    requestAnimationFrame(() => {
+      scrollRef.current?.querySelector(`#po-section-${key}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  };
+
+  const toggleSection = (key: CreatePoSectionKey) => {
+    setOpenSections((current) => ({ ...current, [key]: !current[key] }));
+  };
+
+  function handleSubmitPo() {
     if (!canGenerate) {
       setShowValidation(true);
       return;
     }
     setShowValidation(false);
-    onGenerate();
+    onSubmit();
   }
 
   function renderVendorDetails() {
@@ -1133,203 +1283,335 @@ function CreatePurchaseOrderPanel({
 
   return (
     <div className="fixed inset-0 z-40">
-      <div className="absolute inset-0 bg-slate-950/30 backdrop-blur-[1px]" onClick={onClose} />
-      <div className="absolute inset-y-0 right-0 flex h-full w-full flex-col border-l border-slate-200 bg-white shadow-2xl sm:w-[94vw] xl:w-[78vw] xl:max-w-[1320px]">
-        <div className="border-b border-slate-200 px-6 py-5">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-600">Purchase Order Template</p>
-              <h2 className="mt-2 text-2xl font-semibold text-slate-900">Create PO</h2>
-              <p className="mt-1 text-sm text-slate-500">Select ACS or IOTIQ, fill the editable Excel cells, then generate the matching PDF.</p>
+      <div className="absolute inset-0 bg-slate-950/45 backdrop-blur-[2px]" onClick={onClose} />
+      <div className="absolute inset-y-0 right-0 flex h-full w-full flex-col bg-white shadow-2xl sm:w-[94vw] lg:w-[72vw] lg:max-w-[1160px] lg:border-l lg:border-slate-200">
+        <div className="border-b border-slate-200 px-5 py-4 sm:px-6">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex min-w-0 items-center gap-3">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600 ring-1 ring-blue-600/10">
+                <ClipboardList className="h-5 w-5" />
+              </span>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <p className={microLabel}>Purchase order</p>
+                  <span className="rounded-md bg-blue-50 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-blue-700">
+                    {selectedTemplate}
+                  </span>
+                </div>
+                <h2 className="mt-0.5 truncate text-lg font-semibold text-slate-900">Create purchase order</h2>
+                <p className="mt-0.5 truncate text-xs text-slate-500">
+                  {selectedRequisition?.prNumber ?? "Select approved PR"} | {selectedVendor?.vendorName ?? "No vendor selected"} | {lineItems.length} item(s)
+                </p>
+              </div>
             </div>
-            <button type="button" onClick={onClose} className="inline-flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close panel"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-300 text-slate-500 transition hover:bg-slate-50"
+            >
               <X className="h-4 w-4" />
-              Close
             </button>
           </div>
+        </div>
 
-          <div className="mt-5 grid gap-3 md:grid-cols-2">
-            {PO_TEMPLATE_OPTIONS.map((option) => {
-              const active = selectedTemplate === option.code;
+        <div className="flex flex-1 overflow-hidden">
+          <nav className="hidden w-60 shrink-0 flex-col gap-0.5 overflow-y-auto border-r border-slate-200 bg-white px-3 py-4 lg:flex">
+            <p className={cn(microLabel, "px-2 pb-2")}>Sections</p>
+            {PO_CREATE_SECTIONS.map((section) => {
+              const isComplete = sectionIsComplete(section.key);
+              const isActive = activeSection === section.key;
+              const Icon = section.icon;
               return (
-                <button key={option.code} type="button" onClick={() => onSelectedTemplateChange(option.code)} className={`rounded-2xl border px-4 py-3 text-left transition ${active ? option.accent : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"}`}>
-                  <span className="block text-sm font-bold uppercase tracking-[0.16em]">{option.label}</span>
-                  <span className="mt-1 block text-xs font-medium">{option.companyName}</span>
+                <button
+                  key={section.key}
+                  type="button"
+                  onClick={() => jumpToSection(section.key)}
+                  aria-current={isActive ? "true" : undefined}
+                  className={cn(
+                    "group flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30",
+                    isActive ? "bg-blue-50 text-blue-700" : "hover:bg-sky-50"
+                  )}
+                >
+                  <Icon className={cn("h-4 w-4", isActive ? "text-blue-600" : "text-slate-400 group-hover:text-slate-500")} />
+                  <span className={cn("min-w-0 flex-1 truncate text-[13px]", isActive ? "font-semibold text-blue-700" : "font-medium text-slate-700")}>
+                    {section.title}
+                  </span>
+                  {isComplete ? (
+                    <Check className="h-3.5 w-3.5 shrink-0 text-blue-600" aria-label="Complete" />
+                  ) : (
+                    <span className="h-2 w-2 shrink-0 rounded-full border border-slate-300" />
+                  )}
                 </button>
               );
             })}
-          </div>
-
-          <div className="mt-5 grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] lg:items-end">
-            <P2PFormField label="Approved Requisition" hint="Required to load item rows.">
-              <div className="relative">
-                <ShoppingCart className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                <select value={purchaseRequisitionId} onChange={(event) => onPurchaseRequisitionIdChange(event.target.value)} className={`${fieldShellClass()} appearance-none pl-11 pr-10`}>
-                  <option value="">Select approved requisition</option>
-                  {approvedRequisitions.map((requisition) => (
-                    <option key={requisition.id} value={requisition.id}>
-                      {requisition.prNumber} - {requisition.department}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              </div>
-            </P2PFormField>
-
-            <P2PFormField label="Vendor Record" hint="Auto-fills editable vendor cells.">
-              <div className="relative">
-                <Truck className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                <select value={vendorId} onChange={(event) => onVendorIdChange(event.target.value)} className={`${fieldShellClass()} appearance-none pl-11 pr-10`}>
-                  <option value="">Select vendor</option>
-                  {vendors.map((vendor) => (
-                    <option key={vendor.id} value={vendor.id}>
-                      {vendor.vendorName}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              </div>
-            </P2PFormField>
-
-            <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-blue-700">Selected Vendor</p>
-              <p className="mt-1 whitespace-nowrap text-sm font-semibold text-slate-900">{selectedVendor?.vendorName ?? "Not selected"}</p>
+            <div className="mt-auto rounded-lg bg-slate-50 px-3 py-2.5 text-[11px] leading-relaxed text-slate-500">
+              <p className={cn(microLabel, "text-[10px]")}>Readiness</p>
+              <p className="mt-1">{missingFields.length ? `${missingFields.length} detail(s) pending` : "Ready to submit"}</p>
             </div>
-          </div>
-        </div>
+          </nav>
 
-        <div className="flex-1 overflow-y-auto bg-slate-100 px-6 py-6">
-          <div className="overflow-x-auto rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="mx-auto min-w-[1060px] max-w-[1180px] border-2 border-slate-950 bg-white text-[12px] text-slate-950">
-              <div className="grid grid-cols-[150px_1fr] border-b-2 border-slate-950">
-                <div className="flex items-center justify-center border-r-2 border-slate-950 p-4">
-                  <img
-                    src={selectedTemplate === "ACS" ? acsLogo : iotiqLogo}
-                    alt={`${selectedTemplate} logo`}
-                    className="max-h-20 max-w-[120px] object-contain"
-                  />
-                </div>
-                <div className="p-4 text-center">
-                  <p className="text-lg font-bold uppercase tracking-wide">{company.name}</p>
-                  {company.addressLines.map((line) => (
-                    <p key={line} className="mt-1 leading-5">{line}</p>
-                  ))}
-                  <p className="mt-2 font-semibold">{company.cin}</p>
-                  <p className="font-semibold">{company.gst}</p>
-                </div>
-              </div>
+          <div ref={scrollRef} onScroll={handlePanelScroll} className="flex-1 overflow-y-auto px-5 py-1 sm:px-8">
+            <div className="mx-auto max-w-4xl">
+              <PoFlatSection
+                title="Source & Template"
+                hint={PO_CREATE_SECTIONS[0].hint}
+                anchorId="po-section-source"
+                isOpen={openSections.source}
+                onToggle={() => toggleSection("source")}
+              >
+                <div className="space-y-4">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {PO_TEMPLATE_OPTIONS.map((option) => {
+                      const active = selectedTemplate === option.code;
+                      return (
+                        <button
+                          key={option.code}
+                          type="button"
+                          onClick={() => onSelectedTemplateChange(option.code)}
+                          className={cn(
+                            "rounded-lg border px-4 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30",
+                            active ? option.accent : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"
+                          )}
+                        >
+                          <span className="block text-sm font-bold uppercase tracking-[0.16em]">{option.label}</span>
+                          <span className="mt-1 block truncate text-xs font-medium">{option.companyName}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
 
-              <div className="border-b-2 border-slate-950 bg-[#f3dfb7] px-4 py-2 text-center text-base font-bold uppercase tracking-[0.18em]">PURCHASE ORDER</div>
+                  <div className="grid gap-x-4 gap-y-4 sm:grid-cols-2">
+                    <P2PFormField label="Approved Requisition" hint="Only approved PRs are available.">
+                      <div className="relative">
+                        <ShoppingCart className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                        <select
+                          value={purchaseRequisitionId}
+                          onChange={(event) => onPurchaseRequisitionIdChange(event.target.value)}
+                          className={cn(panelFieldClass(showValidation && !purchaseRequisitionId), "appearance-none pl-9 pr-10")}
+                        >
+                          <option value="">Select approved requisition</option>
+                          {approvedRequisitions.map((requisition) => (
+                            <option key={requisition.id} value={requisition.id}>
+                              {requisition.prNumber} - {requisition.department}
+                            </option>
+                          ))}
+                        </select>
+                        <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                      </div>
+                    </P2PFormField>
+                    <P2PFormField label="PO Date">
+                      <PoInputWithIcon
+                        icon={FileText}
+                        type="date"
+                        value={orderDate}
+                        onChange={(event) => onOrderDateChange(event.target.value)}
+                        className={panelFieldClass(showValidation && !orderDate)}
+                      />
+                    </P2PFormField>
+                  </div>
 
-              <div className="grid grid-cols-2 border-b-2 border-slate-950">
-                {renderVendorDetails()}
-                {renderPoDetails()}
-              </div>
-
-              {selectedTemplate === "IOTIQ" ? (
-                <div className="grid grid-cols-2 border-b-2 border-slate-950">
-                  <div className="border-r-2 border-slate-950">
-                    <div className="border-b border-slate-950 bg-slate-100 px-3 py-2 font-bold uppercase">Billing To Details</div>
-                    <div className="space-y-1 px-3 py-3 leading-5">
-                      <p className="font-semibold">{billing.name}</p>
-                      {billing.addressLines.map((line) => (
-                        <p key={line}>{line}</p>
-                      ))}
-                      <p>{billing.gst}</p>
-                      <p>Contact Person: {billing.contactName}</p>
-                      <p>Contact Number: {billing.contactNumber}</p>
+                  <div className="grid grid-cols-[120px_1fr] overflow-hidden rounded-lg border border-slate-200 bg-white text-sm">
+                    <div className="flex items-center justify-center border-r border-slate-200 p-3">
+                      <img
+                        src={selectedTemplate === "ACS" ? acsLogo : iotiqLogo}
+                        alt={`${selectedTemplate} logo`}
+                        className="max-h-16 max-w-[100px] object-contain"
+                      />
+                    </div>
+                    <div className="px-4 py-3">
+                      <p className="font-semibold uppercase tracking-wide text-slate-900">{company.name}</p>
+                      <p className="mt-1 text-xs leading-5 text-slate-500">{company.addressLines.join(", ")}</p>
+                      <p className="mt-1 text-xs font-semibold text-slate-600">{company.gst}</p>
                     </div>
                   </div>
-                  <div>
-                    <div className="border-b border-slate-950 bg-slate-100 px-3 py-2 font-bold uppercase">Shipping Address Details</div>
-                    <textarea value={poDraftDetails.shippingAddress} onChange={(event) => updateDraftDetail("shippingAddress", event.target.value)} placeholder="Enter shipping address details" className={`${sheetTextareaClass} min-h-[130px]`} />
+                </div>
+              </PoFlatSection>
+
+              <PoFlatSection
+                title="Vendor Details"
+                hint={PO_CREATE_SECTIONS[1].hint}
+                anchorId="po-section-vendor"
+                isOpen={openSections.vendor}
+                onToggle={() => toggleSection("vendor")}
+              >
+                <div className="space-y-4">
+                  <P2PFormField label="Vendor Record" hint="Auto-fills editable vendor cells.">
+                    <div className="relative">
+                      <Truck className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                      <select
+                        value={vendorId}
+                        onChange={(event) => onVendorIdChange(event.target.value)}
+                        className={cn(panelFieldClass(showValidation && !vendorId), "appearance-none pl-9 pr-10")}
+                      >
+                        <option value="">Select vendor</option>
+                        {vendors.map((vendor) => (
+                          <option key={vendor.id} value={vendor.id}>
+                            {vendor.vendorName}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                    </div>
+                  </P2PFormField>
+                  <div className="overflow-hidden rounded-lg border-2 border-slate-950 bg-white text-[12px] text-slate-950">
+                    {renderVendorDetails()}
                   </div>
                 </div>
-              ) : null}
+              </PoFlatSection>
 
-              {renderItemTable()}
-              {renderSummary()}
-
-              <div className="border-b-2 border-slate-950 p-3">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="font-bold uppercase">Terms & Conditions:</p>
-                  <button
-                    type="button"
-                    onClick={addTermRow}
-                    className="inline-flex items-center gap-1.5 rounded-full border border-slate-300 bg-white px-3 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50"
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                    Add Row
-                  </button>
+              <PoFlatSection
+                title="PO Details"
+                hint={PO_CREATE_SECTIONS[2].hint}
+                anchorId="po-section-commercial"
+                isOpen={openSections.commercial}
+                onToggle={() => toggleSection("commercial")}
+              >
+                <div className="space-y-4">
+                  <div className="overflow-hidden rounded-lg border-2 border-slate-950 bg-white text-[12px] text-slate-950">
+                    {renderPoDetails()}
+                  </div>
+                  {selectedTemplate === "IOTIQ" ? (
+                    <div className="grid overflow-hidden rounded-lg border-2 border-slate-950 bg-white text-[12px] text-slate-950 md:grid-cols-2">
+                      <div className="border-b-2 border-slate-950 md:border-b-0 md:border-r-2">
+                        <div className="border-b border-slate-950 bg-slate-100 px-3 py-2 font-bold uppercase">Billing To Details</div>
+                        <div className="space-y-1 px-3 py-3 leading-5">
+                          <p className="font-semibold">{billing.name}</p>
+                          {billing.addressLines.map((line) => (
+                            <p key={line}>{line}</p>
+                          ))}
+                          <p>{billing.gst}</p>
+                          <p>Contact Person: {billing.contactName}</p>
+                          <p>Contact Number: {billing.contactNumber}</p>
+                        </div>
+                      </div>
+                      <div>
+                        <div className="border-b border-slate-950 bg-slate-100 px-3 py-2 font-bold uppercase">Shipping Address Details</div>
+                        <textarea
+                          value={poDraftDetails.shippingAddress}
+                          onChange={(event) => updateDraftDetail("shippingAddress", event.target.value)}
+                          placeholder="Enter shipping address details"
+                          className={`${sheetTextareaClass} min-h-[130px]`}
+                        />
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
-                <div className="mt-2 grid gap-2">
-                  {terms.map((term, index) => (
-                    <div key={term.id} className="grid grid-cols-[34px_180px_1fr_72px] items-start gap-0 leading-5">
-                      <span className="px-1 py-1.5">{index + 1}</span>
-                      <input
-                        value={term.title}
-                        onChange={(event) => updateTerm(term.id, { title: event.target.value })}
-                        className="border-0 bg-transparent px-2 py-1.5 font-semibold outline-none focus:bg-amber-50"
-                        aria-label={`Term ${index + 1} title`}
-                      />
-                      <textarea
-                        value={term.body}
-                        onChange={(event) => updateTerm(term.id, { body: event.target.value })}
-                        className="min-h-[46px] resize-y border-0 bg-transparent px-2 py-1.5 outline-none focus:bg-amber-50"
-                        aria-label={`Term ${index + 1} matter`}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => deleteTermRow(term.id)}
-                        className="mx-1 mt-1 rounded-full border border-rose-200 px-2 py-1 text-[11px] font-semibold text-rose-600 hover:bg-rose-50"
-                      >
-                        Delete
+              </PoFlatSection>
+
+              <PoFlatSection
+                title="Items"
+                hint={PO_CREATE_SECTIONS[3].hint}
+                badge={`${lineItems.length}`}
+                anchorId="po-section-items"
+                isOpen={openSections.items}
+                onToggle={() => toggleSection("items")}
+              >
+                <div className="space-y-4">
+                  <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+                    <div className="min-w-[920px] text-[12px] text-slate-950">
+                      {renderItemTable()}
+                      {renderSummary()}
+                    </div>
+                  </div>
+                </div>
+              </PoFlatSection>
+
+              <PoFlatSection
+                title="Terms"
+                hint={PO_CREATE_SECTIONS[4].hint}
+                badge={`${terms.length}`}
+                anchorId="po-section-terms"
+                isOpen={openSections.terms}
+                onToggle={() => toggleSection("terms")}
+              >
+                <div className="space-y-4">
+                  <div className="rounded-lg border border-slate-200 bg-white p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-sm font-semibold text-slate-900">Terms & Conditions</p>
+                      <button type="button" onClick={addTermRow} className={buttonSecondary}>
+                        <Plus className="h-4 w-4" />
+                        Add Row
                       </button>
                     </div>
-                  ))}
-                </div>
-              </div>
+                    <div className="mt-3 grid gap-2">
+                      {terms.map((term, index) => (
+                        <div key={term.id} className="grid gap-2 rounded-md border border-slate-200 bg-slate-50 p-2 sm:grid-cols-[32px_170px_1fr_auto]">
+                          <span className="px-1 py-2 text-sm font-semibold text-slate-500">{index + 1}</span>
+                          <input
+                            value={term.title}
+                            onChange={(event) => updateTerm(term.id, { title: event.target.value })}
+                            className={panelFieldClass(showValidation && !term.title.trim())}
+                            aria-label={`Term ${index + 1} title`}
+                          />
+                          <textarea
+                            value={term.body}
+                            onChange={(event) => updateTerm(term.id, { body: event.target.value })}
+                            className={cn(panelFieldClass(showValidation && !term.body.trim()), "min-h-[42px] resize-y")}
+                            aria-label={`Term ${index + 1} matter`}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => deleteTermRow(term.id)}
+                            className={cn(buttonGhostSmall, "h-9 text-rose-600 hover:bg-rose-50")}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
 
-              <div className="grid grid-cols-[1fr_320px]">
-                <div className="p-3" />
-                <div className="border-l-2 border-slate-950 p-3 text-center">
-                  <p className="font-semibold">For {selectedTemplate === "ACS" ? "ACS Technologies Ltd" : "IOTIQ Innovations Pvt. Ltd."}</p>
-                  {selectedTemplate === "ACS" ? (
-                    <div className="flex h-20 items-center justify-center">
-                      <img src={acsSeal} alt="ACS seal" className="h-20 w-20 object-contain" />
+                  <div className="grid grid-cols-[1fr_260px] overflow-hidden rounded-lg border-2 border-slate-950 bg-white text-[12px] text-slate-950">
+                    <div className="p-3" />
+                    <div className="border-l-2 border-slate-950 p-3 text-center">
+                      <p className="font-semibold">For {selectedTemplate === "ACS" ? "ACS Technologies Ltd" : "IOTIQ Innovations Pvt. Ltd."}</p>
+                      {selectedTemplate === "ACS" ? (
+                        <div className="flex h-20 items-center justify-center">
+                          <img src={acsSeal} alt="ACS seal" className="h-20 w-20 object-contain" />
+                        </div>
+                      ) : (
+                        <div className="flex h-20 items-center justify-center">
+                          <img src={iotiqStamp} alt="IOTIQ stamp" className="h-20 w-20 object-contain" />
+                        </div>
+                      )}
+                      <p className="font-semibold">{selectedTemplate === "ACS" ? "Authorised Signatory" : "Authorized Signatory"}</p>
                     </div>
-                  ) : (
-                    <div className="flex h-20 items-center justify-center">
-                      <img src={iotiqStamp} alt="IOTIQ stamp" className="h-20 w-20 object-contain" />
-                    </div>
-                  )}
-                  <p className="font-semibold">{selectedTemplate === "ACS" ? "Authorised Signatory" : "Authorized Signatory"}</p>
+                  </div>
                 </div>
-              </div>
+              </PoFlatSection>
+
+              {showValidation ? (
+                <div className="my-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                  Complete mandatory fields before submitting PO: {missingFields.join(", ")}.
+                </div>
+              ) : null}
             </div>
           </div>
-
-          {showValidation ? <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">Complete mandatory fields before generating PO: {missingFields.join(", ")}.</div> : null}
         </div>
 
-        <div className="border-t border-slate-200 bg-white px-6 py-4">
+        <div className="border-t border-slate-200 bg-white px-5 py-3.5 sm:px-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Total Purchase Order Value</p>
-              <p className="mt-1 text-lg font-semibold text-slate-900">{formatCurrency(totalPurchaseOrderValue)}</p>
+              <p className={microLabel}>Total Purchase Order Value</p>
+              <p className="text-lg font-semibold text-slate-900">{formatCurrency(totalPurchaseOrderValue)}</p>
               {draftSavedAt ? <p className="mt-1 text-xs font-medium text-emerald-600">Draft saved at {draftSavedAt}</p> : null}
             </div>
-            <div className="flex flex-wrap items-center gap-3">
-              <button type="button" onClick={handleSaveDraft} className="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-100">
+            <div className="flex flex-wrap items-center gap-2">
+              <button type="button" onClick={onClose} className={buttonSecondary}>
+                Cancel
+              </button>
+              <button type="button" onClick={handleSaveDraft} disabled={isSubmitting} className={buttonSecondary}>
                 <FileText className="h-4 w-4" />
                 Save Draft
               </button>
-              <button type="button" onClick={handleGeneratePo} className="inline-flex items-center gap-2 rounded-full bg-slate-950 px-5 py-2.5 text-sm font-semibold text-white shadow-sm shadow-slate-950/20 hover:bg-slate-800">
-                <Printer className="h-4 w-4" />
-                Generate PO
+              <button type="button" onClick={handleSubmitPo} disabled={!canSubmit} className={buttonPrimary}>
+                {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                Submit
               </button>
             </div>
           </div>
+          {errorMessage ? <p className="mt-2 text-sm text-rose-600">{errorMessage}</p> : null}
         </div>
       </div>
     </div>
@@ -1477,6 +1759,7 @@ export default function P2PPurchaseOrderPage() {
   const { data: purchaseOrders = [], isLoading, isError, error } = usePurchaseOrders();
   const { data: requisitions = [] } = usePurchaseRequisitions();
   const { data: vendors = [] } = useVendors();
+  const createPurchaseOrder = useCreatePurchaseOrder();
 
   const [selectedTemplate, setSelectedTemplate] = useState<PoTemplate>("IOTIQ");
   const [templateDrafts, setTemplateDrafts] = useState<Record<PoTemplate, PoTemplateDraft>>(() => createInitialTemplateDrafts());
@@ -1536,19 +1819,31 @@ export default function P2PPurchaseOrderPage() {
 
   function handlePurchaseRequisitionChange(value: string) {
     const requisition = approvedRequisitions.find((entry) => entry.id === value) ?? null;
+    const nextVendorId = requisition?.negotiationVendorId ?? "";
+    const requisitionVendor = vendors.find((entry) => entry.id === nextVendorId) ?? null;
     updateActiveDraft((draft) => ({
       ...draft,
       purchaseRequisitionId: value,
-      vendorId: requisition?.negotiationVendorId ?? draft.vendorId,
+      vendorId: nextVendorId || draft.vendorId,
       poLineItems: requisition ? requisition.items.map(createLineItemDraft) : draft.poLineItems,
-      poDraftDetails:
-        selectedTemplate === "IOTIQ"
+      poDraftDetails: {
+        ...draft.poDraftDetails,
+        ...(requisitionVendor
           ? {
-              ...draft.poDraftDetails,
-              igstAmount: "",
-              igstAmountMode: "AUTO",
+              vendorName: requisitionVendor.vendorName,
+              vendorAddress: vendorAddressText(requisitionVendor),
+              vendorGst: requisitionVendor.taxIdentifier ?? "",
+              vendorContactName: requisitionVendor.vendorName,
+              vendorContactNumber: requisitionVendor.phone ?? "",
             }
-          : draft.poDraftDetails,
+          : {}),
+        ...(selectedTemplate === "IOTIQ"
+          ? {
+              igstAmount: "",
+              igstAmountMode: "AUTO" as const,
+            }
+          : {}),
+      },
     }));
   }
 
@@ -1579,23 +1874,66 @@ export default function P2PPurchaseOrderPage() {
     setSelectedTemplate(template);
   }
 
-  function handlePreviewDraft() {
-    if (!selectedRequisition) return;
-    setPreview({
-      title: `${draftPoNumber(selectedRequisition, selectedTemplate)} - ${selectedTemplate}`,
-      data: draftDoc(
-        selectedTemplate,
-        selectedRequisition,
-        selectedVendor,
-        activeDraft.orderDate,
-        activeDraft.project,
-        activeDraft.vendorQuoteReference,
-        activeDraft.poDraftDetails,
-        activeDraft.poTerms,
-        activeDraft.poItemColumns,
-        activeDraft.poLineItems
-      ),
-    });
+  function buildSubmittedDocument(order?: PurchaseOrder) {
+    if (!selectedRequisition) return null;
+    const document = draftDoc(
+      selectedTemplate,
+      selectedRequisition,
+      selectedVendor ?? order?.vendor,
+      activeDraft.orderDate,
+      activeDraft.project,
+      activeDraft.vendorQuoteReference,
+      activeDraft.poDraftDetails,
+      activeDraft.poTerms,
+      activeDraft.poItemColumns,
+      activeDraft.poLineItems
+    );
+
+    return order
+      ? {
+          ...document,
+          poNumber: order.poNumber,
+          poDate: order.orderDate,
+          requisitionNumber: order.requisitionNumber,
+          referenceDate: order.createdAt,
+          status: order.status,
+          approvalInformation: "Issued from approved requisition",
+        }
+      : document;
+  }
+
+  async function handleSubmitPurchaseOrder() {
+    if (!selectedRequisition || !activeDraft.vendorId || !activeDraft.orderDate) return;
+    const template = selectedTemplate;
+    const notes = [
+      activeDraft.project.trim() ? `Project: ${activeDraft.project.trim()}` : "",
+      activeDraft.vendorQuoteReference.trim() ? `Reference: ${activeDraft.vendorQuoteReference.trim()}` : "",
+      activeDraft.poDraftDetails.contactName.trim() ? `Contact: ${activeDraft.poDraftDetails.contactName.trim()}` : "",
+      selectedRequisition.purpose ? `PR Notes: ${selectedRequisition.purpose}` : "",
+    ]
+      .filter(Boolean)
+      .join("\n");
+
+    try {
+      const created = await createPurchaseOrder.mutateAsync({
+        purchaseRequisitionId: selectedRequisition.id,
+        payload: {
+          vendorId: activeDraft.vendorId,
+          orderDate: activeDraft.orderDate,
+          expectedDeliveryDate: selectedRequisition.neededByDate || undefined,
+          notes: notes || undefined,
+        },
+      });
+      const document = buildSubmittedDocument(created);
+      if (document) {
+        setPreview({ title: `${created.poNumber} - ${template}`, data: document });
+      }
+      setIsCreatePanelOpen(false);
+      resetCreateForm();
+      toast.success("Purchase order submitted and template generated.");
+    } catch (submitError) {
+      toast.error(submitError instanceof Error ? submitError.message : "Failed to submit purchase order.");
+    }
   }
 
   const columns = [
@@ -1779,7 +2117,9 @@ export default function P2PPurchaseOrderPage() {
           onTermsChange={(value) => updateActiveDraft({ poTerms: value })}
           onItemColumnsChange={(value) => updateActiveDraft({ poItemColumns: value })}
           onLineItemsChange={(value) => updateActiveDraft({ poLineItems: value })}
-          onGenerate={handlePreviewDraft}
+          onSubmit={handleSubmitPurchaseOrder}
+          isSubmitting={createPurchaseOrder.isPending}
+          errorMessage={createPurchaseOrder.error instanceof Error ? createPurchaseOrder.error.message : undefined}
         />
       ) : null}
 
