@@ -712,15 +712,15 @@ export const router = createBrowserRouter([
               </RequirePermission>
             ),
           },
+          {
+            path: "vms/*",
+            element: (
+              <Suspense fallback={null}>
+                <VMSAppRoutes />
+              </Suspense>
+            ),
+          },
         ],
-      },
-      {
-        path: "vms/*",
-        element: (
-          <Suspense fallback={null}>
-            <VMSAppRoutes />
-          </Suspense>
-        ),
       },
     ],
   },

@@ -149,7 +149,12 @@ const ERP_NAV_SECTIONS: readonly SidebarNavSection[] = [
   {
     heading: "Operations",
     items: [
-      { label: "Visitor Management", to: "/vms/dashboard", icon: UserCheck },
+      { label: "VMS Dashboard",       to: "/vms/dashboard",            icon: UserCheck,     end: true },
+      { label: "New Visitor",          to: "/vms/create-visitor",       icon: UserPlus },
+      { label: "Visitors",             to: "/vms/visitor-requests",     icon: ClipboardList },
+      { label: "Approvals",            to: "/vms/approvals",            icon: CheckSquare },
+      { label: "Visitor Verification", to: "/vms/visitor-verification", icon: KeyRound },
+      { label: "Check-In / Check-Out", to: "/vms/check-in-out",         icon: ArrowLeftRight },
     ],
   },
 ];

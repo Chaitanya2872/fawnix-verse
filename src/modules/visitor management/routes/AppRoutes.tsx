@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
-import { Routes, Route, Navigate } from "react-router-dom";
-import MainLayout from "../layouts/MainLayout";
+import { Routes, Route, Navigate, Outlet } from "react-router-dom";
+import "../index.css";
 import Login from "../pages/Login/loginpage";
 import authService from "../services/authService";
 
@@ -20,25 +20,22 @@ function ProtectedRoute({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
 
+function VmsLayout() {
+  return <Outlet />;
+}
+
 function AppRoutes() {
   return (
     <Routes>
-      <Route index element={<Navigate to="/vms/dashboard" replace />} />
       <Route path="login" element={<Login />} />
 
-      <Route
-        element={
-          <ProtectedRoute>
-            <MainLayout />
-          </ProtectedRoute>
-        }
-      >
+      <Route element={<ProtectedRoute><VmsLayout /></ProtectedRoute>}>
+        <Route index element={<Navigate to="/vms/dashboard" replace />} />
         <Route path="dashboard" element={<Dashboard />} />
         <Route path="create-visitor" element={<CreateVisitor />} />
         <Route path="visitor-requests" element={<VisitorRequests />} />
         <Route path="approvals" element={<Approvals />} />
         <Route path="visitor-verification" element={<VisitorVerification />} />
-        {/* Legacy aliases — redirect to canonical routes */}
         <Route path="visitor-validation" element={<Navigate to="/vms/visitor-verification" replace />} />
         <Route path="face-registration" element={<FaceCapture />} />
         <Route path="face-capture" element={<Navigate to="/vms/face-registration" replace />} />
