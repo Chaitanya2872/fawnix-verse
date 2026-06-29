@@ -2,17 +2,17 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { Icons } from "../common/Icons";
 import authService from "../../services/authService";
 
-const routeTitles = {
-  "/dashboard":            ["Dashboard",            "Today's overview and visitor activity"],
-  "/create-visitor":       ["New Visitor",           "Register a new visitor request"],
-  "/visitor-requests":     ["Visitors",              "Search, manage and act on visitor records"],
-  "/approvals":            ["Approvals",             "Review and approve pending visitor requests"],
-  "/visitor-verification": ["Visitor Verification",  "Verify QR code and face match at the desk"],
-  "/face-registration":    ["Face Registration",     "Capture and register visitor identity photo"],
-  "/face-capture":         ["Face Registration",     "Capture and register visitor identity photo"],
-  "/visitor-validation":   ["Visitor Verification",  "Verify QR code and face match at the desk"],
-  "/check-in-out":         ["Check-In / Check-Out",  "Process visitor arrivals and departures"],
-  "/settings":             ["Settings",              "Workspace and security preferences"],
+const routeTitles: Record<string, [string, string]> = {
+  "/vms/dashboard":            ["Dashboard",            "Today's overview and visitor activity"],
+  "/vms/create-visitor":       ["New Visitor",           "Register a new visitor request"],
+  "/vms/visitor-requests":     ["Visitors",              "Search, manage and act on visitor records"],
+  "/vms/approvals":            ["Approvals",             "Review and approve pending visitor requests"],
+  "/vms/visitor-verification": ["Visitor Verification",  "Verify QR code and face match at the desk"],
+  "/vms/face-registration":    ["Face Registration",     "Capture and register visitor identity photo"],
+  "/vms/face-capture":         ["Face Registration",     "Capture and register visitor identity photo"],
+  "/vms/visitor-validation":   ["Visitor Verification",  "Verify QR code and face match at the desk"],
+  "/vms/check-in-out":         ["Check-In / Check-Out",  "Process visitor arrivals and departures"],
+  "/vms/settings":             ["Settings",              "Workspace and security preferences"],
 };
 
 function Header() {
@@ -23,7 +23,7 @@ function Header() {
 
   const handleLogout = () => {
     authService.logout();
-    navigate("/login");
+    navigate("/vms/login");
   };
 
   return (

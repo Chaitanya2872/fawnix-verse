@@ -25,6 +25,7 @@ import {
   Target,
   UserRoundSearch,
   UserPlus,
+  UserCheck,
   Users,
   CreditCard,
   ChevronDown,
@@ -145,7 +146,12 @@ const ERP_NAV_SECTIONS: readonly SidebarNavSection[] = [
       { label: "Users", to: "/users", icon: Users, permission: PERMISSIONS.PAGE_ADMIN_USERS },
     ],
   },
-
+  {
+    heading: "Operations",
+    items: [
+      { label: "Visitor Management", to: "/vms/dashboard", icon: UserCheck },
+    ],
+  },
 ];
 
 export function Sidebar() {

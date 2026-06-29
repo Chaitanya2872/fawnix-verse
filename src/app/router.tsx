@@ -1,4 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
+import { lazy, Suspense } from "react";
 import { Navigate, createBrowserRouter, useParams } from "react-router-dom";
 import { RouteErrorFallback } from "@/app/ErrorBoundary";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -81,6 +82,10 @@ import P2PInvoicePage from "@/modules/purchases/p2p/invoice/page";
 import P2PPaymentPage from "@/modules/purchases/p2p/payment/page";
 import P2PAlertsPage from "@/modules/purchases/p2p/alerts/page";
 import P2PReportsPage from "@/modules/purchases/p2p/reports/page";
+
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore — VMS module is excluded from tsconfig; Vite bundles it at runtime
+const VMSAppRoutes = lazy(() => import("../modules/visitor management/routes/AppRoutes"));
 
 function RecruitmentFormRedirect() {
   const { id } = useParams();
@@ -708,6 +713,14 @@ export const router = createBrowserRouter([
             ),
           },
         ],
+      },
+      {
+        path: "vms/*",
+        element: (
+          <Suspense fallback={null}>
+            <VMSAppRoutes />
+          </Suspense>
+        ),
       },
     ],
   },

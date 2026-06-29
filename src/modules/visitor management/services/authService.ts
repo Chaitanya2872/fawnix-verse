@@ -23,14 +23,14 @@ export const authFetch = async (url: string | URL, options: RequestInit = {}) =>
   if (res.status === 401) {
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
-    window.location.href = "/login";
+    window.location.href = "/vms/login";
   }
 
   return res;
 };
 
 const authService = {
-  login: async (username, password) => {
+  login: async (username: string, password: string) => {
     try {
       const res = await fetch(`${API_BASE_URL}/api/auth/login`, {
         method: "POST",

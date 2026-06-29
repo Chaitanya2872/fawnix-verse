@@ -1,4 +1,5 @@
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import type { ReactNode } from "react";
+import { Routes, Route, Navigate } from "react-router-dom";
 import MainLayout from "../layouts/MainLayout";
 import Login from "../pages/Login/loginpage";
 import authService from "../services/authService";
@@ -12,44 +13,41 @@ import Approvals from "../pages/Approvals/Approvals";
 import CheckInOut from "../pages/CheckInOut/CheckInOut";
 import Settings from "../pages/Settings/Settings";
 
-function ProtectedRoute({ children }) {
+function ProtectedRoute({ children }: { children: ReactNode }) {
   if (!authService.isLoggedIn()) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/vms/login" replace />;
   }
-  return children;
+  return <>{children}</>;
 }
 
 function AppRoutes() {
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
-        <Route path="/login" element={<Login />} />
+    <Routes>
+      <Route index element={<Navigate to="/vms/dashboard" replace />} />
+      <Route path="login" element={<Login />} />
 
-        <Route
-          element={
-            <ProtectedRoute>
-              <MainLayout />
-            </ProtectedRoute>
-          }
-        >
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/create-visitor" element={<CreateVisitor />} />
-          <Route path="/visitor-requests" element={<VisitorRequests />} />
-          <Route path="/approvals" element={<Approvals />} />
-          <Route path="/visitor-verification" element={<VisitorVerification />} />
-          {/* Legacy aliases — redirect to canonical routes */}
-          <Route path="/visitor-validation" element={<Navigate to="/visitor-verification" replace />} />
-          <Route path="/face-registration" element={<FaceCapture />} />
-          <Route path="/face-capture" element={<Navigate to="/face-registration" replace />} />
-          <Route path="/check-in-out" element={<CheckInOut />} />
-          <Route path="/settings" element={<Settings />} />
-          {/* Removed: /visitor-details-saved, /photo-saved (pure splash pages — replaced by inline toasts) */}
-        </Route>
+      <Route
+        element={
+          <ProtectedRoute>
+            <MainLayout />
+          </ProtectedRoute>
+        }
+      >
+        <Route path="dashboard" element={<Dashboard />} />
+        <Route path="create-visitor" element={<CreateVisitor />} />
+        <Route path="visitor-requests" element={<VisitorRequests />} />
+        <Route path="approvals" element={<Approvals />} />
+        <Route path="visitor-verification" element={<VisitorVerification />} />
+        {/* Legacy aliases — redirect to canonical routes */}
+        <Route path="visitor-validation" element={<Navigate to="/vms/visitor-verification" replace />} />
+        <Route path="face-registration" element={<FaceCapture />} />
+        <Route path="face-capture" element={<Navigate to="/vms/face-registration" replace />} />
+        <Route path="check-in-out" element={<CheckInOut />} />
+        <Route path="settings" element={<Settings />} />
+      </Route>
 
-        <Route path="*" element={<Navigate to="/dashboard" replace />} />
-      </Routes>
-    </BrowserRouter>
+      <Route path="*" element={<Navigate to="/vms/dashboard" replace />} />
+    </Routes>
   );
 }
 
