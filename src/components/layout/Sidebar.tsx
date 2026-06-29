@@ -145,6 +145,7 @@ const ERP_NAV_SECTIONS: readonly SidebarNavSection[] = [
       { label: "Users", to: "/users", icon: Users, permission: PERMISSIONS.PAGE_ADMIN_USERS },
     ],
   },
+
 ];
 
 export function Sidebar() {
