@@ -4,6 +4,8 @@ WORKDIR /app
 
 COPY package.json package-lock.json ./
 
+RUN npm ci
+
 
 COPY index.html vite.config.ts tailwind.config.ts tsconfig*.json ./
 COPY public ./public
