@@ -12,7 +12,7 @@ export const PURPOSE_OPTIONS = [
 // True only when the server was completely unreachable (no HTTP response at all)
 const isNetworkError = (err) => err instanceof TypeError && err.message === "Failed to fetch";
 
-// Backend status + arrived flag → frontend display status
+// Backend status + arrived flag -> frontend display status
 const resolveStatus = (req) => {
   if (req.status === "COMPLETED") return "Checked Out";
   if (req.status === "APPROVED" && req.arrived) return "Checked In";
@@ -22,7 +22,7 @@ const resolveStatus = (req) => {
   return "Pending";
 };
 
-// Backend VisitorRequest → frontend visitor shape
+// Backend VisitorRequest -> frontend visitor shape
 export const normalize = (req) => ({
   id: req.id,
   visitorId: req.visitorId || `VISITOR_${req.id}`,
@@ -55,6 +55,49 @@ const handleResponse = async (res) => {
   return res.json().catch(() => ({}));
 };
 
+const isLocalOnlyVisitor = (visitor) =>
+  String(visitor?.qrCodeData || "").startsWith("VMS|LOCAL_");
+
+const getCachedVisitor = (id) => {
+  const deletedIds = new Set(flowService.getDeletedIds().map(String));
+  if (deletedIds.has(String(id))) return null;
+
+  const found = flowService.getVisitorById(id);
+  if (found && !deletedIds.has(String(found.id)) && !deletedIds.has(String(found.visitorId))) {
+    return found;
+  }
+
+  const current = flowService.getCurrentVisitor();
+  if (
+    current &&
+    !deletedIds.has(String(current.id)) &&
+    !deletedIds.has(String(current.visitorId)) &&
+    (String(current.id) === String(id) || String(current.visitorId) === String(id))
+  ) {
+    flowService.saveVisitor(current);
+    return current;
+  }
+
+  return null;
+};
+
+const mergeLocalOnlyVisitors = (remoteVisitors) => {
+  const deletedIds = new Set(flowService.getDeletedIds().map(String));
+  const remoteIds = new Set(
+    remoteVisitors.flatMap((visitor) => [visitor.id, visitor.visitorId].filter(Boolean).map(String))
+  );
+  const localOnly = flowService.getVisitors().filter(
+    (visitor) =>
+      isLocalOnlyVisitor(visitor) &&
+      !deletedIds.has(String(visitor.id)) &&
+      !deletedIds.has(String(visitor.visitorId)) &&
+      !remoteIds.has(String(visitor.id)) &&
+      !remoteIds.has(String(visitor.visitorId))
+  );
+
+  return [...remoteVisitors, ...localOnly];
+};
+
 // Build statistics from localStorage visitors
 const localStats = (visitors) => ({
   totalRequests: visitors.length,
@@ -84,12 +127,16 @@ const visitorRequestService = {
         body: JSON.stringify(payload),
       });
       const data = await handleResponse(res);
-      const visitor = normalize(data);
+      const normalized = normalize(data);
+      const visitor = {
+        ...normalized,
+        employeeToMeet: normalized.employeeToMeet || form.employeeToMeet || "",
+      };
       flowService.saveVisitor(visitor);
       return visitor;
     } catch (err) {
       if (!isNetworkError(err)) throw err;
-      console.warn("[offline] create visitor → localStorage");
+      console.warn("[offline] create visitor -> localStorage");
       const id = Date.now();
       const visitor = {
         id,
@@ -138,7 +185,7 @@ const visitorRequestService = {
       });
 
       // Filter out locally-deleted visitors from the API response
-      const visitors = all.filter((v) => !deletedIds.has(String(v.id)));
+      const visitors = mergeLocalOnlyVisitors(all.filter((v) => !deletedIds.has(String(v.id))));
 
       // Keep localStorage in sync for offline use
       visitors.forEach((v) => {
@@ -147,7 +194,7 @@ const visitorRequestService = {
       return visitors;
     } catch (err) {
       if (!isNetworkError(err)) throw err;
-      console.warn("[offline] getAll → localStorage");
+      console.warn("[offline] getAll -> localStorage");
       const deletedIds = new Set(flowService.getDeletedIds().map(String));
       return flowService.getVisitors().filter((v) => !deletedIds.has(String(v.id)));
     }
@@ -158,11 +205,17 @@ const visitorRequestService = {
     try {
       const res = await authFetch(`${API_BASE_URL}/api/visitor-requests/${id}`);
       const data = await handleResponse(res);
-      return normalize(data);
+      const visitor = normalize(data);
+      flowService.saveVisitor(visitor);
+      return visitor;
     } catch (err) {
+      const found = getCachedVisitor(id);
+      if (found) {
+        console.warn("[cache] getById -> localStorage/current visitor");
+        return found;
+      }
       if (!isNetworkError(err)) throw err;
-      console.warn("[offline] getById → localStorage");
-      const found = flowService.getVisitorById(id);
+      console.warn("[offline] getById -> localStorage");
       if (!found) throw new Error(`Visitor ${id} not found.`, { cause: err });
       return found;
     }
@@ -178,7 +231,7 @@ const visitorRequestService = {
       return Array.isArray(data) ? data.map(normalize) : [];
     } catch (err) {
       if (!isNetworkError(err)) throw err;
-      console.warn("[offline] search → localStorage");
+      console.warn("[offline] search -> localStorage");
       const kw = keyword.toLowerCase();
       return flowService.getVisitors().filter(
         (v) =>
@@ -196,7 +249,7 @@ const visitorRequestService = {
       return handleResponse(res);
     } catch (err) {
       if (!isNetworkError(err)) throw err;
-      console.warn("[offline] getStatistics → localStorage");
+      console.warn("[offline] getStatistics -> localStorage");
       return localStats(flowService.getVisitors());
     }
   },
@@ -212,10 +265,10 @@ const visitorRequestService = {
       flowService.updateVisitor(id, { status: "Approved" });
       return visitor;
     } catch (err) {
-      if (!isNetworkError(err)) throw err;
-      console.warn("[offline] approve → localStorage");
+      const found = getCachedVisitor(id);
+      if (!found && !isNetworkError(err)) throw err;
+      console.warn("[cache] approve -> localStorage/current visitor");
       flowService.updateVisitor(id, { status: "Approved" });
-      const found = flowService.getVisitorById(id);
       if (!found) throw new Error(`Visitor ${id} not found.`, { cause: err });
       return { ...found, status: "Approved" };
     }
@@ -233,10 +286,10 @@ const visitorRequestService = {
       flowService.updateVisitor(id, { status: "Rejected", rejectionReason });
       return visitor;
     } catch (err) {
-      if (!isNetworkError(err)) throw err;
-      console.warn("[offline] reject → localStorage");
+      const found = getCachedVisitor(id);
+      if (!found && !isNetworkError(err)) throw err;
+      console.warn("[cache] reject -> localStorage/current visitor");
       flowService.updateVisitor(id, { status: "Rejected", rejectionReason });
-      const found = flowService.getVisitorById(id);
       if (!found) throw new Error(`Visitor ${id} not found.`, { cause: err });
       return { ...found, status: "Rejected", rejectionReason };
     }
@@ -255,8 +308,9 @@ const visitorRequestService = {
       flowService.deleteVisitor(id);
       flowService.markDeleted(id);
     } catch (err) {
-      if (!isNetworkError(err)) throw err;
-      console.warn("[offline] delete → localStorage");
+      const found = getCachedVisitor(id);
+      if (!found && !isNetworkError(err)) throw err;
+      console.warn("[cache] delete -> localStorage/current visitor");
       flowService.deleteVisitor(id);
       flowService.markDeleted(id);
     }
@@ -277,14 +331,15 @@ const visitorRequestService = {
       }
       return visitor;
     } catch (err) {
-      if (!isNetworkError(err)) throw err;
-      console.warn("[offline] verifyQr → localStorage");
       const deletedIds = new Set(flowService.getDeletedIds().map(String));
       const found = flowService.getVisitors().find(
         (v) =>
           !deletedIds.has(String(v.id)) &&
-          (v.qrCodeData === input || v.visitorId === input || String(v.id) === input)
+          !deletedIds.has(String(v.visitorId)) &&
+          (v.qrCodeData === input || String(v.visitorId) === String(input) || String(v.id) === String(input))
       );
+      if (!found && !isNetworkError(err)) throw err;
+      console.warn("[cache] verifyQr -> localStorage");
       if (!found) throw new Error(`No visitor found for: ${input}`, { cause: err });
       return found;
     }
@@ -302,11 +357,11 @@ const visitorRequestService = {
       flowService.updateVisitor(id, { status: "Checked In", checkIn: new Date().toISOString() });
       return visitor;
     } catch (err) {
-      if (!isNetworkError(err)) throw err;
-      console.warn("[offline] checkIn → localStorage");
+      const found = getCachedVisitor(id);
+      if (!found && !isNetworkError(err)) throw err;
+      console.warn("[cache] checkIn -> localStorage/current visitor");
       const checkIn = new Date().toISOString();
       flowService.updateVisitor(id, { status: "Checked In", checkIn });
-      const found = flowService.getVisitorById(id);
       if (!found) throw new Error(`Visitor ${id} not found.`, { cause: err });
       return { ...found, status: "Checked In", checkIn };
     }
@@ -324,11 +379,11 @@ const visitorRequestService = {
       flowService.updateVisitor(id, { status: "Checked Out", checkOut: new Date().toISOString() });
       return visitor;
     } catch (err) {
-      if (!isNetworkError(err)) throw err;
-      console.warn("[offline] checkOut → localStorage");
+      const found = getCachedVisitor(id);
+      if (!found && !isNetworkError(err)) throw err;
+      console.warn("[cache] checkOut -> localStorage/current visitor");
       const checkOut = new Date().toISOString();
       flowService.updateVisitor(id, { status: "Checked Out", checkOut });
-      const found = flowService.getVisitorById(id);
       if (!found) throw new Error(`Visitor ${id} not found.`, { cause: err });
       return { ...found, status: "Checked Out", checkOut };
     }

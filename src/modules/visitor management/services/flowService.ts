@@ -26,6 +26,17 @@ const writeStorage = (visitors) => {
   }
 };
 
+const hasIdentityValue = (value) => value !== undefined && value !== null && value !== "";
+
+const sameVisitor = (visitor, id) =>
+  hasIdentityValue(id) &&
+  (String(visitor?.id) === String(id) || String(visitor?.visitorId) === String(id));
+
+const sharesVisitorIdentity = (a, b) => {
+  const keys = [a?.id, a?.visitorId].filter(hasIdentityValue).map(String);
+  return keys.some((key) => String(b?.id) === key || String(b?.visitorId) === key);
+};
+
 const flowService = {
   generateVisitorId: () => {
     const d = new Date();
@@ -36,18 +47,24 @@ const flowService = {
 
   saveVisitor: (visitor) => {
     const visitors = readStorage();
-    writeStorage([...visitors, visitor]);
+    const exists = visitors.some((item) => sharesVisitorIdentity(item, visitor));
+    writeStorage(
+      exists
+        ? visitors.map((item) => (sharesVisitorIdentity(item, visitor) ? { ...item, ...visitor } : item))
+        : [...visitors, visitor]
+    );
   },
 
   getVisitors: () => readStorage(),
 
-  getVisitorById: (id) => readStorage().find((v) => v.id === id),
+  getVisitorById: (id) =>
+    readStorage().find((v) => sameVisitor(v, id)),
 
   getVisitorByVisitorId: (visitorId) =>
-    readStorage().find((v) => v.visitorId === visitorId),
+    readStorage().find((v) => String(v.visitorId) === String(visitorId)),
 
   deleteVisitor: (id) => {
-    writeStorage(readStorage().filter((v) => String(v.id) !== String(id)));
+    writeStorage(readStorage().filter((v) => !sameVisitor(v, id)));
   },
 
   markDeleted: (id) => {
@@ -76,8 +93,17 @@ const flowService = {
 
   updateVisitor: (id, updates) => {
     const visitors = readStorage();
-    const next = visitors.map((visitor) => (visitor.id === id ? { ...visitor, ...updates } : visitor));
+    const current = flowService.getCurrentVisitor();
+    const hasStoredVisitor = visitors.some((visitor) => sameVisitor(visitor, id));
+    const next = hasStoredVisitor
+      ? visitors.map((visitor) => (sameVisitor(visitor, id) ? { ...visitor, ...updates } : visitor))
+      : current && sameVisitor(current, id)
+        ? [...visitors, { ...current, ...updates }]
+        : visitors;
     writeStorage(next);
+    if (current && sameVisitor(current, id)) {
+      flowService.setCurrentVisitor({ ...current, ...updates });
+    }
     return next;
   },
 
