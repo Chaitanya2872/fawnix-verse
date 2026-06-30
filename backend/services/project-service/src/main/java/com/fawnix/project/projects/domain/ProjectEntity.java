@@ -23,12 +23,30 @@ public class ProjectEntity {
   @Column(nullable = false, length = 200)
   private String name;
 
+  @Column(name = "project_code", length = 40)
+  private String projectCode;
+
   @Column(columnDefinition = "text")
   private String description;
 
   @Enumerated(EnumType.STRING)
   @Column(nullable = false, length = 40)
   private ProjectStatus status;
+
+  @Column(length = 80)
+  private String department;
+
+  @Column(name = "manager_name", length = 160)
+  private String managerName;
+
+  @Column(name = "priority_level", length = 40)
+  private String priorityLevel;
+
+  @Column(name = "progress_percent")
+  private Integer progressPercent;
+
+  @Column(name = "team_size")
+  private Integer teamSize;
 
   @Column(name = "start_date")
   private LocalDate startDate;
@@ -83,6 +101,14 @@ public class ProjectEntity {
     return description;
   }
 
+  public String getProjectCode() {
+    return projectCode;
+  }
+
+  public void setProjectCode(String projectCode) {
+    this.projectCode = projectCode;
+  }
+
   public void setDescription(String description) {
     this.description = description;
   }
@@ -93,6 +119,46 @@ public class ProjectEntity {
 
   public void setStatus(ProjectStatus status) {
     this.status = status;
+  }
+
+  public String getDepartment() {
+    return department;
+  }
+
+  public void setDepartment(String department) {
+    this.department = department;
+  }
+
+  public String getManagerName() {
+    return managerName;
+  }
+
+  public void setManagerName(String managerName) {
+    this.managerName = managerName;
+  }
+
+  public String getPriorityLevel() {
+    return priorityLevel;
+  }
+
+  public void setPriorityLevel(String priorityLevel) {
+    this.priorityLevel = priorityLevel;
+  }
+
+  public Integer getProgressPercent() {
+    return progressPercent;
+  }
+
+  public void setProgressPercent(Integer progressPercent) {
+    this.progressPercent = progressPercent;
+  }
+
+  public Integer getTeamSize() {
+    return teamSize;
+  }
+
+  public void setTeamSize(Integer teamSize) {
+    this.teamSize = teamSize;
   }
 
   public LocalDate getStartDate() {

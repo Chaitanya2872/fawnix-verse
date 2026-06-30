@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { format, isAfter, parseISO } from 'date-fns'
+import { useLocation } from 'react-router-dom'
 import {
   Activity,
   AlertTriangle,
+  ArrowUpRight,
   Briefcase,
   Check,
   CheckCircle,
@@ -11,27 +13,33 @@ import {
   Code2,
   DollarSign,
   Edit3,
+  FileBadge2,
   FileText,
   Folder,
+  FolderKanban,
   Globe,
+  LayoutDashboard,
   Layers,
   Lock,
+  Milestone,
   Plus,
   Search,
-  Settings,
+  Sparkles,
   Tag,
+  TimerReset,
   Users,
   X,
 } from 'lucide-react'
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts'
 import {
   createProject as createBackendProject,
+  fetchProjectSummary,
   fetchProjects as fetchBackendProjects,
-  isBackendConfigured,
+  type ProjectSummary,
   updateProject as updateBackendProject,
 } from './api'
 import { ProjectForm } from './components/ProjectForm'
-import { seedProjects, storageKey, today } from './data'
+import { today } from './data'
 import type { MilestoneStatus, Project, ProjectFormState, ProjectStatus, Task, TaskStatus } from './types'
 import { createBlankForm, formatDate, newId, toFormState } from './utils'
 
@@ -72,6 +80,70 @@ const DOT_COLORS = [
   'bg-indigo-500', 'bg-sky-500', 'bg-violet-500',
   'bg-emerald-500', 'bg-amber-500', 'bg-rose-500',
 ]
+
+type ProjectWorkspaceKey =
+  | 'dashboard'
+  | 'projects'
+  | 'tasks'
+  | 'kanban'
+  | 'milestones'
+  | 'documents'
+  | 'meetings'
+
+const PROJECT_WORKSPACE_META: Record<ProjectWorkspaceKey, { title: string; description: string; defaultTab: 'overview' | 'tasks' | 'team' | 'files'; icon: typeof LayoutDashboard }> = {
+  dashboard: {
+    title: 'Project Dashboard',
+    description: 'Monitor project health, progress distribution, recent activity, and delivery signals.',
+    defaultTab: 'overview',
+    icon: LayoutDashboard,
+  },
+  projects: {
+    title: 'Projects',
+    description: 'Track projects, milestones, approvals, and team progress.',
+    defaultTab: 'overview',
+    icon: FolderKanban,
+  },
+  tasks: {
+    title: 'Project Tasks',
+    description: 'Review work items across projects and jump directly into delivery follow-up.',
+    defaultTab: 'tasks',
+    icon: CheckCircle,
+  },
+  kanban: {
+    title: 'Kanban Board',
+    description: 'Use the project workspace as a board view for backlog, execution, review, and release tracking.',
+    defaultTab: 'tasks',
+    icon: Layers,
+  },
+  milestones: {
+    title: 'Milestones',
+    description: 'Focus on delivery checkpoints, due dates, approvals, and overall project completion.',
+    defaultTab: 'overview',
+    icon: Milestone,
+  },
+  documents: {
+    title: 'Documents',
+    description: 'Review requirement files and supporting attachments linked to each project.',
+    defaultTab: 'files',
+    icon: FileBadge2,
+  },
+  meetings: {
+    title: 'Meetings',
+    description: 'Use this workspace to prepare project reviews, align owners, and track follow-up actions.',
+    defaultTab: 'overview',
+    icon: Users,
+  },
+}
+
+function getWorkspaceKey(pathname: string): ProjectWorkspaceKey {
+  if (pathname === '/projects/dashboard') return 'dashboard'
+  if (pathname === '/projects/tasks') return 'tasks'
+  if (pathname === '/projects/kanban') return 'kanban'
+  if (pathname === '/projects/milestones') return 'milestones'
+  if (pathname === '/projects/documents') return 'documents'
+  if (pathname === '/projects/meetings') return 'meetings'
+  return 'projects'
+}
 
 /* ── Small reusable components ───────────────────────────────────── */
 function StatusBadge({ status }: { status: ProjectStatus }) {
@@ -118,38 +190,6 @@ function SectionHeader({ icon, iconCls, title, sub }: { icon: ReactNode; iconCls
 
 /* ── Helpers ─────────────────────────────────────────────────────── */
 
-const emptyTechStack = { frontend: [], backend: [], database: [], other: [] }
-const emptyRepo = { gitUrl: '', branchStrategy: '', devUrl: '', testingUrl: '', productionUrl: '' }
-const emptyCommunication = { slackChannel: '', teamsChannel: '', meetingLink: '', reportingFrequency: 'Weekly' as const }
-
-// Old localStorage data may be missing fields — fill in safe defaults.
-function normalizeProject(p: Project): Project {
-  return {
-    ...p,
-    projectType: p.projectType ?? 'Web Application',
-    tags: p.tags ?? [],
-    teamMembers: p.teamMembers ?? [],
-    team: p.team ?? [],
-    milestones: p.milestones ?? [],
-    activityHistory: p.activityHistory ?? [],
-    attachments: p.attachments ?? [],
-    comments: p.comments ?? [],
-    tasks: p.tasks ?? [],
-    modules: p.modules ?? [],
-    sprints: p.sprints ?? [],
-    risks: p.risks ?? [],
-    techStack: p.techStack ?? { ...emptyTechStack },
-    repository: p.repository ?? { ...emptyRepo },
-    communication: p.communication ?? { ...emptyCommunication },
-    clientLocation: p.clientLocation ?? '',
-    projectOwner: p.projectOwner ?? p.owner,
-    stakeholders: p.stakeholders ?? [],
-    deadlineType: p.deadlineType ?? 'Flexible',
-    developmentCost: p.developmentCost ?? 0,
-    resourceCost: p.resourceCost ?? 0,
-  }
-}
-
 function calcProgress(project: Project) {
   const ms = project.milestones ?? []
   if (!ms.length) return project.progress
@@ -158,10 +198,14 @@ function calcProgress(project: Project) {
 
 /* ── Page ────────────────────────────────────────────────────────── */
 export default function ProjectManagementPage() {
-  const [projects, setProjects] = useState<Project[]>(() => {
-    const saved = localStorage.getItem(storageKey)
-    if (!saved) return seedProjects
-    try { return (JSON.parse(saved) as Project[]).map(normalizeProject) } catch { return seedProjects }
+  const location = useLocation()
+  const [projects, setProjects] = useState<Project[]>([])
+  const [summary, setSummary] = useState<ProjectSummary>({
+    totalProjects: 0,
+    activeProjects: 0,
+    completedProjects: 0,
+    pendingApprovalProjects: 0,
+    overdueProjects: 0,
   })
   const [currentId, setCurrentId] = useState<string | null>(null)
   const [search, setSearch] = useState('')
@@ -174,22 +218,32 @@ export default function ProjectManagementPage() {
   const [backendStatus, setBackendStatus] = useState<'idle' | 'connected' | 'offline'>('idle')
   const [isSaving, setIsSaving] = useState(false)
   const [detailTab, setDetailTab] = useState<'overview' | 'tasks' | 'team' | 'files'>('overview')
-
-  useEffect(() => {
-    localStorage.setItem(storageKey, JSON.stringify(projects))
-  }, [projects])
+  const workspaceKey = useMemo(() => getWorkspaceKey(location.pathname), [location.pathname])
+  const workspaceMeta = PROJECT_WORKSPACE_META[workspaceKey]
+  const WorkspaceIcon = workspaceMeta.icon
 
   useEffect(() => {
     let cancelled = false
-    fetchBackendProjects()
-      .then((bp) => {
+    Promise.all([fetchBackendProjects(), fetchProjectSummary()])
+      .then(([bp, nextSummary]) => {
         if (cancelled) return
-        setProjects(bp.length > 0 ? bp : seedProjects)
+        setProjects(bp)
+        setSummary(nextSummary)
         setBackendStatus('connected')
       })
       .catch(() => { if (!cancelled) setBackendStatus('offline') })
     return () => { cancelled = true }
   }, [])
+
+  useEffect(() => {
+    setDetailTab(workspaceMeta.defaultTab)
+  }, [workspaceMeta.defaultTab])
+
+  useEffect(() => {
+    if (!currentId && projects.length > 0 && workspaceKey !== 'dashboard') {
+      setCurrentId(projects[0].id)
+    }
+  }, [currentId, projects, workspaceKey])
 
   const currentProject = useMemo(
     () => projects.find((p) => p.id === currentId) ?? null,
@@ -235,6 +289,56 @@ export default function ProjectManagementPage() {
     [projects],
   )
 
+  const workspaceStats = useMemo(() => {
+    const totalMilestones = projects.reduce((count, project) => count + project.milestones.length, 0)
+    const completedMilestones = projects.reduce((count, project) => count + project.milestones.filter((milestone) => milestone.status === 'Done').length, 0)
+    const totalTasks = projects.reduce((count, project) => count + (project.tasks?.length ?? 0), 0)
+    const openTasks = projects.reduce(
+      (count, project) => count + (project.tasks?.filter((task) => task.status !== 'Completed').length ?? 0),
+      0,
+    )
+
+    return [
+      {
+        label: 'Total Projects',
+        value: summary.totalProjects,
+        hint: `${summary.activeProjects} active now`,
+        icon: FolderKanban,
+        tone: 'from-sky-500/15 via-cyan-500/10 to-transparent text-sky-700',
+      },
+      {
+        label: 'Pending Approval',
+        value: summary.pendingApprovalProjects,
+        hint: `${summary.overdueProjects} overdue timelines`,
+        icon: TimerReset,
+        tone: 'from-amber-500/15 via-orange-500/10 to-transparent text-amber-700',
+      },
+      {
+        label: 'Milestones Closed',
+        value: completedMilestones,
+        hint: `${totalMilestones} tracked`,
+        icon: Milestone,
+        tone: 'from-emerald-500/15 via-green-500/10 to-transparent text-emerald-700',
+      },
+      {
+        label: 'Open Tasks',
+        value: openTasks,
+        hint: `${totalTasks} work items`,
+        icon: CheckCircle,
+        tone: 'from-violet-500/15 via-indigo-500/10 to-transparent text-violet-700',
+      },
+    ]
+  }, [projects, summary])
+
+  const spotlightProjects = useMemo(() => {
+    return [...projects]
+      .sort((left, right) => {
+        if (right.progress !== left.progress) return right.progress - left.progress
+        return left.endDate.localeCompare(right.endDate)
+      })
+      .slice(0, 3)
+  }, [projects])
+
   /* ── Actions ───────────────────────────────────────────────────── */
   const openCreate = () => { setCurrentId(null); setFormState(createBlankForm()); setIsModalOpen(true) }
   const openEdit = (p: Project) => { setCurrentId(p.id); setFormState(toFormState(p)); setIsModalOpen(true) }
@@ -260,80 +364,33 @@ export default function ProjectManagementPage() {
     )
       return
 
-    const base = {
-      ...next,
-      name: next.name.trim(),
-      projectCode: next.projectCode.trim(),
-      description: next.description.trim(),
-      clientName: next.clientName.trim(),
-      clientCompany: next.clientCompany.trim(),
-      clientEmail: next.clientEmail.trim(),
-      clientPhone: next.clientPhone.trim(),
-      budget: Math.max(0, next.budget),
-      progress: Math.min(100, Math.max(0, next.progress)),
-      notes: next.notes.trim(),
-    }
-
     setIsSaving(true)
-    const useBackend = backendStatus === 'connected' || isBackendConfigured
-
     if (currentProject) {
-      if (useBackend) {
-        try {
-          const saved = await updateBackendProject(currentProject.id, next, currentProject)
-          setProjects((cur) => cur.map((p) => (p.id === currentProject.id ? saved : p)))
-          closeModal(); setIsSaving(false); return
-        } catch { setBackendStatus('offline') }
+      try {
+        const saved = await updateBackendProject(currentProject.id, next, currentProject)
+        setProjects((cur) => cur.map((p) => (p.id === currentProject.id ? saved : p)))
+        setBackendStatus('connected')
+        closeModal()
+      } catch {
+        setBackendStatus('offline')
+      } finally {
+        setIsSaving(false)
       }
-      setProjects((cur) =>
-        cur.map((p) =>
-          p.id === currentProject.id
-            ? {
-                ...p, ...base,
-                activityHistory: [
-                  { id: newId('act'), message: 'Project details updated', actor: base.manager, date: format(today, 'yyyy-MM-dd') },
-                  ...p.activityHistory,
-                ],
-              }
-            : p,
-        ),
-      )
+      return
     } else {
-      if (useBackend) {
-        try {
-          const saved = await createBackendProject(next)
-          setProjects((cur) => [saved, ...cur])
-          setCurrentId(saved.id); closeModal(); setIsSaving(false); return
-        } catch { setBackendStatus('offline') }
+      try {
+        const saved = await createBackendProject(next)
+        setProjects((cur) => [saved, ...cur])
+        setCurrentId(saved.id)
+        setBackendStatus('connected')
+        closeModal()
+      } catch {
+        setBackendStatus('offline')
+      } finally {
+        setIsSaving(false)
       }
-      const project: Project = {
-        id: newId('proj'), ...base,
-        projectType: (next as ProjectFormState).projectType ?? 'Web Application',
-        clientLocation: (next as ProjectFormState).clientLocation ?? '',
-        projectOwner: (next as ProjectFormState).projectOwner ?? base.owner,
-        stakeholders: (next as ProjectFormState).stakeholders ?? [],
-        deadlineType: (next as ProjectFormState).deadlineType ?? 'Flexible',
-        team: (next as ProjectFormState).team ?? [],
-        techStack: (next as ProjectFormState).techStack ?? { ...emptyTechStack },
-        repository: (next as ProjectFormState).repository ?? { ...emptyRepo },
-        modules: (next as ProjectFormState).modules ?? [],
-        sprints: (next as ProjectFormState).sprints ?? [],
-        risks: (next as ProjectFormState).risks ?? [],
-        communication: (next as ProjectFormState).communication ?? { ...emptyCommunication },
-        developmentCost: (next as ProjectFormState).developmentCost ?? 0,
-        resourceCost: (next as ProjectFormState).resourceCost ?? 0,
-        status: base.approvalRequired ? 'Approval Pending' : 'Planned',
-        approvalStatus: base.approvalRequired ? 'Pending' : 'Not Required',
-        closureStatus: base.closureApprovalRequired ? 'Not Required' : 'Approved',
-        progress: 0, attachments: (next as ProjectFormState).attachments ?? [], comments: [], milestones: [], tasks: [],
-        activityHistory: [
-          { id: newId('act'), message: 'Project created', actor: base.owner, date: format(today, 'yyyy-MM-dd') },
-        ],
-      }
-      setProjects((cur) => [project, ...cur])
-      setCurrentId(project.id)
+      return
     }
-    setIsSaving(false); closeModal()
   }
 
   const updateProject = (updater: (p: Project) => Project) => {
@@ -1041,24 +1098,100 @@ export default function ProjectManagementPage() {
 
   /* ── Render ───────────────────────────────────────────────────────── */
   return (
-    <div className="space-y-5 font-poppins">
+    <div className="space-y-5">
 
       {/* Page header */}
-      <div>
-        <h1 className="text-lg font-semibold text-foreground">Project Management</h1>
-        <p className="text-xs text-muted-foreground">
-          Track projects, milestones, approvals, and team progress.
-        </p>
+      <div className="overflow-hidden rounded-[28px] border border-slate-200 bg-[radial-gradient(circle_at_top_left,_rgba(56,189,248,0.22),_transparent_28%),linear-gradient(135deg,_#f8fbff_0%,_#ffffff_48%,_#f5f7fb_100%)] shadow-[0_24px_80px_-36px_rgba(15,23,42,0.35)]">
+        <div className="grid gap-6 px-6 py-6 lg:grid-cols-[1.6fr_1fr] lg:px-8">
+          <div className="space-y-4">
+            <div className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-white/80 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-sky-700">
+              <Sparkles className="h-3.5 w-3.5" />
+              Project Workspace
+            </div>
+            <div className="flex items-start gap-4">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-950 text-white shadow-lg shadow-slate-900/20">
+                <WorkspaceIcon className="h-7 w-7" />
+              </div>
+              <div className="space-y-2">
+                <h1 className="text-2xl font-semibold tracking-tight text-slate-950">{workspaceMeta.title}</h1>
+                <p className="max-w-2xl text-sm leading-6 text-slate-600">
+                  {workspaceMeta.description}
+                </p>
+              </div>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              {workspaceStats.map((stat) => {
+                const Icon = stat.icon
+                return (
+                  <div key={stat.label} className={`rounded-2xl border border-white/70 bg-gradient-to-br ${stat.tone} p-4 shadow-sm backdrop-blur`}>
+                    <div className="mb-3 flex items-center justify-between">
+                      <div className="rounded-xl bg-white/80 p-2 shadow-sm">
+                        <Icon className="h-4 w-4" />
+                      </div>
+                      <ArrowUpRight className="h-4 w-4 text-slate-400" />
+                    </div>
+                    <p className="text-2xl font-semibold text-slate-950">{stat.value}</p>
+                    <p className="mt-1 text-xs font-medium text-slate-700">{stat.label}</p>
+                    <p className="mt-1 text-[11px] text-slate-500">{stat.hint}</p>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
+          <div className="rounded-[24px] border border-slate-200 bg-slate-950 p-5 text-white shadow-[0_20px_60px_-34px_rgba(15,23,42,0.7)]">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-sky-200">Spotlight</p>
+                <h2 className="mt-2 text-lg font-semibold">Top moving projects</h2>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-2">
+                <Activity className="h-5 w-5 text-sky-300" />
+              </div>
+            </div>
+            <div className="mt-5 space-y-3">
+              {spotlightProjects.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-white/15 bg-white/5 p-5 text-sm text-slate-300">
+                  Create the first project to start populating dashboard insights.
+                </div>
+              ) : (
+                spotlightProjects.map((project) => (
+                  <button
+                    key={project.id}
+                    type="button"
+                    onClick={() => selectProject(project.id)}
+                    className="flex w-full items-start justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-left transition hover:border-sky-300/40 hover:bg-white/10"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold">{project.name}</p>
+                      <p className="mt-1 text-xs text-slate-400">{project.manager} · {project.department}</p>
+                    </div>
+                    <div className="ml-3 text-right">
+                      <p className="text-sm font-semibold text-sky-300">{project.progress}%</p>
+                      <p className="mt-1 text-[11px] text-slate-500">{formatDate(project.endDate)}</p>
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+
+        {backendStatus === 'offline' && (
+          <div className="border-t border-rose-100 bg-rose-50/80 px-6 py-3 text-xs text-rose-700 lg:px-8">
+            Project service is currently unavailable, so live project data could not be loaded.
+          </div>
+        )}
       </div>
 
       {/* Main content */}
-      <div className={`grid grid-cols-1 gap-5 ${currentProject && !isModalOpen ? 'lg:grid-cols-[1fr_2fr]' : 'lg:grid-cols-[3fr_2fr]'}`}>
+      <div className={`grid grid-cols-1 gap-5 ${currentProject && !isModalOpen ? 'lg:grid-cols-[1.1fr_1.9fr]' : 'lg:grid-cols-[3fr_2fr]'}`}>
 
         {/* LEFT: search + filter + table — blurred while detail is open */}
         <div className={`min-w-0 space-y-4 transition-[filter] duration-200 ${currentProject && !isModalOpen ? 'blur-[1px] pointer-events-none select-none' : ''}`}>
 
       {/* Search + filter bar */}
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3 rounded-[22px] border border-slate-200 bg-white/90 p-3 shadow-sm backdrop-blur">
         <div className="relative min-w-[220px] flex-1">
           <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
           <input
@@ -1089,7 +1222,7 @@ export default function ProjectManagementPage() {
       </div>
 
       {/* Projects table */}
-      <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-sm">
+      <div className="overflow-x-auto rounded-[24px] border border-slate-200 bg-white shadow-[0_20px_60px_-36px_rgba(15,23,42,0.18)]">
         {/* Table header — hidden on mobile */}
         <div className="hidden border-b border-border bg-muted/40 px-5 py-3 lg:grid lg:grid-cols-[minmax(160px,2fr)_130px_130px_150px_90px_32px] lg:gap-4">
           {['Project', 'Status', 'Manager', 'Milestones', 'Due Date', ''].map((h) => (
@@ -1102,8 +1235,10 @@ export default function ProjectManagementPage() {
         {/* Rows */}
         <div className="divide-y divide-border">
           {filteredProjects.length === 0 ? (
-            <div className="flex flex-col items-center gap-2 py-14 text-center">
-              <Folder className="h-8 w-8 text-muted-foreground/30" />
+            <div className="flex flex-col items-center gap-3 py-16 text-center">
+              <div className="rounded-2xl bg-slate-100 p-4">
+                <Folder className="h-8 w-8 text-slate-400" />
+              </div>
               <p className="text-sm font-medium text-muted-foreground">
                 No projects match your search or filters.
               </p>
@@ -1192,14 +1327,14 @@ export default function ProjectManagementPage() {
 
         {/* RIGHT: project detail or charts */}
         {currentProject && !isModalOpen ? (
-          <div className="overflow-y-auto rounded-xl border border-border bg-background shadow-2xl max-h-[calc(100vh-120px)]">
+          <div className="overflow-y-auto rounded-[24px] border border-slate-200 bg-white shadow-[0_30px_80px_-42px_rgba(15,23,42,0.28)] max-h-[calc(100vh-120px)]">
             {renderDetailContent(currentProject)}
           </div>
         ) : (
         <div className="space-y-4">
 
           {/* Status distribution pie */}
-          <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
+          <div className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-[0_20px_60px_-36px_rgba(15,23,42,0.18)]">
             <h3 className="text-sm font-semibold">Project Status</h3>
             <p className="mb-4 mt-0.5 text-xs text-muted-foreground">Distribution across all projects</p>
             {pieData.length === 0 ? (
@@ -1247,7 +1382,7 @@ export default function ProjectManagementPage() {
           </div>
 
           {/* Recent activity */}
-          <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
+          <div className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-[0_20px_60px_-36px_rgba(15,23,42,0.18)]">
             <h3 className="text-sm font-semibold">Recent Activity</h3>
             <p className="mb-4 mt-0.5 text-xs text-muted-foreground">Latest updates across all projects</p>
             {recentActivity.length === 0 ? (

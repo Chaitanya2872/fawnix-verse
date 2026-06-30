@@ -606,7 +606,7 @@ export function ProjectForm({ formState, onChange, onCancel, onSave, isSaving = 
   const stepRenderers = [renderStep1, renderStep2, renderStep3, renderStep4, renderStep5, renderStep6, renderStep7, renderStep8]
 
   return (
-    <div className="flex w-full flex-col rounded-2xl border border-border bg-card shadow-2xl font-poppins">
+    <div className="flex w-full flex-col rounded-2xl border border-border bg-card shadow-2xl">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-border px-6 py-4">
         <div>

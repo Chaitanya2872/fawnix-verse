@@ -31,6 +31,11 @@ public class ProjectController {
     return projectService.listProjects();
   }
 
+  @GetMapping("/summary")
+  public ProjectDtos.ProjectSummaryResponse getSummary() {
+    return projectService.getSummary();
+  }
+
   @GetMapping("/{id}")
   public ProjectDtos.ProjectResponse getProject(@PathVariable String id) {
     return projectService.getProject(id);

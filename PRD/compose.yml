@@ -132,7 +132,7 @@ services:
       PGUSER: ${POSTGRES_USER:-postgres}
       PGPASSWORD: ${POSTGRES_PASSWORD:-postgres}
       PGDATABASE: ${POSTGRES_DB:-postgres}
-      SERVICE_DATABASES: fawnix_identity fawnix_crm fawnix_inventory fawnix_hrms fawnix_sales fawnix_procurement fawnix_tasks
+      SERVICE_DATABASES: fawnix_identity fawnix_crm fawnix_inventory fawnix_hrms fawnix_sales fawnix_procurement fawnix_tasks fawnix_projects
     volumes:
       - ../docker/postgres/bootstrap:/bootstrap:ro
     entrypoint: ["sh", "/bootstrap/bootstrap-databases.sh"]
@@ -453,6 +453,39 @@ services:
     networks:
       - fawnix-network
 
+  project-service:
+    build:
+      context: ..
+      dockerfile: backend/Dockerfile
+      provenance: false
+      sbom: false
+      args:
+        MODULE_PATH: services/project-service
+    restart: unless-stopped
+    depends_on:
+      db-bootstrap:
+        condition: service_completed_successfully
+      eureka-server:
+        condition: service_healthy
+    environment:
+      <<: *java-env
+      SERVER_PORT: "8095"
+      EUREKA_SERVER_URL: http://eureka-server:8761/eureka/
+      JWT_SECRET: ${JWT_SECRET:-change-this-local-dev-secret-change-this-local-dev-secret}
+      PROJECT_DB_URL: jdbc:postgresql://postgres:5432/fawnix_projects
+      PROJECT_DB_USERNAME: ${POSTGRES_USER:-postgres}
+      PROJECT_DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    ports:
+      - "8095:8095"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8095/actuator/health > /dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 120s
+    networks:
+      - fawnix-network
+
   api-gateway:
     build:
       context: ..
@@ -478,6 +511,8 @@ services:
       procurement-service:
         condition: service_healthy
       task-service:
+        condition: service_healthy
+      project-service:
         condition: service_healthy
     environment:
       <<: *java-env

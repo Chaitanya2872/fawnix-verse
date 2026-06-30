@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   Activity,
   ArrowLeft,
@@ -9,7 +9,7 @@ import {
   Users,
   X,
 } from 'lucide-react'
-import { seedProjects, storageKey } from './data'
+import { fetchProjects as fetchBackendProjects } from './api'
 import type { Project, ProjectStatus } from './types'
 import { formatDate } from './utils'
 
@@ -20,6 +20,7 @@ const CARD_ACCENT = [
 ]
 
 const STATUS_CLS: Record<ProjectStatus, string> = {
+  Draft:              'bg-slate-50 text-slate-600',
   Planning:           'bg-slate-100 text-slate-700',
   'Approval Pending': 'bg-amber-50 text-amber-700',
   Returned:           'bg-orange-50 text-orange-700',
@@ -32,6 +33,7 @@ const STATUS_CLS: Record<ProjectStatus, string> = {
   'At Risk':          'bg-rose-50 text-rose-700',
   'Closure Pending':  'bg-violet-50 text-violet-700',
   Completed:          'bg-emerald-50 text-emerald-700',
+  Cancelled:          'bg-slate-100 text-slate-500',
 }
 
 /* ── types ──────────────────────────────────────────────────────────── */
@@ -49,18 +51,6 @@ type PanelState =
   | { kind: 'member'; project: Project; accentIdx: number; member: Member }
 
 /* ── helpers ────────────────────────────────────────────────────────── */
-function normalizeProject(p: Project): Project {
-  return {
-    ...p,
-    tags: p.tags ?? [],
-    teamMembers: p.teamMembers ?? [],
-    milestones: p.milestones ?? [],
-    activityHistory: p.activityHistory ?? [],
-    attachments: p.attachments ?? [],
-    comments: p.comments ?? [],
-  }
-}
-
 function initials(name: string) {
   return name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()
 }
@@ -392,12 +382,27 @@ function MemberPanel({
 
 /* ── Page ───────────────────────────────────────────────────────────── */
 export default function ProjectTeamsPage() {
+  const [projects, setProjects] = useState<Project[]>([])
   const [panel, setPanel] = useState<PanelState>({ kind: 'closed' })
 
-  const projects = useMemo<Project[]>(() => {
-    const saved = localStorage.getItem(storageKey)
-    if (!saved) return seedProjects
-    try { return (JSON.parse(saved) as Project[]).map(normalizeProject) } catch { return seedProjects }
+  useEffect(() => {
+    let cancelled = false
+
+    fetchBackendProjects()
+      .then((nextProjects) => {
+        if (!cancelled) {
+          setProjects(nextProjects)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setProjects([])
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   return (
@@ -412,6 +417,11 @@ export default function ProjectTeamsPage() {
       </div>
 
       {/* Kanban board */}
+      {projects.length === 0 ? (
+        <div className="rounded-xl border-2 border-dashed border-border p-8 text-center">
+          <p className="text-sm font-medium text-muted-foreground">No project teams available.</p>
+        </div>
+      ) : (
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {projects.map((project, idx) => {
           const accent = CARD_ACCENT[idx % CARD_ACCENT.length]
@@ -474,6 +484,7 @@ export default function ProjectTeamsPage() {
           )
         })}
       </div>
+      )}
 
       {/* Slide-over panel */}
       {panel.kind !== 'closed' && (

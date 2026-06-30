@@ -246,6 +246,54 @@ export const router = createBrowserRouter([
             ),
           },
           {
+            path: "projects/dashboard",
+            element: (
+              <RequirePermission permission={PERMISSIONS.PAGE_PROJECTS}>
+                <ProjectManagementPage />
+              </RequirePermission>
+            ),
+          },
+          {
+            path: "projects/tasks",
+            element: (
+              <RequirePermission permission={PERMISSIONS.PAGE_PROJECTS}>
+                <ProjectManagementPage />
+              </RequirePermission>
+            ),
+          },
+          {
+            path: "projects/kanban",
+            element: (
+              <RequirePermission permission={PERMISSIONS.PAGE_PROJECTS}>
+                <ProjectManagementPage />
+              </RequirePermission>
+            ),
+          },
+          {
+            path: "projects/milestones",
+            element: (
+              <RequirePermission permission={PERMISSIONS.PAGE_PROJECTS}>
+                <ProjectManagementPage />
+              </RequirePermission>
+            ),
+          },
+          {
+            path: "projects/documents",
+            element: (
+              <RequirePermission permission={PERMISSIONS.PAGE_PROJECTS}>
+                <ProjectManagementPage />
+              </RequirePermission>
+            ),
+          },
+          {
+            path: "projects/meetings",
+            element: (
+              <RequirePermission permission={PERMISSIONS.PAGE_PROJECTS}>
+                <ProjectManagementPage />
+              </RequirePermission>
+            ),
+          },
+          {
             path: "projects/configuration",
             element: (
               <RequirePermission permission={PERMISSIONS.PAGE_PROJECTS_CONFIG}>
