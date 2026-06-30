@@ -16,6 +16,7 @@ export const PERMISSIONS = {
   MODULE_ANALYTICS: "module.analytics",
   MODULE_NOTIFICATIONS: "module.notifications",
   MODULE_TASKS: "module.tasks",
+  MODULE_PROJECTS: "module.projects",
   PAGE_DASHBOARD: "page.dashboard",
   PAGE_CRM_LEADS: "page.crm.leads",
   PAGE_CRM_CONTACTS: "page.crm.contacts",
@@ -37,6 +38,9 @@ export const PERMISSIONS = {
   PAGE_ADMIN_USERS: "page.admin.users",
   PAGE_ADMIN_SETTINGS: "page.admin.settings",
   PAGE_TASKS: "page.tasks",
+  PAGE_PROJECTS: "page.projects",
+  PAGE_PROJECTS_CONFIG: "page.projects.config",
+  PAGE_PROJECTS_TEAMS: "page.projects.teams",
 } as const;
 
 export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -57,6 +61,7 @@ export const MODULE_PERMISSION_MAP: Record<string, Permission> = {
   analytics: PERMISSIONS.MODULE_ANALYTICS,
   notifications: PERMISSIONS.MODULE_NOTIFICATIONS,
   tasks: PERMISSIONS.MODULE_TASKS,
+  projects: PERMISSIONS.MODULE_PROJECTS,
 };
 
 export function hasPermission(
@@ -108,6 +113,7 @@ export function getDefaultAuthorizedPath(
     { path: "/forms", permission: PERMISSIONS.MODULE_FORMS },
     { path: "/approvals", permission: PERMISSIONS.MODULE_APPROVALS },
     { path: "/tasks", permission: PERMISSIONS.PAGE_TASKS },
+    { path: "/projects", permission: PERMISSIONS.PAGE_PROJECTS },
     { path: "/setup", permission: PERMISSIONS.MODULE_ORG },
     { path: "/settings", permission: PERMISSIONS.PAGE_ADMIN_SETTINGS },
     { path: "/reports", permission: PERMISSIONS.PAGE_REPORTS },
@@ -169,6 +175,7 @@ function resolveModulePermission(permission: Permission): Permission | null {
   if (permission.startsWith("page.analytics")) return PERMISSIONS.MODULE_ANALYTICS;
   if (permission.startsWith("page.notifications")) return PERMISSIONS.MODULE_NOTIFICATIONS;
   if (permission.startsWith("page.tasks")) return PERMISSIONS.MODULE_TASKS;
+  if (permission.startsWith("page.projects")) return PERMISSIONS.MODULE_PROJECTS;
   if (permission.startsWith("page.admin.")) return PERMISSIONS.MODULE_ADMIN;
   if (permission.startsWith("page.dashboard")) return null;
   return null;

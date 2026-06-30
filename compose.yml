@@ -123,7 +123,7 @@ services:
       PGUSER: ${POSTGRES_USER:-postgres}
       PGPASSWORD: ${POSTGRES_PASSWORD:-postgres}
       PGDATABASE: ${POSTGRES_DB:-postgres}
-      SERVICE_DATABASES: fawnix_identity fawnix_crm fawnix_inventory fawnix_hrms fawnix_sales fawnix_org fawnix_forms fawnix_approval fawnix_recruitment fawnix_integration fawnix_analytics fawnix_notifications fawnix_procurement fawnix_tasks
+      SERVICE_DATABASES: fawnix_identity fawnix_crm fawnix_inventory fawnix_hrms fawnix_sales fawnix_org fawnix_forms fawnix_approval fawnix_recruitment fawnix_integration fawnix_analytics fawnix_notifications fawnix_procurement fawnix_tasks fawnix_projects
     volumes:
       - ./docker/postgres/bootstrap:/bootstrap:ro
     entrypoint: ["sh", "/bootstrap/bootstrap-databases.sh"]
@@ -177,6 +177,7 @@ services:
       INTERNAL_SERVICE_SECRET: ${INTERNAL_SERVICE_SECRET:-fawnix-internal-secret}
       DEV_ADMIN_EMAIL: ${DEV_ADMIN_EMAIL:-admin@fawnix.com}
       DEV_ADMIN_PASSWORD: ${DEV_ADMIN_PASSWORD:-Admin@123}
+      APP_SEED_ENABLED: ${APP_SEED_ENABLED:-true}
       IDENTITY_DB_URL: jdbc:postgresql://postgres:5432/fawnix_identity
       IDENTITY_DB_USERNAME: ${POSTGRES_USER:-postgres}
       IDENTITY_DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
@@ -691,6 +692,39 @@ services:
     networks:
       - fawnix-network
 
+  project-service:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      provenance: false
+      sbom: false
+      args:
+        MODULE_PATH: services/project-service
+    restart: unless-stopped
+    depends_on:
+      db-bootstrap:
+        condition: service_completed_successfully
+      eureka-server:
+        condition: service_healthy
+    environment:
+      <<: *java-env
+      SERVER_PORT: "8095"
+      EUREKA_SERVER_URL: http://eureka-server:8761/eureka/
+      JWT_SECRET: ${JWT_SECRET:-change-this-local-dev-secret-change-this-local-dev-secret}
+      PROJECT_DB_URL: jdbc:postgresql://postgres:5432/fawnix_projects
+      PROJECT_DB_USERNAME: ${POSTGRES_USER:-postgres}
+      PROJECT_DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    ports:
+      - "8095:8095"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8095/actuator/health > /dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 90s
+    networks:
+      - fawnix-network
+
   procurement-service:
     build:
       context: .
@@ -747,10 +781,13 @@ services:
         condition: service_healthy
       procurement-service:
         condition: service_healthy
+      project-service:
+        condition: service_healthy
     environment:
       <<: *java-env
       SERVER_PORT: "8080"
       EUREKA_SERVER_URL: http://eureka-server:8761/eureka/
+      IDENTITY_SERVICE_URL: http://identity-service:8081
       FRONTEND_ORIGINS: http://localhost:5173,http://127.0.0.1:5173,https://fawnixverse.acstechnologies.co.in,http://54.76.187.129,http://54.76.187.129:5173,https://54.76.187.129,http://108.131.209.156,http://108.131.209.156:5173,https://108.131.209.156
       JWT_SECRET: ${JWT_SECRET:-change-this-local-dev-secret-change-this-local-dev-secret}
     ports:

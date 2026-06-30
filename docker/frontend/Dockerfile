@@ -3,7 +3,7 @@ FROM node:20-alpine AS build
 WORKDIR /app
 
 COPY package.json package-lock.json ./
-RUN npm ci
+
 
 COPY index.html vite.config.ts tailwind.config.ts tsconfig*.json ./
 COPY public ./public
@@ -22,3 +22,4 @@ COPY --from=build /app/dist /usr/share/nginx/html
 EXPOSE 80
 
 CMD ["nginx", "-g", "daemon off;"]
+ 

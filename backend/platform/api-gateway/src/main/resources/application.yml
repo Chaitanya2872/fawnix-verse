@@ -7,27 +7,27 @@ spring:
         - DedupeResponseHeader=Access-Control-Allow-Credentials Access-Control-Allow-Origin Vary, RETAIN_FIRST
       routes:
         - id: identity-admin-auth
-          uri: lb://IDENTITY-SERVICE
+          uri: ${IDENTITY_SERVICE_URL:http://localhost:8081}
           predicates:
             - Path=/api/auth/register-admin
         - id: identity-auth
-          uri: lb://IDENTITY-SERVICE
+          uri: ${IDENTITY_SERVICE_URL:http://localhost:8081}
           predicates:
             - Path=/api/auth/**
         - id: identity-users
-          uri: lb://IDENTITY-SERVICE
+          uri: ${IDENTITY_SERVICE_URL:http://localhost:8081}
           predicates:
             - Path=/api/users,/api/users/**
         - id: identity-roles
-          uri: lb://IDENTITY-SERVICE
+          uri: ${IDENTITY_SERVICE_URL:http://localhost:8081}
           predicates:
             - Path=/api/roles,/api/roles/**
         - id: identity-permissions
-          uri: lb://IDENTITY-SERVICE
+          uri: ${IDENTITY_SERVICE_URL:http://localhost:8081}
           predicates:
             - Path=/api/permissions,/api/permissions/**
         - id: identity-access-requests
-          uri: lb://IDENTITY-SERVICE
+          uri: ${IDENTITY_SERVICE_URL:http://localhost:8081}
           predicates:
             - Path=/api/access-requests,/api/access-requests/**
         - id: crm-leads
@@ -74,6 +74,10 @@ spring:
           uri: lb://TASK-SERVICE
           predicates:
             - Path=/api/tasks,/api/tasks/**
+        - id: project-service
+          uri: lb://PROJECT-SERVICE
+          predicates:
+            - Path=/api/v1/projects,/api/v1/projects/**
         - id: inventory
           uri: lb://INVENTORY-SERVICE
           predicates:

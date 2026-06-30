@@ -4,7 +4,7 @@ spring:
   datasource:
     url: ${IDENTITY_DB_URL:jdbc:postgresql://localhost:5432/fawnix_identity}
     username: ${IDENTITY_DB_USERNAME:postgres}
-    password: ${IDENTITY_DB_PASSWORD:postgres}
+    password: ${IDENTITY_DB_PASSWORD:praveen123}
     driver-class-name: org.postgresql.Driver
   jpa:
     open-in-view: false
@@ -21,6 +21,8 @@ server:
   port: ${SERVER_PORT:8081}
 
 eureka:
+  instance:
+    prefer-ip-address: true
   client:
     service-url:
       defaultZone: ${EUREKA_SERVER_URL:http://localhost:8761/eureka/}

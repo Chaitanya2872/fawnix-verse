@@ -13,6 +13,7 @@ import {
   Calculator,
   FileCheck2,
   FileText,
+  FolderKanban,
   Inbox,
   KeyRound,
   LayoutDashboard,
@@ -78,6 +79,14 @@ const ERP_NAV_SECTIONS: readonly SidebarNavSection[] = [
     items: [
       { label: "Task Management", to: "/tasks", icon: CheckSquare, end: true, permission: PERMISSIONS.PAGE_TASKS },
       { label: "Task Workspace", to: "/tasks/workspace", icon: Inbox, permission: PERMISSIONS.PAGE_TASKS },
+    ],
+  },
+  {
+    heading: "Project Management",
+    items: [
+      { label: "Projects",                to: "/projects",               icon: FolderKanban, end: true, permission: PERMISSIONS.PAGE_PROJECTS        },
+      { label: "Configuration Management", to: "/projects/configuration", icon: Settings2,              permission: PERMISSIONS.PAGE_PROJECTS_CONFIG },
+      { label: "Team Directory",           to: "/projects/teams",         icon: Users,                  permission: PERMISSIONS.PAGE_PROJECTS_TEAMS  },
     ],
   },
   {

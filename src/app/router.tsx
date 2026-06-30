@@ -28,6 +28,9 @@ import SalesShipmentsPage from "@/modules/sales/orders/shipments-page";
 import SalesPaymentsPage from "@/modules/sales/orders/payments-page";
 import TaskManagementPage from "@/modules/task-management/page";
 import TaskWorkspacePage from "@/modules/task-management/workspace-page";
+import ProjectManagementPage from "@/modules/project-management/page";
+import ProjectConfigPage from "@/modules/project-management/config-page";
+import ProjectTeamsPage from "@/modules/project-management/teams-page";
 import HiringRequestsPage from "@/modules/recruitment/HiringRequestsPage";
 import HiringRequestDetailPage from "@/modules/recruitment/HiringRequestDetailPage";
 import NewHiringRequestPage from "@/modules/recruitment/NewHiringRequestPage";
@@ -231,6 +234,30 @@ export const router = createBrowserRouter([
             element: (
               <RequirePermission permission={PERMISSIONS.PAGE_TASKS}>
                 <TaskWorkspacePage />
+              </RequirePermission>
+            ),
+          },
+          {
+            path: "projects",
+            element: (
+              <RequirePermission permission={PERMISSIONS.PAGE_PROJECTS}>
+                <ProjectManagementPage />
+              </RequirePermission>
+            ),
+          },
+          {
+            path: "projects/configuration",
+            element: (
+              <RequirePermission permission={PERMISSIONS.PAGE_PROJECTS_CONFIG}>
+                <ProjectConfigPage />
+              </RequirePermission>
+            ),
+          },
+          {
+            path: "projects/teams",
+            element: (
+              <RequirePermission permission={PERMISSIONS.PAGE_PROJECTS_TEAMS}>
+                <ProjectTeamsPage />
               </RequirePermission>
             ),
           },
