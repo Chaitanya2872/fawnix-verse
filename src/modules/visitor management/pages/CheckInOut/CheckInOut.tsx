@@ -20,6 +20,7 @@ import { EmptyState, VmsCard, VmsCardHeader, VmsPage } from "../../components/vm
 import { StatusPill } from "../../components/vms/StatusPill";
 import { VisitorActionDialog } from "../../components/vms/VisitorActionDialog";
 import { useVisitorActions } from "../../hooks/useVisitors";
+import faceCaptureService from "../../services/faceCaptureService";
 import flowService from "../../services/flowService";
 import visitorRequestService from "../../services/visitorRequestService";
 import { VMS_PATHS } from "../../routes/paths";
@@ -36,12 +37,15 @@ import {
 
 function CheckInOut() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const [qrInput, setQrInput] = useState(() => flowService.getCurrentVisitor()?.qrCodeData || "");
   const [visitor, setVisitor] = useState<VisitorRecord | null>(() => flowService.getCurrentVisitor());
   const [lookupLoading, setLookupLoading] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error" | "info"; text: string } | null>(null);
-  const [faceMode, setFaceMode] = useState<"idle" | "camera" | "verified" | "failed">("idle");
+  const [faceMode, setFaceMode] = useState<"idle" | "camera" | "verifying" | "verified" | "failed">("idle");
+  const [livePreview, setLivePreview] = useState<string | null>(null);
+  const [faceResult, setFaceResult] = useState<{ confidence?: number; message: string } | null>(null);
   const [pendingAction, setPendingAction] = useState<VisitorAction | null>(null);
   const { runAction, busyAction, error: actionError, setError: setActionError } = useVisitorActions(async (updated) => {
     if (updated) {
@@ -81,6 +85,8 @@ function CheckInOut() {
       setVisitor(found);
       flowService.setCurrentVisitor(found);
       setFaceMode("idle");
+      setLivePreview(null);
+      setFaceResult(null);
       setMessage({ type: "success", text: `${found.name} loaded for desk processing.` });
     } catch (error) {
       setVisitor(null);
@@ -93,7 +99,15 @@ function CheckInOut() {
 
   const startFaceCheck = async () => {
     if (!visitor) return;
+    if (!visitor.photo && !visitor.faceRegistered) {
+      setFaceMode("failed");
+      setFaceResult(null);
+      setMessage({ type: "error", text: "Register a face profile before running verification." });
+      return;
+    }
     setMessage(null);
+    setLivePreview(null);
+    setFaceResult(null);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: false });
       streamRef.current = stream;
@@ -103,14 +117,54 @@ function CheckInOut() {
     }
   };
 
-  const runFaceMatch = () => {
+  const captureLiveFrame = () => {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas) return null;
+
+    const width = video.videoWidth || 960;
+    const height = video.videoHeight || 720;
+    if (!width || !height) return null;
+
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext("2d");
+    if (!context) return null;
+    context.drawImage(video, 0, 0, width, height);
+    return canvas.toDataURL("image/jpeg", 0.86);
+  };
+
+  const runFaceMatch = async () => {
+    if (!visitor) return;
+    const imageBase64 = captureLiveFrame();
+
+    if (!imageBase64) {
+      setMessage({ type: "error", text: "Could not capture a live frame from the camera. Try again." });
+      return;
+    }
+
     stopCamera();
-    if (visitor?.photo || visitor?.faceRegistered) {
+    setLivePreview(imageBase64);
+    setFaceMode("verifying");
+    setMessage({ type: "info", text: "Verifying live face against the registered profile..." });
+
+    try {
+      const result = await faceCaptureService.verifyFace({
+        requestId: visitor.id,
+        imageBase64,
+        qrCodeData: visitor.qrCodeData,
+        visitorId: visitor.visitorId,
+      });
       setFaceMode("verified");
-      setMessage({ type: "success", text: "Face verification passed against the registered visitor profile." });
-    } else {
+      setFaceResult({ confidence: result.confidence, message: result.message });
+      setMessage({
+        type: "success",
+        text: `${result.message}${typeof result.confidence === "number" ? ` Confidence: ${result.confidence}%.` : ""}`,
+      });
+    } catch (error) {
       setFaceMode("failed");
-      setMessage({ type: "error", text: "No registered face photo exists for this visitor." });
+      setFaceResult(null);
+      setMessage({ type: "error", text: error instanceof Error ? error.message : "Face verification failed." });
     }
   };
 
@@ -135,8 +189,9 @@ function CheckInOut() {
   };
 
   const windowState = getVisitWindowState(visitor);
-  const faceReady = faceMode === "verified" || Boolean(visitor?.photo || visitor?.faceRegistered);
+  const faceReady = faceMode === "verified";
   const canDeskCheckIn = visitor ? canCheckIn(visitor) && windowState.state === "active" : false;
+  const faceStatus = faceMode === "verified" ? "Approved" : faceMode === "failed" ? "Rejected" : "Pending";
 
   return (
     <VmsPage
@@ -227,13 +282,15 @@ function CheckInOut() {
               title="Face Verification"
               description="Compare the live camera with the registered face profile before check-in."
               actions={
-                <StatusPill status={faceMode === "verified" ? "Approved" : faceMode === "failed" ? "Rejected" : "Pending"} />
+                <StatusPill status={faceStatus} />
               }
             />
             <div className="grid gap-5 p-5 lg:grid-cols-[minmax(0,1fr)_280px]">
               <div className="flex min-h-72 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-slate-950">
                 {faceMode === "camera" ? (
                   <video ref={videoRef} autoPlay playsInline muted className="h-full min-h-72 w-full object-cover" />
+                ) : livePreview ? (
+                  <img src={livePreview} alt="Live verification capture" className="h-full min-h-72 w-full object-cover" />
                 ) : visitor?.photo ? (
                   <img src={visitor.photo} alt={visitor.name} className="h-full min-h-72 w-full object-cover" />
                 ) : (
@@ -244,6 +301,7 @@ function CheckInOut() {
                   </div>
                 )}
               </div>
+              <canvas ref={canvasRef} className="hidden" />
               <div className="space-y-3">
                 {visitor ? (
                   <>
@@ -258,16 +316,16 @@ function CheckInOut() {
                           <X className="h-4 w-4" aria-hidden="true" />
                           Cancel
                         </Button>
-                        <Button type="button" className="bg-blue-600 text-white hover:bg-blue-700" onClick={runFaceMatch}>
+                        <Button type="button" className="bg-blue-600 text-white hover:bg-blue-700" onClick={() => void runFaceMatch()}>
                           <ShieldCheck className="h-4 w-4" aria-hidden="true" />
                           Run Match
                         </Button>
                       </div>
                     ) : (
                       <div className="flex flex-wrap gap-2">
-                        <Button type="button" className="bg-blue-600 text-white hover:bg-blue-700" onClick={startFaceCheck}>
+                        <Button type="button" className="bg-blue-600 text-white hover:bg-blue-700" onClick={startFaceCheck} disabled={faceMode === "verifying"}>
                           <Camera className="h-4 w-4" aria-hidden="true" />
-                          Start Face Check
+                          {faceMode === "verifying" ? "Verifying..." : "Start Face Check"}
                         </Button>
                         <Button asChild variant="outline">
                           <Link to={VMS_PATHS.faceRegistrationFor(visitor.id)}>
@@ -279,7 +337,14 @@ function CheckInOut() {
                     {faceMode === "verified" ? (
                       <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
                         <CheckCircle2 className="mr-1 inline h-4 w-4" aria-hidden="true" />
-                        Face verification passed.
+                        {faceResult?.message || "Face verification passed."}
+                        {typeof faceResult?.confidence === "number" ? ` Confidence: ${faceResult.confidence}%.` : ""}
+                      </div>
+                    ) : null}
+                    {faceMode === "failed" ? (
+                      <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+                        <AlertCircle className="mr-1 inline h-4 w-4" aria-hidden="true" />
+                        Face verification failed. Check-in remains blocked.
                       </div>
                     ) : null}
                   </>
@@ -312,6 +377,11 @@ function CheckInOut() {
                     <LogIn className="h-4 w-4" aria-hidden="true" />
                     Check In
                   </Button>
+                  {!faceReady && canDeskCheckIn ? (
+                    <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                      Face verification must pass before check-in is enabled.
+                    </p>
+                  ) : null}
                   <Button
                     type="button"
                     variant="outline"
