@@ -8,11 +8,35 @@ import type {
   InventoryTransactionListResponse,
   InventoryTransaction,
   StockAdjustmentPayload,
+  PaginatedWarehouses,
+  Warehouse,
+  WarehouseFilter,
+  WarehouseFormData,
 } from "./types";
 import { getApiErrorMessage } from "@/services/api-client";
 
 function rethrow(error: unknown, fallback: string): never {
   throw new Error(getApiErrorMessage(error, fallback));
+}
+
+function toProductPayload(data: Partial<ProductFormData>): Partial<ProductFormData> {
+  return {
+    name: data.name,
+    sku: data.sku,
+    category: data.category,
+    subCategory: data.subCategory,
+    brand: data.brand,
+    unit: data.unit,
+    reorderLevel: data.reorderLevel,
+    description: data.description,
+    hsnCode: data.hsnCode,
+    notes: data.notes,
+    stockQty: data.stockQty,
+    price: data.price,
+    priceTier1: data.priceTier1,
+    priceTier2: data.priceTier2,
+    priceTier3: data.priceTier3,
+  };
 }
 
 export async function fetchProducts(filter: ProductFilter): Promise<PaginatedProducts> {
@@ -44,7 +68,7 @@ export async function fetchInventoryOverview(): Promise<InventoryOverview> {
 
 export async function createProduct(data: ProductFormData): Promise<Product> {
   try {
-    const { status, createdAt, updatedAt, ...payload } = data as Product & ProductFormData;
+    const payload = toProductPayload(data);
     const response = await api.post<Product>("/inventory", payload);
     return response.data;
   } catch (error) {
@@ -57,7 +81,7 @@ export async function updateProduct(
   data: Partial<ProductFormData>
 ): Promise<Product> {
   try {
-    const { status, createdAt, updatedAt, ...payload } = data as Product & ProductFormData;
+    const payload = toProductPayload(data);
     const response = await api.patch<Product>(`/inventory/${id}`, payload);
     return response.data;
   } catch (error) {
@@ -97,5 +121,50 @@ export async function consumeStock(productId: string, payload: StockAdjustmentPa
     return response.data;
   } catch (error) {
     rethrow(error, "Failed to consume stock.");
+  }
+}
+
+export async function fetchWarehouses(filter: WarehouseFilter): Promise<PaginatedWarehouses> {
+  try {
+    const response = await api.get<PaginatedWarehouses>("/inventory/warehouses", {
+      params: {
+        search: filter.search,
+        status: filter.status,
+        page: filter.page,
+        pageSize: filter.pageSize,
+      },
+    });
+    return response.data;
+  } catch (error) {
+    rethrow(error, "Failed to load warehouses.");
+  }
+}
+
+export async function createWarehouse(data: WarehouseFormData): Promise<Warehouse> {
+  try {
+    const response = await api.post<Warehouse>("/inventory/warehouses", data);
+    return response.data;
+  } catch (error) {
+    rethrow(error, "Failed to create warehouse.");
+  }
+}
+
+export async function updateWarehouse(
+  id: string,
+  data: Partial<WarehouseFormData>
+): Promise<Warehouse> {
+  try {
+    const response = await api.patch<Warehouse>(`/inventory/warehouses/${id}`, data);
+    return response.data;
+  } catch (error) {
+    rethrow(error, "Failed to update warehouse.");
+  }
+}
+
+export async function deleteWarehouse(id: string): Promise<void> {
+  try {
+    await api.delete(`/inventory/warehouses/${id}`);
+  } catch (error) {
+    rethrow(error, "Failed to delete warehouse.");
   }
 }
