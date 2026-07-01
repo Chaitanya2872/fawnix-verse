@@ -12,7 +12,6 @@ import {
   defaultPermissionsForRole,
   departments,
   memberRoles,
-  owners,
   projectCategories,
   projectTemplates,
   projectTypes,
@@ -32,7 +31,7 @@ import type {
   Sprint,
   TeamMember,
 } from '../types'
-import { useUsers } from '@/modules/users/hooks'
+import { useUserAssignees } from '@/modules/users/hooks'
 import { newId } from '../utils'
 import { ComboSelect } from './ComboSelect'
 import { DatePicker } from '@/components/ui/DatePicker'
@@ -146,7 +145,7 @@ interface Props {
 export function ProjectForm({
   formState, onChange, onCancel, onSave, isSaving = false, isEdit = false,
 }: Props) {
-  const usersQuery          = useUsers()
+  const assigneesQuery      = useUserAssignees()
   const [step, setStep]     = useState(1)
   const hasDateError        = isAfter(parseISO(formState.startDate), parseISO(formState.endDate))
   const isInvalid           = !formState.name.trim() || hasDateError
@@ -157,17 +156,18 @@ export function ProjectForm({
   const [extraCategories, setExtraCategories] = useState<string[]>([])
   const [extraTags,       setExtraTags]       = useState<string[]>([])
   const [extraOwners,     setExtraOwners]     = useState<string[]>([])
+  const [extraAssignees,  setExtraAssignees]  = useState<string[]>([])
   const allTypes      = [...projectTypes, ...extraTypes]
   const allCategories = [...projectCategories, ...extraCategories]
-  const allOwners     = [...owners, ...extraOwners]
-  const internalUserOptions = Array.from(
+  const fetchedAssigneeOptions = Array.from(
     new Set(
-      (usersQuery.data ?? [])
-        .filter((user) => user.active)
+      (assigneesQuery.data ?? [])
         .map((user) => user.name)
         .filter(Boolean),
     ),
   )
+  const assignableUserOptions = Array.from(new Set([...fetchedAssigneeOptions, ...extraAssignees]))
+  const ownershipOptions = Array.from(new Set([...fetchedAssigneeOptions, ...extraOwners]))
 
   /* Step-4 add-member state — hoisted to avoid hooks-in-render */
   const [pendingMember, setPendingMember] = useState('')
@@ -433,21 +433,21 @@ export function ProjectForm({
           <Field label="Project owner">
             <ComboSelect
               value={formState.projectOwner ? [formState.projectOwner] : []}
-              options={(internalUserOptions.length ? internalUserOptions : allOwners)}
+              options={ownershipOptions}
               onChange={(v) => onChange('projectOwner', v[0] ?? '')}
               onCreateOption={(v) => setExtraOwners((prev) => prev.includes(v) ? prev : [...prev, v])}
               multi={false}
-              placeholder={usersQuery.isLoading ? 'Loading users...' : 'Select project owner…'}
+              placeholder={assigneesQuery.isLoading ? 'Loading users...' : 'Select project owner or add email...'}
             />
           </Field>
           <Field label="Stakeholders">
             <ComboSelect
               value={formState.stakeholders}
-              options={(internalUserOptions.length ? internalUserOptions : allOwners)}
+              options={ownershipOptions}
               onChange={(v) => onChange('stakeholders', v)}
               onCreateOption={(v) => setExtraOwners((prev) => prev.includes(v) ? prev : [...prev, v])}
               multi
-              placeholder={usersQuery.isLoading ? 'Loading users...' : 'Add stakeholders…'}
+              placeholder={assigneesQuery.isLoading ? 'Loading users...' : 'Search names or add stakeholder emails...'}
             />
           </Field>
         </div>
@@ -506,21 +506,21 @@ export function ProjectForm({
           <Field label="Project manager">
             <ComboSelect
               value={formState.manager ? [formState.manager] : []}
-              options={(internalUserOptions.length ? internalUserOptions : allOwners)}
+              options={assignableUserOptions}
               onChange={(v) => onChange('manager', v[0] ?? '')}
-              onCreateOption={(v) => setExtraOwners((prev) => prev.includes(v) ? prev : [...prev, v])}
+              onCreateOption={(v) => setExtraAssignees((prev) => prev.includes(v) ? prev : [...prev, v])}
               multi={false}
-              placeholder={usersQuery.isLoading ? 'Loading users...' : 'Select manager...'}
+              placeholder={assigneesQuery.isLoading ? 'Loading users...' : 'Search manager name or add email...'}
             />
           </Field>
           <Field label="Team lead">
             <ComboSelect
               value={formState.teamLead ? [formState.teamLead] : []}
-              options={(internalUserOptions.length ? internalUserOptions : allOwners)}
+              options={assignableUserOptions}
               onChange={(v) => onChange('teamLead', v[0] ?? '')}
-              onCreateOption={(v) => setExtraOwners((prev) => prev.includes(v) ? prev : [...prev, v])}
+              onCreateOption={(v) => setExtraAssignees((prev) => prev.includes(v) ? prev : [...prev, v])}
               multi={false}
-              placeholder={usersQuery.isLoading ? 'Loading users...' : 'Select team lead...'}
+              placeholder={assigneesQuery.isLoading ? 'Loading users...' : 'Search team lead name or add email...'}
             />
           </Field>
         </div>
@@ -550,11 +550,11 @@ export function ProjectForm({
           <Field label="User">
             <ComboSelect
               value={pendingMember ? [pendingMember] : []}
-              options={(internalUserOptions.length ? internalUserOptions : allOwners).filter((m) => !formState.team.some((t) => t.name === m))}
+              options={assignableUserOptions.filter((m) => !formState.team.some((t) => t.name === m))}
               onChange={(v) => setPendingMember(v[0] ?? '')}
-              onCreateOption={(v) => setExtraOwners((prev) => prev.includes(v) ? prev : [...prev, v])}
+              onCreateOption={(v) => setExtraAssignees((prev) => prev.includes(v) ? prev : [...prev, v])}
               multi={false}
-              placeholder={usersQuery.isLoading ? 'Loading users...' : 'Select or type a name...'}
+              placeholder={assigneesQuery.isLoading ? 'Loading users...' : 'Search member name or add email...'}
             />
           </Field>
           <Field label="Role">
@@ -728,11 +728,11 @@ export function ProjectForm({
                     <label className={labelCls}>Owner</label>
                     <ComboSelect
                       value={mod.owner ? [mod.owner] : []}
-                      options={(internalUserOptions.length ? internalUserOptions : allOwners)}
+                      options={assignableUserOptions}
                       onChange={(v) => updateModule(mod.id, 'owner', v[0] ?? '')}
-                      onCreateOption={(v) => setExtraOwners((prev) => prev.includes(v) ? prev : [...prev, v])}
+                      onCreateOption={(v) => setExtraAssignees((prev) => prev.includes(v) ? prev : [...prev, v])}
                       multi={false}
-                      placeholder={usersQuery.isLoading ? 'Loading users...' : 'Select owner...'}
+                      placeholder={assigneesQuery.isLoading ? 'Loading users...' : 'Search owner name or add email...'}
                     />
                   </div>
                   <div>

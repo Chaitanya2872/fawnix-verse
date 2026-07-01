@@ -1,5 +1,5 @@
 import { addDays, differenceInCalendarDays, format, isBefore, parseISO } from 'date-fns'
-import { owners, today } from './data'
+import { today } from './data'
 import type { Priority, Project, ProjectFormState } from './types'
 
 const PROJECT_CACHE_KEY = 'fawnix.project-management.projects-cache'
@@ -53,7 +53,7 @@ export const createBlankForm = (): ProjectFormState => ({
   clientEmail: '',
   clientPhone: '',
   clientLocation: '',
-  projectOwner: owners[0],
+  projectOwner: '',
   stakeholders: [],
   // Step 3
   startDate: format(today, 'yyyy-MM-dd'),
@@ -61,8 +61,8 @@ export const createBlankForm = (): ProjectFormState => ({
   actualEndDate: '',
   deadlineType: 'Flexible',
   // Step 4
-  owner: owners[0],
-  manager: owners[1],
+  owner: '',
+  manager: '',
   teamLead: '',
   developers: [],
   qaEngineers: [],
