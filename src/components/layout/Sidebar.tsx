@@ -21,6 +21,7 @@ import {
   Network,
   ReceiptText,
   Settings,
+  Settings2,
   ShoppingCart,
   StickyNote,
   Truck,

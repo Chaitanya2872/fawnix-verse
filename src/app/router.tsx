@@ -28,9 +28,16 @@ import SalesShipmentsPage from "@/modules/sales/orders/shipments-page";
 import SalesPaymentsPage from "@/modules/sales/orders/payments-page";
 import TaskManagementPage from "@/modules/task-management/page";
 import TaskWorkspacePage from "@/modules/task-management/workspace-page";
+import ProjectsLayout from "@/modules/project-management/layout";
 import ProjectManagementPage from "@/modules/project-management/page";
 import ProjectConfigPage from "@/modules/project-management/config-page";
 import ProjectTeamsPage from "@/modules/project-management/teams-page";
+import ProjectsDashboardPage from "@/modules/project-management/pages/DashboardPage";
+import ProjectsTasksPage from "@/modules/project-management/pages/TasksPage";
+import ProjectsKanbanPage from "@/modules/project-management/pages/KanbanPage";
+import ProjectsMilestonesPage from "@/modules/project-management/pages/MilestonesPage";
+import ProjectsDocumentsPage from "@/modules/project-management/pages/DocumentsPage";
+import ProjectsMeetingsPage from "@/modules/project-management/pages/MeetingsPage";
 import HiringRequestsPage from "@/modules/recruitment/HiringRequestsPage";
 import HiringRequestDetailPage from "@/modules/recruitment/HiringRequestDetailPage";
 import NewHiringRequestPage from "@/modules/recruitment/NewHiringRequestPage";
@@ -241,57 +248,18 @@ export const router = createBrowserRouter([
             path: "projects",
             element: (
               <RequirePermission permission={PERMISSIONS.PAGE_PROJECTS}>
-                <ProjectManagementPage />
+                <ProjectsLayout />
               </RequirePermission>
             ),
-          },
-          {
-            path: "projects/dashboard",
-            element: (
-              <RequirePermission permission={PERMISSIONS.PAGE_PROJECTS}>
-                <ProjectManagementPage />
-              </RequirePermission>
-            ),
-          },
-          {
-            path: "projects/tasks",
-            element: (
-              <RequirePermission permission={PERMISSIONS.PAGE_PROJECTS}>
-                <ProjectManagementPage />
-              </RequirePermission>
-            ),
-          },
-          {
-            path: "projects/kanban",
-            element: (
-              <RequirePermission permission={PERMISSIONS.PAGE_PROJECTS}>
-                <ProjectManagementPage />
-              </RequirePermission>
-            ),
-          },
-          {
-            path: "projects/milestones",
-            element: (
-              <RequirePermission permission={PERMISSIONS.PAGE_PROJECTS}>
-                <ProjectManagementPage />
-              </RequirePermission>
-            ),
-          },
-          {
-            path: "projects/documents",
-            element: (
-              <RequirePermission permission={PERMISSIONS.PAGE_PROJECTS}>
-                <ProjectManagementPage />
-              </RequirePermission>
-            ),
-          },
-          {
-            path: "projects/meetings",
-            element: (
-              <RequirePermission permission={PERMISSIONS.PAGE_PROJECTS}>
-                <ProjectManagementPage />
-              </RequirePermission>
-            ),
+            children: [
+              { index: true,            element: <ProjectManagementPage /> },
+              { path: "dashboard",      element: <ProjectsDashboardPage /> },
+              { path: "tasks",          element: <ProjectsTasksPage /> },
+              { path: "kanban",         element: <ProjectsKanbanPage /> },
+              { path: "milestones",     element: <ProjectsMilestonesPage /> },
+              { path: "documents",      element: <ProjectsDocumentsPage /> },
+              { path: "meetings",       element: <ProjectsMeetingsPage /> },
+            ],
           },
           {
             path: "projects/configuration",

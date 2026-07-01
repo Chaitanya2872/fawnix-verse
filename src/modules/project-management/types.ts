@@ -249,6 +249,7 @@ export type ProjectFormState = {
   name: string
   description: string
   projectType: ProjectType
+  projectTypes: string[]
   projectTemplate: string
   projectCategory: string
   priority: Priority
