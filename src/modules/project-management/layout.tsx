@@ -200,8 +200,9 @@ export default function ProjectsLayout() {
             className="fixed inset-0 z-40 bg-black/25 backdrop-blur-[2px] transition-opacity"
             onClick={closeModal}
           />
-          {/* Right-side panel */}
-          <div className="fixed inset-y-0 right-0 z-50 flex h-full w-full max-w-3xl flex-col border-l border-slate-200 bg-white shadow-2xl">
+          {/* Centered modal panel */}
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5">
+            <div className="flex h-[min(92vh,980px)] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
             {/* Panel header */}
             <div className="flex flex-shrink-0 items-center justify-between border-b border-slate-100 px-6 py-4">
               <div>
@@ -230,6 +231,7 @@ export default function ProjectsLayout() {
                 isSaving={isSaving} isEdit={!!currentId}
               />
             </div>
+          </div>
           </div>
         </>
       )}

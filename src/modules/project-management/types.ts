@@ -117,6 +117,8 @@ export type ProjectComment = {
 export type TeamMember = {
   name: string
   role: MemberRole
+  joinedDate: string
+  responsibilities: string
   permissions: RolePermission[]
 }
 

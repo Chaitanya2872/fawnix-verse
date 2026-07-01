@@ -15,8 +15,8 @@ import { formatDate } from './utils'
 
 function DetailField({ label, value }: { label: string; value?: ReactNode }) {
   return (
-    <div className="rounded-lg border border-slate-100 bg-slate-50 p-3">
-      <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">{label}</p>
+    <div className="rounded-md bg-slate-50/70 px-3 py-2.5 ring-1 ring-slate-100/80">
+      <p className="mb-1 text-[10px] font-medium uppercase tracking-wide text-slate-400">{label}</p>
       <div className="text-sm font-medium text-slate-800">
         {value ?? <span className="font-normal text-slate-400">Not set</span>}
       </div>
@@ -26,10 +26,10 @@ function DetailField({ label, value }: { label: string; value?: ReactNode }) {
 
 function SectionHeader({ icon, iconCls, title, sub }: { icon: ReactNode; iconCls: string; title: string; sub: string }) {
   return (
-    <div className="mb-3 flex items-center gap-2.5">
-      <div className={`flex h-7 w-7 items-center justify-center rounded-lg ${iconCls}`}>{icon}</div>
+    <div className="mb-3 flex items-start gap-2.5">
+      <div className={`mt-0.5 flex h-6 w-6 items-center justify-center rounded-md ${iconCls}`}>{icon}</div>
       <div>
-        <h3 className="text-sm font-semibold text-slate-800">{title}</h3>
+        <h3 className="text-[13.5px] font-semibold text-slate-800">{title}</h3>
         <p className="text-xs text-slate-400">{sub}</p>
       </div>
     </div>
@@ -41,7 +41,7 @@ export default function ProjectsListPage() {
   const {
     projects, filteredProjects, currentProject, detailTab, search, statusFilter,
     isModalOpen, milestoneTitle, milestoneDue, milestoneApproval, backendStatus,
-    pieData, recentActivity,
+    pieData, recentActivity, summary,
     setSearch, setStatusFilter, setDetailTab, setMilestoneTitle, setMilestoneDue, setMilestoneApproval,
     openCreate, openEdit, selectProject, addMilestone, updateMilestone, setProjectStatus,
     addTask, updateTaskStatus, deleteTask,
@@ -167,7 +167,7 @@ export default function ProjectsListPage() {
     return (
       <div className="flex flex-col">
         {/* Drawer header */}
-        <div className="sticky top-0 z-10 border-b border-slate-100 bg-white">
+      <div className="sticky top-0 z-10 border-b border-slate-100 bg-[#fcfcfb]/95 backdrop-blur">
           <div className="flex items-center gap-3 px-5 py-3">
             <button type="button" onClick={() => ctx.closeProject()} className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md text-slate-400 hover:bg-slate-100">
               <X className="h-4 w-4" />
@@ -281,7 +281,7 @@ export default function ProjectsListPage() {
             {WORKFLOW_STATUSES.has(project.status) && renderStepper(project)}
             {renderActionPanel(project)}
 
-            <div className="rounded-xl border border-slate-200 bg-white p-4">
+            <div className="border-t border-slate-100 pt-4">
               <SectionHeader icon={<Briefcase className="h-4 w-4" />} iconCls="bg-sky-50 text-sky-600" title="Project Info" sub="Basic details and classification" />
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                 <div className="col-span-2 sm:col-span-4"><DetailField label="Project Name" value={project.name} /></div>
@@ -304,7 +304,7 @@ export default function ProjectsListPage() {
               )}
             </div>
 
-            <div className="rounded-xl border border-slate-200 bg-white p-4">
+            <div className="border-t border-slate-100 pt-4">
               <SectionHeader icon={<Globe className="h-4 w-4" />} iconCls="bg-emerald-50 text-emerald-600" title="Client & Stakeholder" sub="External contact and commercial info" />
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                 <DetailField label="Client Name"   value={project.clientName} />
@@ -316,7 +316,7 @@ export default function ProjectsListPage() {
               </div>
             </div>
 
-            <div className="rounded-xl border border-slate-200 bg-white p-4">
+            <div className="border-t border-slate-100 pt-4">
               <SectionHeader icon={<Activity className="h-4 w-4" />} iconCls="bg-violet-50 text-violet-600" title="Timeline" sub="Schedule and deadline configuration" />
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                 <DetailField label="Start Date"    value={formatDate(project.startDate)} />
@@ -332,7 +332,7 @@ export default function ProjectsListPage() {
             </div>
 
             {((project.team ?? []).length > 0 || project.manager) && (
-              <div className="rounded-xl border border-slate-200 bg-white p-4">
+              <div className="border-t border-slate-100 pt-4">
                 <SectionHeader icon={<Users className="h-4 w-4" />} iconCls="bg-sky-50 text-sky-600" title="Team Assignment" sub="Roles, members, and permissions" />
                 <div className="grid grid-cols-2 gap-2 mb-3">
                   <DetailField label="Project Manager" value={project.manager} />
@@ -363,7 +363,7 @@ export default function ProjectsListPage() {
             )}
 
             {project.techStack && (project.techStack.frontend.length > 0 || project.techStack.backend.length > 0 || project.techStack.database.length > 0 || project.techStack.other.length > 0 || project.repository?.gitUrl) && (
-              <div className="rounded-xl border border-slate-200 bg-white p-4">
+              <div className="border-t border-slate-100 pt-4">
                 <SectionHeader icon={<Code2 className="h-4 w-4" />} iconCls="bg-slate-100 text-slate-600" title="Technology & Repository" sub="Tech stack and environment URLs" />
                 {[['Frontend', project.techStack.frontend], ['Backend', project.techStack.backend], ['Database', project.techStack.database], ['DevOps', project.techStack.other]].map(([label, items]) =>
                   (items as string[]).length > 0 ? (
@@ -376,7 +376,7 @@ export default function ProjectsListPage() {
               </div>
             )}
 
-            <div className="rounded-xl border border-slate-200 bg-white p-4">
+            <div className="border-t border-slate-100 pt-4">
               <SectionHeader icon={<DollarSign className="h-4 w-4" />} iconCls="bg-emerald-50 text-emerald-600" title="Budget" sub="Cost breakdown" />
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                 <DetailField label="Estimated Budget" value={project.budget ? `$${project.budget.toLocaleString()}` : undefined} />
@@ -387,7 +387,7 @@ export default function ProjectsListPage() {
             </div>
 
             {(project.risks ?? []).length > 0 && (
-              <div className="rounded-xl border border-slate-200 bg-white p-4">
+              <div className="border-t border-slate-100 pt-4">
                 <SectionHeader icon={<AlertTriangle className="h-4 w-4" />} iconCls="bg-rose-50 text-rose-600" title="Risk Management" sub="Identified risks and mitigation plans" />
                 <div className="space-y-2">
                   {project.risks.map((risk) => {
@@ -407,7 +407,7 @@ export default function ProjectsListPage() {
               </div>
             )}
 
-            <div className="rounded-xl border border-slate-200 bg-white p-4">
+            <div className="border-t border-slate-100 pt-4">
               <SectionHeader icon={<Lock className="h-4 w-4" />} iconCls="bg-amber-50 text-amber-600" title="Access & Approvals" sub="Review state and closure approval" />
               <div className="grid grid-cols-2 gap-2">
                 <DetailField label="Creation Approval" value={approvalText} />
@@ -499,20 +499,32 @@ export default function ProjectsListPage() {
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <div className="flex flex-col">
-      {/* Page header */}
-      <div className="border-b border-slate-100 bg-white px-6 py-4">
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-slate-50">
-              <FolderKanban className="h-5 w-5 text-slate-600" />
-            </div>
-            <div>
-              <h1 className="text-lg font-semibold text-slate-900">Projects</h1>
-              <p className="text-sm text-slate-400">Track projects, milestones, approvals, and team progress.</p>
-            </div>
+    <div className="flex min-h-full flex-col bg-[#fcfcfb]">
+      {/* Right-side project detail drawer */}
+      {currentProject && !isModalOpen && (
+        <>
+          <div
+            className="fixed inset-0 z-40 bg-black/20 backdrop-blur-[1px]"
+            onClick={() => ctx.closeProject()}
+          />
+          <div className="fixed bottom-5 right-5 top-5 z-50 flex w-full max-w-3xl flex-col overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-2xl">
+            {renderDetailContent(currentProject)}
           </div>
-          <button type="button" onClick={openCreate} className="inline-flex items-center gap-2 rounded-lg bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-700">
+        </>
+      )}
+
+      {/* Page header */}
+      <div className="border-b border-slate-100 bg-[#fcfcfb] px-6 py-5">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <div className="mb-1 flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.16em] text-slate-300">
+              <FolderKanban className="h-3.5 w-3.5" />
+              Project management
+            </div>
+            <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Projects</h1>
+            <p className="mt-1 text-sm text-slate-400">Track projects, milestones, approvals, and team progress.</p>
+          </div>
+          <button type="button" onClick={openCreate} className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-slate-700">
             <Plus className="h-4 w-4" /> New Project
           </button>
         </div>
@@ -523,18 +535,84 @@ export default function ProjectsListPage() {
         )}
       </div>
 
-      <div className="p-6 space-y-4">
+      <div className="space-y-5 px-6 py-5">
+        {/* Top metrics: Status donut + 2 KPI cards */}
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+          {/* Status donut */}
+          <div className="overflow-hidden rounded-2xl bg-white p-5 ring-1 ring-slate-100">
+            <p className="text-[13px] font-semibold text-slate-800">Project Status</p>
+            <p className="mt-0.5 text-xs text-slate-400">Distribution by status</p>
+            {pieData.length === 0 ? (
+              <div className="flex h-32 items-center justify-center">
+                <p className="text-sm text-slate-400">No projects yet</p>
+              </div>
+            ) : (
+              <div className="mt-3 flex items-center gap-4">
+                <div className="relative h-[110px] w-[110px] flex-shrink-0">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie data={pieData} cx="50%" cy="50%" innerRadius={30} outerRadius={50} paddingAngle={2} dataKey="value">
+                        {pieData.map((entry, i) => <Cell key={`cell-${i}`} fill={entry.color} />)}
+                      </Pie>
+                      <Tooltip contentStyle={{ fontSize: 11, borderRadius: 8 }} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="min-w-0 flex-1 space-y-1.5">
+                  {pieData.map((entry) => (
+                    <div key={entry.name} className="flex items-center justify-between gap-2">
+                      <div className="flex min-w-0 items-center gap-1.5">
+                        <div className="h-1.5 w-1.5 flex-shrink-0 rounded-full" style={{ backgroundColor: entry.color }} />
+                        <span className="truncate text-[11px] text-slate-500">{entry.name}</span>
+                      </div>
+                      <span className="flex-shrink-0 text-[11px] font-semibold tabular-nums text-slate-800">{entry.value}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* KPI: Total Projects */}
+          <div className="flex flex-col justify-between overflow-hidden rounded-2xl bg-white p-5 ring-1 ring-slate-100">
+            <div className="flex items-center justify-between">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Total Projects</p>
+              <div className="flex h-8 w-8 items-center justify-center rounded-xl border border-slate-100 bg-slate-50">
+                <FolderKanban className="h-4 w-4 text-slate-500" />
+              </div>
+            </div>
+            <div className="mt-4">
+              <p className="text-4xl font-bold tabular-nums text-slate-900">{summary.totalProjects}</p>
+              <p className="mt-1.5 text-xs text-slate-400">{summary.activeProjects} active · {summary.completedProjects} completed</p>
+            </div>
+          </div>
+
+          {/* KPI: Pending Approval */}
+          <div className="flex flex-col justify-between overflow-hidden rounded-2xl bg-white p-5 ring-1 ring-slate-100">
+            <div className="flex items-center justify-between">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Pending Approval</p>
+              <div className="flex h-8 w-8 items-center justify-center rounded-xl border border-amber-100 bg-amber-50">
+                <Clock className="h-4 w-4 text-amber-500" />
+              </div>
+            </div>
+            <div className="mt-4">
+              <p className="text-4xl font-bold tabular-nums text-slate-900">{summary.pendingApprovalProjects}</p>
+              <p className="mt-1.5 text-xs text-slate-400">{summary.overdueProjects} overdue across all projects</p>
+            </div>
+          </div>
+        </div>
+
         {/* Search + filter bar */}
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3 rounded-xl bg-white/80 px-4 py-3 ring-1 ring-slate-100 backdrop-blur">
           <div className="relative min-w-[220px] flex-1">
             <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
             <input
-              className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-9 pr-4 text-sm outline-none transition-colors focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20"
+              className="w-full rounded-lg border border-transparent bg-slate-50 py-2.5 pl-9 pr-4 text-sm outline-none transition-colors hover:bg-slate-100 focus:border-slate-200 focus:bg-white focus:ring-2 focus:ring-slate-900/5"
               value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search projects, managers…"
             />
           </div>
           <select
-            className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-sky-500"
+            className="rounded-lg border border-transparent bg-slate-50 px-3 py-2.5 text-sm outline-none transition-colors hover:bg-slate-100 focus:border-slate-200 focus:bg-white"
             value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
           >
             <option value="ALL">All statuses</option>
@@ -542,134 +620,65 @@ export default function ProjectsListPage() {
           </select>
         </div>
 
-        {/* Two-column layout */}
-        <div className={`grid grid-cols-1 gap-5 ${currentProject && !isModalOpen ? 'lg:grid-cols-[1.1fr_1.9fr]' : 'lg:grid-cols-[3fr_2fr]'}`}>
-
-          {/* LEFT: project list */}
-          <div className={`min-w-0 transition-[filter] duration-200 ${currentProject && !isModalOpen ? 'blur-[1px] pointer-events-none select-none' : ''}`}>
-            <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-              <div className="hidden border-b border-slate-100 bg-slate-50 px-5 py-3 lg:grid lg:grid-cols-[minmax(160px,2fr)_130px_130px_150px_90px_32px] lg:gap-4">
-                {['Project', 'Status', 'Manager', 'Milestones', 'Due Date', ''].map((h) => (
-                  <span key={h} className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{h}</span>
-                ))}
-              </div>
-              <div className="divide-y divide-slate-100">
-                {filteredProjects.length === 0 ? (
-                  <div className="flex flex-col items-center gap-3 py-16 text-center">
-                    <div className="rounded-2xl bg-slate-100 p-4">
-                      <Folder className="h-8 w-8 text-slate-300" />
-                    </div>
-                    <p className="text-sm text-slate-400">No projects match your search or filters.</p>
-                  </div>
-                ) : (
-                  filteredProjects.map((project, idx) => {
-                    const dotCls = DOT_COLORS[idx % DOT_COLORS.length]
-                    const total = project.milestones.length
-                    const done = project.milestones.filter((m) => m.status === 'Done').length
-                    const progress = calcProgress(project)
-                    return (
-                      <div key={project.id}
-                        className="flex cursor-pointer flex-col gap-3 px-5 py-4 transition-colors hover:bg-slate-50 lg:grid lg:grid-cols-[minmax(160px,2fr)_130px_130px_150px_90px_32px] lg:items-center lg:gap-4"
-                        onClick={() => selectProject(project.id)}>
-                        <div className="flex items-center gap-3">
-                          <div className={`h-2.5 w-2.5 flex-shrink-0 rounded-sm ${dotCls}`} />
-                          <div className="min-w-0">
-                            <p className="truncate text-sm font-semibold text-slate-900">{project.name}</p>
-                            <p className="text-xs text-slate-400">{project.projectCode} · {project.department}</p>
-                          </div>
-                        </div>
-                        <div><StatusBadge status={project.status} /></div>
-                        <p className="text-sm text-slate-700">{project.manager || <span className="text-slate-400">Not assigned</span>}</p>
-                        <div className="w-full lg:w-36">
-                          <div className="mb-1.5 flex items-center justify-between text-[11px]">
-                            <span className="text-slate-400">{done}/{total}</span>
-                            <span className="font-semibold text-slate-700">{progress}%</span>
-                          </div>
-                          <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
-                            <div className="h-full rounded-full bg-sky-500 transition-all" style={{ width: `${progress}%` }} />
-                          </div>
-                        </div>
-                        <p className="text-sm text-slate-400">{formatDate(project.endDate)}</p>
-                        <div className="flex justify-end">
-                          <button type="button"
-                            className="flex h-7 w-7 items-center justify-center rounded-md text-slate-400 hover:bg-slate-100"
-                            onClick={(e) => { e.stopPropagation(); openEdit(project) }}>
-                            <Edit3 className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      </div>
-                    )
-                  })
-                )}
-              </div>
-              {filteredProjects.length > 0 && (
-                <div className="border-t border-slate-100 px-5 py-3">
-                  <p className="text-xs text-slate-400">{filteredProjects.length} of {projects.length} projects</p>
-                </div>
-              )}
-            </div>
+        {/* Full-width project table */}
+        <div className="overflow-hidden rounded-2xl bg-white/90 ring-1 ring-slate-100 backdrop-blur">
+          <div className="hidden border-b border-slate-100 px-5 py-3 lg:grid lg:grid-cols-[minmax(160px,2fr)_130px_130px_150px_90px_32px] lg:gap-4">
+            {['Project', 'Status', 'Manager', 'Milestones', 'Due Date', ''].map((h) => (
+              <span key={h} className="text-[10.5px] font-medium uppercase tracking-[0.14em] text-slate-400">{h}</span>
+            ))}
           </div>
-
-          {/* RIGHT: detail drawer or charts */}
-          {currentProject && !isModalOpen ? (
-            <div className="overflow-y-auto rounded-xl border border-slate-200 bg-white max-h-[calc(100vh-160px)]">
-              {renderDetailContent(currentProject)}
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <div className="rounded-xl border border-slate-200 bg-white p-5">
-                <h3 className="text-sm font-semibold text-slate-800">Project Status</h3>
-                <p className="mb-4 mt-0.5 text-xs text-slate-400">Distribution across all projects</p>
-                {pieData.length === 0 ? (
-                  <div className="flex h-48 items-center justify-center">
-                    <p className="text-sm text-slate-400">No projects yet</p>
-                  </div>
-                ) : (
-                  <>
-                    <ResponsiveContainer width="100%" height={180}>
-                      <PieChart>
-                        <Pie data={pieData} cx="50%" cy="50%" innerRadius={48} outerRadius={76} paddingAngle={2} dataKey="value">
-                          {pieData.map((entry, i) => <Cell key={`cell-${i}`} fill={entry.color} />)}
-                        </Pie>
-                        <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-                      </PieChart>
-                    </ResponsiveContainer>
-                    <div className="mt-2 space-y-2">
-                      {pieData.map((entry) => (
-                        <div key={entry.name} className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <div className="h-2 w-2 flex-shrink-0 rounded-full" style={{ backgroundColor: entry.color }} />
-                            <span className="text-xs text-slate-500">{entry.name}</span>
-                          </div>
-                          <span className="text-xs font-semibold tabular-nums text-slate-800">{entry.value}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </>
-                )}
+          <div className="divide-y divide-slate-100">
+            {filteredProjects.length === 0 ? (
+              <div className="flex flex-col items-center gap-3 py-16 text-center">
+                <div className="rounded-2xl bg-slate-100 p-4">
+                  <Folder className="h-8 w-8 text-slate-300" />
+                </div>
+                <p className="text-sm text-slate-400">No projects match your search or filters.</p>
               </div>
-
-              <div className="rounded-xl border border-slate-200 bg-white p-5">
-                <h3 className="text-sm font-semibold text-slate-800">Recent Activity</h3>
-                <p className="mb-4 mt-0.5 text-xs text-slate-400">Latest updates across all projects</p>
-                {recentActivity.length === 0 ? (
-                  <p className="py-4 text-center text-sm text-slate-400">No activity yet</p>
-                ) : (
-                  <div className="space-y-3">
-                    {recentActivity.map((act) => (
-                      <div key={act.id} className="flex items-start gap-2.5">
-                        <div className="mt-1.5 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-sky-400" />
-                        <div className="min-w-0 flex-1">
-                          <p className="text-xs leading-relaxed text-slate-500">
-                            <span className="font-medium text-slate-800">{act.actor}</span>{' '}{act.message}
-                          </p>
-                          <p className="mt-0.5 text-[10px] text-slate-400">{act.projectName} · {formatDate(act.date)}</p>
-                        </div>
+            ) : (
+              filteredProjects.map((project, idx) => {
+                const dotCls = DOT_COLORS[idx % DOT_COLORS.length]
+                const total = project.milestones.length
+                const done = project.milestones.filter((m) => m.status === 'Done').length
+                const progress = calcProgress(project)
+                return (
+                  <div key={project.id}
+                    className="flex cursor-pointer flex-col gap-3 px-5 py-4 transition-colors hover:bg-slate-50/80 lg:grid lg:grid-cols-[minmax(160px,2fr)_130px_130px_150px_90px_32px] lg:items-center lg:gap-4"
+                    onClick={() => selectProject(project.id)}>
+                    <div className="flex items-center gap-3">
+                      <div className={`h-2.5 w-2.5 flex-shrink-0 rounded-sm ${dotCls}`} />
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-slate-900">{project.name}</p>
+                        <p className="text-xs text-slate-400">{project.projectCode} · {project.department}</p>
                       </div>
-                    ))}
+                    </div>
+                    <div><StatusBadge status={project.status} /></div>
+                    <p className="text-sm text-slate-700">{project.manager || <span className="text-slate-400">Not assigned</span>}</p>
+                    <div className="w-full lg:w-36">
+                      <div className="mb-1.5 flex items-center justify-between text-[11px]">
+                        <span className="text-slate-400">{done}/{total}</span>
+                        <span className="font-semibold text-slate-700">{progress}%</span>
+                      </div>
+                      <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
+                        <div className="h-full rounded-full bg-sky-500 transition-all" style={{ width: `${progress}%` }} />
+                      </div>
+                    </div>
+                    <p className="text-sm text-slate-400">{formatDate(project.endDate)}</p>
+                    <div className="flex justify-end">
+                      <button type="button"
+                        className="flex h-7 w-7 items-center justify-center rounded-md text-slate-400 hover:bg-slate-100"
+                        onClick={(e) => { e.stopPropagation(); openEdit(project) }}>
+                        <Edit3 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
                   </div>
-                )}
-              </div>
+                )
+              })
+            )}
+          </div>
+          {filteredProjects.length > 0 && (
+            <div className="border-t border-slate-100 px-5 py-3">
+              <p className="text-xs text-slate-400">{filteredProjects.length} of {projects.length} projects</p>
             </div>
           )}
         </div>
