@@ -32,6 +32,12 @@ public class UserController {
     return userService.getAssignees();
   }
 
+  @GetMapping("/directory")
+  @PreAuthorize("isAuthenticated()")
+  public List<AssigneeResponse> getDirectory() {
+    return userService.getActiveUsersDirectory();
+  }
+
   @GetMapping
   @PreAuthorize("@authz.hasAuthority(authentication, 'page.admin.users')")
   public List<UserDtos.UserResponse> getUsers() {

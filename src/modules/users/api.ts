@@ -37,6 +37,16 @@ export async function fetchUserAssignees(): Promise<UserAssignee[]> {
   }
 }
 
+export async function fetchUserDirectory(): Promise<UserAssignee[]> {
+  try {
+    await ensureApiSession();
+    const response = await api.get<UserAssignee[]>("/users/directory");
+    return response.data ?? [];
+  } catch (error) {
+    rethrowApiError(error, "Failed to load user directory.");
+  }
+}
+
 export async function fetchAccessControlCatalog(): Promise<AccessControlCatalog> {
   try {
     await ensureApiSession();

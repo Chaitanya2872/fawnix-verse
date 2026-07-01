@@ -31,7 +31,7 @@ import type {
   Sprint,
   TeamMember,
 } from '../types'
-import { useUserAssignees } from '@/modules/users/hooks'
+import { useUserDirectory } from '@/modules/users/hooks'
 import { newId } from '../utils'
 import { ComboSelect } from './ComboSelect'
 import { DatePicker } from '@/components/ui/DatePicker'
@@ -145,7 +145,7 @@ interface Props {
 export function ProjectForm({
   formState, onChange, onCancel, onSave, isSaving = false, isEdit = false,
 }: Props) {
-  const assigneesQuery      = useUserAssignees()
+  const usersDirectoryQuery = useUserDirectory()
   const [step, setStep]     = useState(1)
   const hasDateError        = isAfter(parseISO(formState.startDate), parseISO(formState.endDate))
   const isInvalid           = !formState.name.trim() || hasDateError
@@ -161,7 +161,7 @@ export function ProjectForm({
   const allCategories = [...projectCategories, ...extraCategories]
   const fetchedAssigneeOptions = Array.from(
     new Set(
-      (assigneesQuery.data ?? [])
+      (usersDirectoryQuery.data ?? [])
         .map((user) => user.name)
         .filter(Boolean),
     ),
@@ -174,6 +174,13 @@ export function ProjectForm({
   const [pendingRole,   setPendingRole]   = useState<MemberRole>('Developer')
   const [pendingJoinedDate, setPendingJoinedDate] = useState(formState.startDate)
   const [pendingResponsibilities, setPendingResponsibilities] = useState('')
+
+  const normalizeResponsibilities = (value: string) =>
+    value
+      .split(/\r?\n/)
+      .map((line) => line.replace(/^\s*(?:[-*•]|\d+\.)\s*/, '').trim())
+      .filter(Boolean)
+      .join('\n')
 
   useEffect(() => {
     if (!isInternalProject) return
@@ -244,7 +251,7 @@ export function ProjectForm({
       name,
       role,
       joinedDate: joinedDate || formState.startDate,
-      responsibilities: responsibilities.trim(),
+      responsibilities: normalizeResponsibilities(responsibilities),
       permissions: [...defaultPermissionsForRole[role]],
     }
     const next = [...formState.team, member]
@@ -273,6 +280,9 @@ export function ProjectForm({
       if (field === 'role') {
         const role = value as MemberRole
         return { ...m, role, permissions: [...defaultPermissionsForRole[role]] }
+      }
+      if (field === 'responsibilities') {
+        return { ...m, responsibilities: normalizeResponsibilities(value) }
       }
       return { ...m, [field]: value }
     }))
@@ -437,7 +447,7 @@ export function ProjectForm({
               onChange={(v) => onChange('projectOwner', v[0] ?? '')}
               onCreateOption={(v) => setExtraOwners((prev) => prev.includes(v) ? prev : [...prev, v])}
               multi={false}
-              placeholder={assigneesQuery.isLoading ? 'Loading users...' : 'Select project owner or add email...'}
+              placeholder={usersDirectoryQuery.isLoading ? 'Loading users...' : 'Search user name or add owner email...'}
             />
           </Field>
           <Field label="Stakeholders">
@@ -447,7 +457,7 @@ export function ProjectForm({
               onChange={(v) => onChange('stakeholders', v)}
               onCreateOption={(v) => setExtraOwners((prev) => prev.includes(v) ? prev : [...prev, v])}
               multi
-              placeholder={assigneesQuery.isLoading ? 'Loading users...' : 'Search names or add stakeholder emails...'}
+              placeholder={usersDirectoryQuery.isLoading ? 'Loading users...' : 'Search names or add stakeholder emails...'}
             />
           </Field>
         </div>
@@ -510,7 +520,7 @@ export function ProjectForm({
               onChange={(v) => onChange('manager', v[0] ?? '')}
               onCreateOption={(v) => setExtraAssignees((prev) => prev.includes(v) ? prev : [...prev, v])}
               multi={false}
-              placeholder={assigneesQuery.isLoading ? 'Loading users...' : 'Search manager name or add email...'}
+              placeholder={usersDirectoryQuery.isLoading ? 'Loading users...' : 'Search manager name or add email...'}
             />
           </Field>
           <Field label="Team lead">
@@ -520,7 +530,7 @@ export function ProjectForm({
               onChange={(v) => onChange('teamLead', v[0] ?? '')}
               onCreateOption={(v) => setExtraAssignees((prev) => prev.includes(v) ? prev : [...prev, v])}
               multi={false}
-              placeholder={assigneesQuery.isLoading ? 'Loading users...' : 'Search team lead name or add email...'}
+              placeholder={usersDirectoryQuery.isLoading ? 'Loading users...' : 'Search team lead name or add email...'}
             />
           </Field>
         </div>
@@ -554,7 +564,7 @@ export function ProjectForm({
               onChange={(v) => setPendingMember(v[0] ?? '')}
               onCreateOption={(v) => setExtraAssignees((prev) => prev.includes(v) ? prev : [...prev, v])}
               multi={false}
-              placeholder={assigneesQuery.isLoading ? 'Loading users...' : 'Search member name or add email...'}
+              placeholder={usersDirectoryQuery.isLoading ? 'Loading users...' : 'Search member name or add email...'}
             />
           </Field>
           <Field label="Role">
@@ -571,7 +581,13 @@ export function ProjectForm({
           </Field>
           <div className="md:col-span-2 2xl:col-span-1">
             <Field label="Responsibilities">
-              <input className={inputCls} value={pendingResponsibilities} onChange={(e) => setPendingResponsibilities(e.target.value)} placeholder="e.g. APIs, reviews, QA" />
+              <textarea
+                rows={3}
+                className={`${inputCls} resize-none`}
+                value={pendingResponsibilities}
+                onChange={(e) => setPendingResponsibilities(e.target.value)}
+                placeholder={`One point per line\nAPI integration\nCode reviews\nQA support`}
+              />
             </Field>
           </div>
         </div>
@@ -622,11 +638,12 @@ export function ProjectForm({
                     />
                   </Field>
                   <Field label="Responsibilities">
-                    <input
-                      className={inputCls}
+                    <textarea
+                      rows={3}
+                      className={`${inputCls} resize-none`}
                       value={member.responsibilities || ''}
                       onChange={(e) => updateTeamMember(member.name, 'responsibilities', e.target.value)}
-                      placeholder="Responsibilities"
+                      placeholder={`One point per line\nAPI integration\nCode reviews`}
                     />
                   </Field>
                 </div>
@@ -719,8 +736,8 @@ export function ProjectForm({
           <div className="space-y-2">
             {formState.modules.map((mod) => (
               <div key={mod.id} className={chipCard}>
-                <div className="grid gap-3 md:grid-cols-2">
-                  <div className="md:col-span-2">
+                <div className="grid gap-3 lg:grid-cols-[1.3fr_0.9fr]">
+                  <div>
                     <label className={labelCls}>Phase name</label>
                     <input className={inputCls} value={mod.name} onChange={(e) => updateModule(mod.id, 'name', e.target.value)} placeholder="e.g. Discovery, Build, UAT" />
                   </div>
@@ -732,16 +749,28 @@ export function ProjectForm({
                       onChange={(v) => updateModule(mod.id, 'owner', v[0] ?? '')}
                       onCreateOption={(v) => setExtraAssignees((prev) => prev.includes(v) ? prev : [...prev, v])}
                       multi={false}
-                      placeholder={assigneesQuery.isLoading ? 'Loading users...' : 'Search owner name or add email...'}
+                      placeholder={usersDirectoryQuery.isLoading ? 'Loading users...' : 'Search owner name or add email...'}
                     />
                   </div>
-                  <div>
+                  <div className="lg:col-span-2 grid gap-3 md:grid-cols-2">
+                    <div>
                     <label className={labelCls}>Timeline start date</label>
                     <DatePicker value={mod.startDate} onChange={(v) => updateModule(mod.id, 'startDate', v)} className={inputCls} placeholder="Start date" />
-                  </div>
-                  <div>
+                    </div>
+                    <div>
                     <label className={labelCls}>Timeline end date</label>
                     <DatePicker value={mod.endDate} onChange={(v) => updateModule(mod.id, 'endDate', v)} className={inputCls} placeholder="End date" />
+                    </div>
+                  </div>
+                  <div className="lg:col-span-2">
+                    <label className={labelCls}>Description</label>
+                    <textarea
+                      rows={3}
+                      className={`${inputCls} resize-none`}
+                      value={mod.description}
+                      onChange={(e) => updateModule(mod.id, 'description', e.target.value)}
+                      placeholder="Describe the scope, goals, and expected output for this phase."
+                    />
                   </div>
                 </div>
                 <button type="button" onClick={() => removeModule(mod.id)} className="mt-3 flex items-center gap-1 text-[11.5px] text-rose-400 transition-colors hover:text-rose-600">
