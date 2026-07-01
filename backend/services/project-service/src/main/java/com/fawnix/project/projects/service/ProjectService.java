@@ -1,11 +1,16 @@
 package com.fawnix.project.projects.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fawnix.project.projects.domain.ProjectEntity;
 import com.fawnix.project.projects.domain.ProjectStatus;
 import com.fawnix.project.projects.dto.ProjectDtos;
 import com.fawnix.project.projects.repository.ProjectRepository;
 import com.fawnix.project.security.service.AppUserDetails;
 import java.time.LocalDate;
+import java.util.Collections;
 import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -17,21 +22,23 @@ import org.springframework.web.server.ResponseStatusException;
 public class ProjectService {
 
   private final ProjectRepository projectRepository;
+  private final ObjectMapper objectMapper;
 
-  public ProjectService(ProjectRepository projectRepository) {
+  public ProjectService(ProjectRepository projectRepository, ObjectMapper objectMapper) {
     this.projectRepository = projectRepository;
+    this.objectMapper = objectMapper;
   }
 
   @Transactional(readOnly = true)
   public List<ProjectDtos.ProjectResponse> listProjects() {
     return projectRepository.findAllByOrderByUpdatedAtDescCreatedAtDesc().stream()
-        .map(ProjectDtos.ProjectResponse::fromEntity)
+        .map(this::toResponse)
         .toList();
   }
 
   @Transactional(readOnly = true)
   public ProjectDtos.ProjectResponse getProject(String id) {
-    return ProjectDtos.ProjectResponse.fromEntity(requireProject(id));
+    return toResponse(requireProject(id));
   }
 
   public ProjectDtos.ProjectResponse createProject(ProjectDtos.ProjectRequest request, AppUserDetails user) {
@@ -45,7 +52,7 @@ public class ProjectService {
       entity.setCreatedByName(trimToNull(user.getFullName()));
     }
 
-    return ProjectDtos.ProjectResponse.fromEntity(projectRepository.save(entity));
+    return toResponse(projectRepository.save(entity));
   }
 
   public ProjectDtos.ProjectResponse updateProject(String id, ProjectDtos.ProjectRequest request) {
@@ -54,7 +61,7 @@ public class ProjectService {
     ProjectEntity entity = requireProject(id);
     applyRequest(entity, request);
 
-    return ProjectDtos.ProjectResponse.fromEntity(projectRepository.save(entity));
+    return toResponse(projectRepository.save(entity));
   }
 
   @Transactional(readOnly = true)
@@ -87,11 +94,38 @@ public class ProjectService {
     entity.setDescription(trimToNull(request.description()));
     entity.setDepartment(trimToNull(request.department()));
     entity.setManagerName(trimToNull(request.managerName()));
+    entity.setTeamLeadName(trimToNull(request.teamLeadName()));
     entity.setPriorityLevel(trimToNull(request.priority()));
     entity.setProgressPercent(normalizeProgress(request.progress()));
-    entity.setTeamSize(normalizeTeamSize(request.teamSize()));
+    entity.setTeamSize(normalizeTeamSize(request.teamSize(), request.teamMembers()));
+    entity.setTeamMembersPayload(writeJson(request.teamMembers()));
+    entity.setTeamPayload(writeJson(request.team()));
+    entity.setDetailsPayload(writeJson(request.details()));
     entity.setStartDate(request.startDate());
     entity.setTargetEndDate(request.targetEndDate());
+  }
+
+  private ProjectDtos.ProjectResponse toResponse(ProjectEntity entity) {
+    return new ProjectDtos.ProjectResponse(
+        entity.getId(),
+        entity.getProjectCode(),
+        entity.getName(),
+        entity.getDescription(),
+        entity.getStatus(),
+        entity.getDepartment(),
+        entity.getManagerName(),
+        entity.getTeamLeadName(),
+        entity.getPriorityLevel(),
+        entity.getProgressPercent(),
+        entity.getTeamSize(),
+        readTeamMembers(entity.getTeamMembersPayload()),
+        readTeam(entity.getTeamPayload()),
+        readJsonNode(entity.getDetailsPayload()),
+        entity.getStartDate(),
+        entity.getTargetEndDate(),
+        entity.getCreatedAt(),
+        entity.getUpdatedAt()
+    );
   }
 
   private ProjectEntity requireProject(String id) {
@@ -119,10 +153,51 @@ public class ProjectService {
     return Math.max(0, Math.min(100, progress));
   }
 
-  private Integer normalizeTeamSize(Integer teamSize) {
-    if (teamSize == null) {
-      return 0;
+  private Integer normalizeTeamSize(Integer teamSize, List<String> teamMembers) {
+    if (teamSize != null) {
+      return Math.max(0, teamSize);
     }
-    return Math.max(0, teamSize);
+    return teamMembers == null ? 0 : Math.max(0, teamMembers.size());
+  }
+
+  private String writeJson(Object value) {
+    try {
+      return objectMapper.writeValueAsString(value == null ? Collections.emptyList() : value);
+    } catch (JsonProcessingException exception) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unable to store team data.", exception);
+    }
+  }
+
+  private List<String> readTeamMembers(String payload) {
+    if (payload == null || payload.isBlank()) {
+      return List.of();
+    }
+    try {
+      return objectMapper.readValue(payload, new TypeReference<List<String>>() { });
+    } catch (JsonProcessingException exception) {
+      throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Unable to read team members.", exception);
+    }
+  }
+
+  private List<ProjectDtos.TeamMemberPayload> readTeam(String payload) {
+    if (payload == null || payload.isBlank()) {
+      return List.of();
+    }
+    try {
+      return objectMapper.readValue(payload, new TypeReference<List<ProjectDtos.TeamMemberPayload>>() { });
+    } catch (JsonProcessingException exception) {
+      throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Unable to read team details.", exception);
+    }
+  }
+
+  private JsonNode readJsonNode(String payload) {
+    if (payload == null || payload.isBlank()) {
+      return null;
+    }
+    try {
+      return objectMapper.readTree(payload);
+    } catch (JsonProcessingException exception) {
+      throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Unable to read project details.", exception);
+    }
   }
 }

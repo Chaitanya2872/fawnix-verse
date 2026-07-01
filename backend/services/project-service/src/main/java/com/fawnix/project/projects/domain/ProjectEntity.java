@@ -39,6 +39,9 @@ public class ProjectEntity {
   @Column(name = "manager_name", length = 160)
   private String managerName;
 
+  @Column(name = "team_lead_name", length = 160)
+  private String teamLeadName;
+
   @Column(name = "priority_level", length = 40)
   private String priorityLevel;
 
@@ -47,6 +50,15 @@ public class ProjectEntity {
 
   @Column(name = "team_size")
   private Integer teamSize;
+
+  @Column(name = "team_members_payload", columnDefinition = "text")
+  private String teamMembersPayload;
+
+  @Column(name = "team_payload", columnDefinition = "text")
+  private String teamPayload;
+
+  @Column(name = "details_payload", columnDefinition = "text")
+  private String detailsPayload;
 
   @Column(name = "start_date")
   private LocalDate startDate;
@@ -137,6 +149,14 @@ public class ProjectEntity {
     this.managerName = managerName;
   }
 
+  public String getTeamLeadName() {
+    return teamLeadName;
+  }
+
+  public void setTeamLeadName(String teamLeadName) {
+    this.teamLeadName = teamLeadName;
+  }
+
   public String getPriorityLevel() {
     return priorityLevel;
   }
@@ -159,6 +179,30 @@ public class ProjectEntity {
 
   public void setTeamSize(Integer teamSize) {
     this.teamSize = teamSize;
+  }
+
+  public String getTeamMembersPayload() {
+    return teamMembersPayload;
+  }
+
+  public void setTeamMembersPayload(String teamMembersPayload) {
+    this.teamMembersPayload = teamMembersPayload;
+  }
+
+  public String getTeamPayload() {
+    return teamPayload;
+  }
+
+  public void setTeamPayload(String teamPayload) {
+    this.teamPayload = teamPayload;
+  }
+
+  public String getDetailsPayload() {
+    return detailsPayload;
+  }
+
+  public void setDetailsPayload(String detailsPayload) {
+    this.detailsPayload = detailsPayload;
   }
 
   public LocalDate getStartDate() {

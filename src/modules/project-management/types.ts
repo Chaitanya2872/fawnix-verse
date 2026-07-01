@@ -210,6 +210,7 @@ export type Project = {
   // Team
   owner: string
   manager: string
+  teamLead?: string
   teamMembers: string[]
   team: TeamMember[]
   // Tech

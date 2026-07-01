@@ -10,6 +10,7 @@ import {
   branchStrategies,
   deadlineTypes,
   defaultPermissionsForRole,
+  departments,
   memberRoles,
   owners,
   projectCategories,
@@ -34,6 +35,7 @@ import type {
 import { useUsers } from '@/modules/users/hooks'
 import { newId } from '../utils'
 import { ComboSelect } from './ComboSelect'
+import { DatePicker } from '@/components/ui/DatePicker'
 
 /* ── Color maps ──────────────────────────────────────────────────────────── */
 const TYPE_COLORS: Record<string, string> = {
@@ -86,7 +88,7 @@ const STEPS = [
 const labelCls  = 'mb-1 block text-[12px] font-medium text-slate-500'
 // Inline "property" style: no visible border until hover/focus, like a Notion text block
 const inputCls  = '-mx-2 w-[calc(100%+16px)] rounded-md border border-transparent bg-transparent px-2 py-1.5 text-[14px] text-slate-800 placeholder:text-slate-350 outline-none transition-colors hover:bg-slate-100/70 focus:border-slate-300 focus:bg-white focus:ring-2 focus:ring-slate-900/5'
-const selectCls = '-mx-2 w-[calc(100%+16px)] cursor-pointer rounded-md border border-transparent bg-transparent px-2 py-1.5 text-[14px] text-slate-700 outline-none transition-colors hover:bg-slate-100/70 focus:border-slate-300 focus:bg-white'
+
 
 /* ── Field wrapper ─────────────────────────────────────────────────────── */
 function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
@@ -349,17 +351,23 @@ export function ProjectForm({
           </Field>
 
           <Field label="Group / Department">
-            <select className={selectCls} value={formState.department} onChange={(e) => onChange('department', e.target.value)}>
-              {['Sales', 'Operations', 'Finance', 'HR', 'IT', 'Support'].map((d) => (
-                <option key={d} value={d}>{d}</option>
-              ))}
-            </select>
+            <ComboSelect
+              value={formState.department ? [formState.department] : []}
+              options={departments}
+              onChange={(v) => onChange('department', v[0] ?? 'Sales')}
+              multi={false}
+              placeholder="Select department…"
+            />
           </Field>
 
           <Field label="Template">
-            <select className={selectCls} value={formState.projectTemplate} onChange={(e) => onChange('projectTemplate', e.target.value)}>
-              {projectTemplates.map((t) => <option key={t} value={t}>{t}</option>)}
-            </select>
+            <ComboSelect
+              value={formState.projectTemplate ? [formState.projectTemplate] : []}
+              options={projectTemplates}
+              onChange={(v) => onChange('projectTemplate', v[0] ?? 'Blank Project')}
+              multi={false}
+              placeholder="Select template…"
+            />
           </Field>
         </div>
       </Section>
@@ -425,21 +433,21 @@ export function ProjectForm({
           <Field label="Project owner">
             <ComboSelect
               value={formState.projectOwner ? [formState.projectOwner] : []}
-              options={allOwners}
+              options={(internalUserOptions.length ? internalUserOptions : allOwners)}
               onChange={(v) => onChange('projectOwner', v[0] ?? '')}
               onCreateOption={(v) => setExtraOwners((prev) => prev.includes(v) ? prev : [...prev, v])}
               multi={false}
-              placeholder="Select project owner…"
+              placeholder={usersQuery.isLoading ? 'Loading users...' : 'Select project owner…'}
             />
           </Field>
           <Field label="Stakeholders">
             <ComboSelect
               value={formState.stakeholders}
-              options={allOwners}
+              options={(internalUserOptions.length ? internalUserOptions : allOwners)}
               onChange={(v) => onChange('stakeholders', v)}
               onCreateOption={(v) => setExtraOwners((prev) => prev.includes(v) ? prev : [...prev, v])}
               multi
-              placeholder="Add stakeholders…"
+              placeholder={usersQuery.isLoading ? 'Loading users...' : 'Add stakeholders…'}
             />
           </Field>
         </div>
@@ -457,16 +465,16 @@ export function ProjectForm({
         <Section icon={Calendar} title="Schedule" desc="Start, target and actual completion">
           <div className="grid gap-x-6 gap-y-4 md:grid-cols-2">
             <Field label="Start date" required>
-              <input type="date" className={inputCls} value={formState.startDate} onChange={(e) => onChange('startDate', e.target.value)} />
+              <DatePicker value={formState.startDate} onChange={(v) => onChange('startDate', v)} className={inputCls} placeholder="Pick start date" />
             </Field>
             <Field label="Expected end date" required>
               <div>
-                <input type="date" className={inputCls} value={formState.endDate} onChange={(e) => onChange('endDate', e.target.value)} />
+                <DatePicker value={formState.endDate} onChange={(v) => onChange('endDate', v)} className={inputCls} placeholder="Pick end date" />
                 {hasDateError && <p className="mt-1.5 text-[11.5px] text-rose-500">End date must be after start date.</p>}
               </div>
             </Field>
             <Field label="Actual end date">
-              <input type="date" className={inputCls} value={formState.actualEndDate} onChange={(e) => onChange('actualEndDate', e.target.value)} />
+              <DatePicker value={formState.actualEndDate} onChange={(v) => onChange('actualEndDate', v)} className={inputCls} placeholder="Pick actual end date" />
             </Field>
             <Field label="Deadline type">
               <ComboSelect
@@ -498,8 +506,9 @@ export function ProjectForm({
           <Field label="Project manager">
             <ComboSelect
               value={formState.manager ? [formState.manager] : []}
-              options={internalUserOptions}
+              options={(internalUserOptions.length ? internalUserOptions : allOwners)}
               onChange={(v) => onChange('manager', v[0] ?? '')}
+              onCreateOption={(v) => setExtraOwners((prev) => prev.includes(v) ? prev : [...prev, v])}
               multi={false}
               placeholder={usersQuery.isLoading ? 'Loading users...' : 'Select manager...'}
             />
@@ -507,8 +516,9 @@ export function ProjectForm({
           <Field label="Team lead">
             <ComboSelect
               value={formState.teamLead ? [formState.teamLead] : []}
-              options={internalUserOptions}
+              options={(internalUserOptions.length ? internalUserOptions : allOwners)}
               onChange={(v) => onChange('teamLead', v[0] ?? '')}
+              onCreateOption={(v) => setExtraOwners((prev) => prev.includes(v) ? prev : [...prev, v])}
               multi={false}
               placeholder={usersQuery.isLoading ? 'Loading users...' : 'Select team lead...'}
             />
@@ -557,7 +567,7 @@ export function ProjectForm({
             />
           </Field>
           <Field label="Project joined date">
-            <input type="date" className={inputCls} value={pendingJoinedDate} onChange={(e) => setPendingJoinedDate(e.target.value)} />
+            <DatePicker value={pendingJoinedDate} onChange={setPendingJoinedDate} className={inputCls} placeholder="Pick joined date" />
           </Field>
           <div className="md:col-span-2 2xl:col-span-1">
             <Field label="Responsibilities">
@@ -604,11 +614,11 @@ export function ProjectForm({
                     />
                   </Field>
                   <Field label="Joined date">
-                    <input
-                      type="date"
-                      className={inputCls}
+                    <DatePicker
                       value={member.joinedDate || formState.startDate}
-                      onChange={(e) => updateTeamMember(member.name, 'joinedDate', e.target.value)}
+                      onChange={(v) => updateTeamMember(member.name, 'joinedDate', v)}
+                      className={inputCls}
+                      placeholder="Pick joined date"
                     />
                   </Field>
                   <Field label="Responsibilities">
@@ -669,10 +679,13 @@ export function ProjectForm({
           </Field>
           <div className="grid gap-x-6 gap-y-4 md:grid-cols-2">
             <Field label="Branch strategy">
-              <select className={selectCls} value={formState.repository.branchStrategy} onChange={(e) => onChange('repository', { ...formState.repository, branchStrategy: e.target.value })}>
-                <option value="">— Select —</option>
-                {branchStrategies.map((b) => <option key={b} value={b}>{b}</option>)}
-              </select>
+              <ComboSelect
+                value={formState.repository.branchStrategy ? [formState.repository.branchStrategy] : []}
+                options={branchStrategies}
+                onChange={(v) => onChange('repository', { ...formState.repository, branchStrategy: v[0] ?? '' })}
+                multi={false}
+                placeholder="Select strategy…"
+              />
             </Field>
             <Field label="Dev URL">
               <input className={inputCls} value={formState.repository.devUrl} onChange={(e) => onChange('repository', { ...formState.repository, devUrl: e.target.value })} placeholder="https://dev.example.com" />
@@ -715,19 +728,20 @@ export function ProjectForm({
                     <label className={labelCls}>Owner</label>
                     <ComboSelect
                       value={mod.owner ? [mod.owner] : []}
-                      options={internalUserOptions}
+                      options={(internalUserOptions.length ? internalUserOptions : allOwners)}
                       onChange={(v) => updateModule(mod.id, 'owner', v[0] ?? '')}
+                      onCreateOption={(v) => setExtraOwners((prev) => prev.includes(v) ? prev : [...prev, v])}
                       multi={false}
                       placeholder={usersQuery.isLoading ? 'Loading users...' : 'Select owner...'}
                     />
                   </div>
                   <div>
                     <label className={labelCls}>Timeline start date</label>
-                    <input type="date" className={inputCls} value={mod.startDate} onChange={(e) => updateModule(mod.id, 'startDate', e.target.value)} />
+                    <DatePicker value={mod.startDate} onChange={(v) => updateModule(mod.id, 'startDate', v)} className={inputCls} placeholder="Start date" />
                   </div>
                   <div>
                     <label className={labelCls}>Timeline end date</label>
-                    <input type="date" className={inputCls} value={mod.endDate} onChange={(e) => updateModule(mod.id, 'endDate', e.target.value)} />
+                    <DatePicker value={mod.endDate} onChange={(v) => updateModule(mod.id, 'endDate', v)} className={inputCls} placeholder="End date" />
                   </div>
                 </div>
                 <button type="button" onClick={() => removeModule(mod.id)} className="mt-3 flex items-center gap-1 text-[11.5px] text-rose-400 transition-colors hover:text-rose-600">
@@ -762,9 +776,13 @@ export function ProjectForm({
                 <div className="grid gap-3 md:grid-cols-2">
                   <div>
                     <label className={labelCls}>Duration</label>
-                    <select className={selectCls} value={spr.duration} onChange={(e) => updateSprint(spr.id, 'duration', e.target.value)}>
-                      {sprintDurations.map((d) => <option key={d} value={d}>{d}</option>)}
-                    </select>
+                    <ComboSelect
+                      value={spr.duration ? [spr.duration] : []}
+                      options={[...sprintDurations]}
+                      onChange={(v) => updateSprint(spr.id, 'duration', v[0] ?? '2 Weeks')}
+                      multi={false}
+                      placeholder="Select duration…"
+                    />
                   </div>
                   <div>
                     <label className={labelCls}>Sprint goal</label>
@@ -772,11 +790,11 @@ export function ProjectForm({
                   </div>
                   <div>
                     <label className={labelCls}>Start</label>
-                    <input type="date" className={inputCls} value={spr.startDate} onChange={(e) => updateSprint(spr.id, 'startDate', e.target.value)} />
+                    <DatePicker value={spr.startDate} onChange={(v) => updateSprint(spr.id, 'startDate', v)} className={inputCls} placeholder="Start date" />
                   </div>
                   <div>
                     <label className={labelCls}>End</label>
-                    <input type="date" className={inputCls} value={spr.endDate} onChange={(e) => updateSprint(spr.id, 'endDate', e.target.value)} />
+                    <DatePicker value={spr.endDate} onChange={(v) => updateSprint(spr.id, 'endDate', v)} className={inputCls} placeholder="End date" />
                   </div>
                 </div>
               </div>
@@ -860,9 +878,13 @@ export function ProjectForm({
             <input className={inputCls} value={formState.communication.meetingLink} onChange={(e) => onChange('communication', { ...formState.communication, meetingLink: e.target.value })} placeholder="https://meet.google.com/…" />
           </Field>
           <Field label="Reporting frequency">
-            <select className={selectCls} value={formState.communication.reportingFrequency} onChange={(e) => onChange('communication', { ...formState.communication, reportingFrequency: e.target.value as 'Daily' | 'Weekly' | 'Monthly' })}>
-              {['Daily', 'Weekly', 'Monthly'].map((f) => <option key={f} value={f}>{f}</option>)}
-            </select>
+            <ComboSelect
+              value={formState.communication.reportingFrequency ? [formState.communication.reportingFrequency] : []}
+              options={['Daily', 'Weekly', 'Monthly']}
+              onChange={(v) => onChange('communication', { ...formState.communication, reportingFrequency: (v[0] ?? 'Weekly') as 'Daily' | 'Weekly' | 'Monthly' })}
+              multi={false}
+              placeholder="Select frequency…"
+            />
           </Field>
         </div>
       </Section>
@@ -902,9 +924,14 @@ export function ProjectForm({
                   </div>
                   <div>
                     <label className={labelCls}>Level</label>
-                    <select className={selectCls} value={risk.level} onChange={(e) => updateRisk(risk.id, 'level', e.target.value)}>
-                      {['Low', 'Medium', 'High', 'Critical'].map((l) => <option key={l} value={l}>{l}</option>)}
-                    </select>
+                    <ComboSelect
+                      value={risk.level ? [risk.level] : []}
+                      options={['Low', 'Medium', 'High', 'Critical']}
+                      onChange={(v) => updateRisk(risk.id, 'level', v[0] ?? 'Medium')}
+                      colorMap={{ Low: 'emerald', Medium: 'amber', High: 'orange', Critical: 'rose' }}
+                      multi={false}
+                      placeholder="Select level…"
+                    />
                   </div>
                   <div>
                     <label className={labelCls}>Impact</label>
@@ -984,21 +1011,20 @@ export function ProjectForm({
             const Icon   = s.icon
             const done   = s.id < step
             const active = s.id === step
-            const clickable = done || active
             return (
               <button
                 key={s.id}
                 type="button"
-                onClick={() => clickable && setStep(s.id)}
+                onClick={() => setStep(s.id)}
                 className={[
                   'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors',
-                  active ? 'bg-slate-200/70 text-slate-900' : done ? 'text-slate-500 hover:bg-slate-100' : 'cursor-default text-slate-300',
+                  active ? 'bg-slate-200/70 text-slate-900' : 'text-slate-500 hover:bg-slate-100',
                 ].join(' ')}
               >
                 {done ? (
                   <Check className="h-3.5 w-3.5 flex-shrink-0 text-emerald-500" />
                 ) : (
-                  <Icon className={`h-3.5 w-3.5 flex-shrink-0 ${active ? 'text-slate-700' : 'text-slate-300'}`} />
+                  <Icon className={`h-3.5 w-3.5 flex-shrink-0 ${active ? 'text-slate-700' : 'text-slate-400'}`} />
                 )}
                 <span className={`truncate text-[13px] ${active ? 'font-semibold' : 'font-medium'}`}>{s.label}</span>
               </button>

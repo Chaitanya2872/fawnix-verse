@@ -6,6 +6,7 @@ import {
   createProject as createBackendProject,
   fetchProjectSummary,
   fetchProjects as fetchBackendProjects,
+  syncProject as syncBackendProject,
   updateProject as updateBackendProject,
   type ProjectSummary,
 } from './api'
@@ -14,7 +15,7 @@ import { ProjectsContext } from './context'
 import { today } from './data'
 import { calcProgress } from './shared'
 import type { MilestoneStatus, Project, ProjectFormState, ProjectStatus, Task, TaskStatus } from './types'
-import { createBlankForm, newId, toFormState } from './utils'
+import { createBlankForm, newId, saveProjectCache, toFormState } from './utils'
 
 export default function ProjectsLayout() {
   const [projects, setProjects] = useState<Project[]>([])
@@ -41,6 +42,10 @@ export default function ProjectsLayout() {
       .catch(() => { if (!cancelled) setBackendStatus('offline') })
     return () => { cancelled = true }
   }, [])
+
+  useEffect(() => {
+    saveProjectCache(projects)
+  }, [projects])
 
   const currentProject = useMemo(() => projects.find((p) => p.id === currentId) ?? null, [currentId, projects])
 
@@ -131,7 +136,19 @@ export default function ProjectsLayout() {
 
   const updateProjectFn = (updater: (p: Project) => Project) => {
     if (!currentProject) return
-    setProjects((cur) => cur.map((p) => (p.id === currentProject.id ? updater(p) : p)))
+    let updatedProject: Project | null = null
+    setProjects((cur) => cur.map((p) => {
+      if (p.id !== currentProject.id) return p
+      updatedProject = updater(p)
+      return updatedProject
+    }))
+    if (!updatedProject) return
+    void syncBackendProject(updatedProject.id, updatedProject)
+      .then((saved) => {
+        setProjects((cur) => cur.map((p) => (p.id === saved.id ? saved : p)))
+        setBackendStatus('connected')
+      })
+      .catch(() => setBackendStatus('offline'))
   }
 
   const withActivity = (p: Project, msg: string): Project => ({

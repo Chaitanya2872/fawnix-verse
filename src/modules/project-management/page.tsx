@@ -12,6 +12,8 @@ import {
 } from './shared'
 import type { MilestoneStatus, Project, ProjectStatus, TaskStatus } from './types'
 import { formatDate } from './utils'
+import { DatePicker } from '@/components/ui/DatePicker'
+import { AvatarGroup } from './components/common'
 
 function DetailField({ label, value }: { label: string; value?: ReactNode }) {
   return (
@@ -90,7 +92,15 @@ export default function ProjectsListPage() {
   function renderActionPanel(project: Project) {
     const done = project.milestones.filter((m) => m.status === 'Done').length
     const allDone = project.milestones.length > 0 && done === project.milestones.length
-    const canStart = project.milestones.length > 0 && Boolean(project.manager)
+    const hasManager = Boolean(project.manager)
+    const hasTeam = (project.team?.length ?? 0) > 0 || (project.teamMembers?.length ?? 0) > 0
+    const hasMilestones = project.milestones.length > 0
+    const missingRequirements = [
+      !hasManager ? 'manager' : null,
+      !hasTeam ? 'team' : null,
+      !hasMilestones ? 'milestone' : null,
+    ].filter(Boolean) as string[]
+    const canStart = hasManager && hasTeam && hasMilestones
 
     const Panel = ({ icon, iconCls, title, desc, children }: { icon: ReactNode; iconCls: string; title: string; desc: string; children: ReactNode }) => (
       <div className="mb-5 flex flex-wrap items-center gap-4 rounded-xl border border-slate-200 bg-white px-5 py-4">
@@ -130,7 +140,7 @@ export default function ProjectsListPage() {
     )
     if (project.status === 'Planned' || project.status === 'Planning') return (
       <Panel icon={<Check className="h-5 w-5" />} iconCls="bg-blue-50 text-blue-600" title="Ready to plan"
-        desc={canStart ? 'Manager, team, and milestones are set. Ready to start.' : 'Assign a manager and add at least one milestone before starting.'}>
+        desc={canStart ? 'Manager, team, and milestones are set. Ready to start.' : `Add the missing ${missingRequirements.join(', ')} before starting.`}>
         <BtnGhost   label="Assign manager & team" onClick={() => openEdit(project)} />
         <BtnPrimary label="Start project"         onClick={() => setProjectStatus('In Progress', 'Project started')} disabled={!canStart} />
       </Panel>
@@ -430,8 +440,7 @@ export default function ProjectsListPage() {
                   </div>
                   <div>
                     <p className="mb-1 text-[10px] font-medium text-slate-500">Due date</p>
-                    <input type="date" className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20"
-                      value={milestoneDue} onChange={(e) => setMilestoneDue(e.target.value)} />
+                    <DatePicker value={milestoneDue} onChange={setMilestoneDue} className="inline-flex w-full items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20" placeholder="Pick due date" />
                   </div>
                   <label className="flex cursor-pointer items-center gap-1.5 text-xs font-medium text-slate-500">
                     <input type="checkbox" className="h-3.5 w-3.5 rounded accent-sky-600" checked={milestoneApproval} onChange={(e) => setMilestoneApproval(e.target.checked)} />
@@ -622,8 +631,8 @@ export default function ProjectsListPage() {
 
         {/* Full-width project table */}
         <div className="overflow-hidden rounded-2xl bg-white/90 ring-1 ring-slate-100 backdrop-blur">
-          <div className="hidden border-b border-slate-100 px-5 py-3 lg:grid lg:grid-cols-[minmax(160px,2fr)_130px_130px_150px_90px_32px] lg:gap-4">
-            {['Project', 'Status', 'Manager', 'Milestones', 'Due Date', ''].map((h) => (
+          <div className="hidden border-b border-slate-100 px-5 py-3 lg:grid lg:grid-cols-[minmax(160px,2fr)_120px_120px_150px_90px_32px] lg:gap-4">
+            {['Project', 'Status', 'Team', 'Milestones', 'Due Date', ''].map((h) => (
               <span key={h} className="text-[10.5px] font-medium uppercase tracking-[0.14em] text-slate-400">{h}</span>
             ))}
           </div>
@@ -643,7 +652,7 @@ export default function ProjectsListPage() {
                 const progress = calcProgress(project)
                 return (
                   <div key={project.id}
-                    className="flex cursor-pointer flex-col gap-3 px-5 py-4 transition-colors hover:bg-slate-50/80 lg:grid lg:grid-cols-[minmax(160px,2fr)_130px_130px_150px_90px_32px] lg:items-center lg:gap-4"
+                    className="flex cursor-pointer flex-col gap-3 px-5 py-4 transition-colors hover:bg-slate-50/80 lg:grid lg:grid-cols-[minmax(160px,2fr)_120px_120px_150px_90px_32px] lg:items-center lg:gap-4"
                     onClick={() => selectProject(project.id)}>
                     <div className="flex items-center gap-3">
                       <div className={`h-2.5 w-2.5 flex-shrink-0 rounded-sm ${dotCls}`} />
@@ -653,7 +662,11 @@ export default function ProjectsListPage() {
                       </div>
                     </div>
                     <div><StatusBadge status={project.status} /></div>
-                    <p className="text-sm text-slate-700">{project.manager || <span className="text-slate-400">Not assigned</span>}</p>
+                    <AvatarGroup
+                      names={(project.team ?? []).map((m) => m.name)}
+                      max={5}
+                      size="sm"
+                    />
                     <div className="w-full lg:w-36">
                       <div className="mb-1.5 flex items-center justify-between text-[11px]">
                         <span className="text-slate-400">{done}/{total}</span>
