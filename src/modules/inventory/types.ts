@@ -160,3 +160,43 @@ export interface StockAdjustmentPayload {
   issuedBy?: string;
   vendorName?: string;
 }
+
+export type WarehouseStatusFilter = "ALL" | "ACTIVE" | "INACTIVE";
+
+export interface Warehouse {
+  id: string;
+  code: string;
+  name: string;
+  type?: string | null;
+  addressLine1?: string | null;
+  addressLine2?: string | null;
+  city: string;
+  state?: string | null;
+  postalCode?: string | null;
+  country: string;
+  managerName?: string | null;
+  contactPhone?: string | null;
+  contactEmail?: string | null;
+  capacity: number;
+  active: boolean;
+  notes?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type WarehouseFormData = Omit<Warehouse, "id" | "createdAt" | "updatedAt">;
+
+export interface WarehouseFilter {
+  search: string;
+  status: WarehouseStatusFilter;
+  page: number;
+  pageSize: number;
+}
+
+export interface PaginatedWarehouses {
+  data: Warehouse[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}

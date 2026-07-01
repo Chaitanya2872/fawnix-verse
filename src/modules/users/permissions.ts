@@ -1,5 +1,5 @@
-import { PERMISSIONS, type Permission } from "@/modules/auth/permissions";
-import type { AccessControlCatalog, PermissionDefinition, PermissionModule, UserRole } from "./types";
+import { PERMISSIONS } from "@/modules/auth/permissions";
+import type { AccessControlCatalog, PermissionDefinition, UserRole } from "./types";
 
 export type PermissionOption = {
   value: string;
@@ -22,6 +22,7 @@ const FALLBACK_PERMISSION_MODULE_GROUPS: PermissionModuleGroup[] = [
     module: { value: PERMISSIONS.MODULE_INVENTORY, label: "Inventory Module" },
     pages: [
       { value: PERMISSIONS.PAGE_INVENTORY_MANAGE, label: "Manage Inventory" },
+      { value: PERMISSIONS.PAGE_INVENTORY_WAREHOUSES, label: "Warehouses" },
       { value: PERMISSIONS.PAGE_INVENTORY_TRANSACTIONS, label: "Transactions" },
       { value: PERMISSIONS.PAGE_INVENTORY_INVOICES, label: "Bills & Invoices" },
       { value: PERMISSIONS.PAGE_SALES_ORDERS, label: "Orders" },

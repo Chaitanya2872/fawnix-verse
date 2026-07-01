@@ -13,6 +13,7 @@ import UnauthorizedPage from "@/modules/auth/unauthorized";
 import InventoryPage from "@/modules/inventory/page";
 import InventoryTransactionsPage from "@/modules/inventory/transactions-page";
 import InventoryInvoicesPage from "@/modules/inventory/invoices-page";
+import InventoryWarehousesPage from "@/modules/inventory/warehouses-page";
 import LeadsPage from "@/modules/crm/leads/page";
 import PreSalesOverviewPage from "@/modules/crm/presales/page";
 import AccountsPage from "@/modules/crm/accounts/page";
@@ -149,6 +150,14 @@ export const router = createBrowserRouter([
             element: (
               <RequirePermission permission={PERMISSIONS.PAGE_INVENTORY_TRANSACTIONS}>
                 <InventoryTransactionsPage />
+              </RequirePermission>
+            ),
+          },
+          {
+            path: "inventory/warehouses",
+            element: (
+              <RequirePermission permission={PERMISSIONS.PAGE_INVENTORY_WAREHOUSES}>
+                <InventoryWarehousesPage />
               </RequirePermission>
             ),
           },

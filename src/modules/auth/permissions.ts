@@ -25,6 +25,7 @@ export const PERMISSIONS = {
   PAGE_CRM_OPPORTUNITIES: "page.crm.opportunities",
   PAGE_INVENTORY: "page.inventory",
   PAGE_INVENTORY_MANAGE: "page.inventory.manage",
+  PAGE_INVENTORY_WAREHOUSES: "page.inventory.warehouses",
   PAGE_INVENTORY_TRANSACTIONS: "page.inventory.transactions",
   PAGE_INVENTORY_BILLS: "page.inventory.bills",
   PAGE_INVENTORY_INVOICES: "page.inventory.invoices",
@@ -100,6 +101,7 @@ export function getDefaultAuthorizedPath(
 
   const candidates: Array<{ path: string; permission: Permission }> = [
     { path: "/inventory", permission: PERMISSIONS.PAGE_INVENTORY_MANAGE },
+    { path: "/inventory/warehouses", permission: PERMISSIONS.PAGE_INVENTORY_WAREHOUSES },
     { path: "/inventory/transactions", permission: PERMISSIONS.PAGE_INVENTORY_TRANSACTIONS },
     { path: "/inventory/invoices", permission: PERMISSIONS.PAGE_INVENTORY_INVOICES },
     { path: "/sales", permission: PERMISSIONS.PAGE_SALES },

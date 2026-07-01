@@ -32,6 +32,7 @@ import {
   Users,
   CreditCard,
   ChevronDown,
+  Warehouse,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -63,6 +64,7 @@ const ERP_NAV_SECTIONS: readonly SidebarNavSection[] = [
     heading: "Inventory",
     items: [
       { label: "Manage Inventory", to: "/inventory", icon: Boxes, end: true, permission: PERMISSIONS.PAGE_INVENTORY_MANAGE },
+      { label: "Warehouses", to: "/inventory/warehouses", icon: Warehouse, permission: PERMISSIONS.PAGE_INVENTORY_WAREHOUSES },
       { label: "Transactions", to: "/inventory/transactions", icon: ArrowLeftRight, permission: PERMISSIONS.PAGE_INVENTORY_TRANSACTIONS },
       { label: "Bills & Invoices", to: "/inventory/invoices", icon: ReceiptText, permission: PERMISSIONS.PAGE_INVENTORY_INVOICES },
     ],
@@ -216,6 +218,8 @@ export function Sidebar() {
       return;
     }
 
+    // Keep the active section open when route changes.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setExpandedSections((previous) => ({
       ...previous,
       [activeSection.heading]: true,
