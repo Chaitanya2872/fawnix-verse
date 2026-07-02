@@ -1,6 +1,8 @@
 import { addDays, differenceInCalendarDays, format, isBefore, parseISO } from 'date-fns'
-import { owners, today } from './data'
+import { today } from './data'
 import type { Priority, Project, ProjectFormState } from './types'
+
+const PROJECT_CACHE_KEY = 'fawnix.project-management.projects-cache'
 
 export const priorityRank: Record<Priority, number> = {
   Critical: 4,
@@ -51,7 +53,7 @@ export const createBlankForm = (): ProjectFormState => ({
   clientEmail: '',
   clientPhone: '',
   clientLocation: '',
-  projectOwner: owners[0],
+  projectOwner: '',
   stakeholders: [],
   // Step 3
   startDate: format(today, 'yyyy-MM-dd'),
@@ -59,8 +61,8 @@ export const createBlankForm = (): ProjectFormState => ({
   actualEndDate: '',
   deadlineType: 'Flexible',
   // Step 4
-  owner: owners[0],
-  manager: owners[1],
+  owner: '',
+  manager: '',
   teamLead: '',
   developers: [],
   qaEngineers: [],
@@ -118,12 +120,12 @@ export const toFormState = (project: Project): ProjectFormState => ({
   deadlineType: project.deadlineType ?? 'Flexible',
   owner: project.owner,
   manager: project.manager,
-  teamLead: project.team?.find(m => m.role === 'Team Lead')?.name ?? '',
+  teamLead: project.teamLead ?? project.team?.find(m => m.role === 'Team Lead')?.name ?? '',
   developers: project.team?.filter(m => m.role === 'Developer').map(m => m.name) ?? [],
   qaEngineers: project.team?.filter(m => m.role === 'QA Engineer').map(m => m.name) ?? [],
   designers: project.team?.filter(m => m.role === 'UI/UX Designer').map(m => m.name) ?? [],
   devopsEngineers: project.team?.filter(m => m.role === 'DevOps Engineer').map(m => m.name) ?? [],
-  teamMembers: project.teamMembers ?? [],
+  teamMembers: project.teamMembers?.length ? project.teamMembers : (project.team ?? []).map((member) => member.name),
   team: project.team ?? [],
   techStack: project.techStack ?? { ...emptyTechStack },
   repository: project.repository ?? { ...emptyRepo },
@@ -158,4 +160,33 @@ export function deadlineLabel(project: Project) {
   if (days < 0) return `${Math.abs(days)} days overdue`
   if (days === 0) return 'Due today'
   return `${days} days left`
+}
+
+function hasWindowStorage() {
+  return typeof window !== 'undefined' && typeof window.localStorage !== 'undefined'
+}
+
+export function loadProjectCache(): Record<string, Project> {
+  if (!hasWindowStorage()) return {}
+  try {
+    const raw = window.localStorage.getItem(PROJECT_CACHE_KEY)
+    if (!raw) return {}
+    const parsed = JSON.parse(raw)
+    return parsed && typeof parsed === 'object' ? parsed as Record<string, Project> : {}
+  } catch {
+    return {}
+  }
+}
+
+export function saveProjectCache(projects: Project[]) {
+  if (!hasWindowStorage()) return
+  try {
+    const next = projects.reduce<Record<string, Project>>((acc, project) => {
+      acc[project.id] = project
+      return acc
+    }, {})
+    window.localStorage.setItem(PROJECT_CACHE_KEY, JSON.stringify(next))
+  } catch {
+    // Ignore cache write failures and continue with backend-backed state.
+  }
 }

@@ -50,7 +50,7 @@ export function AvatarGroup({
       {visible.map((name, i) => (
         <span
           key={name + i}
-          className={`inline-flex items-center justify-center rounded-full font-bold text-white ring-2 ring-background ${i > 0 ? '-ml-1.5' : ''} ${SIZE_CLS[size]} ${avatarBg(name)}`}
+          className={`inline-flex items-center justify-center rounded-full font-bold text-white ring-2 ring-white ${i > 0 ? '-ml-1.5' : ''} ${SIZE_CLS[size]} ${avatarBg(name)}`}
           title={name}
         >
           {initials(name)}
@@ -58,7 +58,7 @@ export function AvatarGroup({
       ))}
       {overflow > 0 && (
         <span
-          className={`inline-flex items-center justify-center rounded-full bg-slate-400 font-bold text-white ring-2 ring-background -ml-1.5 ${SIZE_CLS[size]}`}
+          className={`inline-flex items-center justify-center rounded-full bg-slate-400 font-bold text-white ring-2 ring-white -ml-1.5 ${SIZE_CLS[size]}`}
           title={names.slice(max).join(', ')}
         >
           +{overflow}

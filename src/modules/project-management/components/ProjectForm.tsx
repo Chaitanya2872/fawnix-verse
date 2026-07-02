@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { isAfter, parseISO } from 'date-fns'
 import {
-  Briefcase, Calendar, Check, CheckCircle, ChevronLeft, ChevronRight,
+  Briefcase, Calendar, Check, CheckCircle, ChevronRight,
   Code2, DollarSign, FileText, GitBranch, Globe, Layers, Loader2, Lock,
   MessageSquare, Plus, Save, Shield, Trash2, UploadCloud, Users, X, Zap,
 } from 'lucide-react'
@@ -10,8 +10,8 @@ import {
   branchStrategies,
   deadlineTypes,
   defaultPermissionsForRole,
+  departments,
   memberRoles,
-  owners,
   projectCategories,
   projectTemplates,
   projectTypes,
@@ -31,8 +31,10 @@ import type {
   Sprint,
   TeamMember,
 } from '../types'
+import { useUserDirectory } from '@/modules/users/hooks'
 import { newId } from '../utils'
 import { ComboSelect } from './ComboSelect'
+import { DatePicker } from '@/components/ui/DatePicker'
 
 /* ── Color maps ──────────────────────────────────────────────────────────── */
 const TYPE_COLORS: Record<string, string> = {
@@ -69,35 +71,58 @@ const DEADLINE_COLORS: Record<string, string> = {
   'Urgent Delivery': 'rose',
 }
 
-/* ── Steps ──────────────────────────────────────────────────────────────── */
+/* ── Steps — Notion-style outline, each with a one-line descriptor ───────── */
 const STEPS = [
-  { id: 1, label: 'Basics',   icon: Briefcase  },
-  { id: 2, label: 'Client',   icon: Globe      },
-  { id: 3, label: 'Timeline', icon: Zap        },
-  { id: 4, label: 'Team',     icon: Users      },
-  { id: 5, label: 'Tech',     icon: Code2      },
-  { id: 6, label: 'Sprints',  icon: Layers     },
-  { id: 7, label: 'Budget',   icon: DollarSign },
-  { id: 8, label: 'Review',   icon: Shield     },
+  { id: 1, label: 'Basics',    icon: Briefcase,  hint: 'Name, type & description' },
+  { id: 2, label: 'Client',    icon: Globe,      hint: 'Stakeholders & ownership' },
+  { id: 3, label: 'Timeline',  icon: Zap,        hint: 'Dates & deadline type' },
+  { id: 4, label: 'Team',      icon: Users,      hint: 'Manager & members' },
+  { id: 5, label: 'Tech',      icon: Code2,      hint: 'Stack & repository' },
+  { id: 6, label: 'Sprints',   icon: Layers,     hint: 'Phases & sprint plan' },
+  { id: 7, label: 'Budget',    icon: DollarSign, hint: 'Costs & documents' },
+  { id: 8, label: 'Review',    icon: Shield,     hint: 'Risks & approval' },
 ]
 
-/* ── Shared style tokens — identical to task-management ─────────────────── */
-const labelCls  = 'mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500'
-const inputCls  = 'w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-400/20'
-const selectCls = 'w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none cursor-pointer transition hover:border-slate-300'
+/* ── Shared style tokens — quiet, borderless-first, Notion-like ─────────── */
+const labelCls  = 'mb-1 block text-[12px] font-medium text-slate-500'
+// Inline "property" style: no visible border until hover/focus, like a Notion text block
+const inputCls  = '-mx-2 w-[calc(100%+16px)] rounded-md border border-transparent bg-transparent px-2 py-1.5 text-[14px] text-slate-800 placeholder:text-slate-350 outline-none transition-colors hover:bg-slate-100/70 focus:border-slate-300 focus:bg-white focus:ring-2 focus:ring-slate-900/5'
 
-/* ── Field wrapper — mirrors task-management Field component ─────────────── */
+
+/* ── Field wrapper ─────────────────────────────────────────────────────── */
 function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
   return (
     <div className="block">
       <span className={labelCls}>
         {label}
-        {required && <span className="ml-1 text-rose-500">*</span>}
+        {required && <span className="ml-1 text-rose-400">·</span>}
       </span>
       {children}
     </div>
   )
 }
+
+/* ── Section — a quiet block with a small caption icon, divided by hairlines ── */
+function Section({ icon: Icon, title, desc, action, children }: { icon: React.ElementType; title: string; desc?: string; action?: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <section className="border-t border-slate-100 py-5 first:border-t-0 first:pt-0">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex min-w-0 items-start gap-2">
+          <Icon className="mt-0.5 h-4 w-4 flex-shrink-0 text-slate-400" />
+          <div className="min-w-0">
+            <p className="text-[13.5px] font-semibold text-slate-800">{title}</p>
+            {desc && <p className="mt-0.5 text-[12px] text-slate-400">{desc}</p>}
+          </div>
+        </div>
+        {action ? <div className="flex flex-shrink-0 sm:pt-0.5">{action}</div> : null}
+      </div>
+      {children}
+    </section>
+  )
+}
+
+const ghostBtn = 'rounded-md px-2.5 py-1.5 text-[12px] font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800'
+const chipCard = 'rounded-lg border border-slate-150 bg-slate-50/60 p-3'
 
 /* ── Helpers ────────────────────────────────────────────────────────────── */
 function fmtSize(bytes: number) {
@@ -120,20 +145,68 @@ interface Props {
 export function ProjectForm({
   formState, onChange, onCancel, onSave, isSaving = false, isEdit = false,
 }: Props) {
+  const usersDirectoryQuery = useUserDirectory()
   const [step, setStep]     = useState(1)
   const hasDateError        = isAfter(parseISO(formState.startDate), parseISO(formState.endDate))
   const isInvalid           = !formState.name.trim() || hasDateError
+  const isInternalProject   = (formState.projectTypes ?? [formState.projectType]).includes('Internal Tool')
 
   /* Session-local option lists */
   const [extraTypes,      setExtraTypes]      = useState<string[]>([])
   const [extraCategories, setExtraCategories] = useState<string[]>([])
   const [extraTags,       setExtraTags]       = useState<string[]>([])
+  const [extraOwners,     setExtraOwners]     = useState<string[]>([])
+  const [extraAssignees,  setExtraAssignees]  = useState<string[]>([])
   const allTypes      = [...projectTypes, ...extraTypes]
   const allCategories = [...projectCategories, ...extraCategories]
+  const fetchedAssigneeOptions = Array.from(
+    new Set(
+      (usersDirectoryQuery.data ?? [])
+        .map((user) => user.name)
+        .filter(Boolean),
+    ),
+  )
+  const assignableUserOptions = Array.from(new Set([...fetchedAssigneeOptions, ...extraAssignees]))
+  const ownershipOptions = Array.from(new Set([...fetchedAssigneeOptions, ...extraOwners]))
 
   /* Step-4 add-member state — hoisted to avoid hooks-in-render */
   const [pendingMember, setPendingMember] = useState('')
   const [pendingRole,   setPendingRole]   = useState<MemberRole>('Developer')
+  const [pendingJoinedDate, setPendingJoinedDate] = useState(formState.startDate)
+  const [pendingResponsibilities, setPendingResponsibilities] = useState('')
+
+  const normalizeResponsibilities = (value: string) =>
+    value
+      .split(/\r?\n/)
+      .map((line) => line.replace(/^\s*(?:[-*•]|\d+\.)\s*/, '').trim())
+      .filter(Boolean)
+      .join('\n')
+
+  useEffect(() => {
+    if (!isInternalProject) return
+    if (
+      !formState.clientName &&
+      !formState.clientCompany &&
+      !formState.clientEmail &&
+      !formState.clientPhone &&
+      !formState.clientLocation
+    ) {
+      return
+    }
+    onChange('clientName', '')
+    onChange('clientCompany', '')
+    onChange('clientEmail', '')
+    onChange('clientPhone', '')
+    onChange('clientLocation', '')
+  }, [
+    formState.clientCompany,
+    formState.clientEmail,
+    formState.clientLocation,
+    formState.clientName,
+    formState.clientPhone,
+    isInternalProject,
+    onChange,
+  ])
 
   /* ── Field helpers ──────────────────────────────────────────────────── */
   const updateTitle = (val: string) => {
@@ -172,9 +245,15 @@ export function ProjectForm({
   }
 
   /* Team */
-  const addTeamMember = (name: string, role: MemberRole) => {
+  const addTeamMember = (name: string, role: MemberRole, joinedDate: string, responsibilities: string) => {
     if (!name || formState.team.some((m) => m.name === name)) return
-    const member: TeamMember = { name, role, permissions: [...defaultPermissionsForRole[role]] }
+    const member: TeamMember = {
+      name,
+      role,
+      joinedDate: joinedDate || formState.startDate,
+      responsibilities: normalizeResponsibilities(responsibilities),
+      permissions: [...defaultPermissionsForRole[role]],
+    }
     const next = [...formState.team, member]
     onChange('team', next)
     onChange('teamMembers', next.map((m) => m.name))
@@ -189,6 +268,23 @@ export function ProjectForm({
       if (m.name !== memberName) return m
       const has = m.permissions.includes(perm)
       return { ...m, permissions: has ? m.permissions.filter((p) => p !== perm) : [...m.permissions, perm] }
+    }))
+  }
+  const updateTeamMember = (
+    memberName: string,
+    field: 'role' | 'joinedDate' | 'responsibilities',
+    value: string,
+  ) => {
+    onChange('team', formState.team.map((m) => {
+      if (m.name !== memberName) return m
+      if (field === 'role') {
+        const role = value as MemberRole
+        return { ...m, role, permissions: [...defaultPermissionsForRole[role]] }
+      }
+      if (field === 'responsibilities') {
+        return { ...m, responsibilities: normalizeResponsibilities(value) }
+      }
+      return { ...m, [field]: value }
     }))
   }
 
@@ -210,82 +306,93 @@ export function ProjectForm({
   /* ── Step renderers ─────────────────────────────────────────────────── */
 
   const renderStep1 = () => (
-    <div className="space-y-4 p-4">
-      <Field label="Project Name" required>
+    <div className="space-y-5">
+      {/* Title — treated like a Notion page title, oversized and borderless */}
+      <div>
         <input
-          className={inputCls}
+          className="w-full border-none bg-transparent text-[26px] font-semibold text-slate-900 placeholder:text-slate-300 outline-none"
           value={formState.name}
           onChange={(e) => updateTitle(e.target.value)}
-          placeholder="e.g. ERP Implementation Rollout"
+          placeholder="Untitled project"
+          autoFocus
         />
-      </Field>
-
-      <div className="grid gap-3 md:grid-cols-2">
-        <Field label="Type">
-          <ComboSelect
-            value={formState.projectTypes ?? [formState.projectType]}
-            options={allTypes}
-            onChange={setTypes}
-            onCreateOption={(v) => setExtraTypes((p) => [...p, v])}
-            colorMap={TYPE_COLORS}
-            multi
-            placeholder="Add type…"
-          />
-        </Field>
-
-        <Field label="Category">
-          <ComboSelect
-            value={formState.projectCategory ? [formState.projectCategory] : []}
-            options={allCategories}
-            onChange={(v) => onChange('projectCategory', v[0] ?? '')}
-            onCreateOption={(v) => setExtraCategories((p) => [...p, v])}
-            colorMap={CATEGORY_COLORS}
-            multi={false}
-            placeholder="Select category…"
-          />
-        </Field>
-
-        <Field label="Priority">
-          <ComboSelect
-            value={[formState.priority]}
-            options={['Low', 'Medium', 'High', 'Critical']}
-            onChange={(v) => onChange('priority', (v[0] ?? 'Medium') as Priority)}
-            colorMap={PRIORITY_COLORS}
-            multi={false}
-            placeholder="Priority…"
-          />
-        </Field>
-
-        <Field label="Project Code">
-          <input className={inputCls} value={formState.projectCode} onChange={(e) => onChange('projectCode', e.target.value)} placeholder="e.g. WEB-2025" />
-        </Field>
-
-        <Field label="Group / Department">
-          <select className={selectCls} value={formState.department} onChange={(e) => onChange('department', e.target.value)}>
-            {['Sales', 'Operations', 'Finance', 'HR', 'IT', 'Support'].map((d) => (
-              <option key={d} value={d}>{d}</option>
-            ))}
-          </select>
-        </Field>
-
-        <Field label="Template">
-          <select className={selectCls} value={formState.projectTemplate} onChange={(e) => onChange('projectTemplate', e.target.value)}>
-            {projectTemplates.map((t) => <option key={t} value={t}>{t}</option>)}
-          </select>
-        </Field>
+        <p className="mt-1 text-[12.5px] text-slate-400">This becomes the project's display name across the workspace.</p>
       </div>
 
-      <Field label="Description">
+      <Section icon={Briefcase} title="Properties" desc="Classification used for filtering and reporting">
+        <div className="grid gap-x-6 gap-y-4 md:grid-cols-2">
+          <Field label="Type">
+            <ComboSelect
+              value={formState.projectTypes ?? [formState.projectType]}
+              options={allTypes}
+              onChange={setTypes}
+              onCreateOption={(v) => setExtraTypes((p) => [...p, v])}
+              colorMap={TYPE_COLORS}
+              multi
+              placeholder="Add type…"
+            />
+          </Field>
+
+          <Field label="Category">
+            <ComboSelect
+              value={formState.projectCategory ? [formState.projectCategory] : []}
+              options={allCategories}
+              onChange={(v) => onChange('projectCategory', v[0] ?? '')}
+              onCreateOption={(v) => setExtraCategories((p) => [...p, v])}
+              colorMap={CATEGORY_COLORS}
+              multi={false}
+              placeholder="Select category…"
+            />
+          </Field>
+
+          <Field label="Priority">
+            <ComboSelect
+              value={[formState.priority]}
+              options={['Low', 'Medium', 'High', 'Critical']}
+              onChange={(v) => onChange('priority', (v[0] ?? 'Medium') as Priority)}
+              colorMap={PRIORITY_COLORS}
+              multi={false}
+              placeholder="Priority…"
+            />
+          </Field>
+
+          <Field label="Project code">
+            <input className={inputCls} value={formState.projectCode} onChange={(e) => onChange('projectCode', e.target.value)} placeholder="e.g. WEB-2025" />
+          </Field>
+
+          <Field label="Group / Department">
+            <ComboSelect
+              value={formState.department ? [formState.department] : []}
+              options={departments}
+              onChange={(v) => onChange('department', v[0] ?? 'Sales')}
+              multi={false}
+              placeholder="Select department…"
+            />
+          </Field>
+
+          <Field label="Template">
+            <ComboSelect
+              value={formState.projectTemplate ? [formState.projectTemplate] : []}
+              options={projectTemplates}
+              onChange={(v) => onChange('projectTemplate', v[0] ?? 'Blank Project')}
+              multi={false}
+              placeholder="Select template…"
+            />
+          </Field>
+        </div>
+      </Section>
+
+      <Section icon={FileText} title="Description" desc="Goals, scope, and expected outcomes">
         <textarea
           rows={3}
           className={`${inputCls} resize-none`}
           value={formState.description}
           onChange={(e) => onChange('description', e.target.value)}
-          placeholder="Project goals, scope, and expected outcomes…"
+          placeholder="Write a short summary…"
         />
-      </Field>
+      </Section>
 
-      <Field label="Tags">
+      <Section icon={Layers} title="Tags">
         <ComboSelect
           value={formState.tags}
           options={extraTags}
@@ -294,47 +401,67 @@ export function ProjectForm({
           multi
           placeholder="Add tags…"
         />
-      </Field>
+      </Section>
     </div>
   )
 
   const renderStep2 = () => (
-    <div className="space-y-4 p-4">
-      <div className="grid gap-3 md:grid-cols-2">
-        <Field label="Client Name">
-          <input className={inputCls} value={formState.clientName} onChange={(e) => onChange('clientName', e.target.value)} placeholder="Contact name" />
-        </Field>
-        <Field label="Company">
-          <input className={inputCls} value={formState.clientCompany} onChange={(e) => onChange('clientCompany', e.target.value)} placeholder="Company name" />
-        </Field>
-        <Field label="Email">
-          <input type="email" className={inputCls} value={formState.clientEmail} onChange={(e) => onChange('clientEmail', e.target.value)} placeholder="client@example.com" />
-        </Field>
-        <Field label="Phone">
-          <input className={inputCls} value={formState.clientPhone} onChange={(e) => onChange('clientPhone', e.target.value)} placeholder="+1 555 0100" />
-        </Field>
-        <div className="md:col-span-2">
-          <Field label="Location">
-            <input className={inputCls} value={formState.clientLocation} onChange={(e) => onChange('clientLocation', e.target.value)} placeholder="City, Country" />
+    <div className="space-y-5">
+      {isInternalProject ? (
+        <div className="rounded-lg border border-slate-150 bg-slate-50/60 px-4 py-3.5">
+          <p className="text-[13.5px] font-semibold text-slate-800">Internal project selected</p>
+          <p className="mt-1 text-[12.5px] leading-5 text-slate-400">
+            Client details aren't needed for internal projects, so this section is skipped automatically.
+          </p>
+        </div>
+      ) : (
+        <Section icon={Globe} title="Client" desc="External contact for this engagement">
+          <div className="grid gap-x-6 gap-y-4 md:grid-cols-2">
+            <Field label="Client name">
+              <input className={inputCls} value={formState.clientName} onChange={(e) => onChange('clientName', e.target.value)} placeholder="Contact name" />
+            </Field>
+            <Field label="Company">
+              <input className={inputCls} value={formState.clientCompany} onChange={(e) => onChange('clientCompany', e.target.value)} placeholder="Company name" />
+            </Field>
+            <Field label="Email">
+              <input type="email" className={inputCls} value={formState.clientEmail} onChange={(e) => onChange('clientEmail', e.target.value)} placeholder="client@example.com" />
+            </Field>
+            <Field label="Phone">
+              <input className={inputCls} value={formState.clientPhone} onChange={(e) => onChange('clientPhone', e.target.value)} placeholder="+1 555 0100" />
+            </Field>
+            <div className="md:col-span-2">
+              <Field label="Location">
+                <input className={inputCls} value={formState.clientLocation} onChange={(e) => onChange('clientLocation', e.target.value)} placeholder="City, Country" />
+              </Field>
+            </div>
+          </div>
+        </Section>
+      )}
+
+      <Section icon={Users} title="Ownership" desc="Who's accountable for this project">
+        <div className="grid gap-x-6 gap-y-4 md:grid-cols-2">
+          <Field label="Project owner">
+            <ComboSelect
+              value={formState.projectOwner ? [formState.projectOwner] : []}
+              options={ownershipOptions}
+              onChange={(v) => onChange('projectOwner', v[0] ?? '')}
+              onCreateOption={(v) => setExtraOwners((prev) => prev.includes(v) ? prev : [...prev, v])}
+              multi={false}
+              placeholder={usersDirectoryQuery.isLoading ? 'Loading users...' : 'Search user name or add owner email...'}
+            />
+          </Field>
+          <Field label="Stakeholders">
+            <ComboSelect
+              value={formState.stakeholders}
+              options={ownershipOptions}
+              onChange={(v) => onChange('stakeholders', v)}
+              onCreateOption={(v) => setExtraOwners((prev) => prev.includes(v) ? prev : [...prev, v])}
+              multi
+              placeholder={usersDirectoryQuery.isLoading ? 'Loading users...' : 'Search names or add stakeholder emails...'}
+            />
           </Field>
         </div>
-      </div>
-
-      <Field label="Project Owner">
-        <select className={selectCls} value={formState.projectOwner} onChange={(e) => onChange('projectOwner', e.target.value)}>
-          {owners.map((o) => <option key={o} value={o}>{o}</option>)}
-        </select>
-      </Field>
-
-      <Field label="Stakeholders">
-        <ComboSelect
-          value={formState.stakeholders}
-          options={owners}
-          onChange={(v) => onChange('stakeholders', v)}
-          multi
-          placeholder="Add stakeholders…"
-        />
-      </Field>
+      </Section>
     </div>
   )
 
@@ -344,121 +471,183 @@ export function ProjectForm({
         ? Math.ceil((new Date(formState.endDate).getTime() - new Date(formState.startDate).getTime()) / 86_400_000)
         : null
     return (
-      <div className="space-y-4 p-4">
-        <div className="grid gap-3 md:grid-cols-2">
-          <Field label="Start Date" required>
-            <input type="date" className={inputCls} value={formState.startDate} onChange={(e) => onChange('startDate', e.target.value)} />
-          </Field>
-          <Field label="Expected End Date" required>
-            <div>
-              <input type="date" className={inputCls} value={formState.endDate} onChange={(e) => onChange('endDate', e.target.value)} />
-              {hasDateError && <p className="mt-1.5 text-[11px] text-rose-500">End date must be after start date.</p>}
-            </div>
-          </Field>
-          <Field label="Actual End Date">
-            <input type="date" className={inputCls} value={formState.actualEndDate} onChange={(e) => onChange('actualEndDate', e.target.value)} />
-          </Field>
-          <Field label="Deadline Type">
-            <ComboSelect
-              value={[formState.deadlineType]}
-              options={[...deadlineTypes]}
-              onChange={(v) => onChange('deadlineType', (v[0] ?? 'Flexible') as ProjectFormState['deadlineType'])}
-              colorMap={DEADLINE_COLORS}
-              multi={false}
-              placeholder="Deadline type…"
-            />
-          </Field>
-        </div>
-
-        {duration !== null && (
-          <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-            <Calendar className="h-4 w-4 text-slate-400" />
-            <span className="text-sm text-slate-500">Duration:</span>
-            <span className="text-sm font-semibold text-slate-900">{duration} days</span>
+      <div className="space-y-5">
+        <Section icon={Calendar} title="Schedule" desc="Start, target and actual completion">
+          <div className="grid gap-x-6 gap-y-4 md:grid-cols-2">
+            <Field label="Start date" required>
+              <DatePicker value={formState.startDate} onChange={(v) => onChange('startDate', v)} className={inputCls} placeholder="Pick start date" />
+            </Field>
+            <Field label="Expected end date" required>
+              <div>
+                <DatePicker value={formState.endDate} onChange={(v) => onChange('endDate', v)} className={inputCls} placeholder="Pick end date" />
+                {hasDateError && <p className="mt-1.5 text-[11.5px] text-rose-500">End date must be after start date.</p>}
+              </div>
+            </Field>
+            <Field label="Actual end date">
+              <DatePicker value={formState.actualEndDate} onChange={(v) => onChange('actualEndDate', v)} className={inputCls} placeholder="Pick actual end date" />
+            </Field>
+            <Field label="Deadline type">
+              <ComboSelect
+                value={[formState.deadlineType]}
+                options={[...deadlineTypes]}
+                onChange={(v) => onChange('deadlineType', (v[0] ?? 'Flexible') as ProjectFormState['deadlineType'])}
+                colorMap={DEADLINE_COLORS}
+                multi={false}
+                placeholder="Deadline type…"
+              />
+            </Field>
           </div>
-        )}
+
+          {duration !== null && (
+            <div className="mt-4 flex items-center gap-2 text-[12.5px] text-slate-400">
+              <Calendar className="h-3.5 w-3.5" />
+              <span>Runs for <span className="font-semibold text-slate-700">{duration} days</span></span>
+            </div>
+          )}
+        </Section>
       </div>
     )
   }
 
   const renderStep4 = () => (
-    <div className="space-y-4 p-4">
-      <div className="grid gap-3 md:grid-cols-2">
-        <Field label="Project Manager">
-          <select className={selectCls} value={formState.manager} onChange={(e) => onChange('manager', e.target.value)}>
-            {owners.map((o) => <option key={o} value={o}>{o}</option>)}
-          </select>
-        </Field>
-        <Field label="Team Lead">
-          <select className={selectCls} value={formState.teamLead} onChange={(e) => onChange('teamLead', e.target.value)}>
-            <option value="">— None —</option>
-            {owners.map((o) => <option key={o} value={o}>{o}</option>)}
-          </select>
-        </Field>
-      </div>
+    <div className="space-y-5">
+      <Section icon={Users} title="Leadership" desc="Manager and team lead for this project">
+        <div className="grid gap-x-6 gap-y-4 md:grid-cols-2">
+          <Field label="Project manager">
+            <ComboSelect
+              value={formState.manager ? [formState.manager] : []}
+              options={assignableUserOptions}
+              onChange={(v) => onChange('manager', v[0] ?? '')}
+              onCreateOption={(v) => setExtraAssignees((prev) => prev.includes(v) ? prev : [...prev, v])}
+              multi={false}
+              placeholder={usersDirectoryQuery.isLoading ? 'Loading users...' : 'Search manager name or add email...'}
+            />
+          </Field>
+          <Field label="Team lead">
+            <ComboSelect
+              value={formState.teamLead ? [formState.teamLead] : []}
+              options={assignableUserOptions}
+              onChange={(v) => onChange('teamLead', v[0] ?? '')}
+              onCreateOption={(v) => setExtraAssignees((prev) => prev.includes(v) ? prev : [...prev, v])}
+              multi={false}
+              placeholder={usersDirectoryQuery.isLoading ? 'Loading users...' : 'Search team lead name or add email...'}
+            />
+          </Field>
+        </div>
+      </Section>
 
-      {/* Team members section — mirrors task-management section card */}
-      <section className="space-y-3 rounded-2xl border border-slate-200 p-4">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <p className="text-sm font-semibold text-slate-900">Team Members</p>
-            <p className="mt-0.5 text-xs text-slate-500">Add members and configure their permissions.</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <select
-              className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 outline-none hover:border-slate-300"
-              value={pendingMember} onChange={(e) => setPendingMember(e.target.value)}
-            >
-              <option value="">Select member…</option>
-              {owners.filter((m) => !formState.team.some((t) => t.name === m)).map((m) => (
-                <option key={m} value={m}>{m}</option>
-              ))}
-            </select>
-            <select
-              className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 outline-none hover:border-slate-300"
-              value={pendingRole} onChange={(e) => setPendingRole(e.target.value as MemberRole)}
-            >
-              {memberRoles.map((r) => <option key={r} value={r}>{r}</option>)}
-            </select>
-            <button
-              type="button"
-              onClick={() => { addTeamMember(pendingMember, pendingRole); setPendingMember('') }}
-              className="rounded-2xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
-            >
-              Add
-            </button>
+      <Section
+        icon={Users}
+        title="Team members"
+        desc="Add each person with role, joined date, responsibilities and permissions"
+        action={
+          <button
+            type="button"
+            onClick={() => {
+              addTeamMember(pendingMember, pendingRole, pendingJoinedDate, pendingResponsibilities)
+              setPendingMember('')
+              setPendingRole('Developer')
+              setPendingJoinedDate(formState.startDate)
+              setPendingResponsibilities('')
+            }}
+            className="inline-flex items-center gap-1 rounded-md bg-slate-900 px-2.5 py-1.5 text-[12px] font-semibold text-white transition-colors hover:bg-slate-700"
+          >
+            <Plus className="h-3 w-3" /> Add
+          </button>
+        }
+      >
+        <div className={`${chipCard} mb-3 grid gap-3 md:grid-cols-2 2xl:grid-cols-4`}>
+          <Field label="User">
+            <ComboSelect
+              value={pendingMember ? [pendingMember] : []}
+              options={assignableUserOptions.filter((m) => !formState.team.some((t) => t.name === m))}
+              onChange={(v) => setPendingMember(v[0] ?? '')}
+              onCreateOption={(v) => setExtraAssignees((prev) => prev.includes(v) ? prev : [...prev, v])}
+              multi={false}
+              placeholder={usersDirectoryQuery.isLoading ? 'Loading users...' : 'Search member name or add email...'}
+            />
+          </Field>
+          <Field label="Role">
+            <ComboSelect
+              value={[pendingRole]}
+              options={[...memberRoles]}
+              onChange={(v) => setPendingRole((v[0] ?? 'Developer') as MemberRole)}
+              multi={false}
+              placeholder="Select role…"
+            />
+          </Field>
+          <Field label="Project joined date">
+            <DatePicker value={pendingJoinedDate} onChange={setPendingJoinedDate} className={inputCls} placeholder="Pick joined date" />
+          </Field>
+          <div className="md:col-span-2 2xl:col-span-1">
+            <Field label="Responsibilities">
+              <textarea
+                rows={3}
+                className={`${inputCls} resize-none`}
+                value={pendingResponsibilities}
+                onChange={(e) => setPendingResponsibilities(e.target.value)}
+                placeholder={`One point per line\nAPI integration\nCode reviews\nQA support`}
+              />
+            </Field>
           </div>
         </div>
 
         {formState.team.length === 0 ? (
-          <div className="rounded-2xl border-2 border-dashed border-slate-200 py-8 text-center">
-            <Users className="mx-auto mb-2 h-6 w-6 text-slate-300" />
-            <p className="text-xs text-slate-400">No team members yet.</p>
+          <div className="rounded-lg border border-dashed border-slate-200 py-8 text-center">
+            <Users className="mx-auto mb-2 h-5 w-5 text-slate-300" />
+            <p className="text-[12.5px] text-slate-400">No team members yet.</p>
           </div>
         ) : (
           <div className="space-y-2">
             {formState.team.map((member) => (
-              /* Member card — mirrors task-management member item */
-              <div key={member.name} className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+              <div key={member.name} className={chipCard}>
                 <div className="mb-2.5 flex items-center justify-between">
                   <div className="flex items-center gap-2.5">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-sky-100 text-[11px] font-bold text-sky-700">
+                    <div className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-200 text-[11px] font-bold text-slate-600">
                       {member.name.split(' ').map((n) => n[0]).join('').slice(0, 2)}
                     </div>
                     <div>
-                      <p className="text-sm font-semibold text-slate-900">{member.name}</p>
-                      <p className="text-[10px] text-slate-400">{member.role}</p>
+                      <p className="text-[13px] font-semibold text-slate-800">{member.name}</p>
+                      <p className="text-[10.5px] text-slate-400">{member.role}</p>
                     </div>
                   </div>
                   <button
                     type="button"
                     onClick={() => removeTeamMember(member.name)}
-                    className="text-slate-300 transition-colors hover:text-rose-500"
+                    className="rounded-md p-1 text-slate-300 transition-colors hover:bg-rose-50 hover:text-rose-500"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
                 </div>
-                <div className="flex flex-wrap gap-1.5">
+                <div className="mb-3 grid gap-3 md:grid-cols-3">
+                  <Field label="Role">
+                    <ComboSelect
+                      value={[member.role]}
+                      options={[...memberRoles]}
+                      onChange={(v) => updateTeamMember(member.name, 'role', v[0] ?? member.role)}
+                      multi={false}
+                      placeholder="Select role…"
+                    />
+                  </Field>
+                  <Field label="Joined date">
+                    <DatePicker
+                      value={member.joinedDate || formState.startDate}
+                      onChange={(v) => updateTeamMember(member.name, 'joinedDate', v)}
+                      className={inputCls}
+                      placeholder="Pick joined date"
+                    />
+                  </Field>
+                  <Field label="Responsibilities">
+                    <textarea
+                      rows={3}
+                      className={`${inputCls} resize-none`}
+                      value={member.responsibilities || ''}
+                      onChange={(e) => updateTeamMember(member.name, 'responsibilities', e.target.value)}
+                      placeholder={`One point per line\nAPI integration\nCode reviews`}
+                    />
+                  </Field>
+                </div>
+                <div className="flex flex-wrap gap-2">
                   {allRolePermissions.map(({ key, label }) => {
                     const has = member.permissions.includes(key)
                     return (
@@ -466,7 +655,7 @@ export function ProjectForm({
                         key={key}
                         type="button"
                         onClick={() => togglePermission(member.name, key)}
-                        className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold transition-colors ${has ? 'border-emerald-300 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-white text-slate-400 hover:border-slate-300 hover:text-slate-600'}`}
+                        className={`rounded-full border px-2.5 py-1 text-[10.5px] font-medium leading-none transition-colors ${has ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-white text-slate-400 hover:border-slate-300 hover:text-slate-600'}`}
                       >
                         {has && <Check className="mr-0.5 inline h-2.5 w-2.5" />}{label}
                       </button>
@@ -477,242 +666,259 @@ export function ProjectForm({
             ))}
           </div>
         )}
-      </section>
+      </Section>
     </div>
   )
 
   const renderStep5 = () => (
-    <div className="space-y-4 p-4">
-      <div className="grid gap-3 md:grid-cols-2">
-        <Field label="Frontend">
-          <ComboSelect value={formState.techStack.frontend} options={techFrontend} onChange={(v) => onChange('techStack', { ...formState.techStack, frontend: v })} multi placeholder="Select frontend…" />
-        </Field>
-        <Field label="Backend">
-          <ComboSelect value={formState.techStack.backend} options={techBackend} onChange={(v) => onChange('techStack', { ...formState.techStack, backend: v })} multi placeholder="Select backend…" />
-        </Field>
-        <Field label="Database">
-          <ComboSelect value={formState.techStack.database} options={techDatabase} onChange={(v) => onChange('techStack', { ...formState.techStack, database: v })} multi placeholder="Select database…" />
-        </Field>
-        <Field label="Infrastructure & DevOps">
-          <ComboSelect value={formState.techStack.other} options={techOther} onChange={(v) => onChange('techStack', { ...formState.techStack, other: v })} multi placeholder="Select infra…" />
-        </Field>
-      </div>
+    <div className="space-y-5">
+      <Section icon={Code2} title="Technology stack" desc="What this project is built with">
+        <div className="grid gap-x-6 gap-y-4 md:grid-cols-2">
+          <Field label="Frontend">
+            <ComboSelect value={formState.techStack.frontend} options={techFrontend} onChange={(v) => onChange('techStack', { ...formState.techStack, frontend: v })} multi placeholder="Select frontend…" />
+          </Field>
+          <Field label="Backend">
+            <ComboSelect value={formState.techStack.backend} options={techBackend} onChange={(v) => onChange('techStack', { ...formState.techStack, backend: v })} multi placeholder="Select backend…" />
+          </Field>
+          <Field label="Database">
+            <ComboSelect value={formState.techStack.database} options={techDatabase} onChange={(v) => onChange('techStack', { ...formState.techStack, database: v })} multi placeholder="Select database…" />
+          </Field>
+          <Field label="Infrastructure & DevOps">
+            <ComboSelect value={formState.techStack.other} options={techOther} onChange={(v) => onChange('techStack', { ...formState.techStack, other: v })} multi placeholder="Select infra…" />
+          </Field>
+        </div>
+      </Section>
 
-      <section className="space-y-3 rounded-2xl border border-slate-200 p-4">
-        <div className="flex items-center gap-2">
-          <GitBranch className="h-4 w-4 text-slate-400" />
-          <p className="text-sm font-semibold text-slate-900">Repository & Environments</p>
+      <Section icon={GitBranch} title="Repository & environments">
+        <div className="space-y-4">
+          <Field label="Git repository URL">
+            <input className={inputCls} value={formState.repository.gitUrl} onChange={(e) => onChange('repository', { ...formState.repository, gitUrl: e.target.value })} placeholder="https://github.com/org/repo" />
+          </Field>
+          <div className="grid gap-x-6 gap-y-4 md:grid-cols-2">
+            <Field label="Branch strategy">
+              <ComboSelect
+                value={formState.repository.branchStrategy ? [formState.repository.branchStrategy] : []}
+                options={branchStrategies}
+                onChange={(v) => onChange('repository', { ...formState.repository, branchStrategy: v[0] ?? '' })}
+                multi={false}
+                placeholder="Select strategy…"
+              />
+            </Field>
+            <Field label="Dev URL">
+              <input className={inputCls} value={formState.repository.devUrl} onChange={(e) => onChange('repository', { ...formState.repository, devUrl: e.target.value })} placeholder="https://dev.example.com" />
+            </Field>
+            <Field label="QA / testing URL">
+              <input className={inputCls} value={formState.repository.testingUrl} onChange={(e) => onChange('repository', { ...formState.repository, testingUrl: e.target.value })} placeholder="https://qa.example.com" />
+            </Field>
+            <Field label="Production URL">
+              <input className={inputCls} value={formState.repository.productionUrl} onChange={(e) => onChange('repository', { ...formState.repository, productionUrl: e.target.value })} placeholder="https://app.example.com" />
+            </Field>
+          </div>
         </div>
-        <Field label="Git Repository URL">
-          <input className={inputCls} value={formState.repository.gitUrl} onChange={(e) => onChange('repository', { ...formState.repository, gitUrl: e.target.value })} placeholder="https://github.com/org/repo" />
-        </Field>
-        <div className="grid gap-3 md:grid-cols-2">
-          <Field label="Branch Strategy">
-            <select className={selectCls} value={formState.repository.branchStrategy} onChange={(e) => onChange('repository', { ...formState.repository, branchStrategy: e.target.value })}>
-              <option value="">— Select —</option>
-              {branchStrategies.map((b) => <option key={b} value={b}>{b}</option>)}
-            </select>
-          </Field>
-          <Field label="Dev URL">
-            <input className={inputCls} value={formState.repository.devUrl} onChange={(e) => onChange('repository', { ...formState.repository, devUrl: e.target.value })} placeholder="https://dev.example.com" />
-          </Field>
-          <Field label="QA / Testing URL">
-            <input className={inputCls} value={formState.repository.testingUrl} onChange={(e) => onChange('repository', { ...formState.repository, testingUrl: e.target.value })} placeholder="https://qa.example.com" />
-          </Field>
-          <Field label="Production URL">
-            <input className={inputCls} value={formState.repository.productionUrl} onChange={(e) => onChange('repository', { ...formState.repository, productionUrl: e.target.value })} placeholder="https://app.example.com" />
-          </Field>
-        </div>
-      </section>
+      </Section>
     </div>
   )
 
   const renderStep6 = () => (
-    <div className="space-y-4 p-4">
-      {/* Modules */}
-      <section className="space-y-3 rounded-2xl border border-slate-200 p-4">
-        <div className="flex items-center justify-between gap-3">
-          <p className="text-sm font-semibold text-slate-900">Project Modules</p>
-          <button type="button" onClick={addModule} className="rounded-2xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50">
-            + Add module
-          </button>
-        </div>
-
+    <div className="space-y-5">
+      <Section
+        icon={Layers}
+        title="Project phases"
+        desc="Break the project into stages with owners and timelines"
+        action={<button type="button" onClick={addModule} className={ghostBtn}>+ Add phase</button>}
+      >
         {formState.modules.length === 0 ? (
-          <div className="rounded-2xl border-2 border-dashed border-slate-200 py-8 text-center">
-            <Layers className="mx-auto mb-2 h-6 w-6 text-slate-300" />
-            <p className="text-xs text-slate-400">No modules added yet.</p>
+          <div className="rounded-lg border border-dashed border-slate-200 py-8 text-center">
+            <Layers className="mx-auto mb-2 h-5 w-5 text-slate-300" />
+            <p className="text-[12.5px] text-slate-400">No phases added yet.</p>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-2">
             {formState.modules.map((mod) => (
-              <div key={mod.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                <div className="grid gap-3 md:grid-cols-2">
-                  <div className="md:col-span-2">
-                    <label className={labelCls}>Module Name</label>
-                    <input className={inputCls} value={mod.name} onChange={(e) => updateModule(mod.id, 'name', e.target.value)} placeholder="e.g. Authentication Module" />
+              <div key={mod.id} className={chipCard}>
+                <div className="grid gap-3 lg:grid-cols-[1.3fr_0.9fr]">
+                  <div>
+                    <label className={labelCls}>Phase name</label>
+                    <input className={inputCls} value={mod.name} onChange={(e) => updateModule(mod.id, 'name', e.target.value)} placeholder="e.g. Discovery, Build, UAT" />
                   </div>
                   <div>
                     <label className={labelCls}>Owner</label>
-                    <select className={selectCls} value={mod.owner} onChange={(e) => updateModule(mod.id, 'owner', e.target.value)}>
-                      {owners.map((o) => <option key={o} value={o}>{o}</option>)}
-                    </select>
+                    <ComboSelect
+                      value={mod.owner ? [mod.owner] : []}
+                      options={assignableUserOptions}
+                      onChange={(v) => updateModule(mod.id, 'owner', v[0] ?? '')}
+                      onCreateOption={(v) => setExtraAssignees((prev) => prev.includes(v) ? prev : [...prev, v])}
+                      multi={false}
+                      placeholder={usersDirectoryQuery.isLoading ? 'Loading users...' : 'Search owner name or add email...'}
+                    />
                   </div>
-                  <div>
-                    <label className={labelCls}>End Date</label>
-                    <input type="date" className={inputCls} value={mod.endDate} onChange={(e) => updateModule(mod.id, 'endDate', e.target.value)} />
+                  <div className="lg:col-span-2 grid gap-3 md:grid-cols-2">
+                    <div>
+                    <label className={labelCls}>Timeline start date</label>
+                    <DatePicker value={mod.startDate} onChange={(v) => updateModule(mod.id, 'startDate', v)} className={inputCls} placeholder="Start date" />
+                    </div>
+                    <div>
+                    <label className={labelCls}>Timeline end date</label>
+                    <DatePicker value={mod.endDate} onChange={(v) => updateModule(mod.id, 'endDate', v)} className={inputCls} placeholder="End date" />
+                    </div>
+                  </div>
+                  <div className="lg:col-span-2">
+                    <label className={labelCls}>Description</label>
+                    <textarea
+                      rows={3}
+                      className={`${inputCls} resize-none`}
+                      value={mod.description}
+                      onChange={(e) => updateModule(mod.id, 'description', e.target.value)}
+                      placeholder="Describe the scope, goals, and expected output for this phase."
+                    />
                   </div>
                 </div>
-                <button type="button" onClick={() => removeModule(mod.id)} className="mt-3 flex items-center gap-1 text-xs text-rose-400 transition-colors hover:text-rose-600">
+                <button type="button" onClick={() => removeModule(mod.id)} className="mt-3 flex items-center gap-1 text-[11.5px] text-rose-400 transition-colors hover:text-rose-600">
                   <Trash2 className="h-3 w-3" /> Remove
                 </button>
               </div>
             ))}
           </div>
         )}
-      </section>
+      </Section>
 
-      {/* Sprints */}
-      <section className="space-y-3 rounded-2xl border border-slate-200 p-4">
-        <div className="flex items-center justify-between gap-3">
-          <p className="text-sm font-semibold text-slate-900">Sprint Configuration</p>
-          <button type="button" onClick={addSprint} className="rounded-2xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50">
-            + Add sprint
-          </button>
-        </div>
-
+      <Section
+        icon={Zap}
+        title="Sprint configuration"
+        action={<button type="button" onClick={addSprint} className={ghostBtn}>+ Add sprint</button>}
+      >
         {formState.sprints.length === 0 ? (
-          <div className="rounded-2xl border-2 border-dashed border-slate-200 py-8 text-center">
-            <Zap className="mx-auto mb-2 h-6 w-6 text-slate-300" />
-            <p className="text-xs text-slate-400">No sprints configured.</p>
+          <div className="rounded-lg border border-dashed border-slate-200 py-8 text-center">
+            <Zap className="mx-auto mb-2 h-5 w-5 text-slate-300" />
+            <p className="text-[12.5px] text-slate-400">No sprints configured.</p>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-2">
             {formState.sprints.map((spr, i) => (
-              <div key={spr.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+              <div key={spr.id} className={chipCard}>
                 <div className="mb-2 flex items-center justify-between">
-                  <p className="text-xs font-semibold text-slate-500">Sprint {i + 1}</p>
-                  <button type="button" onClick={() => removeSprint(spr.id)} className="text-slate-300 transition-colors hover:text-rose-500">
+                  <p className="text-[11.5px] font-semibold text-slate-500">Sprint {i + 1}</p>
+                  <button type="button" onClick={() => removeSprint(spr.id)} className="rounded-md p-1 text-slate-300 transition-colors hover:bg-rose-50 hover:text-rose-500">
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
                 </div>
                 <div className="grid gap-3 md:grid-cols-2">
                   <div>
                     <label className={labelCls}>Duration</label>
-                    <select className={selectCls} value={spr.duration} onChange={(e) => updateSprint(spr.id, 'duration', e.target.value)}>
-                      {sprintDurations.map((d) => <option key={d} value={d}>{d}</option>)}
-                    </select>
+                    <ComboSelect
+                      value={spr.duration ? [spr.duration] : []}
+                      options={[...sprintDurations]}
+                      onChange={(v) => updateSprint(spr.id, 'duration', v[0] ?? '2 Weeks')}
+                      multi={false}
+                      placeholder="Select duration…"
+                    />
                   </div>
                   <div>
-                    <label className={labelCls}>Sprint Goal</label>
+                    <label className={labelCls}>Sprint goal</label>
                     <input className={inputCls} value={spr.goal} onChange={(e) => updateSprint(spr.id, 'goal', e.target.value)} placeholder="Goal for this sprint…" />
                   </div>
                   <div>
                     <label className={labelCls}>Start</label>
-                    <input type="date" className={inputCls} value={spr.startDate} onChange={(e) => updateSprint(spr.id, 'startDate', e.target.value)} />
+                    <DatePicker value={spr.startDate} onChange={(v) => updateSprint(spr.id, 'startDate', v)} className={inputCls} placeholder="Start date" />
                   </div>
                   <div>
                     <label className={labelCls}>End</label>
-                    <input type="date" className={inputCls} value={spr.endDate} onChange={(e) => updateSprint(spr.id, 'endDate', e.target.value)} />
+                    <DatePicker value={spr.endDate} onChange={(v) => updateSprint(spr.id, 'endDate', v)} className={inputCls} placeholder="End date" />
                   </div>
                 </div>
               </div>
             ))}
           </div>
         )}
-      </section>
+      </Section>
     </div>
   )
 
   const renderStep7 = () => (
-    <div className="space-y-4 p-4">
-      {/* Budget */}
-      <section className="space-y-3 rounded-2xl border border-slate-200 p-4">
-        <p className="text-sm font-semibold text-slate-900">Budget Details</p>
-        <div className="grid gap-3 md:grid-cols-3">
+    <div className="space-y-5">
+      <Section icon={DollarSign} title="Budget">
+        <div className="grid gap-x-6 gap-y-4 md:grid-cols-3">
           <Field label="Estimated ($)">
             <input type="number" min={0} className={inputCls} value={formState.budget || ''} onChange={(e) => onChange('budget', Number(e.target.value))} placeholder="0" />
           </Field>
-          <Field label="Dev Cost ($)">
+          <Field label="Dev cost ($)">
             <input type="number" min={0} className={inputCls} value={formState.developmentCost || ''} onChange={(e) => onChange('developmentCost', Number(e.target.value))} placeholder="0" />
           </Field>
-          <Field label="Resource Cost ($)">
+          <Field label="Resource cost ($)">
             <input type="number" min={0} className={inputCls} value={formState.resourceCost || ''} onChange={(e) => onChange('resourceCost', Number(e.target.value))} placeholder="0" />
           </Field>
         </div>
         {formState.budget > 0 && (
-          <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm">
-            <span className="text-slate-500">Remaining</span>
-            <span className="font-semibold text-slate-900">${Math.max(0, formState.budget - formState.developmentCost - formState.resourceCost).toLocaleString()}</span>
+          <div className="mt-4 flex items-center justify-between rounded-lg border border-slate-150 bg-slate-50/60 px-4 py-2.5 text-[13px]">
+            <span className="text-slate-400">Remaining</span>
+            <span className="font-semibold text-slate-800">${Math.max(0, formState.budget - formState.developmentCost - formState.resourceCost).toLocaleString()}</span>
           </div>
         )}
-      </section>
+      </Section>
 
-      {/* Files */}
-      <section className="space-y-3 rounded-2xl border border-slate-200 p-4">
-        <p className="text-sm font-semibold text-slate-900">Documents & Files</p>
+      <Section icon={FileText} title="Documents & files">
+        <div className="space-y-2.5">
+          <label className="flex min-h-[60px] cursor-pointer flex-col items-center justify-center gap-1.5 rounded-lg border border-dashed border-slate-200 bg-slate-50/60 transition-colors hover:border-slate-300 hover:bg-slate-100/60">
+            <input type="file" className="sr-only" accept=".pdf,.doc,.docx,.xls,.xlsx,.txt" onChange={(e) => importDoc(e.target.files?.[0])} />
+            <UploadCloud className="h-4.5 w-4.5 text-slate-400" />
+            <p className="text-[12px] text-slate-400">BRD / SRS / Requirement document</p>
+          </label>
 
-        <label className="flex min-h-[64px] cursor-pointer flex-col items-center justify-center gap-1.5 rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50 transition-colors hover:border-sky-400 hover:bg-sky-50/50">
-          <input type="file" className="sr-only" accept=".pdf,.doc,.docx,.xls,.xlsx,.txt" onChange={(e) => importDoc(e.target.files?.[0])} />
-          <UploadCloud className="h-5 w-5 text-slate-400" />
-          <p className="text-xs text-slate-400">BRD / SRS / Requirement Document</p>
-        </label>
-
-        {formState.requirementDocument && (
-          <div className="flex items-center gap-2.5 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5">
-            <FileText className="h-4 w-4 flex-shrink-0 text-sky-600" />
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-xs font-semibold text-slate-900">{formState.requirementDocument.name}</p>
-              <p className="text-[10px] text-slate-400">{formState.requirementDocument.size}</p>
+          {formState.requirementDocument && (
+            <div className="flex items-center gap-2.5 rounded-lg border border-slate-150 bg-slate-50/60 px-3 py-2.5">
+              <FileText className="h-4 w-4 flex-shrink-0 text-slate-500" />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-[12.5px] font-medium text-slate-800">{formState.requirementDocument.name}</p>
+                <p className="text-[10.5px] text-slate-400">{formState.requirementDocument.size}</p>
+              </div>
+              <button type="button" onClick={() => onChange('requirementDocument', null)} className="rounded-md p-1 text-slate-300 transition-colors hover:bg-rose-50 hover:text-rose-500">
+                <X className="h-3.5 w-3.5" />
+              </button>
             </div>
-            <button type="button" onClick={() => onChange('requirementDocument', null)} className="text-slate-300 transition-colors hover:text-rose-500">
-              <X className="h-3.5 w-3.5" />
-            </button>
-          </div>
-        )}
+          )}
 
-        <label className="flex cursor-pointer items-center gap-2 rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-2.5 text-xs text-slate-500 transition-colors hover:border-sky-400 hover:text-sky-600">
-          <input type="file" className="sr-only" onChange={(e) => addAttachment(e.target.files?.[0])} />
-          <Plus className="h-3.5 w-3.5" /> Add file (Wireframes, Contracts, API Docs…)
-        </label>
+          <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-slate-200 px-4 py-2.5 text-[12px] text-slate-400 transition-colors hover:border-slate-300 hover:text-slate-600">
+            <input type="file" className="sr-only" onChange={(e) => addAttachment(e.target.files?.[0])} />
+            <Plus className="h-3.5 w-3.5" /> Add file (wireframes, contracts, API docs…)
+          </label>
 
-        {(formState.attachments ?? []).map((att) => (
-          <div key={att.id} className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs">
-            <FileText className="h-3.5 w-3.5 flex-shrink-0 text-slate-400" />
-            <span className="flex-1 truncate text-slate-700">{att.name}</span>
-            <span className="text-slate-400">{att.size}</span>
-            <button type="button" onClick={() => onChange('attachments', (formState.attachments ?? []).filter((a) => a.id !== att.id))} className="text-slate-300 transition-colors hover:text-rose-500">
-              <X className="h-3 w-3" />
-            </button>
-          </div>
-        ))}
-      </section>
-
-      {/* Communication */}
-      <section className="space-y-3 rounded-2xl border border-slate-200 p-4">
-        <div className="flex items-center gap-2">
-          <MessageSquare className="h-4 w-4 text-slate-400" />
-          <p className="text-sm font-semibold text-slate-900">Communication</p>
+          {(formState.attachments ?? []).map((att) => (
+            <div key={att.id} className="flex items-center gap-2 rounded-lg border border-slate-150 bg-slate-50/60 px-3 py-2 text-[12px]">
+              <FileText className="h-3.5 w-3.5 flex-shrink-0 text-slate-400" />
+              <span className="flex-1 truncate text-slate-700">{att.name}</span>
+              <span className="text-slate-400">{att.size}</span>
+              <button type="button" onClick={() => onChange('attachments', (formState.attachments ?? []).filter((a) => a.id !== att.id))} className="rounded-md p-0.5 text-slate-300 transition-colors hover:bg-rose-50 hover:text-rose-500">
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+          ))}
         </div>
-        <div className="grid gap-3 md:grid-cols-2">
-          <Field label="Slack Channel">
+      </Section>
+
+      <Section icon={MessageSquare} title="Communication">
+        <div className="grid gap-x-6 gap-y-4 md:grid-cols-2">
+          <Field label="Slack channel">
             <input className={inputCls} value={formState.communication.slackChannel} onChange={(e) => onChange('communication', { ...formState.communication, slackChannel: e.target.value })} placeholder="#project-channel" />
           </Field>
-          <Field label="Teams Channel">
+          <Field label="Teams channel">
             <input className={inputCls} value={formState.communication.teamsChannel} onChange={(e) => onChange('communication', { ...formState.communication, teamsChannel: e.target.value })} placeholder="Team channel name" />
           </Field>
-          <Field label="Meeting Link">
+          <Field label="Meeting link">
             <input className={inputCls} value={formState.communication.meetingLink} onChange={(e) => onChange('communication', { ...formState.communication, meetingLink: e.target.value })} placeholder="https://meet.google.com/…" />
           </Field>
-          <Field label="Reporting Frequency">
-            <select className={selectCls} value={formState.communication.reportingFrequency} onChange={(e) => onChange('communication', { ...formState.communication, reportingFrequency: e.target.value as 'Daily' | 'Weekly' | 'Monthly' })}>
-              {['Daily', 'Weekly', 'Monthly'].map((f) => <option key={f} value={f}>{f}</option>)}
-            </select>
+          <Field label="Reporting frequency">
+            <ComboSelect
+              value={formState.communication.reportingFrequency ? [formState.communication.reportingFrequency] : []}
+              options={['Daily', 'Weekly', 'Monthly']}
+              onChange={(v) => onChange('communication', { ...formState.communication, reportingFrequency: (v[0] ?? 'Weekly') as 'Daily' | 'Weekly' | 'Monthly' })}
+              multi={false}
+              placeholder="Select frequency…"
+            />
           </Field>
         </div>
-      </section>
+      </Section>
 
-      <Field label="Internal Notes">
+      <Section icon={FileText} title="Internal notes">
         <textarea
           rows={2}
           className={`${inputCls} resize-none`}
@@ -720,40 +926,41 @@ export function ProjectForm({
           onChange={(e) => onChange('notes', e.target.value)}
           placeholder="Assumptions, handoff details, internal comments…"
         />
-      </Field>
+      </Section>
     </div>
   )
 
   const renderStep8 = () => (
-    <div className="space-y-4 p-4">
-      {/* Risks */}
-      <section className="space-y-3 rounded-2xl border border-slate-200 p-4">
-        <div className="flex items-center justify-between gap-3">
-          <p className="text-sm font-semibold text-slate-900">Risk Management</p>
-          <button type="button" onClick={addRisk} className="rounded-2xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50">
-            + Add risk
-          </button>
-        </div>
-
+    <div className="space-y-5">
+      <Section
+        icon={Shield}
+        title="Risk management"
+        action={<button type="button" onClick={addRisk} className={ghostBtn}>+ Add risk</button>}
+      >
         {formState.risks.length === 0 ? (
-          <div className="rounded-2xl border-2 border-dashed border-slate-200 py-8 text-center">
-            <Shield className="mx-auto mb-2 h-6 w-6 text-slate-300" />
-            <p className="text-xs text-slate-400">No risks identified.</p>
+          <div className="rounded-lg border border-dashed border-slate-200 py-8 text-center">
+            <Shield className="mx-auto mb-2 h-5 w-5 text-slate-300" />
+            <p className="text-[12.5px] text-slate-400">No risks identified.</p>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-2">
             {formState.risks.map((risk) => (
-              <div key={risk.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+              <div key={risk.id} className={chipCard}>
                 <div className="grid gap-3 md:grid-cols-2">
                   <div>
-                    <label className={labelCls}>Risk Name</label>
+                    <label className={labelCls}>Risk name</label>
                     <input className={inputCls} value={risk.name} onChange={(e) => updateRisk(risk.id, 'name', e.target.value)} placeholder="e.g. Integration delay" />
                   </div>
                   <div>
                     <label className={labelCls}>Level</label>
-                    <select className={selectCls} value={risk.level} onChange={(e) => updateRisk(risk.id, 'level', e.target.value)}>
-                      {['Low', 'Medium', 'High', 'Critical'].map((l) => <option key={l} value={l}>{l}</option>)}
-                    </select>
+                    <ComboSelect
+                      value={risk.level ? [risk.level] : []}
+                      options={['Low', 'Medium', 'High', 'Critical']}
+                      onChange={(v) => updateRisk(risk.id, 'level', v[0] ?? 'Medium')}
+                      colorMap={{ Low: 'emerald', Medium: 'amber', High: 'orange', Critical: 'rose' }}
+                      multi={false}
+                      placeholder="Select level…"
+                    />
                   </div>
                   <div>
                     <label className={labelCls}>Impact</label>
@@ -764,41 +971,36 @@ export function ProjectForm({
                     <input className={inputCls} value={risk.solution} onChange={(e) => updateRisk(risk.id, 'solution', e.target.value)} placeholder="Strategy to mitigate…" />
                   </div>
                 </div>
-                <button type="button" onClick={() => removeRisk(risk.id)} className="mt-3 flex items-center gap-1 text-xs text-rose-400 transition-colors hover:text-rose-600">
+                <button type="button" onClick={() => removeRisk(risk.id)} className="mt-3 flex items-center gap-1 text-[11.5px] text-rose-400 transition-colors hover:text-rose-600">
                   <Trash2 className="h-3 w-3" /> Remove
                 </button>
               </div>
             ))}
           </div>
         )}
-      </section>
+      </Section>
 
-      {/* Approval */}
-      <section className="space-y-3 rounded-2xl border border-slate-200 p-4">
-        <div className="flex items-center gap-2">
-          <Lock className="h-4 w-4 text-slate-400" />
-          <p className="text-sm font-semibold text-slate-900">Approval Settings</p>
+      <Section icon={Lock} title="Approval settings">
+        <div className="space-y-2">
+          <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-slate-150 bg-white p-3.5 transition-colors hover:bg-slate-50/60">
+            <input type="checkbox" className="mt-0.5 h-4 w-4 rounded accent-slate-900" checked={formState.approvalRequired} onChange={(e) => onChange('approvalRequired', e.target.checked)} />
+            <div>
+              <p className="text-[13px] font-semibold text-slate-800">Require creation approval</p>
+              <p className="mt-0.5 text-[12px] text-slate-400">Flow: Created by → Project manager → Department head → Active.</p>
+            </div>
+          </label>
+          <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-slate-150 bg-white p-3.5 transition-colors hover:bg-slate-50/60">
+            <input type="checkbox" className="mt-0.5 h-4 w-4 rounded accent-slate-900" checked={formState.closureApprovalRequired} onChange={(e) => onChange('closureApprovalRequired', e.target.checked)} />
+            <div>
+              <p className="text-[13px] font-semibold text-slate-800">Require closure approval</p>
+              <p className="mt-0.5 text-[12px] text-slate-400">An authorized reviewer must approve before the project is marked complete.</p>
+            </div>
+          </label>
         </div>
-        <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-slate-200 bg-white p-4 transition-colors hover:bg-slate-50">
-          <input type="checkbox" className="mt-0.5 h-4 w-4 rounded accent-sky-600" checked={formState.approvalRequired} onChange={(e) => onChange('approvalRequired', e.target.checked)} />
-          <div>
-            <p className="text-sm font-semibold text-slate-900">Require creation approval</p>
-            <p className="mt-0.5 text-xs text-slate-500">Flow: Created By → Project Manager → Department Head → Active.</p>
-          </div>
-        </label>
-        <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-slate-200 bg-white p-4 transition-colors hover:bg-slate-50">
-          <input type="checkbox" className="mt-0.5 h-4 w-4 rounded accent-sky-600" checked={formState.closureApprovalRequired} onChange={(e) => onChange('closureApprovalRequired', e.target.checked)} />
-          <div>
-            <p className="text-sm font-semibold text-slate-900">Require closure approval</p>
-            <p className="mt-0.5 text-xs text-slate-500">An authorized reviewer must approve before the project is marked complete.</p>
-          </div>
-        </label>
-      </section>
+      </Section>
 
-      {/* Review summary */}
-      <section className="space-y-3 rounded-2xl border border-slate-200 p-4">
-        <p className="text-sm font-semibold text-slate-900">Review Summary</p>
-        <div className="grid grid-cols-2 gap-2">
+      <Section icon={CheckCircle} title="Summary" desc="Quick check before you save">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           {[
             ['Project',   formState.name || '—'],
             ['Type',      (formState.projectTypes ?? [formState.projectType]).join(', ') || '—'],
@@ -809,13 +1011,13 @@ export function ProjectForm({
             ['Budget',    formState.budget ? `$${formState.budget.toLocaleString()}` : '—'],
             ['Risks',     `${formState.risks.length} identified`],
           ].map(([label, val]) => (
-            <div key={label} className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-              <p className={labelCls}>{label}</p>
-              <p className="truncate text-sm font-semibold text-slate-900">{val}</p>
+            <div key={label} className="rounded-lg border border-slate-150 bg-slate-50/60 p-2.5">
+              <p className="text-[10.5px] font-medium uppercase tracking-wide text-slate-400">{label}</p>
+              <p className="mt-0.5 truncate text-[13px] font-semibold text-slate-800">{val}</p>
             </div>
           ))}
         </div>
-      </section>
+      </Section>
     </div>
   )
 
@@ -823,81 +1025,106 @@ export function ProjectForm({
     renderStep1, renderStep2, renderStep3, renderStep4,
     renderStep5, renderStep6, renderStep7, renderStep8,
   ]
+  const currentStepMeta = STEPS[step - 1]
 
   /* ── Render ─────────────────────────────────────────────────────────── */
   return (
-    <div className="flex h-full w-full flex-col">
-      {/* Step tabs */}
-      <div className="flex flex-shrink-0 items-center overflow-x-auto border-b border-slate-200 bg-white">
-        {STEPS.map((s) => {
-          const Icon   = s.icon
-          const done   = s.id < step
-          const active = s.id === step
-          return (
-            <button
-              key={s.id}
-              type="button"
-              onClick={() => (done || active) && setStep(s.id)}
-              className={[
-                'flex flex-shrink-0 items-center gap-1.5 border-b-2 px-3 py-3 transition-colors',
-                'text-[11px] font-semibold uppercase tracking-[0.12em]',
-                active ? 'border-sky-500 text-sky-600' : done ? 'border-transparent text-slate-400 hover:text-slate-700 cursor-pointer' : 'border-transparent text-slate-300 cursor-default',
-              ].join(' ')}
-            >
-              {done ? <Check className="h-3 w-3 text-emerald-500" /> : <Icon className="h-3 w-3" />}
-              <span className="hidden sm:inline">{s.label}</span>
-            </button>
-          )
-        })}
+    <div className="flex h-full w-full bg-white">
+      {/* Left rail — Notion-style page outline, click only navigates to a completed step */}
+      <div className="hidden w-52 flex-shrink-0 flex-col border-r border-slate-100 bg-[#fbfbfa] px-3 py-4 sm:flex">
+        <p className="mb-2 px-2 text-[11px] font-semibold uppercase tracking-wide text-slate-300">
+          {isEdit ? 'Edit project' : 'New project'}
+        </p>
+        <nav className="space-y-0.5">
+          {STEPS.map((s) => {
+            const Icon   = s.icon
+            const done   = s.id < step
+            const active = s.id === step
+            return (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => setStep(s.id)}
+                className={[
+                  'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors',
+                  active ? 'bg-slate-200/70 text-slate-900' : 'text-slate-500 hover:bg-slate-100',
+                ].join(' ')}
+              >
+                {done ? (
+                  <Check className="h-3.5 w-3.5 flex-shrink-0 text-emerald-500" />
+                ) : (
+                  <Icon className={`h-3.5 w-3.5 flex-shrink-0 ${active ? 'text-slate-700' : 'text-slate-400'}`} />
+                )}
+                <span className={`truncate text-[13px] ${active ? 'font-semibold' : 'font-medium'}`}>{s.label}</span>
+              </button>
+            )
+          })}
+        </nav>
+        <div className="mt-auto px-2 pt-4 text-[11px] text-slate-300">
+          Step {step} of {STEPS.length}
+        </div>
       </div>
 
-      {/* Step body */}
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        {stepRenderers[step - 1]()}
-      </div>
+      {/* Main column */}
+      <div className="flex min-w-0 flex-1 flex-col">
+        {/* Mobile step indicator */}
+        <div className="flex items-center gap-2 border-b border-slate-100 px-5 py-2.5 text-[11px] text-slate-400 sm:hidden">
+          <span>Step {step} of {STEPS.length}</span>
+          <ChevronRight className="h-3 w-3" />
+          <span className="font-semibold text-slate-700">{currentStepMeta.label}</span>
+        </div>
 
-      {/* Footer — mirrors task-management form footer */}
-      <div className="flex flex-shrink-0 items-center justify-between border-t border-slate-200 bg-white px-4 py-4">
-        <button
-          type="button"
-          onClick={() => (step > 1 ? setStep(step - 1) : onCancel())}
-          className="rounded-2xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50"
-        >
-          {step === 1 ? 'Cancel' : '← Back'}
-        </button>
+        {/* Step body — generous page-like padding, single scroll column */}
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <div className="mx-auto w-full max-w-4xl px-6 py-6 sm:px-8 sm:py-8 lg:px-10">
+            <p className="mb-4 text-[12px] font-medium text-slate-400">{currentStepMeta.hint}</p>
+            {stepRenderers[step - 1]()}
+          </div>
+        </div>
 
-        <div className="flex items-center gap-2.5">
-          {step === STEPS.length ? (
-            <>
-              {!isEdit && (
+        {/* Footer */}
+        <div className="flex flex-shrink-0 items-center justify-between border-t border-slate-100 bg-white px-6 py-3.5 sm:px-10">
+          <button
+            type="button"
+            onClick={() => (step > 1 ? setStep(step - 1) : onCancel())}
+            className="rounded-md px-3 py-2 text-[13px] font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800"
+          >
+            {step === 1 ? 'Cancel' : '← Back'}
+          </button>
+
+          <div className="flex items-center gap-2.5">
+            {step === STEPS.length ? (
+              <>
+                {!isEdit && (
+                  <button
+                    type="button"
+                    disabled={isInvalid || isSaving}
+                    onClick={() => onSave({ approvalRequired: true, approvalStatus: 'Pending', status: 'Approval Pending' })}
+                    className="inline-flex items-center gap-2 rounded-md border border-slate-200 px-3.5 py-2 text-[13px] font-semibold text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-50"
+                  >
+                    <CheckCircle className="h-3.5 w-3.5" /> Send for approval
+                  </button>
+                )}
                 <button
                   type="button"
                   disabled={isInvalid || isSaving}
-                  onClick={() => onSave({ approvalRequired: true, approvalStatus: 'Pending', status: 'Approval Pending' })}
-                  className="inline-flex items-center gap-2 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-semibold text-sky-700 transition-colors hover:bg-sky-100 disabled:opacity-50"
+                  onClick={() => onSave()}
+                  className="inline-flex items-center gap-2 rounded-md bg-slate-900 px-4 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-slate-700 disabled:opacity-50"
                 >
-                  <CheckCircle className="h-3.5 w-3.5" /> Send for Approval
+                  {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                  {isEdit ? 'Save changes' : 'Create project'}
                 </button>
-              )}
+              </>
+            ) : (
               <button
                 type="button"
-                disabled={isInvalid || isSaving}
-                onClick={() => onSave()}
-                className="inline-flex items-center gap-2 rounded-2xl bg-slate-950 px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-slate-800 disabled:opacity-50"
+                onClick={() => setStep(step + 1)}
+                className="inline-flex items-center gap-1.5 rounded-md bg-slate-900 px-4 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-slate-700"
               >
-                {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-                {isEdit ? 'Save Changes' : 'Create Project'}
+                Next <ChevronRight className="h-3.5 w-3.5" />
               </button>
-            </>
-          ) : (
-            <button
-              type="button"
-              onClick={() => setStep(step + 1)}
-              className="rounded-2xl bg-slate-950 px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-slate-800"
-            >
-              Next →
-            </button>
-          )}
+            )}
+          </div>
         </div>
       </div>
     </div>

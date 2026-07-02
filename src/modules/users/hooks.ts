@@ -9,6 +9,8 @@ import {
   deleteUser,
   fetchPermissions,
   fetchRoles,
+  fetchUserDirectory,
+  fetchUserAssignees,
   fetchAccessControlCatalog,
   fetchUsers,
   updatePermission,
@@ -27,12 +29,15 @@ import type {
   UpdatePermissionPayload,
   UpdateRolePayload,
   UpdateUserPayload,
+  UserAssignee,
   User,
 } from "./types";
 
 export const usersKeys = {
   all: ["users"] as const,
   list: () => [...usersKeys.all, "list"] as const,
+  assignees: () => [...usersKeys.all, "assignees"] as const,
+  directory: () => [...usersKeys.all, "directory"] as const,
   accessCatalog: () => [...usersKeys.all, "access-catalog"] as const,
   roles: () => [...usersKeys.all, "roles"] as const,
   permissions: () => [...usersKeys.all, "permissions"] as const,
@@ -42,6 +47,24 @@ export function useUsers(options?: { enabled?: boolean }) {
   return useQuery<User[]>({
     queryKey: usersKeys.list(),
     queryFn: fetchUsers,
+    staleTime: 30_000,
+    enabled: options?.enabled ?? true,
+  });
+}
+
+export function useUserAssignees(options?: { enabled?: boolean }) {
+  return useQuery<UserAssignee[]>({
+    queryKey: usersKeys.assignees(),
+    queryFn: fetchUserAssignees,
+    staleTime: 30_000,
+    enabled: options?.enabled ?? true,
+  });
+}
+
+export function useUserDirectory(options?: { enabled?: boolean }) {
+  return useQuery<UserAssignee[]>({
+    queryKey: usersKeys.directory(),
+    queryFn: fetchUserDirectory,
     staleTime: 30_000,
     enabled: options?.enabled ?? true,
   });

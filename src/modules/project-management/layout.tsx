@@ -6,6 +6,7 @@ import {
   createProject as createBackendProject,
   fetchProjectSummary,
   fetchProjects as fetchBackendProjects,
+  syncProject as syncBackendProject,
   updateProject as updateBackendProject,
   type ProjectSummary,
 } from './api'
@@ -14,7 +15,7 @@ import { ProjectsContext } from './context'
 import { today } from './data'
 import { calcProgress } from './shared'
 import type { MilestoneStatus, Project, ProjectFormState, ProjectStatus, Task, TaskStatus } from './types'
-import { createBlankForm, newId, toFormState } from './utils'
+import { createBlankForm, newId, saveProjectCache, toFormState } from './utils'
 
 export default function ProjectsLayout() {
   const [projects, setProjects] = useState<Project[]>([])
@@ -41,6 +42,10 @@ export default function ProjectsLayout() {
       .catch(() => { if (!cancelled) setBackendStatus('offline') })
     return () => { cancelled = true }
   }, [])
+
+  useEffect(() => {
+    saveProjectCache(projects)
+  }, [projects])
 
   const currentProject = useMemo(() => projects.find((p) => p.id === currentId) ?? null, [currentId, projects])
 
@@ -131,7 +136,19 @@ export default function ProjectsLayout() {
 
   const updateProjectFn = (updater: (p: Project) => Project) => {
     if (!currentProject) return
-    setProjects((cur) => cur.map((p) => (p.id === currentProject.id ? updater(p) : p)))
+    let updatedProject: Project | null = null
+    setProjects((cur) => cur.map((p) => {
+      if (p.id !== currentProject.id) return p
+      updatedProject = updater(p)
+      return updatedProject
+    }))
+    if (!updatedProject) return
+    void syncBackendProject(updatedProject.id, updatedProject)
+      .then((saved) => {
+        setProjects((cur) => cur.map((p) => (p.id === saved.id ? saved : p)))
+        setBackendStatus('connected')
+      })
+      .catch(() => setBackendStatus('offline'))
   }
 
   const withActivity = (p: Project, msg: string): Project => ({
@@ -200,8 +217,9 @@ export default function ProjectsLayout() {
             className="fixed inset-0 z-40 bg-black/25 backdrop-blur-[2px] transition-opacity"
             onClick={closeModal}
           />
-          {/* Right-side panel */}
-          <div className="fixed inset-y-0 right-0 z-50 flex h-full w-full max-w-3xl flex-col border-l border-slate-200 bg-white shadow-2xl">
+          {/* Centered modal panel */}
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5">
+            <div className="flex h-[min(92vh,980px)] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
             {/* Panel header */}
             <div className="flex flex-shrink-0 items-center justify-between border-b border-slate-100 px-6 py-4">
               <div>
@@ -230,6 +248,7 @@ export default function ProjectsLayout() {
                 isSaving={isSaving} isEdit={!!currentId}
               />
             </div>
+          </div>
           </div>
         </>
       )}

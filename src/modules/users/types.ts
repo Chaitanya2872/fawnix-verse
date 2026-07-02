@@ -53,6 +53,13 @@ export type RoleRecord = {
   updatedAt: string;
 };
 
+export type UserAssignee = {
+  id: string;
+  name: string;
+  email: string;
+  phoneNumber: string | null;
+};
+
 export type CreateRolePayload = {
   name: string;
   description?: string;

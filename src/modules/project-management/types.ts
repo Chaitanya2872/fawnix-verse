@@ -117,6 +117,8 @@ export type ProjectComment = {
 export type TeamMember = {
   name: string
   role: MemberRole
+  joinedDate: string
+  responsibilities: string
   permissions: RolePermission[]
 }
 
@@ -208,6 +210,7 @@ export type Project = {
   // Team
   owner: string
   manager: string
+  teamLead?: string
   teamMembers: string[]
   team: TeamMember[]
   // Tech

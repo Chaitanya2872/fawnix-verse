@@ -69,6 +69,13 @@ public class UserService {
   }
 
   @Transactional(readOnly = true)
+  public List<AssigneeResponse> getActiveUsersDirectory() {
+    return userRepository.findAllByActiveTrueOrderByFullNameAsc().stream()
+        .map(userMapper::toAssignee)
+        .toList();
+  }
+
+  @Transactional(readOnly = true)
   public List<UserDtos.UserResponse> getUsers() {
     return userRepository.findAllByOrderByFullNameAsc().stream()
         .map(userMapper::toUserResponse)

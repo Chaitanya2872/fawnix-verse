@@ -9,6 +9,7 @@ import type {
   UpdatePermissionPayload,
   UpdateRolePayload,
   UpdateUserPayload,
+  UserAssignee,
   User,
 } from "./types";
 
@@ -23,6 +24,26 @@ export async function fetchUsers(): Promise<User[]> {
     return response.data ?? [];
   } catch (error) {
     rethrowApiError(error, "Failed to load users.");
+  }
+}
+
+export async function fetchUserAssignees(): Promise<UserAssignee[]> {
+  try {
+    await ensureApiSession();
+    const response = await api.get<UserAssignee[]>("/users/assignees");
+    return response.data ?? [];
+  } catch (error) {
+    rethrowApiError(error, "Failed to load user assignees.");
+  }
+}
+
+export async function fetchUserDirectory(): Promise<UserAssignee[]> {
+  try {
+    await ensureApiSession();
+    const response = await api.get<UserAssignee[]>("/users/directory");
+    return response.data ?? [];
+  } catch (error) {
+    rethrowApiError(error, "Failed to load user directory.");
   }
 }
 
