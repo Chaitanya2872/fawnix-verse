@@ -77,7 +77,7 @@ spring:
         - id: project-service
           uri: lb://PROJECT-SERVICE
           predicates:
-            - Path=/api/v1/projects,/api/v1/projects/**
+            - Path=/api/v1/projects,/api/v1/projects/**,/api/v1/project-meetings,/api/v1/project-meetings/**
         - id: inventory
           uri: lb://INVENTORY-SERVICE
           predicates:

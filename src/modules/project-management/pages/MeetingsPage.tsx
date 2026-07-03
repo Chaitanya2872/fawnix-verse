@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { LucideIcon } from 'lucide-react'
 import {
   Calendar,
@@ -28,6 +28,14 @@ import {
 } from 'lucide-react'
 import { useProjectsContext } from '../context'
 import type { Project } from '../types'
+import {
+  createProjectMeeting,
+  fetchProjectMeetings,
+  updateProjectMeeting,
+  type BackendMeetingStatus,
+  type ProjectMeetingPayload,
+  type ProjectMeetingResponse,
+} from '../api'
 
 type MeetingStatus = 'Upcoming' | 'Completed' | 'Cancelled'
 type MeetingType = 'Planning' | 'Review' | 'Design' | 'Retrospective' | 'Architecture'
@@ -65,10 +73,13 @@ type Meeting = {
   title: string
   project: ProjectOption
   organizer: MeetingParticipant
+  startAt: string
+  endAt: string
   dateLabel: string
   dateShort: string
   time: string
   duration: string
+  timezone: string
   platform: 'Google Meet' | 'Microsoft Teams' | 'Zoom'
   platformTone: string
   status: MeetingStatus
@@ -76,6 +87,7 @@ type Meeting = {
   meetingId: string
   link: string
   reminder: string
+  repeatRule: string
   description: string
   agenda: string[]
   participants: MeetingParticipant[]
@@ -225,10 +237,13 @@ function buildMeetings(projects: ProjectOption[]): Meeting[] {
       title: 'Sprint Planning',
       project: alpha,
       organizer: { name: alpha.manager, role: roleFor(alpha.manager, 'Product Manager'), status: 'Accepted' },
+      startAt: '2025-05-02T10:00:00+05:30',
+      endAt: '2025-05-02T11:30:00+05:30',
       dateLabel: '02 May 2025',
       dateShort: '02 May 2025',
       time: '10:00 AM - 11:30 AM',
       duration: '1h 30m',
+      timezone: 'IST',
       platform: 'Google Meet',
       platformTone: 'bg-emerald-500',
       status: 'Upcoming',
@@ -236,6 +251,7 @@ function buildMeetings(projects: ProjectOption[]): Meeting[] {
       meetingId: 'abc-defg-hij',
       link: 'https://meet.google.com/abc-defg-hij',
       reminder: '15 minutes before',
+      repeatRule: 'Does not repeat',
       description: 'Sprint 15 planning meeting to discuss goals, tasks, timelines, and resource allocation.',
       agenda: ['Sprint Goals', 'Task Breakdown', 'Timeline and Milestones', 'Risks and Blockers', 'Q&A'],
       participants: peopleFor(alpha, 10, 0),
@@ -258,10 +274,13 @@ function buildMeetings(projects: ProjectOption[]): Meeting[] {
       title: 'Client Review Meeting',
       project: beta,
       organizer: { name: beta.manager, role: roleFor(beta.manager, 'Project Manager'), status: 'Accepted' },
+      startAt: '2025-05-02T15:00:00+05:30',
+      endAt: '2025-05-02T15:45:00+05:30',
       dateLabel: '02 May 2025',
       dateShort: '02 May 2025',
       time: '03:00 PM - 03:45 PM',
       duration: '45m',
+      timezone: 'IST',
       platform: 'Microsoft Teams',
       platformTone: 'bg-blue-600',
       status: 'Upcoming',
@@ -269,6 +288,7 @@ function buildMeetings(projects: ProjectOption[]): Meeting[] {
       meetingId: 'teams-4829',
       link: 'https://teams.microsoft.com/l/meetup-join/client-review',
       reminder: '30 minutes before',
+      repeatRule: 'Does not repeat',
       description: 'Client checkpoint for progress review, open decisions, and delivery confidence.',
       agenda: ['Progress Summary', 'Open Issues', 'Client Questions', 'Next Deliverables'],
       participants: peopleFor(beta, 8, 0),
@@ -287,10 +307,13 @@ function buildMeetings(projects: ProjectOption[]): Meeting[] {
       title: 'UI/UX Discussion',
       project: alpha,
       organizer: { name: 'Anita Desai', role: 'UI/UX Designer', status: 'Accepted' },
+      startAt: '2025-05-03T10:00:00+05:30',
+      endAt: '2025-05-03T12:00:00+05:30',
       dateLabel: '03 May 2025',
       dateShort: '03 May 2025',
       time: '10:00 AM - 12:00 PM',
       duration: '2h',
+      timezone: 'IST',
       platform: 'Google Meet',
       platformTone: 'bg-emerald-500',
       status: 'Upcoming',
@@ -298,6 +321,7 @@ function buildMeetings(projects: ProjectOption[]): Meeting[] {
       meetingId: 'ux-4490',
       link: 'https://meet.google.com/uiux-review',
       reminder: '10 minutes before',
+      repeatRule: 'Does not repeat',
       description: 'Design review for interaction flow, accessibility, and final screen readiness.',
       agenda: ['Prototype Walkthrough', 'Accessibility Review', 'Mobile States', 'Handoff Checklist'],
       participants: peopleFor(alpha, 7, 1),
@@ -315,10 +339,13 @@ function buildMeetings(projects: ProjectOption[]): Meeting[] {
       title: 'Team Retrospective',
       project: gamma,
       organizer: { name: gamma.manager, role: roleFor(gamma.manager, 'Tech Lead'), status: 'Accepted' },
+      startAt: '2025-05-03T16:00:00+05:30',
+      endAt: '2025-05-03T17:00:00+05:30',
       dateLabel: '03 May 2025',
       dateShort: '03 May 2025',
       time: '04:00 PM - 05:00 PM',
       duration: '1h',
+      timezone: 'IST',
       platform: 'Zoom',
       platformTone: 'bg-sky-500',
       status: 'Upcoming',
@@ -326,6 +353,7 @@ function buildMeetings(projects: ProjectOption[]): Meeting[] {
       meetingId: 'zoom-153-882',
       link: 'https://zoom.us/j/153882',
       reminder: '15 minutes before',
+      repeatRule: 'Does not repeat',
       description: 'Retrospective to capture wins, friction points, and action items for the next sprint.',
       agenda: ['Wins', 'Pain Points', 'Process Changes', 'Owners'],
       participants: peopleFor(gamma, 9, 0),
@@ -343,10 +371,13 @@ function buildMeetings(projects: ProjectOption[]): Meeting[] {
       title: 'Architecture Review',
       project: alpha,
       organizer: { name: 'Rohit Sharma', role: 'Project Manager', status: 'Accepted' },
+      startAt: '2025-05-01T10:00:00+05:30',
+      endAt: '2025-05-01T11:00:00+05:30',
       dateLabel: '01 May 2025',
       dateShort: '01 May 2025',
       time: '10:00 AM - 11:00 AM',
       duration: '1h',
+      timezone: 'IST',
       platform: 'Microsoft Teams',
       platformTone: 'bg-blue-600',
       status: 'Completed',
@@ -354,6 +385,7 @@ function buildMeetings(projects: ProjectOption[]): Meeting[] {
       meetingId: 'arch-9112',
       link: 'https://teams.microsoft.com/l/meetup-join/architecture',
       reminder: 'No reminder',
+      repeatRule: 'Does not repeat',
       description: 'Technical architecture review for service boundaries, integrations, and database changes.',
       agenda: ['Service Map', 'API Contracts', 'Database Schema', 'Deployment Notes'],
       participants: peopleFor(alpha, 8, 2),
@@ -371,10 +403,13 @@ function buildMeetings(projects: ProjectOption[]): Meeting[] {
       title: 'Budget Alignment',
       project: beta,
       organizer: { name: 'Maya Rao', role: 'Client Partner', status: 'Accepted' },
+      startAt: '2025-04-30T14:00:00+05:30',
+      endAt: '2025-04-30T14:30:00+05:30',
       dateLabel: '30 Apr 2025',
       dateShort: '30 Apr 2025',
       time: '02:00 PM - 02:30 PM',
       duration: '30m',
+      timezone: 'IST',
       platform: 'Google Meet',
       platformTone: 'bg-emerald-500',
       status: 'Cancelled',
@@ -382,6 +417,7 @@ function buildMeetings(projects: ProjectOption[]): Meeting[] {
       meetingId: 'budget-220',
       link: 'https://meet.google.com/budget-align',
       reminder: 'No reminder',
+      repeatRule: 'Does not repeat',
       description: 'Budget alignment discussion moved to client review.',
       agenda: ['Budget Delta', 'Approval Owner', 'Next Decision'],
       participants: peopleFor(beta, 5, 1),
@@ -440,6 +476,8 @@ function fileSizeLabel(size: number) {
 }
 
 function formFromMeeting(meeting: Meeting): MeetingFormState {
+  const startDate = new Date(meeting.startAt)
+  const endDate = new Date(meeting.endAt)
   return {
     title: meeting.title,
     projectId: meeting.project.id,
@@ -447,16 +485,160 @@ function formFromMeeting(meeting: Meeting): MeetingFormState {
     type: meeting.type,
     platform: meeting.platform,
     link: meeting.link,
-    date: '2025-05-02',
-    startTime: '10:00',
-    endTime: '11:30',
-    timezone: 'IST',
+    date: toDateInputValue(startDate),
+    startTime: toTimeInputValue(startDate),
+    endTime: toTimeInputValue(endDate),
+    timezone: meeting.timezone,
     participants: meeting.participants.map((participant) => participant.name),
     agenda: meeting.agenda,
     reminder: meeting.reminder,
-    repeat: 'Does not repeat',
+    repeat: meeting.repeatRule,
     sendEmail: true,
     attachments: meeting.attachments,
+  }
+}
+
+function toDateInputValue(date: Date) {
+  return date.toISOString().slice(0, 10)
+}
+
+function toTimeInputValue(date: Date) {
+  return date.toTimeString().slice(0, 5)
+}
+
+function toBackendStatus(status: MeetingStatus): BackendMeetingStatus {
+  if (status === 'Completed') return 'COMPLETED'
+  if (status === 'Cancelled') return 'CANCELLED'
+  return 'UPCOMING'
+}
+
+function fromBackendStatus(status: BackendMeetingStatus): MeetingStatus {
+  if (status === 'COMPLETED') return 'Completed'
+  if (status === 'CANCELLED') return 'Cancelled'
+  return 'Upcoming'
+}
+
+function normalizeMeetingType(value?: string): MeetingType {
+  const allowed: MeetingType[] = ['Planning', 'Review', 'Design', 'Retrospective', 'Architecture']
+  return allowed.includes(value as MeetingType) ? value as MeetingType : 'Planning'
+}
+
+function normalizePlatform(value?: string): Meeting['platform'] {
+  if (value === 'Microsoft Teams' || value === 'Zoom') return value
+  return 'Google Meet'
+}
+
+function normalizeRsvp(value?: string): RsvpStatus {
+  if (value === 'Pending' || value === 'Declined') return value
+  return 'Accepted'
+}
+
+function toInstant(date: string, time: string, timezone: string) {
+  const offset = timezone === 'IST' ? '+05:30' : 'Z'
+  return `${date}T${time}:00${offset}`
+}
+
+function formatMeetingDateFromInstant(value: string) {
+  return new Date(value).toLocaleDateString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  })
+}
+
+function formatMeetingTimeFromInstant(value: string) {
+  return new Date(value).toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  })
+}
+
+function durationLabelFromInstants(startAt: string, endAt: string) {
+  const mins = Math.max(15, Math.round((new Date(endAt).getTime() - new Date(startAt).getTime()) / 60000))
+  const hours = Math.floor(mins / 60)
+  const rest = mins % 60
+  if (!hours) return `${rest}m`
+  return rest ? `${hours}h ${rest}m` : `${hours}h`
+}
+
+function mapBackendMeeting(meeting: ProjectMeetingResponse, projects: ProjectOption[]): Meeting {
+  const participants = meeting.participants ?? []
+  const organizerName = meeting.organizerName || 'Organizer'
+  const projectName = meeting.projectName || 'Unassigned Project'
+  const project = projects.find((item) => item.id === meeting.projectId) ?? {
+    id: meeting.projectId ?? `project-${projectName}`,
+    name: projectName,
+    code: meeting.projectCode || '',
+    manager: organizerName,
+    department: '',
+    team: participants.map((participant) => participant.name),
+  }
+  const startDate = formatMeetingDateFromInstant(meeting.startAt)
+  const startTime = formatMeetingTimeFromInstant(meeting.startAt)
+  const endTime = formatMeetingTimeFromInstant(meeting.endAt)
+
+  return {
+    id: meeting.id,
+    title: meeting.title || 'Untitled Meeting',
+    project,
+    organizer: {
+      name: organizerName,
+      role: meeting.organizerRole || roleFor(organizerName, 'Organizer'),
+      status: 'Accepted',
+    },
+    startAt: meeting.startAt,
+    endAt: meeting.endAt,
+    dateLabel: startDate,
+    dateShort: startDate,
+    time: `${startTime} - ${endTime}`,
+    duration: durationLabelFromInstants(meeting.startAt, meeting.endAt),
+    timezone: meeting.timezone || 'IST',
+    platform: normalizePlatform(meeting.platform),
+    platformTone: platformToneFor(normalizePlatform(meeting.platform)),
+    status: fromBackendStatus(meeting.status),
+    type: normalizeMeetingType(meeting.meetingType),
+    meetingId: meeting.meetingExternalId || meeting.id,
+    link: meeting.meetingLink || '',
+    reminder: meeting.reminder || '15 minutes before',
+    repeatRule: meeting.repeatRule || 'Does not repeat',
+    description: meeting.description || '',
+    agenda: meeting.agenda ?? [],
+    participants: participants.map((participant) => ({
+      name: participant.name,
+      role: participant.role,
+      status: normalizeRsvp(participant.status),
+    })),
+    actions: meeting.actions ?? [],
+    attachments: meeting.attachments ?? [],
+    notes: meeting.notes ?? [],
+  }
+}
+
+function toMeetingPayload(meeting: Meeting): ProjectMeetingPayload {
+  return {
+    projectId: meeting.project.id.startsWith('project-') ? null : meeting.project.id,
+    projectName: meeting.project.name,
+    projectCode: meeting.project.code,
+    title: meeting.title,
+    description: meeting.description,
+    meetingType: meeting.type,
+    platform: meeting.platform,
+    status: toBackendStatus(meeting.status),
+    organizerName: meeting.organizer.name,
+    organizerRole: meeting.organizer.role,
+    startAt: meeting.startAt,
+    endAt: meeting.endAt,
+    timezone: meeting.timezone,
+    meetingLink: meeting.link,
+    meetingExternalId: meeting.meetingId,
+    reminder: meeting.reminder,
+    repeatRule: meeting.repeatRule,
+    participants: meeting.participants,
+    agenda: meeting.agenda,
+    actions: meeting.actions,
+    attachments: meeting.attachments,
+    notes: meeting.notes,
   }
 }
 
@@ -609,6 +791,23 @@ export default function ProjectsMeetingsPage() {
 
   const selectedMeeting = meetings.find((meeting) => meeting.id === selectedId) ?? meetings[0] ?? seededMeetings[0] ?? buildMeetings(fallbackProjects)[0]
 
+  useEffect(() => {
+    let cancelled = false
+    fetchProjectMeetings()
+      .then((items) => {
+        if (cancelled) return
+        if (items.length === 0) {
+          setMeetings((current) => current.some((meeting) => meeting.id.startsWith('meet-custom-')) ? current : seededMeetings)
+          return
+        }
+        const mapped = items.map((item) => mapBackendMeeting(item, projectOptions))
+        setMeetings(mapped)
+        setSelectedId((current) => mapped.some((meeting) => meeting.id === current) ? current : mapped[0].id)
+      })
+      .catch(() => undefined)
+    return () => { cancelled = true }
+  }, [projectOptions, seededMeetings])
+
   const filteredMeetings = useMemo(() => {
     const query = search.trim().toLowerCase()
     return meetings.filter((meeting) => {
@@ -656,13 +855,30 @@ export default function ProjectsMeetingsPage() {
     .filter((name) => name.toLowerCase().includes(inviteQuery.trim().toLowerCase()))
     .slice(0, 4)
 
-  const updateMeeting = (meetingId: string, updater: (meeting: Meeting) => Meeting) => {
-    setMeetings((current) => current.map((meeting) => (meeting.id === meetingId ? updater(meeting) : meeting)))
-  }
-
   const showMessage = (message: string) => {
     setActionMessage(message)
     window.setTimeout(() => setActionMessage(''), 2400)
+  }
+
+  const isPersistedMeeting = (meeting: Meeting) => !meeting.id.startsWith('meet-')
+
+  const persistMeeting = async (meeting: Meeting) => {
+    if (!isPersistedMeeting(meeting)) return
+    try {
+      const saved = await updateProjectMeeting(meeting.id, toMeetingPayload(meeting))
+      const mapped = mapBackendMeeting(saved, projectOptions)
+      setMeetings((current) => current.map((item) => item.id === mapped.id ? mapped : item))
+    } catch {
+      showMessage('Saved locally; backend unavailable')
+    }
+  }
+
+  const updateMeeting = (meetingId: string, updater: (meeting: Meeting) => Meeting, persist = true) => {
+    const currentMeeting = meetings.find((meeting) => meeting.id === meetingId)
+    if (!currentMeeting) return
+    const nextMeeting = updater(currentMeeting)
+    setMeetings((current) => current.map((meeting) => (meeting.id === meetingId ? nextMeeting : meeting)))
+    if (persist) void persistMeeting(nextMeeting)
   }
 
   const selectMeeting = (meeting: Meeting) => {
@@ -730,7 +946,7 @@ export default function ProjectsMeetingsPage() {
     setScheduleForm((current) => ({ ...current, [field]: value }))
   }
 
-  const createMeeting = () => {
+  const createMeeting = async () => {
     if (!scheduleForm.title.trim()) {
       showMessage('Meeting title is required')
       return
@@ -742,15 +958,20 @@ export default function ProjectsMeetingsPage() {
       status: index === 0 ? 'Accepted' as RsvpStatus : 'Pending' as RsvpStatus,
     }))
     const link = scheduleForm.link.trim() || `https://meet.google.com/${Math.random().toString(36).slice(2, 5)}-${Math.random().toString(36).slice(2, 6)}`
+    const startAt = toInstant(scheduleForm.date, scheduleForm.startTime, scheduleForm.timezone)
+    const endAt = toInstant(scheduleForm.date, scheduleForm.endTime, scheduleForm.timezone)
     const meeting: Meeting = {
       id: `meet-custom-${Date.now()}`,
       title: scheduleForm.title.trim(),
       project,
       organizer: participants[0],
+      startAt,
+      endAt,
       dateLabel: formatMeetingDate(scheduleForm.date),
       dateShort: formatMeetingDate(scheduleForm.date),
       time: `${toDisplayTime(scheduleForm.startTime)} - ${toDisplayTime(scheduleForm.endTime)}`,
       duration: durationLabel(scheduleForm.startTime, scheduleForm.endTime),
+      timezone: scheduleForm.timezone,
       platform: scheduleForm.platform,
       platformTone: platformToneFor(scheduleForm.platform),
       status: 'Upcoming',
@@ -758,6 +979,7 @@ export default function ProjectsMeetingsPage() {
       meetingId: `mtg-${Math.random().toString(36).slice(2, 8)}`,
       link,
       reminder: scheduleForm.reminder,
+      repeatRule: scheduleForm.repeat,
       description: scheduleForm.description,
       agenda: scheduleForm.agenda.filter((item) => item.trim()),
       participants,
@@ -768,9 +990,17 @@ export default function ProjectsMeetingsPage() {
         scheduleForm.repeat,
       ],
     }
-    setMeetings((current) => [meeting, ...current])
-    selectMeeting(meeting)
-    showMessage('Meeting scheduled')
+    try {
+      const saved = await createProjectMeeting(toMeetingPayload(meeting))
+      const mapped = mapBackendMeeting(saved, projectOptions)
+      setMeetings((current) => [mapped, ...current.filter((item) => item.id !== mapped.id)])
+      selectMeeting(mapped)
+      showMessage('Meeting scheduled')
+    } catch {
+      setMeetings((current) => [meeting, ...current])
+      selectMeeting(meeting)
+      showMessage('Meeting scheduled locally; backend unavailable')
+    }
   }
 
   const resetScheduleForm = () => {

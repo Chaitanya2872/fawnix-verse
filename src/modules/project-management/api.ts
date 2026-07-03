@@ -51,6 +51,57 @@ type BackendProjectSummary = {
   overdueProjects: number
 }
 
+export type BackendMeetingStatus = 'UPCOMING' | 'COMPLETED' | 'CANCELLED'
+
+export type ProjectMeetingParticipantPayload = {
+  name: string
+  role: string
+  status: string
+}
+
+export type ProjectMeetingActionPayload = {
+  title: string
+  owner: string
+  dueDate: string
+}
+
+export type ProjectMeetingAttachmentPayload = {
+  name: string
+  size: string
+  tone: string
+}
+
+export type ProjectMeetingPayload = {
+  projectId: string | null
+  projectName: string
+  projectCode: string
+  title: string
+  description: string
+  meetingType: string
+  platform: string
+  status: BackendMeetingStatus
+  organizerName: string
+  organizerRole: string
+  startAt: string
+  endAt: string
+  timezone: string
+  meetingLink: string
+  meetingExternalId: string
+  reminder: string
+  repeatRule: string
+  participants: ProjectMeetingParticipantPayload[]
+  agenda: string[]
+  actions: ProjectMeetingActionPayload[]
+  attachments: ProjectMeetingAttachmentPayload[]
+  notes: string[]
+}
+
+export type ProjectMeetingResponse = ProjectMeetingPayload & {
+  id: string
+  createdAt: string
+  updatedAt: string
+}
+
 type BackendProjectDetails = {
   projectType?: Project['projectType']
   projectTemplate?: string
@@ -390,4 +441,35 @@ export async function syncProject(projectId: string, project: Project): Promise<
   const saved = mapProject(data, project)
   saveProjectCache([saved, ...Object.values(loadProjectCache()).filter((cached) => cached.id !== saved.id)])
   return saved
+}
+
+export async function fetchProjectMeetings(projectId?: string): Promise<ProjectMeetingResponse[]> {
+  await ensureApiSession()
+  const { data } = await api.get<ProjectMeetingResponse[]>('/v1/project-meetings', {
+    params: projectId ? { projectId } : undefined,
+  })
+  return data
+}
+
+export async function createProjectMeeting(payload: ProjectMeetingPayload): Promise<ProjectMeetingResponse> {
+  await ensureApiSession()
+  const { data } = await api.post<ProjectMeetingResponse>('/v1/project-meetings', payload)
+  return data
+}
+
+export async function updateProjectMeeting(id: string, payload: ProjectMeetingPayload): Promise<ProjectMeetingResponse> {
+  await ensureApiSession()
+  const { data } = await api.put<ProjectMeetingResponse>(`/v1/project-meetings/${id}`, payload)
+  return data
+}
+
+export async function updateProjectMeetingStatus(id: string, status: BackendMeetingStatus): Promise<ProjectMeetingResponse> {
+  await ensureApiSession()
+  const { data } = await api.patch<ProjectMeetingResponse>(`/v1/project-meetings/${id}/status`, { status })
+  return data
+}
+
+export async function deleteProjectMeeting(id: string): Promise<void> {
+  await ensureApiSession()
+  await api.delete(`/v1/project-meetings/${id}`)
 }
