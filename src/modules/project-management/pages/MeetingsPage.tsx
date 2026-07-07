@@ -14,7 +14,6 @@ import {
   FileText,
   Filter,
   Link2,
-  Mail,
   MessageSquare,
   MoreHorizontal,
   Plus,
@@ -788,6 +787,7 @@ export default function ProjectsMeetingsPage() {
   const [inviteSelected, setInviteSelected] = useState<string[]>([])
   const [inviteMessage, setInviteMessage] = useState('You are invited to the Sprint Planning meeting.\n\nSee you there!')
   const [scheduleForm, setScheduleForm] = useState<MeetingFormState>(() => formFromMeeting(buildMeetings(fallbackProjects)[0]))
+  const [isSchedulerOpen, setIsSchedulerOpen] = useState(false)
 
   const selectedMeeting = meetings.find((meeting) => meeting.id === selectedId) ?? meetings[0] ?? seededMeetings[0] ?? buildMeetings(fallbackProjects)[0]
 
@@ -854,6 +854,21 @@ export default function ProjectsMeetingsPage() {
     .filter((name) => !inviteSelected.includes(name))
     .filter((name) => name.toLowerCase().includes(inviteQuery.trim().toLowerCase()))
     .slice(0, 4)
+
+  const clearFilters = () => {
+    setSearch('')
+    setProjectFilter('ALL')
+    setStatusFilter('ALL')
+    setTypeFilter('ALL')
+    setDateFilter('ALL')
+    setPage(1)
+  }
+
+  const openScheduler = () => {
+    setScheduleForm(formFromMeeting(selectedMeeting))
+    setIsSchedulerOpen(true)
+    showMessage('Schedule form is ready')
+  }
 
   const showMessage = (message: string) => {
     setActionMessage(message)
@@ -995,10 +1010,12 @@ export default function ProjectsMeetingsPage() {
       const mapped = mapBackendMeeting(saved, projectOptions)
       setMeetings((current) => [mapped, ...current.filter((item) => item.id !== mapped.id)])
       selectMeeting(mapped)
+      setIsSchedulerOpen(false)
       showMessage('Meeting scheduled')
     } catch {
       setMeetings((current) => [meeting, ...current])
       selectMeeting(meeting)
+      setIsSchedulerOpen(false)
       showMessage('Meeting scheduled locally; backend unavailable')
     }
   }
@@ -1075,119 +1092,308 @@ export default function ProjectsMeetingsPage() {
   }
 
   return (
-    <div className="flex flex-col">
-      <div className="border-b border-slate-100 bg-white px-6 py-4">
+    <div className="min-h-screen bg-slate-50/70">
+      <div className="border-b border-slate-200 bg-white px-4 py-4 sm:px-6">
         <div className="flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <h1 className="text-lg font-semibold text-slate-900">Meetings</h1>
-            <p className="text-sm text-slate-400">Plan, organize and track all your project meetings</p>
+          <div className="min-w-0">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-blue-600">Project workspace</p>
+            <h1 className="mt-1 text-xl font-semibold text-slate-950">Meetings</h1>
+            <p className="mt-1 text-sm text-slate-500">A focused board for schedules, attendance, notes, and follow-ups.</p>
           </div>
-          <button
-            type="button"
-            onClick={() => {
-              setScheduleForm(formFromMeeting(selectedMeeting))
-              showMessage('Schedule form is ready')
-            }}
-            className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
-          >
-            <Plus className="h-4 w-4" />
-            Schedule Meeting
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={clearFilters}
+              className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 transition hover:bg-slate-50"
+            >
+              <Filter className="h-3.5 w-3.5" />
+              Clear filters
+            </button>
+            <button
+              type="button"
+              onClick={openScheduler}
+              className="inline-flex h-9 items-center gap-2 rounded-lg bg-blue-600 px-4 text-xs font-semibold text-white transition hover:bg-blue-700"
+            >
+              <Plus className="h-4 w-4" />
+              Schedule meeting
+            </button>
+          </div>
         </div>
       </div>
 
-      <div className="space-y-4 p-6">
+      <div className="space-y-4 p-4 sm:p-6">
         {actionMessage && (
           <div className="rounded-lg border border-blue-100 bg-blue-50 px-4 py-2 text-xs font-semibold text-blue-700">
             {actionMessage}
           </div>
         )}
 
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(360px,0.9fr)]">
-          <div className="space-y-4">
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="relative min-w-[220px] flex-1">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
-                <input
-                  value={search}
-                  onChange={(event) => {
-                    setSearch(event.target.value)
-                    setPage(1)
-                  }}
-                  placeholder="Search meetings..."
-                  className="h-10 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15"
-                />
+        {isSchedulerOpen && (
+          <SectionShell className="overflow-hidden">
+            <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 bg-white px-5 py-4">
+              <div>
+                <h2 className="text-sm font-semibold text-slate-950">Schedule a meeting</h2>
+                <p className="mt-1 text-xs text-slate-500">Set the essentials first; reminders, repeat rules, and files are tucked into the same panel.</p>
               </div>
-              <SelectInput value={projectFilter} onChange={(event) => { setProjectFilter(event.target.value); setPage(1) }} className="max-w-[180px]">
-                <option value="ALL">Project</option>
-                {projectOptions.map((project) => (
-                  <option key={project.id} value={project.id}>{project.name}</option>
-                ))}
-              </SelectInput>
-              <SelectInput value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value as MeetingStatus | 'ALL'); setPage(1) }} className="max-w-[150px]">
-                <option value="ALL">Status</option>
-                {(['Upcoming', 'Completed', 'Cancelled'] as MeetingStatus[]).map((status) => (
-                  <option key={status} value={status}>{status}</option>
-                ))}
-              </SelectInput>
-              <SelectInput value={typeFilter} onChange={(event) => { setTypeFilter(event.target.value as MeetingType | 'ALL'); setPage(1) }} className="max-w-[160px]">
-                <option value="ALL">Meeting Type</option>
-                {(['Planning', 'Review', 'Design', 'Retrospective', 'Architecture'] as MeetingType[]).map((type) => (
-                  <option key={type} value={type}>{type}</option>
-                ))}
-              </SelectInput>
               <button
                 type="button"
-                onClick={() => {
-                  setDateFilter((current) => current === 'TODAY' ? 'ALL' : 'TODAY')
-                  setPage(1)
-                }}
-                className={`inline-flex h-10 items-center gap-2 rounded-lg border px-3 text-xs font-semibold ${
-                  dateFilter === 'TODAY'
-                    ? 'border-blue-200 bg-blue-50 text-blue-700'
-                    : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
-                }`}
+                onClick={() => setIsSchedulerOpen(false)}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                aria-label="Close scheduler"
               >
-                <CalendarCheck className="h-3.5 w-3.5" />
-                Today
+                <X className="h-4 w-4" />
               </button>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="grid gap-5 p-5 xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.8fr)]">
+              <div className="space-y-4">
+                <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_220px]">
+                  <Field label="Meeting Title">
+                    <TextInput value={scheduleForm.title} onChange={(event) => updateScheduleField('title', event.target.value)} />
+                  </Field>
+                  <Field label="Project">
+                    <SelectInput value={scheduleForm.projectId} onChange={(event) => updateScheduleField('projectId', event.target.value)}>
+                      {projectOptions.map((project) => (
+                        <option key={project.id} value={project.id}>{project.name}</option>
+                      ))}
+                    </SelectInput>
+                  </Field>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  <Field label="Date">
+                    <TextInput type="date" value={scheduleForm.date} onChange={(event) => updateScheduleField('date', event.target.value)} />
+                  </Field>
+                  <Field label="Start">
+                    <TextInput type="time" value={scheduleForm.startTime} onChange={(event) => updateScheduleField('startTime', event.target.value)} />
+                  </Field>
+                  <Field label="End">
+                    <TextInput type="time" value={scheduleForm.endTime} onChange={(event) => updateScheduleField('endTime', event.target.value)} />
+                  </Field>
+                  <Field label="Time Zone">
+                    <SelectInput value={scheduleForm.timezone} onChange={(event) => updateScheduleField('timezone', event.target.value)}>
+                      <option value="IST">GMT+05:30 IST</option>
+                      <option value="UTC">UTC</option>
+                      <option value="PST">Pacific Time</option>
+                    </SelectInput>
+                  </Field>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  <Field label="Meeting Type">
+                    <SelectInput value={scheduleForm.type} onChange={(event) => updateScheduleField('type', event.target.value as MeetingType)}>
+                      {(['Planning', 'Review', 'Design', 'Retrospective', 'Architecture'] as MeetingType[]).map((type) => (
+                        <option key={type}>{type}</option>
+                      ))}
+                    </SelectInput>
+                  </Field>
+                  <Field label="Platform">
+                    <SelectInput value={scheduleForm.platform} onChange={(event) => updateScheduleField('platform', event.target.value as Meeting['platform'])}>
+                      <option>Google Meet</option>
+                      <option>Microsoft Teams</option>
+                      <option>Zoom</option>
+                    </SelectInput>
+                  </Field>
+                  <Field label="Reminder">
+                    <SelectInput value={scheduleForm.reminder} onChange={(event) => updateScheduleField('reminder', event.target.value)}>
+                      <option>15 minutes before</option>
+                      <option>30 minutes before</option>
+                      <option>1 hour before</option>
+                      <option>No reminder</option>
+                    </SelectInput>
+                  </Field>
+                  <Field label="Repeat">
+                    <SelectInput value={scheduleForm.repeat} onChange={(event) => updateScheduleField('repeat', event.target.value)}>
+                      <option>Does not repeat</option>
+                      <option>Daily</option>
+                      <option>Weekly</option>
+                      <option>Monthly</option>
+                    </SelectInput>
+                  </Field>
+                </div>
+
+                <Field label="Meeting URL">
+                  <TextInput value={scheduleForm.link} onChange={(event) => updateScheduleField('link', event.target.value)} />
+                </Field>
+
+                <Field label="Description">
+                  <textarea
+                    value={scheduleForm.description}
+                    onChange={(event) => updateScheduleField('description', event.target.value)}
+                    className="min-h-20 w-full resize-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15"
+                  />
+                </Field>
+              </div>
+
+              <div className="space-y-4">
+                <Field label="Participants">
+                  <div className="flex min-h-11 flex-wrap gap-2 rounded-lg border border-slate-200 bg-slate-50/70 p-2">
+                    {scheduleForm.participants.slice(0, 8).map((name) => (
+                      <span key={name} className="inline-flex items-center gap-1 rounded-full bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 ring-1 ring-slate-200">
+                        {name}
+                        <button
+                          type="button"
+                          onClick={() => updateScheduleField('participants', scheduleForm.participants.filter((participant) => participant !== name))}
+                          aria-label={`Remove ${name}`}
+                        >
+                          <X className="h-3 w-3 text-slate-400" />
+                        </button>
+                      </span>
+                    ))}
+                    <select
+                      value=""
+                      onChange={(event) => {
+                        if (!event.target.value) return
+                        updateScheduleField('participants', Array.from(new Set([...scheduleForm.participants, event.target.value])))
+                      }}
+                      className="min-w-32 rounded-full border border-slate-200 bg-white px-2 py-1 text-[11px] text-slate-600 outline-none"
+                    >
+                      <option value="">Add person</option>
+                      {allPeople.filter((name) => !scheduleForm.participants.includes(name)).map((name) => (
+                        <option key={name} value={name}>{name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </Field>
+
+                <Field label="Agenda">
+                  <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+                    {scheduleForm.agenda.map((item, index) => (
+                      <div key={`${item}-${index}`} className="flex items-center gap-2 border-b border-slate-100 px-3 py-2 last:border-b-0">
+                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-50 text-[10px] font-semibold text-blue-700">{index + 1}</span>
+                        <input
+                          value={item}
+                          onChange={(event) => updateScheduleField('agenda', scheduleForm.agenda.map((agendaItem, agendaIndex) => agendaIndex === index ? event.target.value : agendaItem))}
+                          className="min-w-0 flex-1 bg-transparent text-xs text-slate-700 outline-none"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => updateScheduleField('agenda', scheduleForm.agenda.filter((_, agendaIndex) => agendaIndex !== index))}
+                          className="text-slate-300 hover:text-rose-500"
+                          aria-label="Remove agenda item"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                  <button type="button" onClick={addAgendaItem} className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold text-blue-700 hover:text-blue-800">
+                    <Plus className="h-3 w-3" />
+                    Add agenda item
+                  </button>
+                </Field>
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Field label="Attachments">
+                    <label className="inline-flex h-9 w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-blue-200 bg-blue-50 text-xs font-semibold text-blue-700 hover:bg-blue-100">
+                      <Upload className="h-3.5 w-3.5" />
+                      Choose files
+                      <input type="file" multiple className="sr-only" onChange={(event) => addScheduleFiles(event.target.files)} />
+                    </label>
+                  </Field>
+                  <label className="mt-5 inline-flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-medium text-slate-600">
+                    <input
+                      type="checkbox"
+                      checked={scheduleForm.sendEmail}
+                      onChange={(event) => updateScheduleField('sendEmail', event.target.checked)}
+                      className="h-3.5 w-3.5 rounded accent-blue-600"
+                    />
+                    Send email invitation
+                  </label>
+                </div>
+
+                <div className="flex flex-wrap justify-end gap-2 pt-1">
+                  <button type="button" onClick={resetScheduleForm} className="h-9 rounded-lg border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-600 hover:bg-slate-50">Reset</button>
+                  <button type="button" onClick={createMeeting} className="h-9 rounded-lg bg-blue-600 px-4 text-xs font-semibold text-white hover:bg-blue-700">Schedule meeting</button>
+                </div>
+              </div>
+            </div>
+          </SectionShell>
+        )}
+
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,0.92fr)_minmax(420px,1.08fr)]">
+          <div className="space-y-4">
+            <div className="grid gap-3 sm:grid-cols-2">
               {stats.map((stat) => (
                 <StatCard key={stat.label} {...stat} />
               ))}
             </div>
 
             <SectionShell className="overflow-hidden">
-              <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
-                <div>
-                  <h2 className="text-sm font-semibold text-slate-900">All Meetings</h2>
-                  <p className="mt-1 text-sm font-semibold text-slate-800">Sprint Planning</p>
-                  <p className="text-xs text-slate-400">{filteredMeetings.length} meetings matching current filters</p>
+              <div className="border-b border-slate-100 px-4 py-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h2 className="text-sm font-semibold text-slate-950">Meeting queue</h2>
+                    <p className="mt-1 text-xs text-slate-500">{filteredMeetings.length} meetings match the current view</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={openScheduler}
+                    className="inline-flex h-8 items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 text-xs font-semibold text-blue-700 hover:bg-blue-100"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    New
+                  </button>
                 </div>
-                <IconButton label="Filter meetings">
-                  <Filter className="h-4 w-4" />
-                </IconButton>
+
+                <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                  <div className="relative sm:col-span-2">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+                    <input
+                      value={search}
+                      onChange={(event) => {
+                        setSearch(event.target.value)
+                        setPage(1)
+                      }}
+                      placeholder="Search by title, project, organizer, or platform"
+                      className="h-10 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15"
+                    />
+                  </div>
+                  <SelectInput value={projectFilter} onChange={(event) => { setProjectFilter(event.target.value); setPage(1) }}>
+                    <option value="ALL">All projects</option>
+                    {projectOptions.map((project) => (
+                      <option key={project.id} value={project.id}>{project.name}</option>
+                    ))}
+                  </SelectInput>
+                  <SelectInput value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value as MeetingStatus | 'ALL'); setPage(1) }}>
+                    <option value="ALL">All statuses</option>
+                    {(['Upcoming', 'Completed', 'Cancelled'] as MeetingStatus[]).map((status) => (
+                      <option key={status} value={status}>{status}</option>
+                    ))}
+                  </SelectInput>
+                  <SelectInput value={typeFilter} onChange={(event) => { setTypeFilter(event.target.value as MeetingType | 'ALL'); setPage(1) }}>
+                    <option value="ALL">All types</option>
+                    {(['Planning', 'Review', 'Design', 'Retrospective', 'Architecture'] as MeetingType[]).map((type) => (
+                      <option key={type} value={type}>{type}</option>
+                    ))}
+                  </SelectInput>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDateFilter((current) => current === 'TODAY' ? 'ALL' : 'TODAY')
+                      setPage(1)
+                    }}
+                    className={`inline-flex h-9 items-center justify-center gap-2 rounded-lg border px-3 text-xs font-semibold ${
+                      dateFilter === 'TODAY'
+                        ? 'border-blue-200 bg-blue-50 text-blue-700'
+                        : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    <CalendarCheck className="h-3.5 w-3.5" />
+                    Today only
+                  </button>
+                </div>
               </div>
 
-              <div className="max-h-[360px] overflow-auto overscroll-contain [scrollbar-gutter:stable]">
-                <div className="hidden border-b border-slate-100 bg-slate-50 px-5 py-3 text-[11px] font-semibold uppercase tracking-wide text-slate-400 lg:grid lg:min-w-[1120px] lg:grid-cols-[minmax(180px,1.35fr)_minmax(120px,0.9fr)_minmax(120px,0.95fr)_minmax(145px,1.05fr)_120px_120px_96px_82px] lg:gap-4">
-                  <span>Meeting Title</span>
-                  <span>Project</span>
-                  <span>Organizer</span>
-                  <span>Date & Time</span>
-                  <span>Participants</span>
-                  <span>Platform</span>
-                  <span>Status</span>
-                  <span>Actions</span>
-                </div>
-
-                <div className="divide-y divide-slate-100">
+              <div className="max-h-[620px] overflow-auto p-3 [scrollbar-gutter:stable]">
+                <div className="space-y-2">
                   {filteredMeetings.length === 0 ? (
                     <div className="py-14 text-center">
                       <MessageSquare className="mx-auto mb-3 h-8 w-8 text-slate-300" />
                       <p className="text-sm font-medium text-slate-500">No meetings match your filters.</p>
+                      <button type="button" onClick={clearFilters} className="mt-3 text-xs font-semibold text-blue-700 hover:text-blue-800">
+                        Reset filters
+                      </button>
                     </div>
                   ) : (
                     pageMeetings.map((meeting) => {
@@ -1201,41 +1407,52 @@ export default function ProjectsMeetingsPage() {
                           onKeyDown={(event) => {
                             if (event.key === 'Enter' || event.key === ' ') selectMeeting(meeting)
                           }}
-                          className={`grid w-full gap-3 px-5 py-3 text-left text-sm transition hover:bg-blue-50/50 lg:min-w-[1120px] lg:grid-cols-[minmax(180px,1.35fr)_minmax(120px,0.9fr)_minmax(120px,0.95fr)_minmax(145px,1.05fr)_120px_120px_96px_82px] lg:items-center lg:gap-4 ${
-                            selected ? 'bg-blue-50/70' : 'bg-white'
+                          className={`rounded-lg border p-3 text-left transition hover:border-blue-200 hover:bg-blue-50/40 ${
+                            selected ? 'border-blue-300 bg-blue-50 shadow-sm' : 'border-slate-200 bg-white'
                           }`}
                         >
-                        <div className="min-w-0">
-                          <p className="truncate font-semibold text-slate-900">{meeting.title}</p>
-                          <p className="text-[11px] text-slate-400">{meeting.type} meeting</p>
-                        </div>
-                        <p className="truncate text-xs font-medium text-slate-600">{meeting.project.name}</p>
-                        <div className="flex min-w-0 items-center gap-2">
-                          <Avatar name={meeting.organizer.name} index={1} size="h-7 w-7" />
-                          <span className="truncate text-xs text-slate-600">{meeting.organizer.name}</span>
-                        </div>
-                        <div>
-                          <p className="text-xs font-medium text-slate-700">{meeting.dateShort}</p>
-                          <p className="text-[11px] text-slate-400">{meeting.time}</p>
-                        </div>
-                        <AvatarStack people={meeting.participants} limit={3} />
-                        <div className="flex items-center gap-2">
-                          <span className={`h-2 w-2 rounded-full ${meeting.platformTone}`} />
-                          <span className="truncate text-xs text-slate-600">{meeting.platform}</span>
-                        </div>
-                        <StatusPill status={meeting.status} />
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={(event) => {
-                              event.stopPropagation()
-                              openMeeting(meeting)
-                            }}
-                            className="rounded-md bg-blue-600 px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-blue-700"
-                          >
-                            Join
-                          </button>
-                          <div className="relative">
+                          <div className="flex items-start gap-3">
+                            <div className="flex w-16 shrink-0 flex-col items-center rounded-lg bg-slate-50 px-2 py-2 text-center ring-1 ring-slate-200">
+                              <span className="text-[11px] font-semibold text-slate-500">{meeting.dateShort.split(' ')[1]}</span>
+                              <span className="text-lg font-semibold leading-tight text-slate-950">{meeting.dateShort.split(' ')[0]}</span>
+                              <span className="text-[10px] font-medium text-slate-400">{meeting.duration}</span>
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex flex-wrap items-start justify-between gap-2">
+                                <div className="min-w-0">
+                                  <p className="truncate text-sm font-semibold text-slate-950">{meeting.title}</p>
+                                  <p className="mt-1 truncate text-xs text-slate-500">{meeting.project.name} - {meeting.type}</p>
+                                </div>
+                                <StatusPill status={meeting.status} />
+                              </div>
+                              <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-[11px] font-medium text-slate-500">
+                                <span className="inline-flex items-center gap-1.5">
+                                  <Clock3 className="h-3.5 w-3.5 text-blue-500" />
+                                  {meeting.time}
+                                </span>
+                                <span className="inline-flex min-w-0 items-center gap-1.5">
+                                  <span className={`h-2 w-2 rounded-full ${meeting.platformTone}`} />
+                                  <span className="truncate">{meeting.platform}</span>
+                                </span>
+                                <span className="inline-flex min-w-0 items-center gap-1.5">
+                                  <Avatar name={meeting.organizer.name} index={1} size="h-6 w-6" />
+                                  <span className="truncate">{meeting.organizer.name}</span>
+                                </span>
+                              </div>
+                              <div className="mt-3 flex items-center justify-between gap-3">
+                                <AvatarStack people={meeting.participants} limit={4} />
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={(event) => {
+                                      event.stopPropagation()
+                                      openMeeting(meeting)
+                                    }}
+                                    className="rounded-md bg-blue-600 px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-blue-700"
+                                  >
+                                    Join
+                                  </button>
+                                  <div className="relative">
                             <button
                               type="button"
                               aria-label="More meeting actions"
@@ -1243,7 +1460,7 @@ export default function ProjectsMeetingsPage() {
                                 event.stopPropagation()
                                 setMenuMeetingId((current) => current === meeting.id ? null : meeting.id)
                               }}
-                              className="flex h-7 w-7 items-center justify-center rounded-md text-slate-400 hover:bg-white hover:text-blue-700"
+                                      className="flex h-7 w-7 items-center justify-center rounded-md text-slate-400 hover:bg-white hover:text-blue-700"
                             >
                               <MoreHorizontal className="h-4 w-4" />
                             </button>
@@ -1255,16 +1472,19 @@ export default function ProjectsMeetingsPage() {
                                 <button type="button" onClick={(event) => { event.stopPropagation(); setMeetingStatus(meeting.id, 'Cancelled') }} className="block w-full px-3 py-2 text-left text-xs text-rose-700 hover:bg-rose-50">Cancel meeting</button>
                               </div>
                             )}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
                           </div>
                         </div>
-                      </div>
                       )
                     })
                   )}
                 </div>
               </div>
 
-              <div className="flex items-center justify-between border-t border-slate-100 px-5 py-3">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 px-4 py-3">
                 <p className="text-xs text-slate-400">
                   Showing {filteredMeetings.length ? (page - 1) * pageSize + 1 : 0} to {Math.min(page * pageSize, filteredMeetings.length)} of {filteredMeetings.length} meetings
                 </p>
@@ -1292,28 +1512,13 @@ export default function ProjectsMeetingsPage() {
             </SectionShell>
           </div>
 
-          <SectionShell className="min-w-0 overflow-hidden">
-            <div className="border-b border-slate-100 px-5 py-4">
-              <button
-                type="button"
-                onClick={() => {
-                  setSearch('')
-                  setProjectFilter('ALL')
-                  setStatusFilter('ALL')
-                  setTypeFilter('ALL')
-                  setDateFilter('ALL')
-                  setPage(1)
-                }}
-                className="mb-5 inline-flex items-center gap-1 text-[11px] font-semibold text-slate-500 hover:text-blue-700"
-              >
-                <ChevronLeft className="h-3.5 w-3.5" />
-                Back to Meetings
-              </button>
-
+          <SectionShell className="min-w-0 overflow-hidden xl:sticky xl:top-4 xl:self-start">
+            <div className="border-b border-slate-100 bg-white px-5 py-4">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div className="min-w-0">
+                  <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">Selected meeting</p>
                   <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="truncate text-xl font-semibold text-slate-900">{selectedMeeting.title}</h2>
+                    <h2 className="truncate text-xl font-semibold text-slate-950">{selectedMeeting.title}</h2>
                     <StatusPill status={selectedMeeting.status} />
                   </div>
                   <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-[11px] font-medium text-slate-500">
@@ -1346,7 +1551,7 @@ export default function ProjectsMeetingsPage() {
                 </div>
               </div>
 
-              <div className="mt-5 flex overflow-x-auto border-b border-slate-100">
+              <div className="mt-5 flex overflow-x-auto rounded-lg bg-slate-100 p-1">
                 {([
                   { id: 'Overview', label: 'Overview' },
                   { id: 'Agenda', label: 'Agenda' },
@@ -1360,8 +1565,8 @@ export default function ProjectsMeetingsPage() {
                     key={tab.id}
                     type="button"
                     onClick={() => setActiveTab(tab.id)}
-                    className={`shrink-0 border-b-2 px-3 py-2 text-xs font-semibold transition ${
-                      activeTab === tab.id ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-400 hover:text-slate-700'
+                    className={`shrink-0 rounded-md px-3 py-1.5 text-xs font-semibold transition ${
+                      activeTab === tab.id ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-800'
                     }`}
                   >
                     {tab.label}
@@ -1445,6 +1650,63 @@ export default function ProjectsMeetingsPage() {
               </div>
 
               <div className="space-y-4">
+                <div className="rounded-lg border border-slate-200 p-4">
+                  <div className="mb-3 flex items-center justify-between">
+                    <p className="text-xs font-semibold text-slate-800">RSVP summary</p>
+                    <span className="text-[11px] font-medium text-slate-400">{selectedMeeting.participants.length} invited</span>
+                  </div>
+                  <div className="space-y-3">
+                    {[
+                      { label: 'Accepted', value: accepted.length, icon: Check, tone: 'bg-emerald-50 text-emerald-600' },
+                      { label: 'Pending', value: pending.length, icon: Clock3, tone: 'bg-amber-50 text-amber-600' },
+                      { label: 'Declined', value: declined.length, icon: X, tone: 'bg-rose-50 text-rose-600' },
+                    ].map((group) => {
+                      const Icon = group.icon
+                      return (
+                        <div key={group.label} className="flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-2">
+                            <div className={`flex h-7 w-7 items-center justify-center rounded-full ${group.tone}`}>
+                              <Icon className="h-3.5 w-3.5" />
+                            </div>
+                            <span className="text-xs font-semibold text-slate-700">{group.label}</span>
+                          </div>
+                          <span className="text-sm font-semibold tabular-nums text-slate-900">{group.value}</span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                  {pending.length > 0 && (
+                    <div className="mt-4 grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          updateMeeting(selectedMeeting.id, (meeting) => ({
+                            ...meeting,
+                            participants: meeting.participants.map((participant) => participant.status === 'Pending' ? { ...participant, status: 'Accepted' } : participant),
+                          }))
+                          showMessage('Pending participants accepted')
+                        }}
+                        className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700"
+                      >
+                        Accept pending
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          updateMeeting(selectedMeeting.id, (meeting) => ({
+                            ...meeting,
+                            participants: meeting.participants.map((participant) => participant.status === 'Pending' ? { ...participant, status: 'Declined' } : participant),
+                          }))
+                          showMessage('Pending participants declined')
+                        }}
+                        className="rounded-lg border border-rose-200 bg-white px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-50"
+                      >
+                        Decline
+                      </button>
+                    </div>
+                  )}
+                </div>
+
                 <div className="rounded-lg border border-slate-200 p-4">
                   <div className="mb-3 flex items-center justify-between">
                     <p className="text-xs font-semibold text-slate-800">Participants ({selectedMeeting.participants.length})</p>
@@ -1574,6 +1836,90 @@ export default function ProjectsMeetingsPage() {
                     </button>
                   </div>
                 ))}
+
+                <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-4">
+                  <div className="mb-4">
+                    <h3 className="text-sm font-semibold text-slate-900">Invite people</h3>
+                    <p className="mt-1 text-xs text-slate-500">Add teammates to this meeting and send a short note.</p>
+                  </div>
+
+                  <Field label="Add people or email">
+                    <div className="relative">
+                      <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+                      <TextInput
+                        value={inviteQuery}
+                        onChange={(event) => setInviteQuery(event.target.value)}
+                        className="pl-9"
+                        placeholder="Search by name or email"
+                      />
+                    </div>
+                  </Field>
+
+                  {inviteMatches.length > 0 && (
+                    <div className="mt-2 overflow-hidden rounded-lg border border-slate-200 bg-white">
+                      {inviteMatches.map((name) => (
+                        <button
+                          key={name}
+                          type="button"
+                          onClick={() => {
+                            setInviteSelected((current) => [...current, name])
+                            setInviteQuery('')
+                          }}
+                          className="flex w-full items-center justify-between px-3 py-2 text-left text-xs text-slate-600 hover:bg-blue-50"
+                        >
+                          <span>{name}</span>
+                          <Plus className="h-3.5 w-3.5 text-blue-600" />
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="mt-4">
+                    <p className="mb-2 text-[11px] font-semibold text-slate-600">Selected ({inviteSelected.length || selectedMeeting.participants.length})</p>
+                    <div className="flex flex-wrap gap-2">
+                      {(inviteSelected.length ? inviteSelected : selectedMeeting.participants.slice(0, 7).map((person) => person.name)).map((name, index) => (
+                        <button
+                          key={name}
+                          type="button"
+                          onClick={() => setInviteSelected((current) => current.filter((item) => item !== name))}
+                          title={inviteSelected.length ? `Remove ${name}` : name}
+                        >
+                          <Avatar name={name} index={index} />
+                        </button>
+                      ))}
+                      {!inviteSelected.length && selectedMeeting.participants.length > 7 && (
+                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-[10px] font-semibold text-slate-500">
+                          +{selectedMeeting.participants.length - 7}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <Field label="Message">
+                    <textarea
+                      value={inviteMessage}
+                      onChange={(event) => setInviteMessage(event.target.value)}
+                      className="min-h-24 w-full resize-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15"
+                    />
+                  </Field>
+
+                  <div className="mt-4 flex justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setInviteSelected([])
+                        setInviteQuery('')
+                      }}
+                      className="h-9 rounded-lg border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                    >
+                      Clear
+                    </button>
+                    <button type="button" onClick={sendInvitations} className="inline-flex h-9 items-center gap-2 rounded-lg bg-blue-600 px-4 text-xs font-semibold text-white hover:bg-blue-700">
+                      <Send className="h-3.5 w-3.5" />
+                      Send invitation
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
 
@@ -1696,324 +2042,6 @@ export default function ProjectsMeetingsPage() {
           </SectionShell>
         </div>
 
-        <div className="grid gap-4 2xl:grid-cols-[minmax(0,1.45fr)_minmax(300px,0.68fr)_minmax(260px,0.55fr)]">
-          <SectionShell className="p-5">
-            <div className="mb-4">
-              <h2 className="text-sm font-semibold text-slate-900">Schedule Meeting</h2>
-              <p className="text-xs text-slate-400">Create a project meeting and notify the selected participants.</p>
-            </div>
-
-            <div className="grid gap-4 lg:grid-cols-2">
-              <div className="space-y-3">
-                <Field label="Meeting Title">
-                  <TextInput value={scheduleForm.title} onChange={(event) => updateScheduleField('title', event.target.value)} />
-                </Field>
-                <Field label="Project">
-                  <SelectInput value={scheduleForm.projectId} onChange={(event) => updateScheduleField('projectId', event.target.value)}>
-                    {projectOptions.map((project) => (
-                      <option key={project.id} value={project.id}>{project.name}</option>
-                    ))}
-                  </SelectInput>
-                </Field>
-                <Field label="Description">
-                  <textarea
-                    value={scheduleForm.description}
-                    onChange={(event) => updateScheduleField('description', event.target.value)}
-                    className="min-h-20 w-full resize-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15"
-                  />
-                </Field>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <Field label="Meeting Type">
-                    <SelectInput value={scheduleForm.type} onChange={(event) => updateScheduleField('type', event.target.value as MeetingType)}>
-                      {(['Planning', 'Review', 'Design', 'Retrospective', 'Architecture'] as MeetingType[]).map((type) => (
-                        <option key={type}>{type}</option>
-                      ))}
-                    </SelectInput>
-                  </Field>
-                  <Field label="Platform">
-                    <SelectInput value={scheduleForm.platform} onChange={(event) => updateScheduleField('platform', event.target.value as Meeting['platform'])}>
-                      <option>Google Meet</option>
-                      <option>Microsoft Teams</option>
-                      <option>Zoom</option>
-                    </SelectInput>
-                  </Field>
-                </div>
-                <Field label="Meeting URL">
-                  <TextInput value={scheduleForm.link} onChange={(event) => updateScheduleField('link', event.target.value)} />
-                </Field>
-              </div>
-
-              <div className="space-y-3">
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <Field label="Date">
-                    <TextInput type="date" value={scheduleForm.date} onChange={(event) => updateScheduleField('date', event.target.value)} />
-                  </Field>
-                  <Field label="Start Time">
-                    <TextInput type="time" value={scheduleForm.startTime} onChange={(event) => updateScheduleField('startTime', event.target.value)} />
-                  </Field>
-                  <Field label="End Time">
-                    <TextInput type="time" value={scheduleForm.endTime} onChange={(event) => updateScheduleField('endTime', event.target.value)} />
-                  </Field>
-                  <Field label="Time Zone">
-                    <SelectInput value={scheduleForm.timezone} onChange={(event) => updateScheduleField('timezone', event.target.value)}>
-                      <option value="IST">GMT+05:30 India Standard Time</option>
-                      <option value="UTC">UTC</option>
-                      <option value="PST">Pacific Time</option>
-                    </SelectInput>
-                  </Field>
-                </div>
-
-                <Field label="Participants">
-                  <div className="flex flex-wrap gap-2 rounded-lg border border-slate-200 bg-white p-2">
-                    {scheduleForm.participants.slice(0, 6).map((name) => (
-                      <span key={name} className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-1 text-[11px] font-semibold text-blue-700">
-                        {name}
-                        <button
-                          type="button"
-                          onClick={() => updateScheduleField('participants', scheduleForm.participants.filter((participant) => participant !== name))}
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      </span>
-                    ))}
-                    <select
-                      value=""
-                      onChange={(event) => {
-                        if (!event.target.value) return
-                        updateScheduleField('participants', Array.from(new Set([...scheduleForm.participants, event.target.value])))
-                      }}
-                      className="min-w-32 rounded-full border border-slate-200 bg-white px-2 py-1 text-[11px] text-slate-600 outline-none"
-                    >
-                      <option value="">Add person</option>
-                      {allPeople.filter((name) => !scheduleForm.participants.includes(name)).map((name) => (
-                        <option key={name} value={name}>{name}</option>
-                      ))}
-                    </select>
-                  </div>
-                </Field>
-
-                <Field label="Agenda">
-                  <div className="overflow-hidden rounded-lg border border-slate-200">
-                    {scheduleForm.agenda.map((item, index) => (
-                      <div key={item} className="flex items-center gap-2 border-b border-slate-100 px-3 py-2 last:border-b-0">
-                        <span className="text-[11px] font-semibold text-slate-400">{index + 1}</span>
-                        <input
-                          value={item}
-                          onChange={(event) => updateScheduleField('agenda', scheduleForm.agenda.map((agendaItem, agendaIndex) => agendaIndex === index ? event.target.value : agendaItem))}
-                          className="min-w-0 flex-1 bg-transparent text-xs text-slate-700 outline-none"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => updateScheduleField('agenda', scheduleForm.agenda.filter((_, agendaIndex) => agendaIndex !== index))}
-                          className="text-slate-300 hover:text-rose-500"
-                        >
-                          <X className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                  <button type="button" onClick={addAgendaItem} className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold text-blue-700">
-                    <Plus className="h-3 w-3" />
-                    Add Agenda Item
-                  </button>
-                </Field>
-
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <Field label="Add Attachments">
-                    <label className="inline-flex h-9 w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-blue-200 bg-blue-50 text-xs font-semibold text-blue-700 hover:bg-blue-100">
-                      <Upload className="h-3.5 w-3.5" />
-                      Choose Files
-                      <input type="file" multiple className="sr-only" onChange={(event) => addScheduleFiles(event.target.files)} />
-                    </label>
-                  </Field>
-                  <Field label="Add Reminder">
-                    <SelectInput value={scheduleForm.reminder} onChange={(event) => updateScheduleField('reminder', event.target.value)}>
-                      <option>15 minutes before</option>
-                      <option>30 minutes before</option>
-                      <option>1 hour before</option>
-                      <option>No reminder</option>
-                    </SelectInput>
-                  </Field>
-                </div>
-                <Field label="Repeat">
-                  <SelectInput value={scheduleForm.repeat} onChange={(event) => updateScheduleField('repeat', event.target.value)}>
-                    <option>Does not repeat</option>
-                    <option>Daily</option>
-                    <option>Weekly</option>
-                    <option>Monthly</option>
-                  </SelectInput>
-                </Field>
-              </div>
-            </div>
-
-            <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-              <label className="inline-flex items-center gap-2 text-xs font-medium text-slate-600">
-                <input
-                  type="checkbox"
-                  checked={scheduleForm.sendEmail}
-                  onChange={(event) => updateScheduleField('sendEmail', event.target.checked)}
-                  className="h-3.5 w-3.5 rounded accent-blue-600"
-                />
-                Send email invitation
-              </label>
-              <div className="flex gap-2">
-                <button type="button" onClick={resetScheduleForm} className="h-9 rounded-lg border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-600 hover:bg-slate-50">Cancel</button>
-                <button type="button" onClick={createMeeting} className="h-9 rounded-lg bg-blue-600 px-4 text-xs font-semibold text-white hover:bg-blue-700">Schedule Meeting</button>
-              </div>
-            </div>
-          </SectionShell>
-
-          <SectionShell className="p-5">
-            <div className="mb-4">
-              <h2 className="text-sm font-semibold text-slate-900">Invite People</h2>
-              <p className="text-xs text-slate-400">Add people or send a quick invitation.</p>
-            </div>
-
-            <Field label="Add people or email">
-              <div className="relative">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
-                <TextInput
-                  value={inviteQuery}
-                  onChange={(event) => setInviteQuery(event.target.value)}
-                  className="pl-9"
-                  placeholder="Search by name or email"
-                />
-              </div>
-            </Field>
-
-            {inviteMatches.length > 0 && (
-              <div className="mt-2 overflow-hidden rounded-lg border border-slate-200 bg-white">
-                {inviteMatches.map((name) => (
-                  <button
-                    key={name}
-                    type="button"
-                    onClick={() => {
-                      setInviteSelected((current) => [...current, name])
-                      setInviteQuery('')
-                    }}
-                    className="flex w-full items-center justify-between px-3 py-2 text-left text-xs text-slate-600 hover:bg-blue-50"
-                  >
-                    <span>{name}</span>
-                    <Plus className="h-3.5 w-3.5 text-blue-600" />
-                  </button>
-                ))}
-              </div>
-            )}
-
-            <div className="mt-4">
-              <p className="mb-2 text-[11px] font-semibold text-slate-600">Selected ({inviteSelected.length || selectedMeeting.participants.length})</p>
-              <div className="flex flex-wrap gap-2">
-                {(inviteSelected.length ? inviteSelected : selectedMeeting.participants.slice(0, 7).map((person) => person.name)).map((name, index) => (
-                  <button
-                    key={name}
-                    type="button"
-                    onClick={() => setInviteSelected((current) => current.filter((item) => item !== name))}
-                    title={inviteSelected.length ? `Remove ${name}` : name}
-                  >
-                    <Avatar name={name} index={index} />
-                  </button>
-                ))}
-                {!inviteSelected.length && selectedMeeting.participants.length > 7 && (
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-[10px] font-semibold text-slate-500">
-                    +{selectedMeeting.participants.length - 7}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <Field label="Message (Optional)">
-              <textarea
-                value={inviteMessage}
-                onChange={(event) => setInviteMessage(event.target.value)}
-                className="min-h-28 w-full resize-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15"
-              />
-            </Field>
-
-            <div className="mt-4 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setInviteSelected([])
-                  setInviteQuery('')
-                }}
-                className="h-9 rounded-lg border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-600 hover:bg-slate-50"
-              >
-                Cancel
-              </button>
-              <button type="button" onClick={sendInvitations} className="inline-flex h-9 items-center gap-2 rounded-lg bg-blue-600 px-4 text-xs font-semibold text-white hover:bg-blue-700">
-                <Send className="h-3.5 w-3.5" />
-                Send Invitation
-              </button>
-            </div>
-          </SectionShell>
-
-          <SectionShell className="p-5">
-            <div className="mb-5">
-              <h2 className="text-sm font-semibold text-slate-900">RSVP Status</h2>
-              <p className="text-xs text-slate-400">Participant responses for this meeting.</p>
-            </div>
-
-            {[
-              { label: 'Accepted', value: accepted.length, people: accepted, icon: Check, tone: 'bg-emerald-50 text-emerald-600' },
-              { label: 'Pending', value: pending.length, people: pending, icon: Clock3, tone: 'bg-amber-50 text-amber-600' },
-              { label: 'Declined', value: declined.length, people: declined, icon: X, tone: 'bg-rose-50 text-rose-600' },
-            ].map((group) => {
-              const Icon = group.icon
-              return (
-                <div key={group.label} className="mb-4 flex items-center justify-between gap-3 last:mb-0">
-                  <div className="flex items-center gap-3">
-                    <div className={`flex h-8 w-8 items-center justify-center rounded-full ${group.tone}`}>
-                      <Icon className="h-4 w-4" />
-                    </div>
-                    <div>
-                      <p className="text-xs font-semibold text-slate-800">{group.label} ({group.value})</p>
-                      <p className="text-[11px] text-slate-400">{group.value ? 'Response recorded' : 'No responses yet'}</p>
-                    </div>
-                  </div>
-                  <AvatarStack people={group.people} limit={4} />
-                </div>
-              )
-            })}
-
-            {pending.length > 0 && (
-              <div className="mt-5 grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    updateMeeting(selectedMeeting.id, (meeting) => ({
-                      ...meeting,
-                      participants: meeting.participants.map((participant) => participant.status === 'Pending' ? { ...participant, status: 'Accepted' } : participant),
-                    }))
-                    showMessage('Pending participants accepted')
-                  }}
-                  className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700"
-                >
-                  Accept Pending
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    updateMeeting(selectedMeeting.id, (meeting) => ({
-                      ...meeting,
-                      participants: meeting.participants.map((participant) => participant.status === 'Pending' ? { ...participant, status: 'Declined' } : participant),
-                    }))
-                    showMessage('Pending participants declined')
-                  }}
-                  className="rounded-lg border border-rose-200 bg-white px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-50"
-                >
-                  Decline Pending
-                </button>
-              </div>
-            )}
-
-            <div className="mt-6 rounded-lg border border-blue-100 bg-blue-50 p-3">
-              <div className="flex items-start gap-2">
-                <Mail className="mt-0.5 h-4 w-4 shrink-0 text-blue-700" />
-                <p className="text-xs leading-5 text-blue-800">Reminder emails are queued for pending participants 15 minutes before the meeting.</p>
-              </div>
-            </div>
-          </SectionShell>
-        </div>
       </div>
     </div>
   )
