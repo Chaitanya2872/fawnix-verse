@@ -379,6 +379,14 @@ public class PurchaseRequisitionService {
         purchaseRequisitionRepository.save(requisition);
     }
 
+    @Transactional
+    public void markPurchaseOrderDeleted(PurchaseRequisition requisition) {
+        if (requisition.getStatus() == PurchaseRequisitionStatus.PO_CREATED) {
+            requisition.setStatus(PurchaseRequisitionStatus.APPROVED);
+            purchaseRequisitionRepository.save(requisition);
+        }
+    }
+
     @Transactional(readOnly = true)
     public List<PurchaseRequisitionItem> getItems(UUID purchaseRequisitionId) {
         return purchaseRequisitionItemRepository.findByPurchaseRequisitionId(purchaseRequisitionId);

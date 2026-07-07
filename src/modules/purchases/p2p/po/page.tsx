@@ -26,7 +26,7 @@ import iotiqStamp from "@/assets/purchase-order/IOTIQ_stamp.png";
 import iotiqLogo from "@/assets/purchase-order/IOTIQ_logo.png";
 import { cn } from "@/lib/utils";
 import { PurchaseOrderDocument, type PurchaseOrderDocumentData } from "@/modules/purchases/PurchaseOrderDocument";
-import { useCreatePurchaseOrder, usePurchaseOrders, usePurchaseRequisitions, useVendors } from "@/modules/purchases/hooks";
+import { useCreatePurchaseOrder, useDeletePurchaseOrder, usePurchaseOrders, usePurchaseRequisitions, useVendors } from "@/modules/purchases/hooks";
 import type { PurchaseOrder, PurchaseOrderStatus, PurchaseRequisition, Vendor } from "@/modules/purchases/types";
 import { P2PCard, P2PFormField, P2PLayout, P2PStatusBadge, P2PTable } from "../components";
 
@@ -729,6 +729,69 @@ function PreviewModal({
         </div>
         <div className="quotation-preview-stage flex-1 overflow-auto bg-[#e9e2cf] p-6 print:overflow-visible print:bg-white print:p-0">
           <PurchaseOrderDocument document={data} />
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+function DeletePurchaseOrderDialog({
+  order,
+  isLoading,
+  onCancel,
+  onConfirm,
+}: {
+  order: PurchaseOrder;
+  isLoading: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return createPortal(
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-sm">
+      <div className="w-full max-w-md overflow-hidden rounded-2xl border border-rose-100 bg-white shadow-2xl">
+        <div className="border-b border-slate-100 px-5 py-4">
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-rose-50 text-rose-600">
+              <Trash2 className="h-5 w-5" />
+            </div>
+            <div>
+              <h2 className="text-base font-semibold text-slate-950">Delete purchase order?</h2>
+              <p className="mt-1 text-sm leading-6 text-slate-500">
+                This removes only the selected PO record and its PO line items. It will not delete the vendor, PR, GRN, invoice, or payment records.
+              </p>
+            </div>
+          </div>
+        </div>
+        <div className="space-y-3 px-5 py-4">
+          <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">PO Number</p>
+            <p className="mt-1 text-sm font-semibold text-slate-900">{order.poNumber}</p>
+          </div>
+          {order.status !== "CREATED" ? (
+            <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              Only POs awaiting receipt can be deleted.
+            </p>
+          ) : null}
+        </div>
+        <div className="flex items-center justify-end gap-2 border-t border-slate-100 bg-slate-50 px-5 py-4">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={isLoading}
+            className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={isLoading || order.status !== "CREATED"}
+            className="inline-flex items-center gap-2 rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+            Delete PO
+          </button>
         </div>
       </div>
     </div>,
@@ -1780,12 +1843,14 @@ export default function P2PPurchaseOrderPage() {
   const { data: requisitions = [] } = usePurchaseRequisitions();
   const { data: vendors = [] } = useVendors();
   const createPurchaseOrder = useCreatePurchaseOrder();
+  const deletePurchaseOrder = useDeletePurchaseOrder();
 
   const [selectedTemplate, setSelectedTemplate] = useState<PoTemplate>("IOTIQ");
   const [templateDrafts, setTemplateDrafts] = useState<Record<PoTemplate, PoTemplateDraft>>(() => createInitialTemplateDrafts());
   const [preview, setPreview] = useState<{ title: string; data: PurchaseOrderDocumentData } | null>(null);
   const [isCreatePanelOpen, setIsCreatePanelOpen] = useState(false);
   const [selectedPurchaseOrderId, setSelectedPurchaseOrderId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<PurchaseOrder | null>(null);
   const [queueFilter, setQueueFilter] = useState<"ALL" | "CREATED" | "RECEIVED">("ALL");
   const [queueSearch, setQueueSearch] = useState("");
 
@@ -1957,12 +2022,30 @@ export default function P2PPurchaseOrderPage() {
     }
   }
 
+  function handleDeletePurchaseOrder() {
+    const target = deleteTarget;
+    if (!target) return;
+    deletePurchaseOrder.mutate(target.id, {
+      onSuccess: () => {
+        if (selectedPurchaseOrderId === target.id) {
+          setSelectedPurchaseOrderId(null);
+        }
+        toast.success(`Purchase order ${target.poNumber} deleted.`);
+        setDeleteTarget(null);
+      },
+      onError: (deleteError) => {
+        toast.error(deleteError instanceof Error ? deleteError.message : "Failed to delete purchase order.");
+      },
+    });
+  }
+
   const columns = [
     { key: "poNumber", label: "PO Number" },
     { key: "requisition", label: "Requisition" },
     { key: "vendor", label: "Vendor" },
     { key: "amount", label: "Amount" },
     { key: "status", label: "Status" },
+    { key: "actions", label: "Actions", className: "text-right" },
   ];
 
   const rows = filteredOrders.map((order) => ({
@@ -1979,6 +2062,21 @@ export default function P2PPurchaseOrderPage() {
     vendor: order.vendor.vendorName,
     amount: formatCurrency(order.totalAmount),
     status: <P2PStatusBadge label={order.status} tone={toneForStatus(order.status)} />,
+    actions: (
+      <button
+        type="button"
+        onClick={(event) => {
+          event.stopPropagation();
+          setDeleteTarget(order);
+        }}
+        disabled={deletePurchaseOrder.isPending}
+        className="inline-flex items-center justify-center rounded-full border border-rose-200 bg-white p-2 text-rose-600 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
+        aria-label={`Delete purchase order ${order.poNumber}`}
+        title="Delete PO"
+      >
+        <Trash2 className="h-4 w-4" />
+      </button>
+    ),
   }));
 
   return (
@@ -2105,6 +2203,19 @@ export default function P2PPurchaseOrderPage() {
           order={selectedOrder}
           onClose={() => setSelectedPurchaseOrderId(null)}
           onPreview={() => setPreview({ title: selectedOrder.poNumber, data: orderDoc(selectedOrder) })}
+        />
+      ) : null}
+
+      {deleteTarget ? (
+        <DeletePurchaseOrderDialog
+          order={deleteTarget}
+          isLoading={deletePurchaseOrder.isPending}
+          onCancel={() => {
+            if (!deletePurchaseOrder.isPending) {
+              setDeleteTarget(null);
+            }
+          }}
+          onConfirm={handleDeletePurchaseOrder}
         />
       ) : null}
 

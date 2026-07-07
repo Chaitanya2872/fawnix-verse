@@ -8,4 +8,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface InvoiceRepository extends JpaRepository<Invoice, UUID> {
 
   Optional<Invoice> findByInvoiceNumber(String invoiceNumber);
+
+  boolean existsByPurchaseOrderId(UUID purchaseOrderId);
 }

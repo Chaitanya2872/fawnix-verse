@@ -6,6 +6,7 @@ import {
   createPurchaseOrder,
   createPurchaseRequisition,
   createVendor,
+  deletePurchaseOrder,
   deletePurchaseRequisition,
   deleteVendor,
   deleteVendorDocument,
@@ -273,6 +274,17 @@ export function useCreatePurchaseOrder() {
       purchaseRequisitionId: string;
       payload: CreatePurchaseOrderPayload;
     }) => createPurchaseOrder(purchaseRequisitionId, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: procurementKeys.orders() });
+      queryClient.invalidateQueries({ queryKey: procurementKeys.requisitions() });
+    },
+  });
+}
+
+export function useDeletePurchaseOrder() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => deletePurchaseOrder(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: procurementKeys.orders() });
       queryClient.invalidateQueries({ queryKey: procurementKeys.requisitions() });
