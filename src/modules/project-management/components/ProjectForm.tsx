@@ -98,7 +98,7 @@ const ICON_MAP: Record<TemplateIconKey | 'basics', ElementType> = {
 }
 
 const labelCls = 'mb-1 block text-[12px] font-medium text-slate-500'
-const inputCls = '-mx-2 w-[calc(100%+16px)] rounded-md border border-transparent bg-transparent px-2 py-1.5 text-[14px] text-slate-800 placeholder:text-slate-350 outline-none transition-colors hover:bg-slate-100/70 focus:border-slate-300 focus:bg-white focus:ring-2 focus:ring-slate-900/5'
+const inputCls = 'w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-[14px] text-slate-800 placeholder:text-slate-400 outline-none transition-colors hover:border-slate-300 focus:border-slate-400 focus:ring-2 focus:ring-slate-900/5'
 const ghostBtn = 'rounded-md px-2.5 py-1.5 text-[12px] font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800'
 const chipCard = 'rounded-lg border border-slate-150 bg-slate-50/60 p-3'
 
