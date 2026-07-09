@@ -158,27 +158,27 @@ const participantRoles: Record<string, string> = {
 }
 
 const avatarTones = [
-  'bg-blue-600 text-white',
-  'bg-emerald-600 text-white',
-  'bg-violet-600 text-white',
-  'bg-amber-500 text-white',
-  'bg-rose-500 text-white',
-  'bg-slate-700 text-white',
-  'bg-cyan-600 text-white',
+  'bg-slate-900 text-white',
+  'bg-slate-100 text-slate-700',
+  'bg-white text-slate-600 ring-1 ring-slate-200',
+  'bg-slate-200 text-slate-700',
+  'bg-slate-50 text-slate-600 ring-1 ring-slate-200',
 ]
 
 const statusStyles: Record<MeetingStatus, string> = {
-  Upcoming: 'border-blue-200 bg-blue-50 text-blue-700',
-  Completed: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-  Cancelled: 'border-rose-200 bg-rose-50 text-rose-700',
+  Upcoming: 'border-slate-200 bg-white text-slate-700',
+  Completed: 'border-slate-200 bg-slate-50 text-slate-700',
+  Cancelled: 'border-slate-200 bg-slate-50 text-slate-500',
 }
 
 const statStyles = {
-  blue: 'border-blue-100 bg-blue-50 text-blue-700',
-  indigo: 'border-indigo-100 bg-indigo-50 text-indigo-700',
-  emerald: 'border-emerald-100 bg-emerald-50 text-emerald-700',
-  rose: 'border-rose-100 bg-rose-50 text-rose-700',
+  blue: 'border-slate-200 bg-slate-50 text-slate-600',
+  indigo: 'border-slate-200 bg-slate-50 text-slate-600',
+  emerald: 'border-slate-200 bg-slate-50 text-slate-600',
+  rose: 'border-slate-200 bg-slate-50 text-slate-600',
 }
+
+const attachmentTone = 'border border-slate-200 bg-white text-slate-500'
 
 function initials(name: string) {
   return name
@@ -244,7 +244,7 @@ function buildMeetings(projects: ProjectOption[]): Meeting[] {
       duration: '1h 30m',
       timezone: 'IST',
       platform: 'Google Meet',
-      platformTone: 'bg-emerald-500',
+      platformTone: 'bg-slate-400',
       status: 'Upcoming',
       type: 'Planning',
       meetingId: 'abc-defg-hij',
@@ -262,9 +262,9 @@ function buildMeetings(projects: ProjectOption[]): Meeting[] {
         { title: 'Client feedback report', owner: 'Vaishnavi', dueDate: '08 May' },
       ],
       attachments: [
-        { name: 'Sprint-15-Plan.docx', size: '1.2 MB', tone: 'text-blue-600 bg-blue-50' },
-        { name: 'Requirements.pdf', size: '2.4 MB', tone: 'text-rose-600 bg-rose-50' },
-        { name: 'Design-Overview.pptx', size: '3.8 MB', tone: 'text-amber-600 bg-amber-50' },
+        { name: 'Sprint-15-Plan.docx', size: '1.2 MB', tone: attachmentTone },
+        { name: 'Requirements.pdf', size: '2.4 MB', tone: attachmentTone },
+        { name: 'Design-Overview.pptx', size: '3.8 MB', tone: attachmentTone },
       ],
       notes: ['Confirm capacity before backlog lock.', 'Prepare release risks for review.'],
     },
@@ -281,7 +281,7 @@ function buildMeetings(projects: ProjectOption[]): Meeting[] {
       duration: '45m',
       timezone: 'IST',
       platform: 'Microsoft Teams',
-      platformTone: 'bg-blue-600',
+      platformTone: 'bg-slate-400',
       status: 'Upcoming',
       type: 'Review',
       meetingId: 'teams-4829',
@@ -296,8 +296,8 @@ function buildMeetings(projects: ProjectOption[]): Meeting[] {
         { title: 'Update delivery notes', owner: 'Maya Rao', dueDate: '03 May' },
       ],
       attachments: [
-        { name: 'Client-Review.pdf', size: '1.8 MB', tone: 'text-rose-600 bg-rose-50' },
-        { name: 'Delivery-Roadmap.xlsx', size: '980 KB', tone: 'text-emerald-600 bg-emerald-50' },
+        { name: 'Client-Review.pdf', size: '1.8 MB', tone: attachmentTone },
+        { name: 'Delivery-Roadmap.xlsx', size: '980 KB', tone: attachmentTone },
       ],
       notes: ['Client wants a shorter status summary.', 'Budget note to be shared separately.'],
     },
@@ -314,7 +314,7 @@ function buildMeetings(projects: ProjectOption[]): Meeting[] {
       duration: '2h',
       timezone: 'IST',
       platform: 'Google Meet',
-      platformTone: 'bg-emerald-500',
+      platformTone: 'bg-slate-400',
       status: 'Upcoming',
       type: 'Design',
       meetingId: 'ux-4490',
@@ -329,7 +329,7 @@ function buildMeetings(projects: ProjectOption[]): Meeting[] {
         { title: 'Check mobile spacing', owner: 'Sneha Iyer', dueDate: '05 May' },
       ],
       attachments: [
-        { name: 'UX-Flow.fig', size: '4.6 MB', tone: 'text-violet-600 bg-violet-50' },
+        { name: 'UX-Flow.fig', size: '4.6 MB', tone: attachmentTone },
       ],
       notes: ['Use compact density for operations pages.'],
     },
@@ -346,7 +346,7 @@ function buildMeetings(projects: ProjectOption[]): Meeting[] {
       duration: '1h',
       timezone: 'IST',
       platform: 'Zoom',
-      platformTone: 'bg-sky-500',
+      platformTone: 'bg-slate-400',
       status: 'Upcoming',
       type: 'Retrospective',
       meetingId: 'zoom-153-882',
@@ -361,7 +361,7 @@ function buildMeetings(projects: ProjectOption[]): Meeting[] {
         { title: 'Prioritize process fixes', owner: 'Neha Kapoor', dueDate: '06 May' },
       ],
       attachments: [
-        { name: 'Retro-Notes.docx', size: '720 KB', tone: 'text-blue-600 bg-blue-50' },
+        { name: 'Retro-Notes.docx', size: '720 KB', tone: attachmentTone },
       ],
       notes: ['Keep discussion time-boxed.'],
     },
@@ -378,7 +378,7 @@ function buildMeetings(projects: ProjectOption[]): Meeting[] {
       duration: '1h',
       timezone: 'IST',
       platform: 'Microsoft Teams',
-      platformTone: 'bg-blue-600',
+      platformTone: 'bg-slate-400',
       status: 'Completed',
       type: 'Architecture',
       meetingId: 'arch-9112',
@@ -393,7 +393,7 @@ function buildMeetings(projects: ProjectOption[]): Meeting[] {
         { title: 'Confirm migration order', owner: 'Aman Verma', dueDate: '04 May' },
       ],
       attachments: [
-        { name: 'Architecture-Notes.pdf', size: '2.1 MB', tone: 'text-rose-600 bg-rose-50' },
+        { name: 'Architecture-Notes.pdf', size: '2.1 MB', tone: attachmentTone },
       ],
       notes: ['Approved with follow-up on migration sequencing.'],
     },
@@ -410,7 +410,7 @@ function buildMeetings(projects: ProjectOption[]): Meeting[] {
       duration: '30m',
       timezone: 'IST',
       platform: 'Google Meet',
-      platformTone: 'bg-emerald-500',
+      platformTone: 'bg-slate-400',
       status: 'Cancelled',
       type: 'Review',
       meetingId: 'budget-220',
@@ -429,10 +429,8 @@ function buildMeetings(projects: ProjectOption[]): Meeting[] {
   ]
 }
 
-function platformToneFor(platform: Meeting['platform']) {
-  if (platform === 'Microsoft Teams') return 'bg-blue-600'
-  if (platform === 'Zoom') return 'bg-sky-500'
-  return 'bg-emerald-500'
+function platformToneFor(_platform: Meeting['platform']) {
+  return 'bg-slate-400'
 }
 
 function formatMeetingDate(date: string) {
@@ -656,7 +654,7 @@ function IconButton({
       aria-label={label}
       title={label}
       onClick={onClick}
-      className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-50 hover:text-blue-700"
+      className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-50 hover:text-slate-900"
     >
       {children}
     </button>
@@ -715,7 +713,7 @@ function TextInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
       {...props}
-      className={`h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15 ${props.className ?? ''}`}
+      className={`h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-200 ${props.className ?? ''}`}
     />
   )
 }
@@ -724,7 +722,7 @@ function SelectInput(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
   return (
     <select
       {...props}
-      className={`h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs text-slate-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15 ${props.className ?? ''}`}
+      className={`h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs text-slate-700 outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-200 ${props.className ?? ''}`}
     />
   )
 }
@@ -1034,7 +1032,7 @@ export default function ProjectsMeetingsPage() {
     const nextFiles = Array.from(files).map((file) => ({
       name: file.name,
       size: fileSizeLabel(file.size),
-      tone: 'text-blue-600 bg-blue-50',
+      tone: attachmentTone,
     }))
     setScheduleForm((current) => ({ ...current, attachments: [...current.attachments, ...nextFiles] }))
   }
@@ -1044,7 +1042,7 @@ export default function ProjectsMeetingsPage() {
     const nextFiles = Array.from(files).map((file) => ({
       name: file.name,
       size: fileSizeLabel(file.size),
-      tone: 'text-blue-600 bg-blue-50',
+      tone: attachmentTone,
     }))
     updateMeeting(selectedMeeting.id, (meeting) => ({
       ...meeting,
@@ -1096,7 +1094,7 @@ export default function ProjectsMeetingsPage() {
       <div className="border-b border-slate-200 bg-white px-4 py-4 sm:px-6">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="min-w-0">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-blue-600">Project workspace</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">Project workspace</p>
             <h1 className="mt-1 text-xl font-semibold text-slate-950">Meetings</h1>
             <p className="mt-1 text-sm text-slate-500">A focused board for schedules, attendance, notes, and follow-ups.</p>
           </div>
@@ -1112,7 +1110,7 @@ export default function ProjectsMeetingsPage() {
             <button
               type="button"
               onClick={openScheduler}
-              className="inline-flex h-9 items-center gap-2 rounded-lg bg-blue-600 px-4 text-xs font-semibold text-white transition hover:bg-blue-700"
+              className="inline-flex h-9 items-center gap-2 rounded-lg bg-slate-900 px-4 text-xs font-semibold text-white transition hover:bg-slate-800"
             >
               <Plus className="h-4 w-4" />
               Schedule meeting
@@ -1123,7 +1121,7 @@ export default function ProjectsMeetingsPage() {
 
       <div className="space-y-4 p-4 sm:p-6">
         {actionMessage && (
-          <div className="rounded-lg border border-blue-100 bg-blue-50 px-4 py-2 text-xs font-semibold text-blue-700">
+          <div className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-600">
             {actionMessage}
           </div>
         )}
@@ -1220,7 +1218,7 @@ export default function ProjectsMeetingsPage() {
                   <textarea
                     value={scheduleForm.description}
                     onChange={(event) => updateScheduleField('description', event.target.value)}
-                    className="min-h-20 w-full resize-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15"
+                    className="min-h-20 w-full resize-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-200"
                   />
                 </Field>
               </div>
@@ -1260,7 +1258,7 @@ export default function ProjectsMeetingsPage() {
                   <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
                     {scheduleForm.agenda.map((item, index) => (
                       <div key={`${item}-${index}`} className="flex items-center gap-2 border-b border-slate-100 px-3 py-2 last:border-b-0">
-                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-50 text-[10px] font-semibold text-blue-700">{index + 1}</span>
+                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-100 text-[10px] font-semibold text-slate-600">{index + 1}</span>
                         <input
                           value={item}
                           onChange={(event) => updateScheduleField('agenda', scheduleForm.agenda.map((agendaItem, agendaIndex) => agendaIndex === index ? event.target.value : agendaItem))}
@@ -1269,7 +1267,7 @@ export default function ProjectsMeetingsPage() {
                         <button
                           type="button"
                           onClick={() => updateScheduleField('agenda', scheduleForm.agenda.filter((_, agendaIndex) => agendaIndex !== index))}
-                          className="text-slate-300 hover:text-rose-500"
+                          className="text-slate-300 hover:text-slate-700"
                           aria-label="Remove agenda item"
                         >
                           <X className="h-3.5 w-3.5" />
@@ -1277,7 +1275,7 @@ export default function ProjectsMeetingsPage() {
                       </div>
                     ))}
                   </div>
-                  <button type="button" onClick={addAgendaItem} className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold text-blue-700 hover:text-blue-800">
+                  <button type="button" onClick={addAgendaItem} className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold text-slate-700 hover:text-slate-950">
                     <Plus className="h-3 w-3" />
                     Add agenda item
                   </button>
@@ -1285,7 +1283,7 @@ export default function ProjectsMeetingsPage() {
 
                 <div className="grid gap-3 sm:grid-cols-2">
                   <Field label="Attachments">
-                    <label className="inline-flex h-9 w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-blue-200 bg-blue-50 text-xs font-semibold text-blue-700 hover:bg-blue-100">
+                    <label className="inline-flex h-9 w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-600 hover:bg-slate-50">
                       <Upload className="h-3.5 w-3.5" />
                       Choose files
                       <input type="file" multiple className="sr-only" onChange={(event) => addScheduleFiles(event.target.files)} />
@@ -1296,7 +1294,7 @@ export default function ProjectsMeetingsPage() {
                       type="checkbox"
                       checked={scheduleForm.sendEmail}
                       onChange={(event) => updateScheduleField('sendEmail', event.target.checked)}
-                      className="h-3.5 w-3.5 rounded accent-blue-600"
+                      className="h-3.5 w-3.5 rounded accent-slate-700"
                     />
                     Send email invitation
                   </label>
@@ -1304,7 +1302,7 @@ export default function ProjectsMeetingsPage() {
 
                 <div className="flex flex-wrap justify-end gap-2 pt-1">
                   <button type="button" onClick={resetScheduleForm} className="h-9 rounded-lg border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-600 hover:bg-slate-50">Reset</button>
-                  <button type="button" onClick={createMeeting} className="h-9 rounded-lg bg-blue-600 px-4 text-xs font-semibold text-white hover:bg-blue-700">Schedule meeting</button>
+                  <button type="button" onClick={createMeeting} className="h-9 rounded-lg bg-slate-900 px-4 text-xs font-semibold text-white hover:bg-slate-800">Schedule meeting</button>
                 </div>
               </div>
             </div>
@@ -1329,7 +1327,7 @@ export default function ProjectsMeetingsPage() {
                   <button
                     type="button"
                     onClick={openScheduler}
-                    className="inline-flex h-8 items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 text-xs font-semibold text-blue-700 hover:bg-blue-100"
+                    className="inline-flex h-8 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 hover:bg-slate-50"
                   >
                     <Plus className="h-3.5 w-3.5" />
                     New
@@ -1346,7 +1344,7 @@ export default function ProjectsMeetingsPage() {
                         setPage(1)
                       }}
                       placeholder="Search by title, project, organizer, or platform"
-                      className="h-10 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15"
+                      className="h-10 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-200"
                     />
                   </div>
                   <SelectInput value={projectFilter} onChange={(event) => { setProjectFilter(event.target.value); setPage(1) }}>
@@ -1375,7 +1373,7 @@ export default function ProjectsMeetingsPage() {
                     }}
                     className={`inline-flex h-9 items-center justify-center gap-2 rounded-lg border px-3 text-xs font-semibold ${
                       dateFilter === 'TODAY'
-                        ? 'border-blue-200 bg-blue-50 text-blue-700'
+                        ? 'border-slate-300 bg-slate-100 text-slate-800'
                         : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
                     }`}
                   >
@@ -1391,7 +1389,7 @@ export default function ProjectsMeetingsPage() {
                     <div className="py-14 text-center">
                       <MessageSquare className="mx-auto mb-3 h-8 w-8 text-slate-300" />
                       <p className="text-sm font-medium text-slate-500">No meetings match your filters.</p>
-                      <button type="button" onClick={clearFilters} className="mt-3 text-xs font-semibold text-blue-700 hover:text-blue-800">
+                      <button type="button" onClick={clearFilters} className="mt-3 text-xs font-semibold text-slate-700 hover:text-slate-950">
                         Reset filters
                       </button>
                     </div>
@@ -1407,8 +1405,8 @@ export default function ProjectsMeetingsPage() {
                           onKeyDown={(event) => {
                             if (event.key === 'Enter' || event.key === ' ') selectMeeting(meeting)
                           }}
-                          className={`rounded-lg border p-3 text-left transition hover:border-blue-200 hover:bg-blue-50/40 ${
-                            selected ? 'border-blue-300 bg-blue-50 shadow-sm' : 'border-slate-200 bg-white'
+                          className={`rounded-lg border p-3 text-left transition hover:border-slate-300 hover:bg-slate-50 ${
+                            selected ? 'border-slate-300 bg-slate-50 shadow-sm' : 'border-slate-200 bg-white'
                           }`}
                         >
                           <div className="flex items-start gap-3">
@@ -1427,7 +1425,7 @@ export default function ProjectsMeetingsPage() {
                               </div>
                               <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-[11px] font-medium text-slate-500">
                                 <span className="inline-flex items-center gap-1.5">
-                                  <Clock3 className="h-3.5 w-3.5 text-blue-500" />
+                                  <Clock3 className="h-3.5 w-3.5 text-slate-400" />
                                   {meeting.time}
                                 </span>
                                 <span className="inline-flex min-w-0 items-center gap-1.5">
@@ -1448,7 +1446,7 @@ export default function ProjectsMeetingsPage() {
                                       event.stopPropagation()
                                       openMeeting(meeting)
                                     }}
-                                    className="rounded-md bg-blue-600 px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-blue-700"
+                                    className="rounded-md bg-slate-900 px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-slate-800"
                                   >
                                     Join
                                   </button>
@@ -1460,7 +1458,7 @@ export default function ProjectsMeetingsPage() {
                                 event.stopPropagation()
                                 setMenuMeetingId((current) => current === meeting.id ? null : meeting.id)
                               }}
-                                      className="flex h-7 w-7 items-center justify-center rounded-md text-slate-400 hover:bg-white hover:text-blue-700"
+                                      className="flex h-7 w-7 items-center justify-center rounded-md text-slate-400 hover:bg-white hover:text-slate-900"
                             >
                               <MoreHorizontal className="h-4 w-4" />
                             </button>
@@ -1468,8 +1466,8 @@ export default function ProjectsMeetingsPage() {
                               <div className="absolute right-0 top-8 z-20 w-40 overflow-hidden rounded-lg border border-slate-200 bg-white py-1 shadow-lg">
                                 <button type="button" onClick={(event) => { event.stopPropagation(); void copyMeetingLink(meeting) }} className="block w-full px-3 py-2 text-left text-xs text-slate-600 hover:bg-slate-50">Copy link</button>
                                 <button type="button" onClick={(event) => { event.stopPropagation(); duplicateMeeting(meeting) }} className="block w-full px-3 py-2 text-left text-xs text-slate-600 hover:bg-slate-50">Duplicate</button>
-                                <button type="button" onClick={(event) => { event.stopPropagation(); setMeetingStatus(meeting.id, 'Completed') }} className="block w-full px-3 py-2 text-left text-xs text-emerald-700 hover:bg-emerald-50">Mark completed</button>
-                                <button type="button" onClick={(event) => { event.stopPropagation(); setMeetingStatus(meeting.id, 'Cancelled') }} className="block w-full px-3 py-2 text-left text-xs text-rose-700 hover:bg-rose-50">Cancel meeting</button>
+                                <button type="button" onClick={(event) => { event.stopPropagation(); setMeetingStatus(meeting.id, 'Completed') }} className="block w-full px-3 py-2 text-left text-xs text-slate-600 hover:bg-slate-50">Mark completed</button>
+                                <button type="button" onClick={(event) => { event.stopPropagation(); setMeetingStatus(meeting.id, 'Cancelled') }} className="block w-full px-3 py-2 text-left text-xs text-slate-600 hover:bg-slate-50">Cancel meeting</button>
                               </div>
                             )}
                                   </div>
@@ -1498,7 +1496,7 @@ export default function ProjectsMeetingsPage() {
                       type="button"
                       onClick={() => setPage(pageNumber)}
                       className={`h-8 w-8 rounded-lg text-xs font-semibold ${
-                        pageNumber === page ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-50'
+                        pageNumber === page ? 'bg-slate-900 text-white' : 'text-slate-500 hover:bg-slate-50'
                       }`}
                     >
                       {pageNumber}
@@ -1522,9 +1520,9 @@ export default function ProjectsMeetingsPage() {
                     <StatusPill status={selectedMeeting.status} />
                   </div>
                   <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-[11px] font-medium text-slate-500">
-                    <span className="inline-flex items-center gap-1.5"><Calendar className="h-3.5 w-3.5 text-blue-500" />{selectedMeeting.dateLabel}</span>
-                    <span className="inline-flex items-center gap-1.5"><Clock3 className="h-3.5 w-3.5 text-blue-500" />{selectedMeeting.time}</span>
-                    <span className="inline-flex items-center gap-1.5"><Video className="h-3.5 w-3.5 text-blue-500" />{selectedMeeting.duration}</span>
+                    <span className="inline-flex items-center gap-1.5"><Calendar className="h-3.5 w-3.5 text-slate-400" />{selectedMeeting.dateLabel}</span>
+                    <span className="inline-flex items-center gap-1.5"><Clock3 className="h-3.5 w-3.5 text-slate-400" />{selectedMeeting.time}</span>
+                    <span className="inline-flex items-center gap-1.5"><Video className="h-3.5 w-3.5 text-slate-400" />{selectedMeeting.duration}</span>
                     <span className="inline-flex items-center gap-1.5"><span className={`h-2 w-2 rounded-full ${selectedMeeting.platformTone}`} />{selectedMeeting.platform}</span>
                   </div>
                 </div>
@@ -1532,7 +1530,7 @@ export default function ProjectsMeetingsPage() {
                   <button
                     type="button"
                     onClick={() => openMeeting(selectedMeeting)}
-                    className="inline-flex h-9 items-center gap-2 rounded-lg bg-blue-600 px-4 text-xs font-semibold text-white hover:bg-blue-700"
+                    className="inline-flex h-9 items-center gap-2 rounded-lg bg-slate-900 px-4 text-xs font-semibold text-white hover:bg-slate-800"
                   >
                     <Video className="h-3.5 w-3.5" />
                     Join Meeting
@@ -1566,7 +1564,7 @@ export default function ProjectsMeetingsPage() {
                     type="button"
                     onClick={() => setActiveTab(tab.id)}
                     className={`shrink-0 rounded-md px-3 py-1.5 text-xs font-semibold transition ${
-                      activeTab === tab.id ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-800'
+                      activeTab === tab.id ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'
                     }`}
                   >
                     {tab.label}
@@ -1580,7 +1578,7 @@ export default function ProjectsMeetingsPage() {
                 <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
                   <p className="text-xs font-semibold text-slate-700">Meeting Link</p>
                   <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <a href={selectedMeeting.link} target="_blank" rel="noreferrer" className="min-w-0 flex-1 truncate text-xs font-medium text-blue-700 hover:underline">
+                    <a href={selectedMeeting.link} target="_blank" rel="noreferrer" className="min-w-0 flex-1 truncate text-xs font-medium text-slate-700 underline-offset-2 hover:text-slate-950 hover:underline">
                       {selectedMeeting.link}
                     </a>
                     <IconButton label="Copy meeting link" onClick={() => void copyMeetingLink(selectedMeeting)}>
@@ -1591,7 +1589,7 @@ export default function ProjectsMeetingsPage() {
                     <button
                       type="button"
                       onClick={() => openMeeting(selectedMeeting)}
-                      className="inline-flex h-8 items-center gap-2 rounded-lg bg-blue-600 px-3 text-xs font-semibold text-white hover:bg-blue-700"
+                      className="inline-flex h-8 items-center gap-2 rounded-lg bg-slate-900 px-3 text-xs font-semibold text-white hover:bg-slate-800"
                     >
                       <Video className="h-3.5 w-3.5" />
                       Join Meeting
@@ -1624,7 +1622,7 @@ export default function ProjectsMeetingsPage() {
                   </div>
                   <div className="rounded-lg border border-slate-200 p-3">
                     <p className="text-[11px] font-semibold text-slate-400">Project</p>
-                    <p className="mt-1 text-xs font-semibold text-blue-700">{selectedMeeting.project.name}</p>
+                    <p className="mt-1 text-xs font-semibold text-slate-800">{selectedMeeting.project.name}</p>
                   </div>
                   <div className="rounded-lg border border-slate-200 p-3">
                     <p className="text-[11px] font-semibold text-slate-400">Meeting Type</p>
@@ -1657,9 +1655,9 @@ export default function ProjectsMeetingsPage() {
                   </div>
                   <div className="space-y-3">
                     {[
-                      { label: 'Accepted', value: accepted.length, icon: Check, tone: 'bg-emerald-50 text-emerald-600' },
-                      { label: 'Pending', value: pending.length, icon: Clock3, tone: 'bg-amber-50 text-amber-600' },
-                      { label: 'Declined', value: declined.length, icon: X, tone: 'bg-rose-50 text-rose-600' },
+                      { label: 'Accepted', value: accepted.length, icon: Check, tone: 'bg-slate-100 text-slate-600' },
+                      { label: 'Pending', value: pending.length, icon: Clock3, tone: 'bg-slate-100 text-slate-600' },
+                      { label: 'Declined', value: declined.length, icon: X, tone: 'bg-slate-100 text-slate-600' },
                     ].map((group) => {
                       const Icon = group.icon
                       return (
@@ -1686,7 +1684,7 @@ export default function ProjectsMeetingsPage() {
                           }))
                           showMessage('Pending participants accepted')
                         }}
-                        className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700"
+                        className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800"
                       >
                         Accept pending
                       </button>
@@ -1699,7 +1697,7 @@ export default function ProjectsMeetingsPage() {
                           }))
                           showMessage('Pending participants declined')
                         }}
-                        className="rounded-lg border border-rose-200 bg-white px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-50"
+                        className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50"
                       >
                         Decline
                       </button>
@@ -1710,7 +1708,7 @@ export default function ProjectsMeetingsPage() {
                 <div className="rounded-lg border border-slate-200 p-4">
                   <div className="mb-3 flex items-center justify-between">
                     <p className="text-xs font-semibold text-slate-800">Participants ({selectedMeeting.participants.length})</p>
-                    <button type="button" onClick={() => setActiveTab('Participants')} className="text-[11px] font-semibold text-blue-700 hover:text-blue-800">View all</button>
+                    <button type="button" onClick={() => setActiveTab('Participants')} className="text-[11px] font-semibold text-slate-700 hover:text-slate-950">View all</button>
                   </div>
                   <AvatarStack people={selectedMeeting.participants} limit={6} />
                 </div>
@@ -1718,7 +1716,7 @@ export default function ProjectsMeetingsPage() {
                 <div className="rounded-lg border border-slate-200 p-4">
                   <div className="mb-3 flex items-center justify-between">
                     <p className="text-xs font-semibold text-slate-800">Action Items ({selectedMeeting.actions.length})</p>
-                    <button type="button" onClick={() => setActiveTab('Action Items')} className="text-[11px] font-semibold text-blue-700 hover:text-blue-800">View all action items</button>
+                    <button type="button" onClick={() => setActiveTab('Action Items')} className="text-[11px] font-semibold text-slate-700 hover:text-slate-950">View all action items</button>
                   </div>
                   <div className="space-y-3">
                     {selectedMeeting.actions.slice(0, 5).map((item) => (
@@ -1738,12 +1736,12 @@ export default function ProjectsMeetingsPage() {
                   <ol className="space-y-2">
                     {selectedMeeting.agenda.map((item, index) => (
                       <li key={item} className="flex items-center gap-2 text-xs text-slate-600">
-                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-50 text-[10px] font-semibold text-blue-700">{index + 1}</span>
+                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-100 text-[10px] font-semibold text-slate-600">{index + 1}</span>
                         {item}
                       </li>
                     ))}
                   </ol>
-                  <button type="button" onClick={() => setActiveTab('Agenda')} className="mt-3 text-[11px] font-semibold text-blue-700 hover:text-blue-800">View full agenda</button>
+                  <button type="button" onClick={() => setActiveTab('Agenda')} className="mt-3 text-[11px] font-semibold text-slate-700 hover:text-slate-950">View full agenda</button>
                 </div>
 
                 <div className="rounded-lg border border-slate-200 p-4">
@@ -1774,7 +1772,7 @@ export default function ProjectsMeetingsPage() {
               <div className="space-y-3 p-5">
                 {selectedMeeting.agenda.map((item, index) => (
                   <div key={`${item}-${index}`} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white p-3">
-                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-50 text-[11px] font-semibold text-blue-700">{index + 1}</span>
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-100 text-[11px] font-semibold text-slate-600">{index + 1}</span>
                     <input
                       value={item}
                       onChange={(event) => updateMeeting(selectedMeeting.id, (meeting) => ({
@@ -1789,7 +1787,7 @@ export default function ProjectsMeetingsPage() {
                         ...meeting,
                         agenda: meeting.agenda.filter((_, agendaIndex) => agendaIndex !== index),
                       }))}
-                      className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-rose-50 hover:text-rose-600"
+                      className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700"
                     >
                       <X className="h-4 w-4" />
                     </button>
@@ -1798,7 +1796,7 @@ export default function ProjectsMeetingsPage() {
                 <button
                   type="button"
                   onClick={() => updateMeeting(selectedMeeting.id, (meeting) => ({ ...meeting, agenda: [...meeting.agenda, 'New agenda item'] }))}
-                  className="inline-flex h-9 items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 text-xs font-semibold text-blue-700 hover:bg-blue-100"
+                  className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 hover:bg-slate-50"
                 >
                   <Plus className="h-3.5 w-3.5" />
                   Add Agenda Item
@@ -1830,7 +1828,7 @@ export default function ProjectsMeetingsPage() {
                         ...meeting,
                         participants: meeting.participants.filter((item) => item.name !== participant.name),
                       }))}
-                      className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-rose-50 hover:text-rose-600"
+                      className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700"
                     >
                       <X className="h-4 w-4" />
                     </button>
@@ -1865,10 +1863,10 @@ export default function ProjectsMeetingsPage() {
                             setInviteSelected((current) => [...current, name])
                             setInviteQuery('')
                           }}
-                          className="flex w-full items-center justify-between px-3 py-2 text-left text-xs text-slate-600 hover:bg-blue-50"
+                          className="flex w-full items-center justify-between px-3 py-2 text-left text-xs text-slate-600 hover:bg-slate-50"
                         >
                           <span>{name}</span>
-                          <Plus className="h-3.5 w-3.5 text-blue-600" />
+                          <Plus className="h-3.5 w-3.5 text-slate-500" />
                         </button>
                       ))}
                     </div>
@@ -1899,7 +1897,7 @@ export default function ProjectsMeetingsPage() {
                     <textarea
                       value={inviteMessage}
                       onChange={(event) => setInviteMessage(event.target.value)}
-                      className="min-h-24 w-full resize-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15"
+                      className="min-h-24 w-full resize-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-200"
                     />
                   </Field>
 
@@ -1914,7 +1912,7 @@ export default function ProjectsMeetingsPage() {
                     >
                       Clear
                     </button>
-                    <button type="button" onClick={sendInvitations} className="inline-flex h-9 items-center gap-2 rounded-lg bg-blue-600 px-4 text-xs font-semibold text-white hover:bg-blue-700">
+                    <button type="button" onClick={sendInvitations} className="inline-flex h-9 items-center gap-2 rounded-lg bg-slate-900 px-4 text-xs font-semibold text-white hover:bg-slate-800">
                       <Send className="h-3.5 w-3.5" />
                       Send invitation
                     </button>
@@ -1933,7 +1931,7 @@ export default function ProjectsMeetingsPage() {
                     className="min-h-20 w-full resize-none bg-transparent text-sm text-slate-700 outline-none placeholder:text-slate-400"
                   />
                   <div className="mt-2 flex justify-end">
-                    <button type="button" onClick={addNote} className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-700">
+                    <button type="button" onClick={addNote} className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800">
                       Add Note
                     </button>
                   </div>
@@ -1982,7 +1980,7 @@ export default function ProjectsMeetingsPage() {
                         ...meeting,
                         actions: meeting.actions.filter((_, actionIndex) => actionIndex !== index),
                       }))}
-                      className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-rose-50 hover:text-rose-600"
+                      className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700"
                     >
                       <X className="h-4 w-4" />
                     </button>
@@ -1994,7 +1992,7 @@ export default function ProjectsMeetingsPage() {
                     ...meeting,
                     actions: [...meeting.actions, { title: 'New action item', owner: meeting.organizer.name, dueDate: 'Today' }],
                   }))}
-                  className="inline-flex h-9 items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 text-xs font-semibold text-blue-700 hover:bg-blue-100"
+                  className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 hover:bg-slate-50"
                 >
                   <Plus className="h-3.5 w-3.5" />
                   Add Action Item
@@ -2004,7 +2002,7 @@ export default function ProjectsMeetingsPage() {
 
             {activeTab === 'Attachments' && (
               <div className="space-y-3 p-5">
-                <label className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 text-xs font-semibold text-blue-700 hover:bg-blue-100">
+                <label className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 hover:bg-slate-50">
                   <Upload className="h-3.5 w-3.5" />
                   Upload Files
                   <input type="file" multiple className="sr-only" onChange={(event) => addFilesToSelectedMeeting(event.target.files)} />
@@ -2033,7 +2031,7 @@ export default function ProjectsMeetingsPage() {
                   ...selectedMeeting.notes,
                 ].map((activity, index) => (
                   <div key={`${activity}-${index}`} className="flex items-start gap-3 rounded-lg border border-slate-200 bg-white p-3">
-                    <div className="mt-1.5 h-2 w-2 rounded-full bg-blue-500" />
+                    <div className="mt-1.5 h-2 w-2 rounded-full bg-slate-300" />
                     <p className="text-sm text-slate-600">{activity}</p>
                   </div>
                 ))}
