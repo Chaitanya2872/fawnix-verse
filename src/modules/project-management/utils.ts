@@ -1,5 +1,6 @@
 import { addDays, differenceInCalendarDays, format, isBefore, parseISO } from 'date-fns'
 import { today } from './data'
+import { DEFAULT_PROJECT_TEMPLATE, resolveProjectTemplate } from './template-config'
 import type { Priority, Project, ProjectFormState } from './types'
 
 const PROJECT_CACHE_KEY = 'fawnix.project-management.projects-cache'
@@ -41,7 +42,8 @@ export const createBlankForm = (): ProjectFormState => ({
   description: '',
   projectType: 'Web Application',
   projectTypes: ['Web Application'],
-  projectTemplate: 'Blank Project',
+  projectTemplate: DEFAULT_PROJECT_TEMPLATE,
+  templateData: {},
   projectCategory: 'Client Delivery',
   priority: 'Medium',
   status: 'Draft',
@@ -101,7 +103,8 @@ export const toFormState = (project: Project): ProjectFormState => ({
   description: project.description,
   projectType: project.projectType ?? 'Web Application',
   projectTypes: [project.projectType ?? 'Web Application'],
-  projectTemplate: project.projectTemplate ?? 'Blank Project',
+  projectTemplate: resolveProjectTemplate(project.projectTemplate),
+  templateData: project.templateData ?? {},
   projectCategory: project.projectCategory ?? 'Client Delivery',
   priority: project.priority,
   status: project.status,

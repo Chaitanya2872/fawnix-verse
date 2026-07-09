@@ -108,7 +108,6 @@ export default function ProjectsLayout() {
 
   const handleFormChange = (field: keyof ProjectFormState, value: ProjectFormState[keyof ProjectFormState]) => {
     setFormState((cur) => {
-      if (field === 'department') return { ...cur, department: String(value), teamMembers: [] }
       return { ...cur, [field]: value }
     })
   }
@@ -142,8 +141,9 @@ export default function ProjectsLayout() {
       updatedProject = updater(p)
       return updatedProject
     }))
-    if (!updatedProject) return
-    void syncBackendProject(updatedProject.id, updatedProject)
+    const projectToSync = updatedProject as Project | null
+    if (!projectToSync) return
+    void syncBackendProject(projectToSync.id, projectToSync)
       .then((saved) => {
         setProjects((cur) => cur.map((p) => (p.id === saved.id ? saved : p)))
         setBackendStatus('connected')

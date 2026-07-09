@@ -1,4 +1,5 @@
 import type { Priority, ProjectStatus, ProjectType, DeadlineType, SprintDuration, MemberRole, RolePermission } from './types'
+import { projectTemplateOptions } from './template-config'
 
 export const priorities: Priority[] = ['Low', 'Medium', 'High', 'Critical']
 
@@ -44,6 +45,16 @@ export const memberRoles: MemberRole[] = [
   'UI/UX Designer',
   'DevOps Engineer',
   'Business Analyst',
+  'Campaign Manager',
+  'Marketing Lead',
+  'Recruiter',
+  'HR Partner',
+  'Finance Analyst',
+  'Sales Manager',
+  'Account Executive',
+  'Designer',
+  'Operations Lead',
+  'Operations Analyst',
   'Stakeholder',
 ]
 
@@ -65,6 +76,16 @@ export const defaultPermissionsForRole: Record<MemberRole, RolePermission[]> = {
   'UI/UX Designer':    ['view_project','create_task','edit_task','upload_files'],
   'DevOps Engineer':   ['view_project','edit_task','upload_files','approve_release'],
   'Business Analyst':  ['view_project','create_task','upload_files'],
+  'Campaign Manager':  ['view_project','create_task','assign_task','edit_task','upload_files','approve_release'],
+  'Marketing Lead':    ['view_project','create_task','assign_task','edit_task','upload_files'],
+  'Recruiter':         ['view_project','create_task','edit_task','upload_files'],
+  'HR Partner':        ['view_project','create_task','assign_task','edit_task','upload_files','approve_release'],
+  'Finance Analyst':   ['view_project','create_task','edit_task','upload_files','approve_release'],
+  'Sales Manager':     ['view_project','create_task','assign_task','edit_task','upload_files','approve_release'],
+  'Account Executive': ['view_project','create_task','edit_task','upload_files'],
+  'Designer':          ['view_project','create_task','edit_task','upload_files'],
+  'Operations Lead':   ['view_project','create_task','assign_task','edit_task','upload_files','approve_release'],
+  'Operations Analyst':['view_project','create_task','edit_task','upload_files'],
   'Stakeholder':       ['view_project'],
 }
 
@@ -75,17 +96,11 @@ export const techOther    = ['Docker','Kubernetes','AWS','Azure','GCP','Firebase
 
 export const branchStrategies = ['main / develop / feature/*','Git Flow','Trunk Based','GitHub Flow']
 
-export const departments = ['Sales', 'Operations', 'Finance', 'HR', 'IT', 'Support']
+export const departments = ['Sales', 'Marketing', 'Operations', 'Finance', 'HR', 'Design', 'IT', 'Support']
 
 export const owners = ['Ananya Rao', 'David Kim', 'Meera Iyer', 'Omar Khan', 'Priya Shah']
 
-export const projectTemplates = [
-  'Blank Project',
-  'Implementation',
-  'Marketing Campaign',
-  'Product Launch',
-  'Internal Operations',
-]
+export const projectTemplates = projectTemplateOptions
 
 export const projectCategories = [
   'Client Delivery',
@@ -93,13 +108,20 @@ export const projectCategories = [
   'Product',
   'Operations',
   'Compliance',
+  'Marketing',
+  'Recruitment',
+  'Finance',
+  'Sales Enablement',
+  'Design',
 ]
 
 export const departmentTeamMembers: Record<string, string[]> = {
   Sales: ['Ananya Rao', 'David Kim', 'Riya Menon', 'James Lee', 'Neha Kapoor'],
+  Marketing: ['Riya Menon', 'Ananya Rao', 'Elena Morris', 'James Lee', 'Naveen Kumar'],
   Operations: ['Meera Iyer', 'Omar Khan', 'Kabir Das', 'Luis Martin', 'Fatima Noor'],
   Finance: ['Priya Shah', 'Meera Iyer', 'Nikhil Jain', 'Sara Thomas', 'Arjun Nair'],
   HR: ['Priya Shah', 'Omar Khan', 'Riya Menon', 'Elena Morris', 'Naveen Kumar'],
+  Design: ['Fatima Noor', 'Ananya Rao', 'Luis Martin', 'Riya Menon', 'Kabir Das'],
   IT: ['David Kim', 'Ananya Rao', 'Fatima Noor', 'Luis Martin', 'Nikhil Jain'],
   Support: ['Omar Khan', 'James Lee', 'Sara Thomas', 'Neha Kapoor', 'Kabir Das'],
 }

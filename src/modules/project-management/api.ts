@@ -1,6 +1,7 @@
 import { format } from 'date-fns'
 import { api, ensureApiSession } from '@/services/api-client'
 import { today } from './data'
+import { DEFAULT_PROJECT_TEMPLATE, resolveProjectTemplate } from './template-config'
 import type { Project, ProjectFormState, ProjectStatus } from './types'
 import { loadProjectCache, saveProjectCache } from './utils'
 
@@ -105,6 +106,7 @@ export type ProjectMeetingResponse = ProjectMeetingPayload & {
 type BackendProjectDetails = {
   projectType?: Project['projectType']
   projectTemplate?: string
+  templateData?: Project['templateData']
   projectCategory?: string
   tags?: string[]
   clientName?: string
@@ -177,6 +179,7 @@ function mapStatus(status: BackendProjectStatus): ProjectStatus {
 function detailsFromProjectLike(project: {
   projectType: Project['projectType']
   projectTemplate: string
+  templateData: Project['templateData']
   projectCategory: string
   tags: string[]
   clientName: string
@@ -211,7 +214,8 @@ function detailsFromProjectLike(project: {
 }): BackendProjectDetails {
   return {
     projectType: project.projectType,
-    projectTemplate: project.projectTemplate,
+    projectTemplate: resolveProjectTemplate(project.projectTemplate),
+    templateData: project.templateData,
     projectCategory: project.projectCategory,
     tags: project.tags,
     clientName: project.clientName,
@@ -268,6 +272,7 @@ function payloadFromForm(form: ProjectFormState): ProjectPayload {
     details: detailsFromProjectLike({
       projectType: form.projectType,
       projectTemplate: form.projectTemplate,
+      templateData: form.templateData,
       projectCategory: form.projectCategory,
       tags: form.tags,
       clientName: form.clientName,
@@ -314,7 +319,8 @@ function mapProject(project: BackendProject, fallback: Partial<Project> = {}): P
     name: project.name,
     description: project.description ?? '',
     projectType: details.projectType ?? fallback.projectType ?? 'Internal Tool',
-    projectTemplate: details.projectTemplate ?? fallback.projectTemplate ?? 'Blank Project',
+    projectTemplate: resolveProjectTemplate(details.projectTemplate ?? fallback.projectTemplate ?? DEFAULT_PROJECT_TEMPLATE),
+    templateData: details.templateData ?? fallback.templateData ?? {},
     projectCategory: details.projectCategory ?? fallback.projectCategory ?? 'Internal',
     tags: details.tags ?? fallback.tags ?? [],
     clientName: details.clientName ?? fallback.clientName ?? '',
