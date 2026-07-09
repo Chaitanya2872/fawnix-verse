@@ -116,47 +116,6 @@ type MeetingFormState = {
   attachments: MeetingAttachment[]
 }
 
-const fallbackProjects: ProjectOption[] = [
-  {
-    id: 'project-alpha',
-    name: 'Project Alpha',
-    code: 'ALP-102',
-    manager: 'Vaishnavi',
-    department: 'Product',
-    team: ['Rohit Sharma', 'Anita Desai', 'Arjun Mehta', 'Priya Nair', 'Kiran Bose', 'Sneha Iyer'],
-  },
-  {
-    id: 'project-beta',
-    name: 'Project Beta',
-    code: 'BET-204',
-    manager: 'Rohit Sharma',
-    department: 'Client Delivery',
-    team: ['Vaishnavi', 'Maya Rao', 'Kabir Das', 'Aman Verma', 'Sneha Iyer'],
-  },
-  {
-    id: 'project-gamma',
-    name: 'Project Gamma',
-    code: 'GAM-331',
-    manager: 'Arjun Mehta',
-    department: 'Engineering',
-    team: ['Anita Desai', 'Rohit Sharma', 'Neha Kapoor', 'Aman Verma', 'Kiran Bose'],
-  },
-]
-
-const participantRoles: Record<string, string> = {
-  Vaishnavi: 'Product Manager',
-  'Rohit Sharma': 'Project Manager',
-  'Anita Desai': 'UI/UX Designer',
-  'Arjun Mehta': 'Tech Lead',
-  'Priya Nair': 'Business Analyst',
-  'Kiran Bose': 'QA Engineer',
-  'Sneha Iyer': 'Frontend Engineer',
-  'Maya Rao': 'Client Partner',
-  'Kabir Das': 'Backend Engineer',
-  'Aman Verma': 'DevOps Engineer',
-  'Neha Kapoor': 'Data Analyst',
-}
-
 const avatarTones = [
   'bg-slate-900 text-white',
   'bg-slate-100 text-slate-700',
@@ -190,247 +149,52 @@ function initials(name: string) {
 }
 
 function roleFor(name: string, fallback = 'Team Member') {
-  return participantRoles[name] ?? fallback
-}
-
-function peopleFor(project: ProjectOption, count: number, offset = 0): MeetingParticipant[] {
-  const uniqueNames = Array.from(new Set([project.manager, ...project.team, ...fallbackProjects.flatMap((p) => p.team)]))
-  return uniqueNames.slice(offset, offset + count).map((name, index) => ({
-    name,
-    role: roleFor(name, index === 0 ? 'Organizer' : 'Team Member'),
-    status: index % 5 === 3 ? 'Pending' : index % 7 === 4 ? 'Declined' : 'Accepted',
-  }))
+  return name.trim() ? fallback : 'Team Member'
 }
 
 function toProjectOptions(projects: Project[]): ProjectOption[] {
-  if (!projects.length) return fallbackProjects
-
-  return projects.slice(0, 5).map((project, index) => {
-    const fallback = fallbackProjects[index % fallbackProjects.length]
+  return projects.slice(0, 5).map((project) => {
     const team = project.team?.length
       ? project.team.map((member) => member.name)
       : project.teamMembers?.length
         ? project.teamMembers
-        : fallback.team
+        : []
 
     return {
       id: project.id,
-      name: project.name || fallback.name,
-      code: project.projectCode || fallback.code,
-      manager: project.manager || project.owner || fallback.manager,
-      department: project.department || fallback.department,
+      name: project.name || 'Untitled Project',
+      code: project.projectCode || '',
+      manager: project.manager || project.owner || '',
+      department: project.department || '',
       team,
     }
   })
 }
 
-function buildMeetings(projects: ProjectOption[]): Meeting[] {
-  const projectAt = (index: number) => projects[index % projects.length] ?? fallbackProjects[0]
-  const alpha = projectAt(0)
-  const beta = projectAt(1)
-  const gamma = projectAt(2)
-
-  return [
-    {
-      id: 'meet-001',
-      title: 'Sprint Planning',
-      project: alpha,
-      organizer: { name: alpha.manager, role: roleFor(alpha.manager, 'Product Manager'), status: 'Accepted' },
-      startAt: '2025-05-02T10:00:00+05:30',
-      endAt: '2025-05-02T11:30:00+05:30',
-      dateLabel: '02 May 2025',
-      dateShort: '02 May 2025',
-      time: '10:00 AM - 11:30 AM',
-      duration: '1h 30m',
-      timezone: 'IST',
-      platform: 'Google Meet',
-      platformTone: 'bg-slate-400',
-      status: 'Upcoming',
-      type: 'Planning',
-      meetingId: 'abc-defg-hij',
-      link: 'https://meet.google.com/abc-defg-hij',
-      reminder: '15 minutes before',
-      repeatRule: 'Does not repeat',
-      description: 'Sprint 15 planning meeting to discuss goals, tasks, timelines, and resource allocation.',
-      agenda: ['Sprint Goals', 'Task Breakdown', 'Timeline and Milestones', 'Risks and Blockers', 'Q&A'],
-      participants: peopleFor(alpha, 10, 0),
-      actions: [
-        { title: 'Review UI designs', owner: 'Anita Desai', dueDate: '04 May' },
-        { title: 'API documentation', owner: 'Rohit Sharma', dueDate: '06 May' },
-        { title: 'Database schema', owner: 'Arjun Mehta', dueDate: '07 May' },
-        { title: 'Update sprint backlog', owner: 'Sneha Iyer', dueDate: '02 May' },
-        { title: 'Client feedback report', owner: 'Vaishnavi', dueDate: '08 May' },
-      ],
-      attachments: [
-        { name: 'Sprint-15-Plan.docx', size: '1.2 MB', tone: attachmentTone },
-        { name: 'Requirements.pdf', size: '2.4 MB', tone: attachmentTone },
-        { name: 'Design-Overview.pptx', size: '3.8 MB', tone: attachmentTone },
-      ],
-      notes: ['Confirm capacity before backlog lock.', 'Prepare release risks for review.'],
-    },
-    {
-      id: 'meet-002',
-      title: 'Client Review Meeting',
-      project: beta,
-      organizer: { name: beta.manager, role: roleFor(beta.manager, 'Project Manager'), status: 'Accepted' },
-      startAt: '2025-05-02T15:00:00+05:30',
-      endAt: '2025-05-02T15:45:00+05:30',
-      dateLabel: '02 May 2025',
-      dateShort: '02 May 2025',
-      time: '03:00 PM - 03:45 PM',
-      duration: '45m',
-      timezone: 'IST',
-      platform: 'Microsoft Teams',
-      platformTone: 'bg-slate-400',
-      status: 'Upcoming',
-      type: 'Review',
-      meetingId: 'teams-4829',
-      link: 'https://teams.microsoft.com/l/meetup-join/client-review',
-      reminder: '30 minutes before',
-      repeatRule: 'Does not repeat',
-      description: 'Client checkpoint for progress review, open decisions, and delivery confidence.',
-      agenda: ['Progress Summary', 'Open Issues', 'Client Questions', 'Next Deliverables'],
-      participants: peopleFor(beta, 8, 0),
-      actions: [
-        { title: 'Send client recap', owner: beta.manager, dueDate: '02 May' },
-        { title: 'Update delivery notes', owner: 'Maya Rao', dueDate: '03 May' },
-      ],
-      attachments: [
-        { name: 'Client-Review.pdf', size: '1.8 MB', tone: attachmentTone },
-        { name: 'Delivery-Roadmap.xlsx', size: '980 KB', tone: attachmentTone },
-      ],
-      notes: ['Client wants a shorter status summary.', 'Budget note to be shared separately.'],
-    },
-    {
-      id: 'meet-003',
-      title: 'UI/UX Discussion',
-      project: alpha,
-      organizer: { name: 'Anita Desai', role: 'UI/UX Designer', status: 'Accepted' },
-      startAt: '2025-05-03T10:00:00+05:30',
-      endAt: '2025-05-03T12:00:00+05:30',
-      dateLabel: '03 May 2025',
-      dateShort: '03 May 2025',
-      time: '10:00 AM - 12:00 PM',
-      duration: '2h',
-      timezone: 'IST',
-      platform: 'Google Meet',
-      platformTone: 'bg-slate-400',
-      status: 'Upcoming',
-      type: 'Design',
-      meetingId: 'ux-4490',
-      link: 'https://meet.google.com/uiux-review',
-      reminder: '10 minutes before',
-      repeatRule: 'Does not repeat',
-      description: 'Design review for interaction flow, accessibility, and final screen readiness.',
-      agenda: ['Prototype Walkthrough', 'Accessibility Review', 'Mobile States', 'Handoff Checklist'],
-      participants: peopleFor(alpha, 7, 1),
-      actions: [
-        { title: 'Refresh empty states', owner: 'Anita Desai', dueDate: '05 May' },
-        { title: 'Check mobile spacing', owner: 'Sneha Iyer', dueDate: '05 May' },
-      ],
-      attachments: [
-        { name: 'UX-Flow.fig', size: '4.6 MB', tone: attachmentTone },
-      ],
-      notes: ['Use compact density for operations pages.'],
-    },
-    {
-      id: 'meet-004',
-      title: 'Team Retrospective',
-      project: gamma,
-      organizer: { name: gamma.manager, role: roleFor(gamma.manager, 'Tech Lead'), status: 'Accepted' },
-      startAt: '2025-05-03T16:00:00+05:30',
-      endAt: '2025-05-03T17:00:00+05:30',
-      dateLabel: '03 May 2025',
-      dateShort: '03 May 2025',
-      time: '04:00 PM - 05:00 PM',
-      duration: '1h',
-      timezone: 'IST',
-      platform: 'Zoom',
-      platformTone: 'bg-slate-400',
-      status: 'Upcoming',
-      type: 'Retrospective',
-      meetingId: 'zoom-153-882',
-      link: 'https://zoom.us/j/153882',
-      reminder: '15 minutes before',
-      repeatRule: 'Does not repeat',
-      description: 'Retrospective to capture wins, friction points, and action items for the next sprint.',
-      agenda: ['Wins', 'Pain Points', 'Process Changes', 'Owners'],
-      participants: peopleFor(gamma, 9, 0),
-      actions: [
-        { title: 'Publish retro notes', owner: gamma.manager, dueDate: '03 May' },
-        { title: 'Prioritize process fixes', owner: 'Neha Kapoor', dueDate: '06 May' },
-      ],
-      attachments: [
-        { name: 'Retro-Notes.docx', size: '720 KB', tone: attachmentTone },
-      ],
-      notes: ['Keep discussion time-boxed.'],
-    },
-    {
-      id: 'meet-005',
-      title: 'Architecture Review',
-      project: alpha,
-      organizer: { name: 'Rohit Sharma', role: 'Project Manager', status: 'Accepted' },
-      startAt: '2025-05-01T10:00:00+05:30',
-      endAt: '2025-05-01T11:00:00+05:30',
-      dateLabel: '01 May 2025',
-      dateShort: '01 May 2025',
-      time: '10:00 AM - 11:00 AM',
-      duration: '1h',
-      timezone: 'IST',
-      platform: 'Microsoft Teams',
-      platformTone: 'bg-slate-400',
-      status: 'Completed',
-      type: 'Architecture',
-      meetingId: 'arch-9112',
-      link: 'https://teams.microsoft.com/l/meetup-join/architecture',
-      reminder: 'No reminder',
-      repeatRule: 'Does not repeat',
-      description: 'Technical architecture review for service boundaries, integrations, and database changes.',
-      agenda: ['Service Map', 'API Contracts', 'Database Schema', 'Deployment Notes'],
-      participants: peopleFor(alpha, 8, 2),
-      actions: [
-        { title: 'Share API contract', owner: 'Arjun Mehta', dueDate: '02 May' },
-        { title: 'Confirm migration order', owner: 'Aman Verma', dueDate: '04 May' },
-      ],
-      attachments: [
-        { name: 'Architecture-Notes.pdf', size: '2.1 MB', tone: attachmentTone },
-      ],
-      notes: ['Approved with follow-up on migration sequencing.'],
-    },
-    {
-      id: 'meet-006',
-      title: 'Budget Alignment',
-      project: beta,
-      organizer: { name: 'Maya Rao', role: 'Client Partner', status: 'Accepted' },
-      startAt: '2025-04-30T14:00:00+05:30',
-      endAt: '2025-04-30T14:30:00+05:30',
-      dateLabel: '30 Apr 2025',
-      dateShort: '30 Apr 2025',
-      time: '02:00 PM - 02:30 PM',
-      duration: '30m',
-      timezone: 'IST',
-      platform: 'Google Meet',
-      platformTone: 'bg-slate-400',
-      status: 'Cancelled',
-      type: 'Review',
-      meetingId: 'budget-220',
-      link: 'https://meet.google.com/budget-align',
-      reminder: 'No reminder',
-      repeatRule: 'Does not repeat',
-      description: 'Budget alignment discussion moved to client review.',
-      agenda: ['Budget Delta', 'Approval Owner', 'Next Decision'],
-      participants: peopleFor(beta, 5, 1),
-      actions: [
-        { title: 'Move budget note to review', owner: 'Maya Rao', dueDate: '02 May' },
-      ],
-      attachments: [],
-      notes: ['Cancelled after client requested combined review.'],
-    },
-  ]
+function platformToneFor(platform: Meeting['platform']) {
+  const tones: Record<Meeting['platform'], string> = {
+    'Google Meet': 'bg-slate-400',
+    'Microsoft Teams': 'bg-slate-500',
+    Zoom: 'bg-slate-400',
+  }
+  return tones[platform]
 }
 
-function platformToneFor(_platform: Meeting['platform']) {
-  return 'bg-slate-400'
+function randomToken(length: number) {
+  const raw = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}${Math.random()}`
+  return raw.replace(/[^a-z0-9]/gi, '').toLowerCase().slice(0, length)
+}
+
+function newLocalMeetingId() {
+  return `meet-custom-${randomToken(12)}`
+}
+
+function newMeetingCode(prefix: string) {
+  return `${prefix}-${randomToken(6)}`
+}
+
+function newMeetingLink() {
+  return `https://meet.google.com/${randomToken(3)}-${randomToken(4)}`
 }
 
 function formatMeetingDate(date: string) {
@@ -501,6 +265,33 @@ function toDateInputValue(date: Date) {
 
 function toTimeInputValue(date: Date) {
   return date.toTimeString().slice(0, 5)
+}
+
+function createBlankMeetingForm(project?: ProjectOption): MeetingFormState {
+  const now = new Date()
+  const end = new Date(now.getTime() + 30 * 60 * 1000)
+  const participants = project
+    ? Array.from(new Set([project.manager, ...project.team].filter(Boolean)))
+    : []
+
+  return {
+    title: '',
+    projectId: project?.id ?? '',
+    description: '',
+    type: 'Planning',
+    platform: 'Google Meet',
+    link: '',
+    date: toDateInputValue(now),
+    startTime: toTimeInputValue(now),
+    endTime: toTimeInputValue(end),
+    timezone: 'IST',
+    participants,
+    agenda: [''],
+    reminder: '15 minutes before',
+    repeat: 'Does not repeat',
+    sendEmail: true,
+    attachments: [],
+  }
 }
 
 function toBackendStatus(status: MeetingStatus): BackendMeetingStatus {
@@ -767,10 +558,9 @@ function SectionShell({ children, className = '' }: { children: React.ReactNode;
 export default function ProjectsMeetingsPage() {
   const { projects } = useProjectsContext()
   const projectOptions = useMemo(() => toProjectOptions(projects), [projects])
-  const seededMeetings = useMemo(() => buildMeetings(projectOptions), [projectOptions])
 
-  const [meetings, setMeetings] = useState<Meeting[]>(() => buildMeetings(fallbackProjects))
-  const [selectedId, setSelectedId] = useState('meet-001')
+  const [meetings, setMeetings] = useState<Meeting[]>([])
+  const [selectedId, setSelectedId] = useState('')
   const [search, setSearch] = useState('')
   const [projectFilter, setProjectFilter] = useState('ALL')
   const [statusFilter, setStatusFilter] = useState<MeetingStatus | 'ALL'>('ALL')
@@ -783,11 +573,11 @@ export default function ProjectsMeetingsPage() {
   const [noteText, setNoteText] = useState('')
   const [inviteQuery, setInviteQuery] = useState('')
   const [inviteSelected, setInviteSelected] = useState<string[]>([])
-  const [inviteMessage, setInviteMessage] = useState('You are invited to the Sprint Planning meeting.\n\nSee you there!')
-  const [scheduleForm, setScheduleForm] = useState<MeetingFormState>(() => formFromMeeting(buildMeetings(fallbackProjects)[0]))
+  const [inviteMessage, setInviteMessage] = useState('You are invited to the meeting.\n\nSee you there!')
+  const [scheduleForm, setScheduleForm] = useState<MeetingFormState>(() => createBlankMeetingForm(projectOptions[0]))
   const [isSchedulerOpen, setIsSchedulerOpen] = useState(false)
 
-  const selectedMeeting = meetings.find((meeting) => meeting.id === selectedId) ?? meetings[0] ?? seededMeetings[0] ?? buildMeetings(fallbackProjects)[0]
+  const selectedMeeting = meetings.find((meeting) => meeting.id === selectedId) ?? meetings[0] ?? null
 
   useEffect(() => {
     let cancelled = false
@@ -795,7 +585,8 @@ export default function ProjectsMeetingsPage() {
       .then((items) => {
         if (cancelled) return
         if (items.length === 0) {
-          setMeetings((current) => current.some((meeting) => meeting.id.startsWith('meet-custom-')) ? current : seededMeetings)
+          setMeetings([])
+          setSelectedId('')
           return
         }
         const mapped = items.map((item) => mapBackendMeeting(item, projectOptions))
@@ -804,7 +595,10 @@ export default function ProjectsMeetingsPage() {
       })
       .catch(() => undefined)
     return () => { cancelled = true }
-  }, [projectOptions, seededMeetings])
+  }, [projectOptions])
+
+  const todayLabel = formatMeetingDate(toDateInputValue(new Date()))
+  const hasActiveFilters = Boolean(search.trim()) || projectFilter !== 'ALL' || statusFilter !== 'ALL' || typeFilter !== 'ALL' || dateFilter !== 'ALL'
 
   const filteredMeetings = useMemo(() => {
     const query = search.trim().toLowerCase()
@@ -819,13 +613,13 @@ export default function ProjectsMeetingsPage() {
       const matchesProject = projectFilter === 'ALL' || meeting.project.id === projectFilter
       const matchesStatus = statusFilter === 'ALL' || meeting.status === statusFilter
       const matchesType = typeFilter === 'ALL' || meeting.type === typeFilter
-      const matchesDate = dateFilter === 'ALL' || meeting.dateShort === '02 May 2025'
+      const matchesDate = dateFilter === 'ALL' || meeting.dateShort === todayLabel
       return matchesSearch && matchesProject && matchesStatus && matchesType && matchesDate
     })
-  }, [dateFilter, meetings, projectFilter, search, statusFilter, typeFilter])
+  }, [dateFilter, meetings, projectFilter, search, statusFilter, todayLabel, typeFilter])
 
   const stats = useMemo(() => {
-    const todayMeetings = meetings.filter((meeting) => meeting.dateShort === '02 May 2025').length
+    const todayMeetings = meetings.filter((meeting) => meeting.dateShort === todayLabel).length
     const upcomingMeetings = meetings.filter((meeting) => meeting.status === 'Upcoming').length
     const completedMeetings = meetings.filter((meeting) => meeting.status === 'Completed').length
     const cancelledMeetings = meetings.filter((meeting) => meeting.status === 'Cancelled').length
@@ -835,20 +629,21 @@ export default function ProjectsMeetingsPage() {
       { label: 'Completed Meetings', value: completedMeetings, hint: 'This month', icon: CheckCircle2, tone: 'emerald' as const },
       { label: 'Cancelled Meetings', value: cancelledMeetings, hint: 'This month', icon: XCircle, tone: 'rose' as const },
     ]
-  }, [meetings])
+  }, [meetings, todayLabel])
 
-  const accepted = selectedMeeting.participants.filter((person) => person.status === 'Accepted')
-  const pending = selectedMeeting.participants.filter((person) => person.status === 'Pending')
-  const declined = selectedMeeting.participants.filter((person) => person.status === 'Declined')
+  const selectedParticipants = selectedMeeting?.participants ?? []
+  const accepted = selectedParticipants.filter((person) => person.status === 'Accepted')
+  const pending = selectedParticipants.filter((person) => person.status === 'Pending')
+  const declined = selectedParticipants.filter((person) => person.status === 'Declined')
   const pageSize = 5
   const totalPages = Math.max(1, Math.ceil(filteredMeetings.length / pageSize))
   const pageMeetings = filteredMeetings.slice((page - 1) * pageSize, page * pageSize)
   const allPeople = useMemo(
-    () => Array.from(new Set(projectOptions.flatMap((project) => [project.manager, ...project.team]))),
+    () => Array.from(new Set(projectOptions.flatMap((project) => [project.manager, ...project.team]).filter(Boolean))),
     [projectOptions],
   )
   const inviteMatches = allPeople
-    .filter((name) => !selectedMeeting.participants.some((participant) => participant.name === name))
+    .filter((name) => !selectedParticipants.some((participant) => participant.name === name))
     .filter((name) => !inviteSelected.includes(name))
     .filter((name) => name.toLowerCase().includes(inviteQuery.trim().toLowerCase()))
     .slice(0, 4)
@@ -863,7 +658,7 @@ export default function ProjectsMeetingsPage() {
   }
 
   const openScheduler = () => {
-    setScheduleForm(formFromMeeting(selectedMeeting))
+    setScheduleForm(selectedMeeting ? formFromMeeting(selectedMeeting) : createBlankMeetingForm(projectOptions[0]))
     setIsSchedulerOpen(true)
     showMessage('Schedule form is ready')
   }
@@ -873,7 +668,7 @@ export default function ProjectsMeetingsPage() {
     window.setTimeout(() => setActionMessage(''), 2400)
   }
 
-  const isPersistedMeeting = (meeting: Meeting) => !meeting.id.startsWith('meet-')
+  const isPersistedMeeting = (meeting: Meeting) => !meeting.id.startsWith('meet-custom-')
 
   const persistMeeting = async (meeting: Meeting) => {
     if (!isPersistedMeeting(meeting)) return
@@ -933,10 +728,10 @@ export default function ProjectsMeetingsPage() {
   const duplicateMeeting = (meeting: Meeting) => {
     const duplicate: Meeting = {
       ...meeting,
-      id: `meet-custom-${Date.now()}`,
+      id: newLocalMeetingId(),
       title: `${meeting.title} Copy`,
       status: 'Upcoming',
-      meetingId: `copy-${Math.random().toString(36).slice(2, 8)}`,
+      meetingId: newMeetingCode('copy'),
       notes: [...meeting.notes, 'Duplicated from an existing meeting.'],
     }
     setMeetings((current) => [duplicate, ...current])
@@ -965,19 +760,23 @@ export default function ProjectsMeetingsPage() {
       return
     }
     const project = projectOptions.find((item) => item.id === scheduleForm.projectId) ?? projectOptions[0]
-    const participants = Array.from(new Set([project.manager, ...scheduleForm.participants])).map((name, index) => ({
+    if (!project) {
+      showMessage('Create a project before scheduling meetings')
+      return
+    }
+    const participants = Array.from(new Set([project.manager, ...scheduleForm.participants].filter(Boolean))).map((name, index) => ({
       name,
       role: roleFor(name, index === 0 ? 'Organizer' : 'Team Member'),
       status: index === 0 ? 'Accepted' as RsvpStatus : 'Pending' as RsvpStatus,
     }))
-    const link = scheduleForm.link.trim() || `https://meet.google.com/${Math.random().toString(36).slice(2, 5)}-${Math.random().toString(36).slice(2, 6)}`
+    const organizer = participants[0] ?? { name: project.manager || 'Organizer', role: 'Organizer', status: 'Accepted' as RsvpStatus }
+    const link = scheduleForm.link.trim() || newMeetingLink()
     const startAt = toInstant(scheduleForm.date, scheduleForm.startTime, scheduleForm.timezone)
     const endAt = toInstant(scheduleForm.date, scheduleForm.endTime, scheduleForm.timezone)
     const meeting: Meeting = {
-      id: `meet-custom-${Date.now()}`,
+      id: newLocalMeetingId(),
       title: scheduleForm.title.trim(),
       project,
-      organizer: participants[0],
       startAt,
       endAt,
       dateLabel: formatMeetingDate(scheduleForm.date),
@@ -989,13 +788,14 @@ export default function ProjectsMeetingsPage() {
       platformTone: platformToneFor(scheduleForm.platform),
       status: 'Upcoming',
       type: scheduleForm.type,
-      meetingId: `mtg-${Math.random().toString(36).slice(2, 8)}`,
+      meetingId: newMeetingCode('mtg'),
       link,
       reminder: scheduleForm.reminder,
       repeatRule: scheduleForm.repeat,
       description: scheduleForm.description,
       agenda: scheduleForm.agenda.filter((item) => item.trim()),
-      participants,
+      organizer,
+      participants: participants.length ? participants : [organizer],
       actions: [],
       attachments: scheduleForm.attachments,
       notes: [
@@ -1011,15 +811,12 @@ export default function ProjectsMeetingsPage() {
       setIsSchedulerOpen(false)
       showMessage('Meeting scheduled')
     } catch {
-      setMeetings((current) => [meeting, ...current])
-      selectMeeting(meeting)
-      setIsSchedulerOpen(false)
-      showMessage('Meeting scheduled locally; backend unavailable')
+      showMessage('Unable to schedule meeting; backend unavailable')
     }
   }
 
   const resetScheduleForm = () => {
-    setScheduleForm(formFromMeeting(selectedMeeting))
+    setScheduleForm(selectedMeeting ? formFromMeeting(selectedMeeting) : createBlankMeetingForm(projectOptions[0]))
     showMessage('Schedule form reset')
   }
 
@@ -1038,7 +835,7 @@ export default function ProjectsMeetingsPage() {
   }
 
   const addFilesToSelectedMeeting = (files: FileList | null) => {
-    if (!files?.length) return
+    if (!files?.length || !selectedMeeting) return
     const nextFiles = Array.from(files).map((file) => ({
       name: file.name,
       size: fileSizeLabel(file.size),
@@ -1053,6 +850,7 @@ export default function ProjectsMeetingsPage() {
   }
 
   const updateParticipantStatus = (name: string, status: RsvpStatus) => {
+    if (!selectedMeeting) return
     updateMeeting(selectedMeeting.id, (meeting) => ({
       ...meeting,
       participants: meeting.participants.map((participant) => (
@@ -1062,6 +860,7 @@ export default function ProjectsMeetingsPage() {
   }
 
   const sendInvitations = () => {
+    if (!selectedMeeting) return
     if (!inviteSelected.length) {
       showMessage('Select at least one person to invite')
       return
@@ -1082,6 +881,7 @@ export default function ProjectsMeetingsPage() {
   }
 
   const addNote = () => {
+    if (!selectedMeeting) return
     const value = noteText.trim()
     if (!value) return
     updateMeeting(selectedMeeting.id, (meeting) => ({ ...meeting, notes: [value, ...meeting.notes] }))
@@ -1102,7 +902,7 @@ export default function ProjectsMeetingsPage() {
             <button
               type="button"
               onClick={clearFilters}
-              className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 transition hover:bg-slate-50"
+              className="hidden h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 transition hover:bg-slate-50"
             >
               <Filter className="h-3.5 w-3.5" />
               Clear filters
@@ -1131,7 +931,7 @@ export default function ProjectsMeetingsPage() {
             <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 bg-white px-5 py-4">
               <div>
                 <h2 className="text-sm font-semibold text-slate-950">Schedule a meeting</h2>
-                <p className="mt-1 text-xs text-slate-500">Set the essentials first; reminders, repeat rules, and files are tucked into the same panel.</p>
+                <p className="mt-1 text-xs text-slate-500">Add the meeting basics and invite the right people.</p>
               </div>
               <button
                 type="button"
@@ -1143,7 +943,7 @@ export default function ProjectsMeetingsPage() {
               </button>
             </div>
 
-            <div className="grid gap-5 p-5 xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.8fr)]">
+            <div className="grid gap-5 p-5">
               <div className="space-y-4">
                 <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_220px]">
                   <Field label="Meeting Title">
@@ -1151,6 +951,7 @@ export default function ProjectsMeetingsPage() {
                   </Field>
                   <Field label="Project">
                     <SelectInput value={scheduleForm.projectId} onChange={(event) => updateScheduleField('projectId', event.target.value)}>
+                      {projectOptions.length === 0 && <option value="">No projects available</option>}
                       {projectOptions.map((project) => (
                         <option key={project.id} value={project.id}>{project.name}</option>
                       ))}
@@ -1311,7 +1112,7 @@ export default function ProjectsMeetingsPage() {
 
         <div className="grid gap-4 xl:grid-cols-[minmax(0,0.92fr)_minmax(420px,1.08fr)]">
           <div className="space-y-4">
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="hidden">
               {stats.map((stat) => (
                 <StatCard key={stat.label} {...stat} />
               ))}
@@ -1327,7 +1128,7 @@ export default function ProjectsMeetingsPage() {
                   <button
                     type="button"
                     onClick={openScheduler}
-                    className="inline-flex h-8 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                    className="hidden h-8 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 hover:bg-slate-50"
                   >
                     <Plus className="h-3.5 w-3.5" />
                     New
@@ -1359,7 +1160,7 @@ export default function ProjectsMeetingsPage() {
                       <option key={status} value={status}>{status}</option>
                     ))}
                   </SelectInput>
-                  <SelectInput value={typeFilter} onChange={(event) => { setTypeFilter(event.target.value as MeetingType | 'ALL'); setPage(1) }}>
+                  <SelectInput className="hidden" value={typeFilter} onChange={(event) => { setTypeFilter(event.target.value as MeetingType | 'ALL'); setPage(1) }}>
                     <option value="ALL">All types</option>
                     {(['Planning', 'Review', 'Design', 'Retrospective', 'Architecture'] as MeetingType[]).map((type) => (
                       <option key={type} value={type}>{type}</option>
@@ -1371,7 +1172,7 @@ export default function ProjectsMeetingsPage() {
                       setDateFilter((current) => current === 'TODAY' ? 'ALL' : 'TODAY')
                       setPage(1)
                     }}
-                    className={`inline-flex h-9 items-center justify-center gap-2 rounded-lg border px-3 text-xs font-semibold ${
+                    className={`hidden h-9 items-center justify-center gap-2 rounded-lg border px-3 text-xs font-semibold ${
                       dateFilter === 'TODAY'
                         ? 'border-slate-300 bg-slate-100 text-slate-800'
                         : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
@@ -1388,14 +1189,22 @@ export default function ProjectsMeetingsPage() {
                   {filteredMeetings.length === 0 ? (
                     <div className="py-14 text-center">
                       <MessageSquare className="mx-auto mb-3 h-8 w-8 text-slate-300" />
-                      <p className="text-sm font-medium text-slate-500">No meetings match your filters.</p>
-                      <button type="button" onClick={clearFilters} className="mt-3 text-xs font-semibold text-slate-700 hover:text-slate-950">
-                        Reset filters
-                      </button>
+                      <p className="text-sm font-medium text-slate-500">
+                        {meetings.length === 0 ? 'No meetings found.' : 'No meetings match your filters.'}
+                      </p>
+                      {hasActiveFilters ? (
+                        <button type="button" onClick={clearFilters} className="mt-3 text-xs font-semibold text-slate-700 hover:text-slate-950">
+                          Reset filters
+                        </button>
+                      ) : (
+                        <button type="button" onClick={openScheduler} className="mt-3 text-xs font-semibold text-slate-700 hover:text-slate-950">
+                          Schedule meeting
+                        </button>
+                      )}
                     </div>
                   ) : (
                     pageMeetings.map((meeting) => {
-                      const selected = selectedMeeting.id === meeting.id
+                      const selected = selectedId === meeting.id
                       return (
                         <div
                           key={meeting.id}
@@ -1450,7 +1259,7 @@ export default function ProjectsMeetingsPage() {
                                   >
                                     Join
                                   </button>
-                                  <div className="relative">
+                                  <div className="hidden">
                             <button
                               type="button"
                               aria-label="More meeting actions"
@@ -1511,6 +1320,8 @@ export default function ProjectsMeetingsPage() {
           </div>
 
           <SectionShell className="min-w-0 overflow-hidden xl:sticky xl:top-4 xl:self-start">
+            {selectedMeeting ? (
+              <>
             <div className="border-b border-slate-100 bg-white px-5 py-4">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div className="min-w-0">
@@ -1543,13 +1354,15 @@ export default function ProjectsMeetingsPage() {
                     <Share2 className="h-3.5 w-3.5" />
                     Share
                   </button>
-                  <IconButton label="Duplicate meeting" onClick={() => duplicateMeeting(selectedMeeting)}>
-                    <MoreHorizontal className="h-4 w-4" />
-                  </IconButton>
+                  <div className="hidden">
+                    <IconButton label="Duplicate meeting" onClick={() => duplicateMeeting(selectedMeeting)}>
+                      <MoreHorizontal className="h-4 w-4" />
+                    </IconButton>
+                  </div>
                 </div>
               </div>
 
-              <div className="mt-5 flex overflow-x-auto rounded-lg bg-slate-100 p-1">
+              <div className="hidden overflow-x-auto rounded-lg bg-slate-100 p-1">
                 {([
                   { id: 'Overview', label: 'Overview' },
                   { id: 'Agenda', label: 'Agenda' },
@@ -1573,7 +1386,7 @@ export default function ProjectsMeetingsPage() {
               </div>
             </div>
 
-            <div className={`${activeTab === 'Overview' ? 'grid' : 'hidden'} gap-4 p-5 2xl:grid-cols-[minmax(0,1fr)_minmax(240px,0.75fr)]`}>
+            <div className="grid gap-4 p-5">
               <div className="space-y-4">
                 <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
                   <p className="text-xs font-semibold text-slate-700">Meeting Link</p>
@@ -1708,12 +1521,12 @@ export default function ProjectsMeetingsPage() {
                 <div className="rounded-lg border border-slate-200 p-4">
                   <div className="mb-3 flex items-center justify-between">
                     <p className="text-xs font-semibold text-slate-800">Participants ({selectedMeeting.participants.length})</p>
-                    <button type="button" onClick={() => setActiveTab('Participants')} className="text-[11px] font-semibold text-slate-700 hover:text-slate-950">View all</button>
+                    <button type="button" onClick={() => setActiveTab('Participants')} className="hidden text-[11px] font-semibold text-slate-700 hover:text-slate-950">View all</button>
                   </div>
                   <AvatarStack people={selectedMeeting.participants} limit={6} />
                 </div>
 
-                <div className="rounded-lg border border-slate-200 p-4">
+                <div className="hidden rounded-lg border border-slate-200 p-4">
                   <div className="mb-3 flex items-center justify-between">
                     <p className="text-xs font-semibold text-slate-800">Action Items ({selectedMeeting.actions.length})</p>
                     <button type="button" onClick={() => setActiveTab('Action Items')} className="text-[11px] font-semibold text-slate-700 hover:text-slate-950">View all action items</button>
@@ -1741,10 +1554,10 @@ export default function ProjectsMeetingsPage() {
                       </li>
                     ))}
                   </ol>
-                  <button type="button" onClick={() => setActiveTab('Agenda')} className="mt-3 text-[11px] font-semibold text-slate-700 hover:text-slate-950">View full agenda</button>
+                  <button type="button" onClick={() => setActiveTab('Agenda')} className="hidden text-[11px] font-semibold text-slate-700 hover:text-slate-950">View full agenda</button>
                 </div>
 
-                <div className="rounded-lg border border-slate-200 p-4">
+                <div className="hidden rounded-lg border border-slate-200 p-4">
                   <p className="mb-3 text-xs font-semibold text-slate-800">Attachments ({selectedMeeting.attachments.length})</p>
                   {selectedMeeting.attachments.length ? (
                     <div className="space-y-2">
@@ -2035,6 +1848,24 @@ export default function ProjectsMeetingsPage() {
                     <p className="text-sm text-slate-600">{activity}</p>
                   </div>
                 ))}
+              </div>
+            )}
+              </>
+            ) : (
+              <div className="p-8 text-center">
+                <MessageSquare className="mx-auto mb-3 h-9 w-9 text-slate-300" />
+                <h2 className="text-sm font-semibold text-slate-900">No meeting selected</h2>
+                <p className="mx-auto mt-2 max-w-sm text-xs leading-5 text-slate-500">
+                  Meetings from the backend will appear here. Schedule a meeting once a project is available.
+                </p>
+                <button
+                  type="button"
+                  onClick={openScheduler}
+                  className="mt-4 inline-flex h-9 items-center gap-2 rounded-lg bg-slate-900 px-4 text-xs font-semibold text-white hover:bg-slate-800"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  Schedule meeting
+                </button>
               </div>
             )}
           </SectionShell>
