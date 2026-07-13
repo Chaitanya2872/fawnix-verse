@@ -73,7 +73,6 @@ import {
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type Tab = "all-users" | "role-management" | "permission-management";
-
 type UserFormState = {
   fullName: string;
   email: string;
