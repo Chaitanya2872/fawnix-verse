@@ -896,34 +896,34 @@ export default function InventoryPage() {
     toast.success("Inventory CSV downloaded.");
   }
 
+  const inventoryActions = (
+    <div className="flex flex-wrap items-center justify-end gap-2">
+      <button
+        type="button"
+        onClick={() => setAnalyticsOpen(true)}
+        className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50"
+      >
+        <BarChart3 className="h-4 w-4" />
+        Analytics
+      </button>
+      <button
+        type="button"
+        onClick={() => setAddOpen(true)}
+        className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-700"
+      >
+        <Plus className="h-4 w-4" />
+        Add Item
+      </button>
+    </div>
+  );
+
   return (
     <>
-      <InventoryLayout
-        addProductButton={
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            <button
-              type="button"
-              onClick={() => setAnalyticsOpen(true)}
-              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50"
-            >
-              <BarChart3 className="h-4 w-4" />
-              Analytics
-            </button>
-            <button
-              type="button"
-              onClick={() => setAddOpen(true)}
-              className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-700"
-            >
-              <Plus className="h-4 w-4" />
-              Add Item
-            </button>
-          </div>
-        }
-      >
+      <InventoryLayout showHeader={false}>
         <div className="space-y-6">
           <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-              <div className="space-y-3">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div className="min-w-0 flex-1 space-y-3">
                 <div className="flex items-center gap-5 border-b border-slate-200">
                   <UnderlineTab active={view === "items"} onClick={() => setView("items")}>
                     Items
@@ -936,24 +936,25 @@ export default function InventoryPage() {
                   Manage live stock with inline receive and consumption updates, without extra cards or modal flows.
                 </p>
               </div>
-
-              {view === "items" ? (
-                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Items</p>
-                    <p className="mt-1 text-2xl font-bold text-slate-900">{tableSummary.totalItems}</p>
-                  </div>
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Low Stock</p>
-                    <p className="mt-1 text-2xl font-bold text-amber-700">{tableSummary.lowStock}</p>
-                  </div>
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Out of Stock</p>
-                    <p className="mt-1 text-2xl font-bold text-rose-700">{tableSummary.outOfStock}</p>
-                  </div>
-                </div>
-              ) : null}
+              {inventoryActions}
             </div>
+
+            {view === "items" ? (
+              <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Items</p>
+                  <p className="mt-1 text-2xl font-bold text-slate-900">{tableSummary.totalItems}</p>
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Low Stock</p>
+                  <p className="mt-1 text-2xl font-bold text-amber-700">{tableSummary.lowStock}</p>
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Out of Stock</p>
+                  <p className="mt-1 text-2xl font-bold text-rose-700">{tableSummary.outOfStock}</p>
+                </div>
+              </div>
+            ) : null}
           </div>
 
           {view === "items" ? (
