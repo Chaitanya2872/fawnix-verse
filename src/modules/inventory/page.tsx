@@ -5,13 +5,19 @@ import {
   AlertTriangle,
   BarChart3,
   Bookmark,
+  Boxes,
+  Building2,
   ChevronLeft,
   ChevronRight,
   Download,
+  Filter,
+  IndianRupee,
   Loader2,
   Package,
+  Pencil,
   Plus,
   Search,
+  Tags,
   Trash2,
   X,
 } from "lucide-react";
@@ -35,12 +41,14 @@ import {
   useReceiveStock,
   useUpdateProduct,
   useDeleteProduct,
+  useWarehouses,
 } from "./hooks";
 import { InventoryLayout } from "./layout";
 import { exportProductsCsv } from "./export";
 
 type StockView = "items" | "categories";
 type StockActionMode = "consume" | "receive";
+type CategoryMetric = "units" | "value";
 
 type StockActionDialogState = {
   product: Product;
@@ -94,8 +102,33 @@ function formatCurrency(value: number) {
   return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(value);
 }
 
+function formatCompactCurrency(value: number) {
+  if (value >= 10_000_000) {
+    return `${new Intl.NumberFormat("en-IN", {
+      style: "currency",
+      currency: "INR",
+      maximumFractionDigits: 2,
+    }).format(value / 10_000_000)} Cr`;
+  }
+
+  if (value >= 100_000) {
+    return `${new Intl.NumberFormat("en-IN", {
+      style: "currency",
+      currency: "INR",
+      maximumFractionDigits: 2,
+    }).format(value / 100_000)} L`;
+  }
+
+  return formatCurrency(value);
+}
+
 function toNumber(value: unknown) {
   return typeof value === "number" ? value : Number(value ?? 0);
+}
+
+function getStockHealthPercent(totalItems: number, lowStock: number, outOfStock: number) {
+  if (!totalItems) return 0;
+  return Math.max(0, Math.round(((totalItems - lowStock - outOfStock) / totalItems) * 100));
 }
 
 function getTodayDateValue() {
@@ -123,7 +156,7 @@ function StatusBadge({ status }: { status: ProductStatus }) {
 
   const item = config[status];
   return (
-    <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold ${item.cls}`}>
+    <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold ${item.cls}`}>
       {item.label}
     </span>
   );
@@ -176,7 +209,7 @@ function ActionButton({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className={`inline-flex items-center justify-center rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${toneClass}`}
+      className={`inline-flex items-center justify-center rounded-md border px-2 py-1 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${toneClass}`}
     >
       {children}
     </button>
@@ -286,7 +319,7 @@ function InventoryAnalyticsDialog({
                   <div className="mt-4 space-y-3">
                     <RiskRow label="Low stock" value={summary.lowStock} className="bg-amber-50 text-amber-700" />
                     <RiskRow label="Out of stock" value={summary.outOfStock} className="bg-rose-50 text-rose-700" />
-                    <RiskRow label="Healthy stock" value={Math.max(0, summary.totalItems - summary.lowStock - summary.outOfStock)} className="bg-emerald-50 text-emerald-700" />
+                    <RiskRow label="Healthy stock" value={Math.max(0, summary.totalItems - summary.lowStock - summary.outOfStock)} className="bg-brand-50 text-brand-700" />
                   </div>
                 </div>
               </div>
@@ -313,6 +346,185 @@ function RiskRow({ label, value, className }: { label: string; value: number; cl
     <div className={`flex items-center justify-between rounded-2xl px-4 py-3 ${className}`}>
       <span className="text-sm font-semibold">{label}</span>
       <span className="text-xl font-bold">{value}</span>
+    </div>
+  );
+}
+
+function DashboardMetricCard({
+  label,
+  value,
+  helper,
+  icon,
+}: {
+  label: string;
+  value: string | number;
+  helper: string;
+  icon: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
+      <div className="flex items-center gap-3">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-brand-50 text-brand-700">
+          {icon}
+        </span>
+        <div className="min-w-0">
+          <p className="text-xs font-semibold text-slate-500">{label}</p>
+          <p className="mt-1 truncate text-2xl font-bold text-slate-950">{value}</p>
+          <p className="mt-1 text-xs text-slate-500">{helper}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StockByCategoryPanel({
+  categories,
+  products,
+  metric,
+  onMetricChange,
+}: {
+  categories: InventoryCategorySummary[];
+  products: Product[];
+  metric: CategoryMetric;
+  onMetricChange: (metric: CategoryMetric) => void;
+}) {
+  const categoryValueMap = products.reduce<Record<string, number>>((acc, product) => {
+    acc[product.category] = (acc[product.category] || 0) + toNumber(product.stockQty) * toNumber(product.price);
+    return acc;
+  }, {});
+
+  const rows = categories
+    .slice()
+    .sort((left, right) => toNumber(right.totalStockQty) - toNumber(left.totalStockQty))
+    .slice(0, 5)
+    .map((category) => ({
+      category: category.category,
+      value: metric === "units" ? toNumber(category.totalStockQty) : categoryValueMap[category.category] || 0,
+    }));
+  const maxValue = Math.max(...rows.map((row) => row.value), 1);
+
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h2 className="text-sm font-bold text-slate-950">Stock by Category</h2>
+          <p className="mt-1 text-xs text-slate-500">Units on hand across product categories</p>
+        </div>
+        <div className="inline-flex w-max rounded-md border border-slate-200 bg-slate-50 p-0.5">
+          {(["units", "value"] as const).map((option) => (
+            <button
+              key={option}
+              type="button"
+              onClick={() => onMetricChange(option)}
+              className={`rounded px-2.5 py-1 text-xs font-semibold capitalize transition-colors ${
+                metric === option ? "bg-brand-600 text-white shadow-sm" : "text-slate-500 hover:text-slate-900"
+              }`}
+            >
+              {option}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-3 space-y-3">
+        {rows.length ? (
+          rows.map((row) => {
+            const width = `${Math.max(5, Math.round((row.value / maxValue) * 100))}%`;
+            const displayValue = metric === "units" ? row.value.toLocaleString("en-IN") : formatCompactCurrency(row.value);
+
+            return (
+              <div key={row.category} className="grid gap-2 sm:grid-cols-[150px_minmax(0,1fr)_86px] sm:items-center">
+                <div className="flex min-w-0 items-center gap-2">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-brand-50 text-brand-700">
+                    <Package className="h-3.5 w-3.5" />
+                  </span>
+                  <span className="truncate text-xs font-semibold text-slate-700">{row.category}</span>
+                </div>
+                <div className="h-2.5 rounded-full bg-slate-100">
+                  <div className="h-2.5 rounded-full bg-brand-600" style={{ width }} />
+                </div>
+                <span className="text-right text-xs font-bold text-slate-700">{displayValue}</span>
+              </div>
+            );
+          })
+        ) : (
+          <div className="rounded-md border border-dashed border-slate-200 bg-slate-50 px-3 py-5 text-center text-sm text-slate-500">
+            Category stock appears here once items are available.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function StockHealthPanel({
+  totalItems,
+  lowStock,
+  outOfStock,
+}: {
+  totalItems: number;
+  lowStock: number;
+  outOfStock: number;
+}) {
+  const healthy = Math.max(0, totalItems - lowStock - outOfStock);
+  const healthyPercent = getStockHealthPercent(totalItems, lowStock, outOfStock);
+  const healthyDegrees = totalItems ? (healthy / totalItems) * 360 : 0;
+  const lowDegrees = totalItems ? (lowStock / totalItems) * 360 : 0;
+  const outDegrees = totalItems ? (outOfStock / totalItems) * 360 : 0;
+  const donutStyle = {
+    background: totalItems
+      ? `conic-gradient(#2563eb 0deg ${healthyDegrees}deg, #f59e0b ${healthyDegrees}deg ${
+          healthyDegrees + lowDegrees
+        }deg, #f43f5e ${healthyDegrees + lowDegrees}deg ${
+          healthyDegrees + lowDegrees + outDegrees
+        }deg, #e2e8f0 ${healthyDegrees + lowDegrees + outDegrees}deg 360deg)`
+      : "#e2e8f0",
+  };
+
+  const rows = [
+    { label: "Healthy", value: healthy, percent: healthyPercent, dot: "bg-brand-600" },
+    {
+      label: "Low Stock",
+      value: lowStock,
+      percent: totalItems ? Math.round((lowStock / totalItems) * 100) : 0,
+      dot: "bg-amber-500",
+    },
+    {
+      label: "Out of Stock",
+      value: outOfStock,
+      percent: totalItems ? Math.round((outOfStock / totalItems) * 100) : 0,
+      dot: "bg-rose-500",
+    },
+  ];
+
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
+      <div>
+        <h2 className="text-sm font-bold text-slate-950">Stock Health</h2>
+        <p className="mt-1 text-xs text-slate-500">Overview of stock availability</p>
+      </div>
+      <div className="mt-3 grid gap-3 lg:grid-cols-[120px_130px_minmax(0,1fr)] lg:items-center">
+        <div>
+          <p className="text-4xl font-bold text-slate-950">{healthyPercent}%</p>
+          <p className="mt-1 text-lg font-bold text-brand-700">Healthy</p>
+        </div>
+        <div className="mx-auto flex h-28 w-28 items-center justify-center rounded-full" style={donutStyle}>
+          <div className="h-16 w-16 rounded-full bg-white shadow-inner" />
+        </div>
+        <div className="space-y-3">
+          {rows.map((row) => (
+            <div key={row.label} className="grid grid-cols-[minmax(0,1fr)_70px] items-center gap-3 text-xs">
+              <div className="flex min-w-0 items-center gap-2">
+                <span className={`h-2.5 w-2.5 rounded-full ${row.dot}`} />
+                <span className="font-semibold text-slate-700">{row.label}</span>
+              </div>
+              <span className="text-right font-bold text-slate-700">
+                {row.percent}% ({row.value})
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
@@ -717,6 +929,8 @@ function buildCategorySummary(products: Product[]) {
 
 export default function InventoryPage() {
   const [view, setView] = useState<StockView>("items");
+  const [categoryMetric, setCategoryMetric] = useState<CategoryMetric>("units");
+  const [warehouseFilter, setWarehouseFilter] = useState("ALL");
   const [filter, setFilter] = useState<ProductFilter>(defaultFilter);
   const [addOpen, setAddOpen] = useState(false);
   const [analyticsOpen, setAnalyticsOpen] = useState(false);
@@ -731,6 +945,7 @@ export default function InventoryPage() {
 
   const productsQuery = useProducts(filter);
   const overviewQuery = useInventoryOverview();
+  const warehouseQuery = useWarehouses({ search: "", status: "ACTIVE", page: 1, pageSize: 1 });
   const createMutation = useCreateProduct();
   const updateMutation = useUpdateProduct();
   const deleteMutation = useDeleteProduct();
@@ -750,6 +965,10 @@ export default function InventoryPage() {
 
   const selectedCategory = filter.category;
   const activeAdjustmentMutation = stockAction?.mode === "consume" ? consumeMutation : receiveMutation;
+  const visibleStockValue = useMemo(
+    () => products.reduce((sum, product) => sum + toNumber(product.stockQty) * toNumber(product.price), 0),
+    [products]
+  );
 
   const tableSummary = useMemo(() => {
     return {
@@ -769,19 +988,20 @@ export default function InventoryPage() {
       totalStock: overviewQuery.data?.totalStockQty ?? categories.reduce((sum, category) => sum + toNumber(category.totalStockQty), 0),
       lowStock: categoryLowStock || tableSummary.lowStock,
       outOfStock: categoryOutOfStock || tableSummary.outOfStock,
-      visibleStockValue: products.reduce((sum, product) => sum + toNumber(product.stockQty) * toNumber(product.price), 0),
+      visibleStockValue,
     };
   }, [
     categories,
     overviewQuery.data?.totalCategories,
     overviewQuery.data?.totalProducts,
     overviewQuery.data?.totalStockQty,
-    products,
     tableSummary.lowStock,
     tableSummary.outOfStock,
     tableSummary.totalItems,
+    visibleStockValue,
   ]);
 
+  const warehouseCount = warehouseQuery.data?.total ?? 5;
   function resetAdjustmentForm() {
     setAdjustmentForm({ quantity: "", txnDate: getTodayDateValue(), notes: "" });
   }
@@ -901,7 +1121,7 @@ export default function InventoryPage() {
       <button
         type="button"
         onClick={() => setAnalyticsOpen(true)}
-        className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50"
+        className="inline-flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50"
       >
         <BarChart3 className="h-4 w-4" />
         Analytics
@@ -909,7 +1129,7 @@ export default function InventoryPage() {
       <button
         type="button"
         onClick={() => setAddOpen(true)}
-        className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-700"
+        className="inline-flex items-center gap-2 rounded-md bg-brand-600 px-3 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-700"
       >
         <Plus className="h-4 w-4" />
         Add Item
@@ -920,90 +1140,134 @@ export default function InventoryPage() {
   return (
     <>
       <InventoryLayout showHeader={false}>
-        <div className="space-y-6">
-          <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-              <div className="min-w-0 flex-1 space-y-3">
-                <div className="flex items-center gap-5 border-b border-slate-200">
-                  <UnderlineTab active={view === "items"} onClick={() => setView("items")}>
-                    Items
-                  </UnderlineTab>
-                  <UnderlineTab active={view === "categories"} onClick={() => setView("categories")}>
-                    Category
-                  </UnderlineTab>
-                </div>
-                <p className="text-sm text-slate-500">
-                  Manage live stock with inline receive and consumption updates, without extra cards or modal flows.
-                </p>
+        <div className="space-y-3">
+          <div className="flex justify-end">
+            {inventoryActions}
+          </div>
+
+          <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <DashboardMetricCard
+              label="Total Items"
+              value={analyticsSummary.totalItems.toLocaleString("en-IN")}
+              helper="All Products"
+              icon={<Boxes className="h-5 w-5" />}
+            />
+            <DashboardMetricCard
+              label="Categories"
+              value={analyticsSummary.totalCategories.toLocaleString("en-IN")}
+              helper="Product Categories"
+              icon={<Tags className="h-5 w-5" />}
+            />
+            <DashboardMetricCard
+              label="Warehouses"
+              value={warehouseCount.toLocaleString("en-IN")}
+              helper="Active Warehouses"
+              icon={<Building2 className="h-5 w-5" />}
+            />
+            <DashboardMetricCard
+              label="Inventory Value"
+              value={formatCompactCurrency(analyticsSummary.visibleStockValue)}
+              helper="Current Stock Value"
+              icon={<IndianRupee className="h-5 w-5" />}
+            />
+          </section>
+
+          <section className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+            <StockByCategoryPanel
+              categories={categories}
+              products={products}
+              metric={categoryMetric}
+              onMetricChange={setCategoryMetric}
+            />
+            <StockHealthPanel
+              totalItems={analyticsSummary.totalItems}
+              lowStock={analyticsSummary.lowStock}
+              outOfStock={analyticsSummary.outOfStock}
+            />
+          </section>
+
+          <div className="rounded-lg border border-slate-200 bg-white shadow-sm">
+            <div className="border-b border-slate-200 px-3 pt-3">
+              <div className="flex items-center gap-5">
+                <UnderlineTab active={view === "items"} onClick={() => setView("items")}>
+                  Items
+                </UnderlineTab>
+                <UnderlineTab active={view === "categories"} onClick={() => setView("categories")}>
+                  <span className="inline-flex items-center gap-2">
+                    Categories
+                    <span className="rounded-full bg-brand-50 px-2 py-0.5 text-[10px] font-bold text-brand-700">
+                      {analyticsSummary.totalCategories}
+                    </span>
+                  </span>
+                </UnderlineTab>
               </div>
-              {inventoryActions}
             </div>
 
             {view === "items" ? (
-              <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Items</p>
-                  <p className="mt-1 text-2xl font-bold text-slate-900">{tableSummary.totalItems}</p>
+              <>
+                <div className="flex flex-col gap-2 border-b border-slate-200 p-3 xl:flex-row xl:items-center xl:justify-between">
+                  <div className="relative w-full max-w-xl">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                    <input
+                      value={filter.search}
+                      onChange={(e) => setFilter((prev) => ({ ...prev, search: e.target.value, page: 1 }))}
+                      placeholder="Search by item name or SKU..."
+                      className="w-full rounded-md border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm text-slate-900 outline-none transition-colors focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap xl:justify-end">
+                    <button
+                      type="button"
+                      onClick={handleExportProducts}
+                      className="inline-flex items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+                    >
+                      <Download className="h-4 w-4" />
+                      Export
+                    </button>
+                    <select
+                      value={filter.category}
+                      onChange={(e) => setFilter((prev) => ({ ...prev, category: e.target.value, page: 1 }))}
+                      className="min-w-40 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition-colors focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
+                    >
+                      <option value="">All Categories</option>
+                      {PRODUCT_CATEGORIES.map((category) => (
+                        <option key={category} value={category}>
+                          {category}
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      value={filter.status}
+                      onChange={(e) =>
+                        setFilter((prev) => ({ ...prev, status: e.target.value as ProductFilter["status"], page: 1 }))
+                      }
+                      className="min-w-36 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition-colors focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
+                    >
+                      <option value="ALL">All Status</option>
+                      <option value={ProductStatus.IN_STOCK}>In Stock</option>
+                      <option value={ProductStatus.LOW_STOCK}>Low Stock</option>
+                      <option value={ProductStatus.OUT_OF_STOCK}>Out of Stock</option>
+                    </select>
+                    <select
+                      value={warehouseFilter}
+                      onChange={(e) => setWarehouseFilter(e.target.value)}
+                      className="min-w-40 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition-colors focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
+                    >
+                      <option value="ALL">All Warehouses</option>
+                    </select>
+                    <button
+                      type="button"
+                      title="Reset filters"
+                      onClick={() => {
+                        setFilter(defaultFilter);
+                        setWarehouseFilter("ALL");
+                      }}
+                      className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-50"
+                    >
+                      <Filter className="h-4 w-4" />
+                    </button>
+                  </div>
                 </div>
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Low Stock</p>
-                  <p className="mt-1 text-2xl font-bold text-amber-700">{tableSummary.lowStock}</p>
-                </div>
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Out of Stock</p>
-                  <p className="mt-1 text-2xl font-bold text-rose-700">{tableSummary.outOfStock}</p>
-                </div>
-              </div>
-            ) : null}
-          </div>
-
-          {view === "items" ? (
-            <div className="rounded-3xl border border-slate-200 bg-white shadow-sm">
-              <div className="flex flex-col gap-4 border-b border-slate-200 p-5 lg:flex-row lg:items-center lg:justify-between">
-                <div className="relative w-full max-w-xl">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                  <input
-                    value={filter.search}
-                    onChange={(e) => setFilter((prev) => ({ ...prev, search: e.target.value, page: 1 }))}
-                    placeholder="Search by item name or SKU"
-                    className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-3 text-sm text-slate-900 outline-none transition-colors focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
-                  />
-                </div>
-                <div className="flex flex-col gap-3 sm:flex-row">
-                  <button
-                    type="button"
-                    onClick={handleExportProducts}
-                    className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
-                  >
-                    <Download className="h-4 w-4" />
-                    Export CSV
-                  </button>
-                  <select
-                    value={filter.category}
-                    onChange={(e) => setFilter((prev) => ({ ...prev, category: e.target.value, page: 1 }))}
-                    className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition-colors focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
-                  >
-                    <option value="">All Categories</option>
-                    {PRODUCT_CATEGORIES.map((category) => (
-                      <option key={category} value={category}>
-                        {category}
-                      </option>
-                    ))}
-                  </select>
-                  <select
-                    value={filter.status}
-                    onChange={(e) =>
-                      setFilter((prev) => ({ ...prev, status: e.target.value as ProductFilter["status"], page: 1 }))
-                    }
-                    className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition-colors focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
-                  >
-                    <option value="ALL">All Status</option>
-                    <option value={ProductStatus.IN_STOCK}>In Stock</option>
-                    <option value={ProductStatus.LOW_STOCK}>Low Stock</option>
-                    <option value={ProductStatus.OUT_OF_STOCK}>Out of Stock</option>
-                  </select>
-                </div>
-              </div>
 
               {productsQuery.isLoading ? (
                 <div className="flex items-center justify-center py-20">
@@ -1022,7 +1286,7 @@ export default function InventoryPage() {
                           {["Item", "Category", "Stock", "Unit Price", "Status", "Actions"].map((heading) => (
                             <th
                               key={heading}
-                              className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500"
+                              className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500"
                             >
                               {heading}
                             </th>
@@ -1036,10 +1300,10 @@ export default function InventoryPage() {
 
                             return (
                               <tr key={product.id} className="border-b border-slate-100 align-top">
-                                <td className="px-5 py-4">
-                                  <div className="flex items-start gap-3">
-                                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-brand-50 text-brand-700">
-                                      <Package className="h-5 w-5" />
+                                <td className="px-3 py-2.5">
+                                  <div className="flex items-start gap-2">
+                                    <div className="flex h-8 w-8 items-center justify-center rounded-md bg-brand-50 text-brand-700">
+                                      <Package className="h-4 w-4" />
                                     </div>
                                     <div>
                                       <p className="font-semibold text-slate-900">{product.name}</p>
@@ -1047,18 +1311,20 @@ export default function InventoryPage() {
                                     </div>
                                   </div>
                                 </td>
-                                <td className="px-5 py-4 text-slate-600">
+                                <td className="px-3 py-2.5 text-slate-600">
                                   <p>{product.category}</p>
                                   <p className="mt-1 text-xs text-slate-400">{product.subCategory ?? product.brand ?? "-"}</p>
                                 </td>
-                                <td className="px-5 py-4 font-semibold text-slate-900">{currentStock.toLocaleString("en-IN")}</td>
-                                <td className="px-5 py-4 font-semibold text-slate-900">{formatCurrency(toNumber(product.price))}</td>
-                                <td className="px-5 py-4">
+                                <td className="px-3 py-2.5 font-semibold text-slate-900">{currentStock.toLocaleString("en-IN")}</td>
+                                <td className="px-3 py-2.5 font-semibold text-slate-900">{formatCurrency(toNumber(product.price))}</td>
+                                <td className="px-3 py-2.5">
                                   <StatusBadge status={product.status} />
                                 </td>
-                                <td className="px-5 py-4">
-                                  <div className="flex items-center justify-end gap-2">
-                                    <ActionButton onClick={() => setEditProduct(product)}>Edit</ActionButton>
+                                <td className="px-3 py-2.5">
+                                  <div className="flex items-center justify-end gap-1.5">
+                                    <ActionButton onClick={() => setEditProduct(product)}>
+                                      <Pencil className="h-3.5 w-3.5" />
+                                    </ActionButton>
                                     <ActionButton
                                       tone="brand"
                                       onClick={() => openAction(product, "consume")}
@@ -1081,7 +1347,7 @@ export default function InventoryPage() {
                           })
                         ) : (
                           <tr>
-                            <td colSpan={6} className="px-5 py-16 text-center text-sm text-slate-500">
+                            <td colSpan={6} className="px-3 py-10 text-center text-sm text-slate-500">
                               No inventory items matched your filters.
                             </td>
                           </tr>
@@ -1091,7 +1357,7 @@ export default function InventoryPage() {
                   </div>
 
                   {pageData ? (
-                    <div className="flex flex-col gap-3 border-t border-slate-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex flex-col gap-2 border-t border-slate-200 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between">
                       <p className="text-sm text-slate-500">
                         Showing{" "}
                         <span className="font-semibold text-slate-900">
@@ -1105,7 +1371,7 @@ export default function InventoryPage() {
                           type="button"
                           disabled={filter.page === 1}
                           onClick={() => setFilter((prev) => ({ ...prev, page: prev.page - 1 }))}
-                          className="rounded-xl border border-slate-200 p-2 text-slate-500 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                          className="rounded-md border border-slate-200 p-1.5 text-slate-500 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
                         >
                           <ChevronLeft className="h-4 w-4" />
                         </button>
@@ -1116,7 +1382,7 @@ export default function InventoryPage() {
                           type="button"
                           disabled={filter.page >= pageData.totalPages}
                           onClick={() => setFilter((prev) => ({ ...prev, page: prev.page + 1 }))}
-                          className="rounded-xl border border-slate-200 p-2 text-slate-500 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                          className="rounded-md border border-slate-200 p-1.5 text-slate-500 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
                         >
                           <ChevronRight className="h-4 w-4" />
                         </button>
@@ -1125,10 +1391,10 @@ export default function InventoryPage() {
                   ) : null}
                 </>
               )}
-            </div>
+              </>
           ) : (
-            <div className="rounded-3xl border border-slate-200 bg-white shadow-sm">
-              <div className="border-b border-slate-200 p-5">
+            <>
+              <div className="border-b border-slate-200 p-3">
                 <h2 className="text-lg font-semibold text-slate-900">Category Summary</h2>
                 <p className="mt-1 text-sm text-slate-500">A clean category view without brand filters or stock-control cards.</p>
               </div>
@@ -1139,7 +1405,7 @@ export default function InventoryPage() {
                       {["Category", "Items", "Total Stock", "Low Stock", "Out of Stock"].map((heading) => (
                         <th
                           key={heading}
-                          className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500"
+                          className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500"
                         >
                           {heading}
                         </th>
@@ -1153,7 +1419,7 @@ export default function InventoryPage() {
                           key={category.category}
                           className={`border-b border-slate-100 ${selectedCategory === category.category ? "bg-brand-50/60" : ""}`}
                         >
-                          <td className="px-5 py-4">
+                          <td className="px-3 py-2.5">
                             <button
                               type="button"
                               onClick={() => {
@@ -1165,17 +1431,17 @@ export default function InventoryPage() {
                               {category.category}
                             </button>
                           </td>
-                          <td className="px-5 py-4 text-slate-600">{toNumber(category.productCount)}</td>
-                          <td className="px-5 py-4 font-semibold text-slate-900">
+                          <td className="px-3 py-2.5 text-slate-600">{toNumber(category.productCount)}</td>
+                          <td className="px-3 py-2.5 font-semibold text-slate-900">
                             {toNumber(category.totalStockQty).toLocaleString("en-IN")}
                           </td>
-                          <td className="px-5 py-4 text-amber-700">{toNumber(category.lowStockCount)}</td>
-                          <td className="px-5 py-4 text-rose-700">{toNumber(category.outOfStockCount)}</td>
+                          <td className="px-3 py-2.5 text-amber-700">{toNumber(category.lowStockCount)}</td>
+                          <td className="px-3 py-2.5 text-rose-700">{toNumber(category.outOfStockCount)}</td>
                         </tr>
                       ))
                     ) : (
                       <tr>
-                        <td colSpan={5} className="px-5 py-16 text-center text-sm text-slate-500">
+                        <td colSpan={5} className="px-3 py-10 text-center text-sm text-slate-500">
                           No categories available yet.
                         </td>
                       </tr>
@@ -1183,8 +1449,9 @@ export default function InventoryPage() {
                   </tbody>
                 </table>
               </div>
-            </div>
+            </>
           )}
+        </div>
         </div>
       </InventoryLayout>
 
