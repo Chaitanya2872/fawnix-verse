@@ -22,9 +22,13 @@ function InventoryLayout({
   showHeader = true,
 }: InventoryLayoutProps) {
   const headerActions = actions ?? addProductButton;
+  const containerClassName = showHeader
+    ? "flex flex-col gap-6 p-6 md:p-8"
+    : "flex flex-col gap-4 px-6 pb-6 pt-0 md:px-8 md:pb-8 md:pt-0";
+  const contentClassName = showHeader ? "flex flex-col gap-6" : "flex flex-col gap-4";
 
   return (
-    <div className="flex flex-col gap-6 p-6 md:p-8">
+    <div className={containerClassName}>
       {showHeader ? (
         <div className="flex items-start justify-between gap-4">
           <div>
@@ -45,7 +49,7 @@ function InventoryLayout({
         </div>
       ) : null}
 
-      <div className="flex flex-col gap-6">{children}</div>
+      <div className={contentClassName}>{children}</div>
     </div>
   );
 }

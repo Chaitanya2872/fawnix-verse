@@ -319,7 +319,7 @@ function InventoryAnalyticsDialog({
                   <div className="mt-4 space-y-3">
                     <RiskRow label="Low stock" value={summary.lowStock} className="bg-amber-50 text-amber-700" />
                     <RiskRow label="Out of stock" value={summary.outOfStock} className="bg-rose-50 text-rose-700" />
-                    <RiskRow label="Healthy stock" value={Math.max(0, summary.totalItems - summary.lowStock - summary.outOfStock)} className="bg-brand-50 text-brand-700" />
+                    <RiskRow label="Healthy stock" value={Math.max(0, summary.totalItems - summary.lowStock - summary.outOfStock)} className="bg-emerald-50 text-emerald-700" />
                   </div>
                 </div>
               </div>
@@ -355,16 +355,25 @@ function DashboardMetricCard({
   value,
   helper,
   icon,
+  tone,
 }: {
   label: string;
   value: string | number;
   helper: string;
   icon: React.ReactNode;
+  tone: "blue" | "emerald" | "violet" | "amber";
 }) {
+  const toneClass = {
+    blue: "bg-blue-50 text-blue-700",
+    emerald: "bg-emerald-50 text-emerald-700",
+    violet: "bg-violet-50 text-violet-700",
+    amber: "bg-amber-50 text-amber-700",
+  }[tone];
+
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
       <div className="flex items-center gap-3">
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-brand-50 text-brand-700">
+        <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md ${toneClass}`}>
           {icon}
         </span>
         <div className="min-w-0">
@@ -402,6 +411,13 @@ function StockByCategoryPanel({
       value: metric === "units" ? toNumber(category.totalStockQty) : categoryValueMap[category.category] || 0,
     }));
   const maxValue = Math.max(...rows.map((row) => row.value), 1);
+  const tones = [
+    { icon: "bg-blue-50 text-blue-700", bar: "bg-blue-600" },
+    { icon: "bg-emerald-50 text-emerald-700", bar: "bg-emerald-500" },
+    { icon: "bg-violet-50 text-violet-700", bar: "bg-violet-500" },
+    { icon: "bg-amber-50 text-amber-700", bar: "bg-amber-500" },
+    { icon: "bg-rose-50 text-rose-700", bar: "bg-rose-500" },
+  ];
 
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
@@ -428,20 +444,21 @@ function StockByCategoryPanel({
 
       <div className="mt-3 space-y-3">
         {rows.length ? (
-          rows.map((row) => {
+          rows.map((row, index) => {
+            const tone = tones[index % tones.length];
             const width = `${Math.max(5, Math.round((row.value / maxValue) * 100))}%`;
             const displayValue = metric === "units" ? row.value.toLocaleString("en-IN") : formatCompactCurrency(row.value);
 
             return (
               <div key={row.category} className="grid gap-2 sm:grid-cols-[150px_minmax(0,1fr)_86px] sm:items-center">
                 <div className="flex min-w-0 items-center gap-2">
-                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-brand-50 text-brand-700">
+                  <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md ${tone.icon}`}>
                     <Package className="h-3.5 w-3.5" />
                   </span>
                   <span className="truncate text-xs font-semibold text-slate-700">{row.category}</span>
                 </div>
                 <div className="h-2.5 rounded-full bg-slate-100">
-                  <div className="h-2.5 rounded-full bg-brand-600" style={{ width }} />
+                  <div className={`h-2.5 rounded-full ${tone.bar}`} style={{ width }} />
                 </div>
                 <span className="text-right text-xs font-bold text-slate-700">{displayValue}</span>
               </div>
@@ -473,7 +490,7 @@ function StockHealthPanel({
   const outDegrees = totalItems ? (outOfStock / totalItems) * 360 : 0;
   const donutStyle = {
     background: totalItems
-      ? `conic-gradient(#2563eb 0deg ${healthyDegrees}deg, #f59e0b ${healthyDegrees}deg ${
+      ? `conic-gradient(#10b981 0deg ${healthyDegrees}deg, #f59e0b ${healthyDegrees}deg ${
           healthyDegrees + lowDegrees
         }deg, #f43f5e ${healthyDegrees + lowDegrees}deg ${
           healthyDegrees + lowDegrees + outDegrees
@@ -482,7 +499,7 @@ function StockHealthPanel({
   };
 
   const rows = [
-    { label: "Healthy", value: healthy, percent: healthyPercent, dot: "bg-brand-600" },
+    { label: "Healthy", value: healthy, percent: healthyPercent, dot: "bg-emerald-500" },
     {
       label: "Low Stock",
       value: lowStock,
@@ -506,7 +523,7 @@ function StockHealthPanel({
       <div className="mt-3 grid gap-3 lg:grid-cols-[120px_130px_minmax(0,1fr)] lg:items-center">
         <div>
           <p className="text-4xl font-bold text-slate-950">{healthyPercent}%</p>
-          <p className="mt-1 text-lg font-bold text-brand-700">Healthy</p>
+          <p className="mt-1 text-lg font-bold text-emerald-600">Healthy</p>
         </div>
         <div className="mx-auto flex h-28 w-28 items-center justify-center rounded-full" style={donutStyle}>
           <div className="h-16 w-16 rounded-full bg-white shadow-inner" />
@@ -1151,24 +1168,28 @@ export default function InventoryPage() {
               value={analyticsSummary.totalItems.toLocaleString("en-IN")}
               helper="All Products"
               icon={<Boxes className="h-5 w-5" />}
+              tone="blue"
             />
             <DashboardMetricCard
               label="Categories"
               value={analyticsSummary.totalCategories.toLocaleString("en-IN")}
               helper="Product Categories"
               icon={<Tags className="h-5 w-5" />}
+              tone="emerald"
             />
             <DashboardMetricCard
               label="Warehouses"
               value={warehouseCount.toLocaleString("en-IN")}
               helper="Active Warehouses"
               icon={<Building2 className="h-5 w-5" />}
+              tone="violet"
             />
             <DashboardMetricCard
               label="Inventory Value"
               value={formatCompactCurrency(analyticsSummary.visibleStockValue)}
               helper="Current Stock Value"
               icon={<IndianRupee className="h-5 w-5" />}
+              tone="amber"
             />
           </section>
 
@@ -1302,7 +1323,7 @@ export default function InventoryPage() {
                               <tr key={product.id} className="border-b border-slate-100 align-top">
                                 <td className="px-3 py-2.5">
                                   <div className="flex items-start gap-2">
-                                    <div className="flex h-8 w-8 items-center justify-center rounded-md bg-brand-50 text-brand-700">
+                                    <div className="flex h-8 w-8 items-center justify-center rounded-md bg-blue-50 text-blue-700">
                                       <Package className="h-4 w-4" />
                                     </div>
                                     <div>
