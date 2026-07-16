@@ -19,6 +19,8 @@ import {
   fetchPurchaseRequisitions,
   fetchVendorDocuments,
   fetchVendors,
+  importVendors,
+  previewVendorImport,
   reviewPurchaseRequisition,
   reviewInvoice,
   reviewPayment,
@@ -252,6 +254,20 @@ export function useDeleteVendor() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => deleteVendor(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: procurementKeys.vendors() }),
+  });
+}
+
+export function usePreviewVendorImport() {
+  return useMutation({
+    mutationFn: (file: File) => previewVendorImport(file),
+  });
+}
+
+export function useImportVendors() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (file: File) => importVendors(file),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: procurementKeys.vendors() }),
   });
 }

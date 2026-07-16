@@ -43,6 +43,7 @@ import type {
   VendorStatus,
 } from "@/modules/purchases/types";
 import { P2PCard, P2PFormField, P2PLayout, P2PTable } from "../components";
+import { VendorImportModal } from "./VendorImportModal";
 
 /* ------------------------------------------------------------------ */
 /* Design tokens (kept as utility builders so the system stays cohesive)
@@ -1866,6 +1867,7 @@ export default function VendorManagementPage() {
   const [pendingDocuments, setPendingDocuments] = useState<PendingVendorDocument[]>([]);
   const [removedDocumentIds, setRemovedDocumentIds] = useState<string[]>([]);
   const [preview, setPreview] = useState<PreviewState | null>(null);
+  const [isImportOpen, setIsImportOpen] = useState(false);
 
   const selectedVendor = useMemo(
     () => vendors.find((vendor) => vendor.id === selectedVendorId) ?? null,
@@ -2090,6 +2092,10 @@ export default function VendorManagementPage() {
         subtitle="Maintain supplier profiles with addresses, contacts, bank accounts, validation, and compliance documents."
         meta={
           <div className="flex flex-wrap items-center justify-end gap-3">
+            <button type="button" onClick={() => setIsImportOpen(true)} className={buttonSecondary}>
+              <Upload className="h-4 w-4" />
+              Import vendors
+            </button>
             <button type="button" onClick={openCreatePanel} className={buttonPrimary}>
               <Plus className="h-4 w-4" />
               New vendor
@@ -2234,6 +2240,8 @@ export default function VendorManagementPage() {
       ) : null}
 
       {preview ? <DocumentPreviewModal preview={preview} onClose={closePreview} /> : null}
+
+      <VendorImportModal open={isImportOpen} onClose={() => setIsImportOpen(false)} />
     </>
   );
 }

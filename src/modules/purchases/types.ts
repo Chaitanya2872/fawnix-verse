@@ -350,6 +350,39 @@ export interface CreateVendorPayload {
 
 export type UpdateVendorPayload = CreateVendorPayload;
 
+export type VendorImportRowStatus = "VALID" | "INVALID" | "DUPLICATE" | "DUPLICATE_IN_FILE";
+
+export interface VendorImportError {
+  row: number;
+  field?: string | null;
+  message: string;
+}
+
+export interface VendorImportPreviewRow {
+  row: number;
+  data: Record<string, string | null>;
+  status: VendorImportRowStatus;
+  duplicateType?: string | null;
+  errors: VendorImportError[];
+}
+
+export interface VendorImportPreviewResult {
+  total: number;
+  valid: number;
+  invalid: number;
+  duplicate: number;
+  rows: VendorImportPreviewRow[];
+}
+
+export interface VendorImportResult {
+  total: number;
+  created: number;
+  updated: number;
+  skipped: number;
+  failed: number;
+  errors: VendorImportError[];
+}
+
 export interface CreatePurchaseOrderPayload {
   vendorId: string;
   orderDate: string;

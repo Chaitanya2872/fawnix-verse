@@ -22,6 +22,8 @@ import type {
   UpdateVendorPayload,
   Vendor,
   VendorDocument,
+  VendorImportPreviewResult,
+  VendorImportResult,
 } from "./types";
 
 function rethrow(error: unknown, fallback: string): never {
@@ -293,6 +295,42 @@ export async function fetchVendorDocumentContent(vendorId: string, documentId: s
     return response.data as Blob;
   } catch (error) {
     rethrow(error, "Failed to load vendor document content.");
+  }
+}
+
+export async function downloadVendorImportTemplate(): Promise<Blob> {
+  try {
+    await ensureApiSession();
+    const response = await api.get("/procurement/vendors/import/template", {
+      responseType: "blob",
+    });
+    return response.data as Blob;
+  } catch (error) {
+    rethrow(error, "Failed to download vendor import template.");
+  }
+}
+
+export async function previewVendorImport(file: File): Promise<VendorImportPreviewResult> {
+  try {
+    await ensureApiSession();
+    const formData = new FormData();
+    formData.append("file", file);
+    const response = await api.post<VendorImportPreviewResult>("/procurement/vendors/import/preview", formData);
+    return response.data;
+  } catch (error) {
+    rethrow(error, "Failed to validate the vendor import file.");
+  }
+}
+
+export async function importVendors(file: File): Promise<VendorImportResult> {
+  try {
+    await ensureApiSession();
+    const formData = new FormData();
+    formData.append("file", file);
+    const response = await api.post<VendorImportResult>("/procurement/vendors/import", formData);
+    return response.data;
+  } catch (error) {
+    rethrow(error, "Failed to import vendors.");
   }
 }
 
