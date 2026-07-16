@@ -14,7 +14,6 @@ import {
   FileText,
   Filter,
   Link2,
-  Mail,
   MessageSquare,
   MoreHorizontal,
   Plus,
@@ -117,69 +116,28 @@ type MeetingFormState = {
   attachments: MeetingAttachment[]
 }
 
-const fallbackProjects: ProjectOption[] = [
-  {
-    id: 'project-alpha',
-    name: 'Project Alpha',
-    code: 'ALP-102',
-    manager: 'Vaishnavi',
-    department: 'Product',
-    team: ['Rohit Sharma', 'Anita Desai', 'Arjun Mehta', 'Priya Nair', 'Kiran Bose', 'Sneha Iyer'],
-  },
-  {
-    id: 'project-beta',
-    name: 'Project Beta',
-    code: 'BET-204',
-    manager: 'Rohit Sharma',
-    department: 'Client Delivery',
-    team: ['Vaishnavi', 'Maya Rao', 'Kabir Das', 'Aman Verma', 'Sneha Iyer'],
-  },
-  {
-    id: 'project-gamma',
-    name: 'Project Gamma',
-    code: 'GAM-331',
-    manager: 'Arjun Mehta',
-    department: 'Engineering',
-    team: ['Anita Desai', 'Rohit Sharma', 'Neha Kapoor', 'Aman Verma', 'Kiran Bose'],
-  },
-]
-
-const participantRoles: Record<string, string> = {
-  Vaishnavi: 'Product Manager',
-  'Rohit Sharma': 'Project Manager',
-  'Anita Desai': 'UI/UX Designer',
-  'Arjun Mehta': 'Tech Lead',
-  'Priya Nair': 'Business Analyst',
-  'Kiran Bose': 'QA Engineer',
-  'Sneha Iyer': 'Frontend Engineer',
-  'Maya Rao': 'Client Partner',
-  'Kabir Das': 'Backend Engineer',
-  'Aman Verma': 'DevOps Engineer',
-  'Neha Kapoor': 'Data Analyst',
-}
-
 const avatarTones = [
-  'bg-blue-600 text-white',
-  'bg-emerald-600 text-white',
-  'bg-violet-600 text-white',
-  'bg-amber-500 text-white',
-  'bg-rose-500 text-white',
-  'bg-slate-700 text-white',
-  'bg-cyan-600 text-white',
+  'bg-slate-900 text-white',
+  'bg-slate-100 text-slate-700',
+  'bg-white text-slate-600 ring-1 ring-slate-200',
+  'bg-slate-200 text-slate-700',
+  'bg-slate-50 text-slate-600 ring-1 ring-slate-200',
 ]
 
 const statusStyles: Record<MeetingStatus, string> = {
-  Upcoming: 'border-blue-200 bg-blue-50 text-blue-700',
-  Completed: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-  Cancelled: 'border-rose-200 bg-rose-50 text-rose-700',
+  Upcoming: 'border-slate-200 bg-white text-slate-700',
+  Completed: 'border-slate-200 bg-slate-50 text-slate-700',
+  Cancelled: 'border-slate-200 bg-slate-50 text-slate-500',
 }
 
 const statStyles = {
-  blue: 'border-blue-100 bg-blue-50 text-blue-700',
-  indigo: 'border-indigo-100 bg-indigo-50 text-indigo-700',
-  emerald: 'border-emerald-100 bg-emerald-50 text-emerald-700',
-  rose: 'border-rose-100 bg-rose-50 text-rose-700',
+  blue: 'border-slate-200 bg-slate-50 text-slate-600',
+  indigo: 'border-slate-200 bg-slate-50 text-slate-600',
+  emerald: 'border-slate-200 bg-slate-50 text-slate-600',
+  rose: 'border-slate-200 bg-slate-50 text-slate-600',
 }
+
+const attachmentTone = 'border border-slate-200 bg-white text-slate-500'
 
 function initials(name: string) {
   return name
@@ -191,249 +149,52 @@ function initials(name: string) {
 }
 
 function roleFor(name: string, fallback = 'Team Member') {
-  return participantRoles[name] ?? fallback
-}
-
-function peopleFor(project: ProjectOption, count: number, offset = 0): MeetingParticipant[] {
-  const uniqueNames = Array.from(new Set([project.manager, ...project.team, ...fallbackProjects.flatMap((p) => p.team)]))
-  return uniqueNames.slice(offset, offset + count).map((name, index) => ({
-    name,
-    role: roleFor(name, index === 0 ? 'Organizer' : 'Team Member'),
-    status: index % 5 === 3 ? 'Pending' : index % 7 === 4 ? 'Declined' : 'Accepted',
-  }))
+  return name.trim() ? fallback : 'Team Member'
 }
 
 function toProjectOptions(projects: Project[]): ProjectOption[] {
-  if (!projects.length) return fallbackProjects
-
-  return projects.slice(0, 5).map((project, index) => {
-    const fallback = fallbackProjects[index % fallbackProjects.length]
+  return projects.slice(0, 5).map((project) => {
     const team = project.team?.length
       ? project.team.map((member) => member.name)
       : project.teamMembers?.length
         ? project.teamMembers
-        : fallback.team
+        : []
 
     return {
       id: project.id,
-      name: project.name || fallback.name,
-      code: project.projectCode || fallback.code,
-      manager: project.manager || project.owner || fallback.manager,
-      department: project.department || fallback.department,
+      name: project.name || 'Untitled Project',
+      code: project.projectCode || '',
+      manager: project.manager || project.owner || '',
+      department: project.department || '',
       team,
     }
   })
 }
 
-function buildMeetings(projects: ProjectOption[]): Meeting[] {
-  const projectAt = (index: number) => projects[index % projects.length] ?? fallbackProjects[0]
-  const alpha = projectAt(0)
-  const beta = projectAt(1)
-  const gamma = projectAt(2)
-
-  return [
-    {
-      id: 'meet-001',
-      title: 'Sprint Planning',
-      project: alpha,
-      organizer: { name: alpha.manager, role: roleFor(alpha.manager, 'Product Manager'), status: 'Accepted' },
-      startAt: '2025-05-02T10:00:00+05:30',
-      endAt: '2025-05-02T11:30:00+05:30',
-      dateLabel: '02 May 2025',
-      dateShort: '02 May 2025',
-      time: '10:00 AM - 11:30 AM',
-      duration: '1h 30m',
-      timezone: 'IST',
-      platform: 'Google Meet',
-      platformTone: 'bg-emerald-500',
-      status: 'Upcoming',
-      type: 'Planning',
-      meetingId: 'abc-defg-hij',
-      link: 'https://meet.google.com/abc-defg-hij',
-      reminder: '15 minutes before',
-      repeatRule: 'Does not repeat',
-      description: 'Sprint 15 planning meeting to discuss goals, tasks, timelines, and resource allocation.',
-      agenda: ['Sprint Goals', 'Task Breakdown', 'Timeline and Milestones', 'Risks and Blockers', 'Q&A'],
-      participants: peopleFor(alpha, 10, 0),
-      actions: [
-        { title: 'Review UI designs', owner: 'Anita Desai', dueDate: '04 May' },
-        { title: 'API documentation', owner: 'Rohit Sharma', dueDate: '06 May' },
-        { title: 'Database schema', owner: 'Arjun Mehta', dueDate: '07 May' },
-        { title: 'Update sprint backlog', owner: 'Sneha Iyer', dueDate: '02 May' },
-        { title: 'Client feedback report', owner: 'Vaishnavi', dueDate: '08 May' },
-      ],
-      attachments: [
-        { name: 'Sprint-15-Plan.docx', size: '1.2 MB', tone: 'text-blue-600 bg-blue-50' },
-        { name: 'Requirements.pdf', size: '2.4 MB', tone: 'text-rose-600 bg-rose-50' },
-        { name: 'Design-Overview.pptx', size: '3.8 MB', tone: 'text-amber-600 bg-amber-50' },
-      ],
-      notes: ['Confirm capacity before backlog lock.', 'Prepare release risks for review.'],
-    },
-    {
-      id: 'meet-002',
-      title: 'Client Review Meeting',
-      project: beta,
-      organizer: { name: beta.manager, role: roleFor(beta.manager, 'Project Manager'), status: 'Accepted' },
-      startAt: '2025-05-02T15:00:00+05:30',
-      endAt: '2025-05-02T15:45:00+05:30',
-      dateLabel: '02 May 2025',
-      dateShort: '02 May 2025',
-      time: '03:00 PM - 03:45 PM',
-      duration: '45m',
-      timezone: 'IST',
-      platform: 'Microsoft Teams',
-      platformTone: 'bg-blue-600',
-      status: 'Upcoming',
-      type: 'Review',
-      meetingId: 'teams-4829',
-      link: 'https://teams.microsoft.com/l/meetup-join/client-review',
-      reminder: '30 minutes before',
-      repeatRule: 'Does not repeat',
-      description: 'Client checkpoint for progress review, open decisions, and delivery confidence.',
-      agenda: ['Progress Summary', 'Open Issues', 'Client Questions', 'Next Deliverables'],
-      participants: peopleFor(beta, 8, 0),
-      actions: [
-        { title: 'Send client recap', owner: beta.manager, dueDate: '02 May' },
-        { title: 'Update delivery notes', owner: 'Maya Rao', dueDate: '03 May' },
-      ],
-      attachments: [
-        { name: 'Client-Review.pdf', size: '1.8 MB', tone: 'text-rose-600 bg-rose-50' },
-        { name: 'Delivery-Roadmap.xlsx', size: '980 KB', tone: 'text-emerald-600 bg-emerald-50' },
-      ],
-      notes: ['Client wants a shorter status summary.', 'Budget note to be shared separately.'],
-    },
-    {
-      id: 'meet-003',
-      title: 'UI/UX Discussion',
-      project: alpha,
-      organizer: { name: 'Anita Desai', role: 'UI/UX Designer', status: 'Accepted' },
-      startAt: '2025-05-03T10:00:00+05:30',
-      endAt: '2025-05-03T12:00:00+05:30',
-      dateLabel: '03 May 2025',
-      dateShort: '03 May 2025',
-      time: '10:00 AM - 12:00 PM',
-      duration: '2h',
-      timezone: 'IST',
-      platform: 'Google Meet',
-      platformTone: 'bg-emerald-500',
-      status: 'Upcoming',
-      type: 'Design',
-      meetingId: 'ux-4490',
-      link: 'https://meet.google.com/uiux-review',
-      reminder: '10 minutes before',
-      repeatRule: 'Does not repeat',
-      description: 'Design review for interaction flow, accessibility, and final screen readiness.',
-      agenda: ['Prototype Walkthrough', 'Accessibility Review', 'Mobile States', 'Handoff Checklist'],
-      participants: peopleFor(alpha, 7, 1),
-      actions: [
-        { title: 'Refresh empty states', owner: 'Anita Desai', dueDate: '05 May' },
-        { title: 'Check mobile spacing', owner: 'Sneha Iyer', dueDate: '05 May' },
-      ],
-      attachments: [
-        { name: 'UX-Flow.fig', size: '4.6 MB', tone: 'text-violet-600 bg-violet-50' },
-      ],
-      notes: ['Use compact density for operations pages.'],
-    },
-    {
-      id: 'meet-004',
-      title: 'Team Retrospective',
-      project: gamma,
-      organizer: { name: gamma.manager, role: roleFor(gamma.manager, 'Tech Lead'), status: 'Accepted' },
-      startAt: '2025-05-03T16:00:00+05:30',
-      endAt: '2025-05-03T17:00:00+05:30',
-      dateLabel: '03 May 2025',
-      dateShort: '03 May 2025',
-      time: '04:00 PM - 05:00 PM',
-      duration: '1h',
-      timezone: 'IST',
-      platform: 'Zoom',
-      platformTone: 'bg-sky-500',
-      status: 'Upcoming',
-      type: 'Retrospective',
-      meetingId: 'zoom-153-882',
-      link: 'https://zoom.us/j/153882',
-      reminder: '15 minutes before',
-      repeatRule: 'Does not repeat',
-      description: 'Retrospective to capture wins, friction points, and action items for the next sprint.',
-      agenda: ['Wins', 'Pain Points', 'Process Changes', 'Owners'],
-      participants: peopleFor(gamma, 9, 0),
-      actions: [
-        { title: 'Publish retro notes', owner: gamma.manager, dueDate: '03 May' },
-        { title: 'Prioritize process fixes', owner: 'Neha Kapoor', dueDate: '06 May' },
-      ],
-      attachments: [
-        { name: 'Retro-Notes.docx', size: '720 KB', tone: 'text-blue-600 bg-blue-50' },
-      ],
-      notes: ['Keep discussion time-boxed.'],
-    },
-    {
-      id: 'meet-005',
-      title: 'Architecture Review',
-      project: alpha,
-      organizer: { name: 'Rohit Sharma', role: 'Project Manager', status: 'Accepted' },
-      startAt: '2025-05-01T10:00:00+05:30',
-      endAt: '2025-05-01T11:00:00+05:30',
-      dateLabel: '01 May 2025',
-      dateShort: '01 May 2025',
-      time: '10:00 AM - 11:00 AM',
-      duration: '1h',
-      timezone: 'IST',
-      platform: 'Microsoft Teams',
-      platformTone: 'bg-blue-600',
-      status: 'Completed',
-      type: 'Architecture',
-      meetingId: 'arch-9112',
-      link: 'https://teams.microsoft.com/l/meetup-join/architecture',
-      reminder: 'No reminder',
-      repeatRule: 'Does not repeat',
-      description: 'Technical architecture review for service boundaries, integrations, and database changes.',
-      agenda: ['Service Map', 'API Contracts', 'Database Schema', 'Deployment Notes'],
-      participants: peopleFor(alpha, 8, 2),
-      actions: [
-        { title: 'Share API contract', owner: 'Arjun Mehta', dueDate: '02 May' },
-        { title: 'Confirm migration order', owner: 'Aman Verma', dueDate: '04 May' },
-      ],
-      attachments: [
-        { name: 'Architecture-Notes.pdf', size: '2.1 MB', tone: 'text-rose-600 bg-rose-50' },
-      ],
-      notes: ['Approved with follow-up on migration sequencing.'],
-    },
-    {
-      id: 'meet-006',
-      title: 'Budget Alignment',
-      project: beta,
-      organizer: { name: 'Maya Rao', role: 'Client Partner', status: 'Accepted' },
-      startAt: '2025-04-30T14:00:00+05:30',
-      endAt: '2025-04-30T14:30:00+05:30',
-      dateLabel: '30 Apr 2025',
-      dateShort: '30 Apr 2025',
-      time: '02:00 PM - 02:30 PM',
-      duration: '30m',
-      timezone: 'IST',
-      platform: 'Google Meet',
-      platformTone: 'bg-emerald-500',
-      status: 'Cancelled',
-      type: 'Review',
-      meetingId: 'budget-220',
-      link: 'https://meet.google.com/budget-align',
-      reminder: 'No reminder',
-      repeatRule: 'Does not repeat',
-      description: 'Budget alignment discussion moved to client review.',
-      agenda: ['Budget Delta', 'Approval Owner', 'Next Decision'],
-      participants: peopleFor(beta, 5, 1),
-      actions: [
-        { title: 'Move budget note to review', owner: 'Maya Rao', dueDate: '02 May' },
-      ],
-      attachments: [],
-      notes: ['Cancelled after client requested combined review.'],
-    },
-  ]
+function platformToneFor(platform: Meeting['platform']) {
+  const tones: Record<Meeting['platform'], string> = {
+    'Google Meet': 'bg-slate-400',
+    'Microsoft Teams': 'bg-slate-500',
+    Zoom: 'bg-slate-400',
+  }
+  return tones[platform]
 }
 
-function platformToneFor(platform: Meeting['platform']) {
-  if (platform === 'Microsoft Teams') return 'bg-blue-600'
-  if (platform === 'Zoom') return 'bg-sky-500'
-  return 'bg-emerald-500'
+function randomToken(length: number) {
+  const raw = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}${Math.random()}`
+  return raw.replace(/[^a-z0-9]/gi, '').toLowerCase().slice(0, length)
+}
+
+function newLocalMeetingId() {
+  return `meet-custom-${randomToken(12)}`
+}
+
+function newMeetingCode(prefix: string) {
+  return `${prefix}-${randomToken(6)}`
+}
+
+function newMeetingLink() {
+  return `https://meet.google.com/${randomToken(3)}-${randomToken(4)}`
 }
 
 function formatMeetingDate(date: string) {
@@ -504,6 +265,33 @@ function toDateInputValue(date: Date) {
 
 function toTimeInputValue(date: Date) {
   return date.toTimeString().slice(0, 5)
+}
+
+function createBlankMeetingForm(project?: ProjectOption): MeetingFormState {
+  const now = new Date()
+  const end = new Date(now.getTime() + 30 * 60 * 1000)
+  const participants = project
+    ? Array.from(new Set([project.manager, ...project.team].filter(Boolean)))
+    : []
+
+  return {
+    title: '',
+    projectId: project?.id ?? '',
+    description: '',
+    type: 'Planning',
+    platform: 'Google Meet',
+    link: '',
+    date: toDateInputValue(now),
+    startTime: toTimeInputValue(now),
+    endTime: toTimeInputValue(end),
+    timezone: 'IST',
+    participants,
+    agenda: [''],
+    reminder: '15 minutes before',
+    repeat: 'Does not repeat',
+    sendEmail: true,
+    attachments: [],
+  }
 }
 
 function toBackendStatus(status: MeetingStatus): BackendMeetingStatus {
@@ -657,7 +445,7 @@ function IconButton({
       aria-label={label}
       title={label}
       onClick={onClick}
-      className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-50 hover:text-blue-700"
+      className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-50 hover:text-slate-900"
     >
       {children}
     </button>
@@ -716,7 +504,7 @@ function TextInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
       {...props}
-      className={`h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15 ${props.className ?? ''}`}
+      className={`h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-200 ${props.className ?? ''}`}
     />
   )
 }
@@ -725,7 +513,7 @@ function SelectInput(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
   return (
     <select
       {...props}
-      className={`h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs text-slate-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15 ${props.className ?? ''}`}
+      className={`h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs text-slate-700 outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-200 ${props.className ?? ''}`}
     />
   )
 }
@@ -770,10 +558,9 @@ function SectionShell({ children, className = '' }: { children: React.ReactNode;
 export default function ProjectsMeetingsPage() {
   const { projects } = useProjectsContext()
   const projectOptions = useMemo(() => toProjectOptions(projects), [projects])
-  const seededMeetings = useMemo(() => buildMeetings(projectOptions), [projectOptions])
 
-  const [meetings, setMeetings] = useState<Meeting[]>(() => buildMeetings(fallbackProjects))
-  const [selectedId, setSelectedId] = useState('meet-001')
+  const [meetings, setMeetings] = useState<Meeting[]>([])
+  const [selectedId, setSelectedId] = useState('')
   const [search, setSearch] = useState('')
   const [projectFilter, setProjectFilter] = useState('ALL')
   const [statusFilter, setStatusFilter] = useState<MeetingStatus | 'ALL'>('ALL')
@@ -786,10 +573,11 @@ export default function ProjectsMeetingsPage() {
   const [noteText, setNoteText] = useState('')
   const [inviteQuery, setInviteQuery] = useState('')
   const [inviteSelected, setInviteSelected] = useState<string[]>([])
-  const [inviteMessage, setInviteMessage] = useState('You are invited to the Sprint Planning meeting.\n\nSee you there!')
-  const [scheduleForm, setScheduleForm] = useState<MeetingFormState>(() => formFromMeeting(buildMeetings(fallbackProjects)[0]))
+  const [inviteMessage, setInviteMessage] = useState('You are invited to the meeting.\n\nSee you there!')
+  const [scheduleForm, setScheduleForm] = useState<MeetingFormState>(() => createBlankMeetingForm(projectOptions[0]))
+  const [isSchedulerOpen, setIsSchedulerOpen] = useState(false)
 
-  const selectedMeeting = meetings.find((meeting) => meeting.id === selectedId) ?? meetings[0] ?? seededMeetings[0] ?? buildMeetings(fallbackProjects)[0]
+  const selectedMeeting = meetings.find((meeting) => meeting.id === selectedId) ?? meetings[0] ?? null
 
   useEffect(() => {
     let cancelled = false
@@ -797,7 +585,8 @@ export default function ProjectsMeetingsPage() {
       .then((items) => {
         if (cancelled) return
         if (items.length === 0) {
-          setMeetings((current) => current.some((meeting) => meeting.id.startsWith('meet-custom-')) ? current : seededMeetings)
+          setMeetings([])
+          setSelectedId('')
           return
         }
         const mapped = items.map((item) => mapBackendMeeting(item, projectOptions))
@@ -806,7 +595,10 @@ export default function ProjectsMeetingsPage() {
       })
       .catch(() => undefined)
     return () => { cancelled = true }
-  }, [projectOptions, seededMeetings])
+  }, [projectOptions])
+
+  const todayLabel = formatMeetingDate(toDateInputValue(new Date()))
+  const hasActiveFilters = Boolean(search.trim()) || projectFilter !== 'ALL' || statusFilter !== 'ALL' || typeFilter !== 'ALL' || dateFilter !== 'ALL'
 
   const filteredMeetings = useMemo(() => {
     const query = search.trim().toLowerCase()
@@ -821,13 +613,13 @@ export default function ProjectsMeetingsPage() {
       const matchesProject = projectFilter === 'ALL' || meeting.project.id === projectFilter
       const matchesStatus = statusFilter === 'ALL' || meeting.status === statusFilter
       const matchesType = typeFilter === 'ALL' || meeting.type === typeFilter
-      const matchesDate = dateFilter === 'ALL' || meeting.dateShort === '02 May 2025'
+      const matchesDate = dateFilter === 'ALL' || meeting.dateShort === todayLabel
       return matchesSearch && matchesProject && matchesStatus && matchesType && matchesDate
     })
-  }, [dateFilter, meetings, projectFilter, search, statusFilter, typeFilter])
+  }, [dateFilter, meetings, projectFilter, search, statusFilter, todayLabel, typeFilter])
 
   const stats = useMemo(() => {
-    const todayMeetings = meetings.filter((meeting) => meeting.dateShort === '02 May 2025').length
+    const todayMeetings = meetings.filter((meeting) => meeting.dateShort === todayLabel).length
     const upcomingMeetings = meetings.filter((meeting) => meeting.status === 'Upcoming').length
     const completedMeetings = meetings.filter((meeting) => meeting.status === 'Completed').length
     const cancelledMeetings = meetings.filter((meeting) => meeting.status === 'Cancelled').length
@@ -837,30 +629,46 @@ export default function ProjectsMeetingsPage() {
       { label: 'Completed Meetings', value: completedMeetings, hint: 'This month', icon: CheckCircle2, tone: 'emerald' as const },
       { label: 'Cancelled Meetings', value: cancelledMeetings, hint: 'This month', icon: XCircle, tone: 'rose' as const },
     ]
-  }, [meetings])
+  }, [meetings, todayLabel])
 
-  const accepted = selectedMeeting.participants.filter((person) => person.status === 'Accepted')
-  const pending = selectedMeeting.participants.filter((person) => person.status === 'Pending')
-  const declined = selectedMeeting.participants.filter((person) => person.status === 'Declined')
+  const selectedParticipants = selectedMeeting?.participants ?? []
+  const accepted = selectedParticipants.filter((person) => person.status === 'Accepted')
+  const pending = selectedParticipants.filter((person) => person.status === 'Pending')
+  const declined = selectedParticipants.filter((person) => person.status === 'Declined')
   const pageSize = 5
   const totalPages = Math.max(1, Math.ceil(filteredMeetings.length / pageSize))
   const pageMeetings = filteredMeetings.slice((page - 1) * pageSize, page * pageSize)
   const allPeople = useMemo(
-    () => Array.from(new Set(projectOptions.flatMap((project) => [project.manager, ...project.team]))),
+    () => Array.from(new Set(projectOptions.flatMap((project) => [project.manager, ...project.team]).filter(Boolean))),
     [projectOptions],
   )
   const inviteMatches = allPeople
-    .filter((name) => !selectedMeeting.participants.some((participant) => participant.name === name))
+    .filter((name) => !selectedParticipants.some((participant) => participant.name === name))
     .filter((name) => !inviteSelected.includes(name))
     .filter((name) => name.toLowerCase().includes(inviteQuery.trim().toLowerCase()))
     .slice(0, 4)
+
+  const clearFilters = () => {
+    setSearch('')
+    setProjectFilter('ALL')
+    setStatusFilter('ALL')
+    setTypeFilter('ALL')
+    setDateFilter('ALL')
+    setPage(1)
+  }
+
+  const openScheduler = () => {
+    setScheduleForm(selectedMeeting ? formFromMeeting(selectedMeeting) : createBlankMeetingForm(projectOptions[0]))
+    setIsSchedulerOpen(true)
+    showMessage('Schedule form is ready')
+  }
 
   const showMessage = (message: string) => {
     setActionMessage(message)
     window.setTimeout(() => setActionMessage(''), 2400)
   }
 
-  const isPersistedMeeting = (meeting: Meeting) => !meeting.id.startsWith('meet-')
+  const isPersistedMeeting = (meeting: Meeting) => !meeting.id.startsWith('meet-custom-')
 
   const persistMeeting = async (meeting: Meeting) => {
     if (!isPersistedMeeting(meeting)) return
@@ -920,10 +728,10 @@ export default function ProjectsMeetingsPage() {
   const duplicateMeeting = (meeting: Meeting) => {
     const duplicate: Meeting = {
       ...meeting,
-      id: `meet-custom-${Date.now()}`,
+      id: newLocalMeetingId(),
       title: `${meeting.title} Copy`,
       status: 'Upcoming',
-      meetingId: `copy-${Math.random().toString(36).slice(2, 8)}`,
+      meetingId: newMeetingCode('copy'),
       notes: [...meeting.notes, 'Duplicated from an existing meeting.'],
     }
     setMeetings((current) => [duplicate, ...current])
@@ -952,19 +760,23 @@ export default function ProjectsMeetingsPage() {
       return
     }
     const project = projectOptions.find((item) => item.id === scheduleForm.projectId) ?? projectOptions[0]
-    const participants = Array.from(new Set([project.manager, ...scheduleForm.participants])).map((name, index) => ({
+    if (!project) {
+      showMessage('Create a project before scheduling meetings')
+      return
+    }
+    const participants = Array.from(new Set([project.manager, ...scheduleForm.participants].filter(Boolean))).map((name, index) => ({
       name,
       role: roleFor(name, index === 0 ? 'Organizer' : 'Team Member'),
       status: index === 0 ? 'Accepted' as RsvpStatus : 'Pending' as RsvpStatus,
     }))
-    const link = scheduleForm.link.trim() || `https://meet.google.com/${Math.random().toString(36).slice(2, 5)}-${Math.random().toString(36).slice(2, 6)}`
+    const organizer = participants[0] ?? { name: project.manager || 'Organizer', role: 'Organizer', status: 'Accepted' as RsvpStatus }
+    const link = scheduleForm.link.trim() || newMeetingLink()
     const startAt = toInstant(scheduleForm.date, scheduleForm.startTime, scheduleForm.timezone)
     const endAt = toInstant(scheduleForm.date, scheduleForm.endTime, scheduleForm.timezone)
     const meeting: Meeting = {
-      id: `meet-custom-${Date.now()}`,
+      id: newLocalMeetingId(),
       title: scheduleForm.title.trim(),
       project,
-      organizer: participants[0],
       startAt,
       endAt,
       dateLabel: formatMeetingDate(scheduleForm.date),
@@ -976,13 +788,14 @@ export default function ProjectsMeetingsPage() {
       platformTone: platformToneFor(scheduleForm.platform),
       status: 'Upcoming',
       type: scheduleForm.type,
-      meetingId: `mtg-${Math.random().toString(36).slice(2, 8)}`,
+      meetingId: newMeetingCode('mtg'),
       link,
       reminder: scheduleForm.reminder,
       repeatRule: scheduleForm.repeat,
       description: scheduleForm.description,
       agenda: scheduleForm.agenda.filter((item) => item.trim()),
-      participants,
+      organizer,
+      participants: participants.length ? participants : [organizer],
       actions: [],
       attachments: scheduleForm.attachments,
       notes: [
@@ -995,16 +808,15 @@ export default function ProjectsMeetingsPage() {
       const mapped = mapBackendMeeting(saved, projectOptions)
       setMeetings((current) => [mapped, ...current.filter((item) => item.id !== mapped.id)])
       selectMeeting(mapped)
+      setIsSchedulerOpen(false)
       showMessage('Meeting scheduled')
     } catch {
-      setMeetings((current) => [meeting, ...current])
-      selectMeeting(meeting)
-      showMessage('Meeting scheduled locally; backend unavailable')
+      showMessage('Unable to schedule meeting; backend unavailable')
     }
   }
 
   const resetScheduleForm = () => {
-    setScheduleForm(formFromMeeting(selectedMeeting))
+    setScheduleForm(selectedMeeting ? formFromMeeting(selectedMeeting) : createBlankMeetingForm(projectOptions[0]))
     showMessage('Schedule form reset')
   }
 
@@ -1017,17 +829,17 @@ export default function ProjectsMeetingsPage() {
     const nextFiles = Array.from(files).map((file) => ({
       name: file.name,
       size: fileSizeLabel(file.size),
-      tone: 'text-blue-600 bg-blue-50',
+      tone: attachmentTone,
     }))
     setScheduleForm((current) => ({ ...current, attachments: [...current.attachments, ...nextFiles] }))
   }
 
   const addFilesToSelectedMeeting = (files: FileList | null) => {
-    if (!files?.length) return
+    if (!files?.length || !selectedMeeting) return
     const nextFiles = Array.from(files).map((file) => ({
       name: file.name,
       size: fileSizeLabel(file.size),
-      tone: 'text-blue-600 bg-blue-50',
+      tone: attachmentTone,
     }))
     updateMeeting(selectedMeeting.id, (meeting) => ({
       ...meeting,
@@ -1038,6 +850,7 @@ export default function ProjectsMeetingsPage() {
   }
 
   const updateParticipantStatus = (name: string, status: RsvpStatus) => {
+    if (!selectedMeeting) return
     updateMeeting(selectedMeeting.id, (meeting) => ({
       ...meeting,
       participants: meeting.participants.map((participant) => (
@@ -1047,6 +860,7 @@ export default function ProjectsMeetingsPage() {
   }
 
   const sendInvitations = () => {
+    if (!selectedMeeting) return
     if (!inviteSelected.length) {
       showMessage('Select at least one person to invite')
       return
@@ -1067,6 +881,7 @@ export default function ProjectsMeetingsPage() {
   }
 
   const addNote = () => {
+    if (!selectedMeeting) return
     const value = noteText.trim()
     if (!value) return
     updateMeeting(selectedMeeting.id, (meeting) => ({ ...meeting, notes: [value, ...meeting.notes] }))
@@ -1075,123 +890,321 @@ export default function ProjectsMeetingsPage() {
   }
 
   return (
-    <div className="flex flex-col">
-      <div className="border-b border-slate-100 bg-white px-6 py-4">
+    <div className="min-h-screen bg-slate-50/70">
+      <div className="border-b border-slate-200 bg-white px-4 py-4 sm:px-6">
         <div className="flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <h1 className="text-lg font-semibold text-slate-900">Meetings</h1>
-            <p className="text-sm text-slate-400">Plan, organize and track all your project meetings</p>
+          <div className="min-w-0">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">Project workspace</p>
+            <h1 className="mt-1 text-xl font-semibold text-slate-950">Meetings</h1>
+            <p className="mt-1 text-sm text-slate-500">A focused board for schedules, attendance, notes, and follow-ups.</p>
           </div>
-          <button
-            type="button"
-            onClick={() => {
-              setScheduleForm(formFromMeeting(selectedMeeting))
-              showMessage('Schedule form is ready')
-            }}
-            className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
-          >
-            <Plus className="h-4 w-4" />
-            Schedule Meeting
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={clearFilters}
+              className="hidden h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 transition hover:bg-slate-50"
+            >
+              <Filter className="h-3.5 w-3.5" />
+              Clear filters
+            </button>
+            <button
+              type="button"
+              onClick={openScheduler}
+              className="inline-flex h-9 items-center gap-2 rounded-lg bg-slate-900 px-4 text-xs font-semibold text-white transition hover:bg-slate-800"
+            >
+              <Plus className="h-4 w-4" />
+              Schedule meeting
+            </button>
+          </div>
         </div>
       </div>
 
-      <div className="space-y-4 p-6">
+      <div className="space-y-4 p-4 sm:p-6">
         {actionMessage && (
-          <div className="rounded-lg border border-blue-100 bg-blue-50 px-4 py-2 text-xs font-semibold text-blue-700">
+          <div className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-600">
             {actionMessage}
           </div>
         )}
 
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(360px,0.9fr)]">
-          <div className="space-y-4">
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="relative min-w-[220px] flex-1">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
-                <input
-                  value={search}
-                  onChange={(event) => {
-                    setSearch(event.target.value)
-                    setPage(1)
-                  }}
-                  placeholder="Search meetings..."
-                  className="h-10 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15"
-                />
+        {isSchedulerOpen && (
+          <SectionShell className="overflow-hidden">
+            <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 bg-white px-5 py-4">
+              <div>
+                <h2 className="text-sm font-semibold text-slate-950">Schedule a meeting</h2>
+                <p className="mt-1 text-xs text-slate-500">Add the meeting basics and invite the right people.</p>
               </div>
-              <SelectInput value={projectFilter} onChange={(event) => { setProjectFilter(event.target.value); setPage(1) }} className="max-w-[180px]">
-                <option value="ALL">Project</option>
-                {projectOptions.map((project) => (
-                  <option key={project.id} value={project.id}>{project.name}</option>
-                ))}
-              </SelectInput>
-              <SelectInput value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value as MeetingStatus | 'ALL'); setPage(1) }} className="max-w-[150px]">
-                <option value="ALL">Status</option>
-                {(['Upcoming', 'Completed', 'Cancelled'] as MeetingStatus[]).map((status) => (
-                  <option key={status} value={status}>{status}</option>
-                ))}
-              </SelectInput>
-              <SelectInput value={typeFilter} onChange={(event) => { setTypeFilter(event.target.value as MeetingType | 'ALL'); setPage(1) }} className="max-w-[160px]">
-                <option value="ALL">Meeting Type</option>
-                {(['Planning', 'Review', 'Design', 'Retrospective', 'Architecture'] as MeetingType[]).map((type) => (
-                  <option key={type} value={type}>{type}</option>
-                ))}
-              </SelectInput>
               <button
                 type="button"
-                onClick={() => {
-                  setDateFilter((current) => current === 'TODAY' ? 'ALL' : 'TODAY')
-                  setPage(1)
-                }}
-                className={`inline-flex h-10 items-center gap-2 rounded-lg border px-3 text-xs font-semibold ${
-                  dateFilter === 'TODAY'
-                    ? 'border-blue-200 bg-blue-50 text-blue-700'
-                    : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
-                }`}
+                onClick={() => setIsSchedulerOpen(false)}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                aria-label="Close scheduler"
               >
-                <CalendarCheck className="h-3.5 w-3.5" />
-                Today
+                <X className="h-4 w-4" />
               </button>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="grid gap-5 p-5">
+              <div className="space-y-4">
+                <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_220px]">
+                  <Field label="Meeting Title">
+                    <TextInput value={scheduleForm.title} onChange={(event) => updateScheduleField('title', event.target.value)} />
+                  </Field>
+                  <Field label="Project">
+                    <SelectInput value={scheduleForm.projectId} onChange={(event) => updateScheduleField('projectId', event.target.value)}>
+                      {projectOptions.length === 0 && <option value="">No projects available</option>}
+                      {projectOptions.map((project) => (
+                        <option key={project.id} value={project.id}>{project.name}</option>
+                      ))}
+                    </SelectInput>
+                  </Field>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  <Field label="Date">
+                    <TextInput type="date" value={scheduleForm.date} onChange={(event) => updateScheduleField('date', event.target.value)} />
+                  </Field>
+                  <Field label="Start">
+                    <TextInput type="time" value={scheduleForm.startTime} onChange={(event) => updateScheduleField('startTime', event.target.value)} />
+                  </Field>
+                  <Field label="End">
+                    <TextInput type="time" value={scheduleForm.endTime} onChange={(event) => updateScheduleField('endTime', event.target.value)} />
+                  </Field>
+                  <Field label="Time Zone">
+                    <SelectInput value={scheduleForm.timezone} onChange={(event) => updateScheduleField('timezone', event.target.value)}>
+                      <option value="IST">GMT+05:30 IST</option>
+                      <option value="UTC">UTC</option>
+                      <option value="PST">Pacific Time</option>
+                    </SelectInput>
+                  </Field>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  <Field label="Meeting Type">
+                    <SelectInput value={scheduleForm.type} onChange={(event) => updateScheduleField('type', event.target.value as MeetingType)}>
+                      {(['Planning', 'Review', 'Design', 'Retrospective', 'Architecture'] as MeetingType[]).map((type) => (
+                        <option key={type}>{type}</option>
+                      ))}
+                    </SelectInput>
+                  </Field>
+                  <Field label="Platform">
+                    <SelectInput value={scheduleForm.platform} onChange={(event) => updateScheduleField('platform', event.target.value as Meeting['platform'])}>
+                      <option>Google Meet</option>
+                      <option>Microsoft Teams</option>
+                      <option>Zoom</option>
+                    </SelectInput>
+                  </Field>
+                  <Field label="Reminder">
+                    <SelectInput value={scheduleForm.reminder} onChange={(event) => updateScheduleField('reminder', event.target.value)}>
+                      <option>15 minutes before</option>
+                      <option>30 minutes before</option>
+                      <option>1 hour before</option>
+                      <option>No reminder</option>
+                    </SelectInput>
+                  </Field>
+                  <Field label="Repeat">
+                    <SelectInput value={scheduleForm.repeat} onChange={(event) => updateScheduleField('repeat', event.target.value)}>
+                      <option>Does not repeat</option>
+                      <option>Daily</option>
+                      <option>Weekly</option>
+                      <option>Monthly</option>
+                    </SelectInput>
+                  </Field>
+                </div>
+
+                <Field label="Meeting URL">
+                  <TextInput value={scheduleForm.link} onChange={(event) => updateScheduleField('link', event.target.value)} />
+                </Field>
+
+                <Field label="Description">
+                  <textarea
+                    value={scheduleForm.description}
+                    onChange={(event) => updateScheduleField('description', event.target.value)}
+                    className="min-h-20 w-full resize-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-200"
+                  />
+                </Field>
+              </div>
+
+              <div className="space-y-4">
+                <Field label="Participants">
+                  <div className="flex min-h-11 flex-wrap gap-2 rounded-lg border border-slate-200 bg-slate-50/70 p-2">
+                    {scheduleForm.participants.slice(0, 8).map((name) => (
+                      <span key={name} className="inline-flex items-center gap-1 rounded-full bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 ring-1 ring-slate-200">
+                        {name}
+                        <button
+                          type="button"
+                          onClick={() => updateScheduleField('participants', scheduleForm.participants.filter((participant) => participant !== name))}
+                          aria-label={`Remove ${name}`}
+                        >
+                          <X className="h-3 w-3 text-slate-400" />
+                        </button>
+                      </span>
+                    ))}
+                    <select
+                      value=""
+                      onChange={(event) => {
+                        if (!event.target.value) return
+                        updateScheduleField('participants', Array.from(new Set([...scheduleForm.participants, event.target.value])))
+                      }}
+                      className="min-w-32 rounded-full border border-slate-200 bg-white px-2 py-1 text-[11px] text-slate-600 outline-none"
+                    >
+                      <option value="">Add person</option>
+                      {allPeople.filter((name) => !scheduleForm.participants.includes(name)).map((name) => (
+                        <option key={name} value={name}>{name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </Field>
+
+                <Field label="Agenda">
+                  <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+                    {scheduleForm.agenda.map((item, index) => (
+                      <div key={`${item}-${index}`} className="flex items-center gap-2 border-b border-slate-100 px-3 py-2 last:border-b-0">
+                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-100 text-[10px] font-semibold text-slate-600">{index + 1}</span>
+                        <input
+                          value={item}
+                          onChange={(event) => updateScheduleField('agenda', scheduleForm.agenda.map((agendaItem, agendaIndex) => agendaIndex === index ? event.target.value : agendaItem))}
+                          className="min-w-0 flex-1 bg-transparent text-xs text-slate-700 outline-none"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => updateScheduleField('agenda', scheduleForm.agenda.filter((_, agendaIndex) => agendaIndex !== index))}
+                          className="text-slate-300 hover:text-slate-700"
+                          aria-label="Remove agenda item"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                  <button type="button" onClick={addAgendaItem} className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold text-slate-700 hover:text-slate-950">
+                    <Plus className="h-3 w-3" />
+                    Add agenda item
+                  </button>
+                </Field>
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Field label="Attachments">
+                    <label className="inline-flex h-9 w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-600 hover:bg-slate-50">
+                      <Upload className="h-3.5 w-3.5" />
+                      Choose files
+                      <input type="file" multiple className="sr-only" onChange={(event) => addScheduleFiles(event.target.files)} />
+                    </label>
+                  </Field>
+                  <label className="mt-5 inline-flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-medium text-slate-600">
+                    <input
+                      type="checkbox"
+                      checked={scheduleForm.sendEmail}
+                      onChange={(event) => updateScheduleField('sendEmail', event.target.checked)}
+                      className="h-3.5 w-3.5 rounded accent-slate-700"
+                    />
+                    Send email invitation
+                  </label>
+                </div>
+
+                <div className="flex flex-wrap justify-end gap-2 pt-1">
+                  <button type="button" onClick={resetScheduleForm} className="h-9 rounded-lg border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-600 hover:bg-slate-50">Reset</button>
+                  <button type="button" onClick={createMeeting} className="h-9 rounded-lg bg-slate-900 px-4 text-xs font-semibold text-white hover:bg-slate-800">Schedule meeting</button>
+                </div>
+              </div>
+            </div>
+          </SectionShell>
+        )}
+
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,0.92fr)_minmax(420px,1.08fr)]">
+          <div className="space-y-4">
+            <div className="hidden">
               {stats.map((stat) => (
                 <StatCard key={stat.label} {...stat} />
               ))}
             </div>
 
             <SectionShell className="overflow-hidden">
-              <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
-                <div>
-                  <h2 className="text-sm font-semibold text-slate-900">All Meetings</h2>
-                  <p className="mt-1 text-sm font-semibold text-slate-800">Sprint Planning</p>
-                  <p className="text-xs text-slate-400">{filteredMeetings.length} meetings matching current filters</p>
+              <div className="border-b border-slate-100 px-4 py-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h2 className="text-sm font-semibold text-slate-950">Meeting queue</h2>
+                    <p className="mt-1 text-xs text-slate-500">{filteredMeetings.length} meetings match the current view</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={openScheduler}
+                    className="hidden h-8 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    New
+                  </button>
                 </div>
-                <IconButton label="Filter meetings">
-                  <Filter className="h-4 w-4" />
-                </IconButton>
+
+                <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                  <div className="relative sm:col-span-2">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+                    <input
+                      value={search}
+                      onChange={(event) => {
+                        setSearch(event.target.value)
+                        setPage(1)
+                      }}
+                      placeholder="Search by title, project, organizer, or platform"
+                      className="h-10 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-slate-400 focus:ring-2 focus:ring-slate-200"
+                    />
+                  </div>
+                  <SelectInput value={projectFilter} onChange={(event) => { setProjectFilter(event.target.value); setPage(1) }}>
+                    <option value="ALL">All projects</option>
+                    {projectOptions.map((project) => (
+                      <option key={project.id} value={project.id}>{project.name}</option>
+                    ))}
+                  </SelectInput>
+                  <SelectInput value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value as MeetingStatus | 'ALL'); setPage(1) }}>
+                    <option value="ALL">All statuses</option>
+                    {(['Upcoming', 'Completed', 'Cancelled'] as MeetingStatus[]).map((status) => (
+                      <option key={status} value={status}>{status}</option>
+                    ))}
+                  </SelectInput>
+                  <SelectInput className="hidden" value={typeFilter} onChange={(event) => { setTypeFilter(event.target.value as MeetingType | 'ALL'); setPage(1) }}>
+                    <option value="ALL">All types</option>
+                    {(['Planning', 'Review', 'Design', 'Retrospective', 'Architecture'] as MeetingType[]).map((type) => (
+                      <option key={type} value={type}>{type}</option>
+                    ))}
+                  </SelectInput>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDateFilter((current) => current === 'TODAY' ? 'ALL' : 'TODAY')
+                      setPage(1)
+                    }}
+                    className={`hidden h-9 items-center justify-center gap-2 rounded-lg border px-3 text-xs font-semibold ${
+                      dateFilter === 'TODAY'
+                        ? 'border-slate-300 bg-slate-100 text-slate-800'
+                        : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    <CalendarCheck className="h-3.5 w-3.5" />
+                    Today only
+                  </button>
+                </div>
               </div>
 
-              <div className="max-h-[360px] overflow-auto overscroll-contain [scrollbar-gutter:stable]">
-                <div className="hidden border-b border-slate-100 bg-slate-50 px-5 py-3 text-[11px] font-semibold uppercase tracking-wide text-slate-400 lg:grid lg:min-w-[1120px] lg:grid-cols-[minmax(180px,1.35fr)_minmax(120px,0.9fr)_minmax(120px,0.95fr)_minmax(145px,1.05fr)_120px_120px_96px_82px] lg:gap-4">
-                  <span>Meeting Title</span>
-                  <span>Project</span>
-                  <span>Organizer</span>
-                  <span>Date & Time</span>
-                  <span>Participants</span>
-                  <span>Platform</span>
-                  <span>Status</span>
-                  <span>Actions</span>
-                </div>
-
-                <div className="divide-y divide-slate-100">
+              <div className="max-h-[620px] overflow-auto p-3 [scrollbar-gutter:stable]">
+                <div className="space-y-2">
                   {filteredMeetings.length === 0 ? (
                     <div className="py-14 text-center">
                       <MessageSquare className="mx-auto mb-3 h-8 w-8 text-slate-300" />
-                      <p className="text-sm font-medium text-slate-500">No meetings match your filters.</p>
+                      <p className="text-sm font-medium text-slate-500">
+                        {meetings.length === 0 ? 'No meetings found.' : 'No meetings match your filters.'}
+                      </p>
+                      {hasActiveFilters ? (
+                        <button type="button" onClick={clearFilters} className="mt-3 text-xs font-semibold text-slate-700 hover:text-slate-950">
+                          Reset filters
+                        </button>
+                      ) : (
+                        <button type="button" onClick={openScheduler} className="mt-3 text-xs font-semibold text-slate-700 hover:text-slate-950">
+                          Schedule meeting
+                        </button>
+                      )}
                     </div>
                   ) : (
                     pageMeetings.map((meeting) => {
-                      const selected = selectedMeeting.id === meeting.id
+                      const selected = selectedId === meeting.id
                       return (
                         <div
                           key={meeting.id}
@@ -1201,41 +1214,52 @@ export default function ProjectsMeetingsPage() {
                           onKeyDown={(event) => {
                             if (event.key === 'Enter' || event.key === ' ') selectMeeting(meeting)
                           }}
-                          className={`grid w-full gap-3 px-5 py-3 text-left text-sm transition hover:bg-blue-50/50 lg:min-w-[1120px] lg:grid-cols-[minmax(180px,1.35fr)_minmax(120px,0.9fr)_minmax(120px,0.95fr)_minmax(145px,1.05fr)_120px_120px_96px_82px] lg:items-center lg:gap-4 ${
-                            selected ? 'bg-blue-50/70' : 'bg-white'
+                          className={`rounded-lg border p-3 text-left transition hover:border-slate-300 hover:bg-slate-50 ${
+                            selected ? 'border-slate-300 bg-slate-50 shadow-sm' : 'border-slate-200 bg-white'
                           }`}
                         >
-                        <div className="min-w-0">
-                          <p className="truncate font-semibold text-slate-900">{meeting.title}</p>
-                          <p className="text-[11px] text-slate-400">{meeting.type} meeting</p>
-                        </div>
-                        <p className="truncate text-xs font-medium text-slate-600">{meeting.project.name}</p>
-                        <div className="flex min-w-0 items-center gap-2">
-                          <Avatar name={meeting.organizer.name} index={1} size="h-7 w-7" />
-                          <span className="truncate text-xs text-slate-600">{meeting.organizer.name}</span>
-                        </div>
-                        <div>
-                          <p className="text-xs font-medium text-slate-700">{meeting.dateShort}</p>
-                          <p className="text-[11px] text-slate-400">{meeting.time}</p>
-                        </div>
-                        <AvatarStack people={meeting.participants} limit={3} />
-                        <div className="flex items-center gap-2">
-                          <span className={`h-2 w-2 rounded-full ${meeting.platformTone}`} />
-                          <span className="truncate text-xs text-slate-600">{meeting.platform}</span>
-                        </div>
-                        <StatusPill status={meeting.status} />
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={(event) => {
-                              event.stopPropagation()
-                              openMeeting(meeting)
-                            }}
-                            className="rounded-md bg-blue-600 px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-blue-700"
-                          >
-                            Join
-                          </button>
-                          <div className="relative">
+                          <div className="flex items-start gap-3">
+                            <div className="flex w-16 shrink-0 flex-col items-center rounded-lg bg-slate-50 px-2 py-2 text-center ring-1 ring-slate-200">
+                              <span className="text-[11px] font-semibold text-slate-500">{meeting.dateShort.split(' ')[1]}</span>
+                              <span className="text-lg font-semibold leading-tight text-slate-950">{meeting.dateShort.split(' ')[0]}</span>
+                              <span className="text-[10px] font-medium text-slate-400">{meeting.duration}</span>
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex flex-wrap items-start justify-between gap-2">
+                                <div className="min-w-0">
+                                  <p className="truncate text-sm font-semibold text-slate-950">{meeting.title}</p>
+                                  <p className="mt-1 truncate text-xs text-slate-500">{meeting.project.name} - {meeting.type}</p>
+                                </div>
+                                <StatusPill status={meeting.status} />
+                              </div>
+                              <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-[11px] font-medium text-slate-500">
+                                <span className="inline-flex items-center gap-1.5">
+                                  <Clock3 className="h-3.5 w-3.5 text-slate-400" />
+                                  {meeting.time}
+                                </span>
+                                <span className="inline-flex min-w-0 items-center gap-1.5">
+                                  <span className={`h-2 w-2 rounded-full ${meeting.platformTone}`} />
+                                  <span className="truncate">{meeting.platform}</span>
+                                </span>
+                                <span className="inline-flex min-w-0 items-center gap-1.5">
+                                  <Avatar name={meeting.organizer.name} index={1} size="h-6 w-6" />
+                                  <span className="truncate">{meeting.organizer.name}</span>
+                                </span>
+                              </div>
+                              <div className="mt-3 flex items-center justify-between gap-3">
+                                <AvatarStack people={meeting.participants} limit={4} />
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={(event) => {
+                                      event.stopPropagation()
+                                      openMeeting(meeting)
+                                    }}
+                                    className="rounded-md bg-slate-900 px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-slate-800"
+                                  >
+                                    Join
+                                  </button>
+                                  <div className="hidden">
                             <button
                               type="button"
                               aria-label="More meeting actions"
@@ -1243,7 +1267,7 @@ export default function ProjectsMeetingsPage() {
                                 event.stopPropagation()
                                 setMenuMeetingId((current) => current === meeting.id ? null : meeting.id)
                               }}
-                              className="flex h-7 w-7 items-center justify-center rounded-md text-slate-400 hover:bg-white hover:text-blue-700"
+                                      className="flex h-7 w-7 items-center justify-center rounded-md text-slate-400 hover:bg-white hover:text-slate-900"
                             >
                               <MoreHorizontal className="h-4 w-4" />
                             </button>
@@ -1251,20 +1275,23 @@ export default function ProjectsMeetingsPage() {
                               <div className="absolute right-0 top-8 z-20 w-40 overflow-hidden rounded-lg border border-slate-200 bg-white py-1 shadow-lg">
                                 <button type="button" onClick={(event) => { event.stopPropagation(); void copyMeetingLink(meeting) }} className="block w-full px-3 py-2 text-left text-xs text-slate-600 hover:bg-slate-50">Copy link</button>
                                 <button type="button" onClick={(event) => { event.stopPropagation(); duplicateMeeting(meeting) }} className="block w-full px-3 py-2 text-left text-xs text-slate-600 hover:bg-slate-50">Duplicate</button>
-                                <button type="button" onClick={(event) => { event.stopPropagation(); setMeetingStatus(meeting.id, 'Completed') }} className="block w-full px-3 py-2 text-left text-xs text-emerald-700 hover:bg-emerald-50">Mark completed</button>
-                                <button type="button" onClick={(event) => { event.stopPropagation(); setMeetingStatus(meeting.id, 'Cancelled') }} className="block w-full px-3 py-2 text-left text-xs text-rose-700 hover:bg-rose-50">Cancel meeting</button>
+                                <button type="button" onClick={(event) => { event.stopPropagation(); setMeetingStatus(meeting.id, 'Completed') }} className="block w-full px-3 py-2 text-left text-xs text-slate-600 hover:bg-slate-50">Mark completed</button>
+                                <button type="button" onClick={(event) => { event.stopPropagation(); setMeetingStatus(meeting.id, 'Cancelled') }} className="block w-full px-3 py-2 text-left text-xs text-slate-600 hover:bg-slate-50">Cancel meeting</button>
                               </div>
                             )}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
                           </div>
                         </div>
-                      </div>
                       )
                     })
                   )}
                 </div>
               </div>
 
-              <div className="flex items-center justify-between border-t border-slate-100 px-5 py-3">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 px-4 py-3">
                 <p className="text-xs text-slate-400">
                   Showing {filteredMeetings.length ? (page - 1) * pageSize + 1 : 0} to {Math.min(page * pageSize, filteredMeetings.length)} of {filteredMeetings.length} meetings
                 </p>
@@ -1278,7 +1305,7 @@ export default function ProjectsMeetingsPage() {
                       type="button"
                       onClick={() => setPage(pageNumber)}
                       className={`h-8 w-8 rounded-lg text-xs font-semibold ${
-                        pageNumber === page ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-50'
+                        pageNumber === page ? 'bg-slate-900 text-white' : 'text-slate-500 hover:bg-slate-50'
                       }`}
                     >
                       {pageNumber}
@@ -1292,34 +1319,21 @@ export default function ProjectsMeetingsPage() {
             </SectionShell>
           </div>
 
-          <SectionShell className="min-w-0 overflow-hidden">
-            <div className="border-b border-slate-100 px-5 py-4">
-              <button
-                type="button"
-                onClick={() => {
-                  setSearch('')
-                  setProjectFilter('ALL')
-                  setStatusFilter('ALL')
-                  setTypeFilter('ALL')
-                  setDateFilter('ALL')
-                  setPage(1)
-                }}
-                className="mb-5 inline-flex items-center gap-1 text-[11px] font-semibold text-slate-500 hover:text-blue-700"
-              >
-                <ChevronLeft className="h-3.5 w-3.5" />
-                Back to Meetings
-              </button>
-
+          <SectionShell className="min-w-0 overflow-hidden xl:sticky xl:top-4 xl:self-start">
+            {selectedMeeting ? (
+              <>
+            <div className="border-b border-slate-100 bg-white px-5 py-4">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div className="min-w-0">
+                  <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">Selected meeting</p>
                   <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="truncate text-xl font-semibold text-slate-900">{selectedMeeting.title}</h2>
+                    <h2 className="truncate text-xl font-semibold text-slate-950">{selectedMeeting.title}</h2>
                     <StatusPill status={selectedMeeting.status} />
                   </div>
                   <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-[11px] font-medium text-slate-500">
-                    <span className="inline-flex items-center gap-1.5"><Calendar className="h-3.5 w-3.5 text-blue-500" />{selectedMeeting.dateLabel}</span>
-                    <span className="inline-flex items-center gap-1.5"><Clock3 className="h-3.5 w-3.5 text-blue-500" />{selectedMeeting.time}</span>
-                    <span className="inline-flex items-center gap-1.5"><Video className="h-3.5 w-3.5 text-blue-500" />{selectedMeeting.duration}</span>
+                    <span className="inline-flex items-center gap-1.5"><Calendar className="h-3.5 w-3.5 text-slate-400" />{selectedMeeting.dateLabel}</span>
+                    <span className="inline-flex items-center gap-1.5"><Clock3 className="h-3.5 w-3.5 text-slate-400" />{selectedMeeting.time}</span>
+                    <span className="inline-flex items-center gap-1.5"><Video className="h-3.5 w-3.5 text-slate-400" />{selectedMeeting.duration}</span>
                     <span className="inline-flex items-center gap-1.5"><span className={`h-2 w-2 rounded-full ${selectedMeeting.platformTone}`} />{selectedMeeting.platform}</span>
                   </div>
                 </div>
@@ -1327,7 +1341,7 @@ export default function ProjectsMeetingsPage() {
                   <button
                     type="button"
                     onClick={() => openMeeting(selectedMeeting)}
-                    className="inline-flex h-9 items-center gap-2 rounded-lg bg-blue-600 px-4 text-xs font-semibold text-white hover:bg-blue-700"
+                    className="inline-flex h-9 items-center gap-2 rounded-lg bg-slate-900 px-4 text-xs font-semibold text-white hover:bg-slate-800"
                   >
                     <Video className="h-3.5 w-3.5" />
                     Join Meeting
@@ -1340,13 +1354,15 @@ export default function ProjectsMeetingsPage() {
                     <Share2 className="h-3.5 w-3.5" />
                     Share
                   </button>
-                  <IconButton label="Duplicate meeting" onClick={() => duplicateMeeting(selectedMeeting)}>
-                    <MoreHorizontal className="h-4 w-4" />
-                  </IconButton>
+                  <div className="hidden">
+                    <IconButton label="Duplicate meeting" onClick={() => duplicateMeeting(selectedMeeting)}>
+                      <MoreHorizontal className="h-4 w-4" />
+                    </IconButton>
+                  </div>
                 </div>
               </div>
 
-              <div className="mt-5 flex overflow-x-auto border-b border-slate-100">
+              <div className="hidden overflow-x-auto rounded-lg bg-slate-100 p-1">
                 {([
                   { id: 'Overview', label: 'Overview' },
                   { id: 'Agenda', label: 'Agenda' },
@@ -1360,8 +1376,8 @@ export default function ProjectsMeetingsPage() {
                     key={tab.id}
                     type="button"
                     onClick={() => setActiveTab(tab.id)}
-                    className={`shrink-0 border-b-2 px-3 py-2 text-xs font-semibold transition ${
-                      activeTab === tab.id ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-400 hover:text-slate-700'
+                    className={`shrink-0 rounded-md px-3 py-1.5 text-xs font-semibold transition ${
+                      activeTab === tab.id ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'
                     }`}
                   >
                     {tab.label}
@@ -1370,12 +1386,12 @@ export default function ProjectsMeetingsPage() {
               </div>
             </div>
 
-            <div className={`${activeTab === 'Overview' ? 'grid' : 'hidden'} gap-4 p-5 2xl:grid-cols-[minmax(0,1fr)_minmax(240px,0.75fr)]`}>
+            <div className="grid gap-4 p-5">
               <div className="space-y-4">
                 <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
                   <p className="text-xs font-semibold text-slate-700">Meeting Link</p>
                   <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <a href={selectedMeeting.link} target="_blank" rel="noreferrer" className="min-w-0 flex-1 truncate text-xs font-medium text-blue-700 hover:underline">
+                    <a href={selectedMeeting.link} target="_blank" rel="noreferrer" className="min-w-0 flex-1 truncate text-xs font-medium text-slate-700 underline-offset-2 hover:text-slate-950 hover:underline">
                       {selectedMeeting.link}
                     </a>
                     <IconButton label="Copy meeting link" onClick={() => void copyMeetingLink(selectedMeeting)}>
@@ -1386,7 +1402,7 @@ export default function ProjectsMeetingsPage() {
                     <button
                       type="button"
                       onClick={() => openMeeting(selectedMeeting)}
-                      className="inline-flex h-8 items-center gap-2 rounded-lg bg-blue-600 px-3 text-xs font-semibold text-white hover:bg-blue-700"
+                      className="inline-flex h-8 items-center gap-2 rounded-lg bg-slate-900 px-3 text-xs font-semibold text-white hover:bg-slate-800"
                     >
                       <Video className="h-3.5 w-3.5" />
                       Join Meeting
@@ -1419,7 +1435,7 @@ export default function ProjectsMeetingsPage() {
                   </div>
                   <div className="rounded-lg border border-slate-200 p-3">
                     <p className="text-[11px] font-semibold text-slate-400">Project</p>
-                    <p className="mt-1 text-xs font-semibold text-blue-700">{selectedMeeting.project.name}</p>
+                    <p className="mt-1 text-xs font-semibold text-slate-800">{selectedMeeting.project.name}</p>
                   </div>
                   <div className="rounded-lg border border-slate-200 p-3">
                     <p className="text-[11px] font-semibold text-slate-400">Meeting Type</p>
@@ -1447,16 +1463,73 @@ export default function ProjectsMeetingsPage() {
               <div className="space-y-4">
                 <div className="rounded-lg border border-slate-200 p-4">
                   <div className="mb-3 flex items-center justify-between">
-                    <p className="text-xs font-semibold text-slate-800">Participants ({selectedMeeting.participants.length})</p>
-                    <button type="button" onClick={() => setActiveTab('Participants')} className="text-[11px] font-semibold text-blue-700 hover:text-blue-800">View all</button>
+                    <p className="text-xs font-semibold text-slate-800">RSVP summary</p>
+                    <span className="text-[11px] font-medium text-slate-400">{selectedMeeting.participants.length} invited</span>
                   </div>
-                  <AvatarStack people={selectedMeeting.participants} limit={6} />
+                  <div className="space-y-3">
+                    {[
+                      { label: 'Accepted', value: accepted.length, icon: Check, tone: 'bg-slate-100 text-slate-600' },
+                      { label: 'Pending', value: pending.length, icon: Clock3, tone: 'bg-slate-100 text-slate-600' },
+                      { label: 'Declined', value: declined.length, icon: X, tone: 'bg-slate-100 text-slate-600' },
+                    ].map((group) => {
+                      const Icon = group.icon
+                      return (
+                        <div key={group.label} className="flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-2">
+                            <div className={`flex h-7 w-7 items-center justify-center rounded-full ${group.tone}`}>
+                              <Icon className="h-3.5 w-3.5" />
+                            </div>
+                            <span className="text-xs font-semibold text-slate-700">{group.label}</span>
+                          </div>
+                          <span className="text-sm font-semibold tabular-nums text-slate-900">{group.value}</span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                  {pending.length > 0 && (
+                    <div className="mt-4 grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          updateMeeting(selectedMeeting.id, (meeting) => ({
+                            ...meeting,
+                            participants: meeting.participants.map((participant) => participant.status === 'Pending' ? { ...participant, status: 'Accepted' } : participant),
+                          }))
+                          showMessage('Pending participants accepted')
+                        }}
+                        className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800"
+                      >
+                        Accept pending
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          updateMeeting(selectedMeeting.id, (meeting) => ({
+                            ...meeting,
+                            participants: meeting.participants.map((participant) => participant.status === 'Pending' ? { ...participant, status: 'Declined' } : participant),
+                          }))
+                          showMessage('Pending participants declined')
+                        }}
+                        className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                      >
+                        Decline
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 <div className="rounded-lg border border-slate-200 p-4">
                   <div className="mb-3 flex items-center justify-between">
+                    <p className="text-xs font-semibold text-slate-800">Participants ({selectedMeeting.participants.length})</p>
+                    <button type="button" onClick={() => setActiveTab('Participants')} className="hidden text-[11px] font-semibold text-slate-700 hover:text-slate-950">View all</button>
+                  </div>
+                  <AvatarStack people={selectedMeeting.participants} limit={6} />
+                </div>
+
+                <div className="hidden rounded-lg border border-slate-200 p-4">
+                  <div className="mb-3 flex items-center justify-between">
                     <p className="text-xs font-semibold text-slate-800">Action Items ({selectedMeeting.actions.length})</p>
-                    <button type="button" onClick={() => setActiveTab('Action Items')} className="text-[11px] font-semibold text-blue-700 hover:text-blue-800">View all action items</button>
+                    <button type="button" onClick={() => setActiveTab('Action Items')} className="text-[11px] font-semibold text-slate-700 hover:text-slate-950">View all action items</button>
                   </div>
                   <div className="space-y-3">
                     {selectedMeeting.actions.slice(0, 5).map((item) => (
@@ -1476,15 +1549,15 @@ export default function ProjectsMeetingsPage() {
                   <ol className="space-y-2">
                     {selectedMeeting.agenda.map((item, index) => (
                       <li key={item} className="flex items-center gap-2 text-xs text-slate-600">
-                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-50 text-[10px] font-semibold text-blue-700">{index + 1}</span>
+                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-100 text-[10px] font-semibold text-slate-600">{index + 1}</span>
                         {item}
                       </li>
                     ))}
                   </ol>
-                  <button type="button" onClick={() => setActiveTab('Agenda')} className="mt-3 text-[11px] font-semibold text-blue-700 hover:text-blue-800">View full agenda</button>
+                  <button type="button" onClick={() => setActiveTab('Agenda')} className="hidden text-[11px] font-semibold text-slate-700 hover:text-slate-950">View full agenda</button>
                 </div>
 
-                <div className="rounded-lg border border-slate-200 p-4">
+                <div className="hidden rounded-lg border border-slate-200 p-4">
                   <p className="mb-3 text-xs font-semibold text-slate-800">Attachments ({selectedMeeting.attachments.length})</p>
                   {selectedMeeting.attachments.length ? (
                     <div className="space-y-2">
@@ -1512,7 +1585,7 @@ export default function ProjectsMeetingsPage() {
               <div className="space-y-3 p-5">
                 {selectedMeeting.agenda.map((item, index) => (
                   <div key={`${item}-${index}`} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white p-3">
-                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-50 text-[11px] font-semibold text-blue-700">{index + 1}</span>
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-100 text-[11px] font-semibold text-slate-600">{index + 1}</span>
                     <input
                       value={item}
                       onChange={(event) => updateMeeting(selectedMeeting.id, (meeting) => ({
@@ -1527,7 +1600,7 @@ export default function ProjectsMeetingsPage() {
                         ...meeting,
                         agenda: meeting.agenda.filter((_, agendaIndex) => agendaIndex !== index),
                       }))}
-                      className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-rose-50 hover:text-rose-600"
+                      className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700"
                     >
                       <X className="h-4 w-4" />
                     </button>
@@ -1536,7 +1609,7 @@ export default function ProjectsMeetingsPage() {
                 <button
                   type="button"
                   onClick={() => updateMeeting(selectedMeeting.id, (meeting) => ({ ...meeting, agenda: [...meeting.agenda, 'New agenda item'] }))}
-                  className="inline-flex h-9 items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 text-xs font-semibold text-blue-700 hover:bg-blue-100"
+                  className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 hover:bg-slate-50"
                 >
                   <Plus className="h-3.5 w-3.5" />
                   Add Agenda Item
@@ -1568,12 +1641,96 @@ export default function ProjectsMeetingsPage() {
                         ...meeting,
                         participants: meeting.participants.filter((item) => item.name !== participant.name),
                       }))}
-                      className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-rose-50 hover:text-rose-600"
+                      className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700"
                     >
                       <X className="h-4 w-4" />
                     </button>
                   </div>
                 ))}
+
+                <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-4">
+                  <div className="mb-4">
+                    <h3 className="text-sm font-semibold text-slate-900">Invite people</h3>
+                    <p className="mt-1 text-xs text-slate-500">Add teammates to this meeting and send a short note.</p>
+                  </div>
+
+                  <Field label="Add people or email">
+                    <div className="relative">
+                      <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+                      <TextInput
+                        value={inviteQuery}
+                        onChange={(event) => setInviteQuery(event.target.value)}
+                        className="pl-9"
+                        placeholder="Search by name or email"
+                      />
+                    </div>
+                  </Field>
+
+                  {inviteMatches.length > 0 && (
+                    <div className="mt-2 overflow-hidden rounded-lg border border-slate-200 bg-white">
+                      {inviteMatches.map((name) => (
+                        <button
+                          key={name}
+                          type="button"
+                          onClick={() => {
+                            setInviteSelected((current) => [...current, name])
+                            setInviteQuery('')
+                          }}
+                          className="flex w-full items-center justify-between px-3 py-2 text-left text-xs text-slate-600 hover:bg-slate-50"
+                        >
+                          <span>{name}</span>
+                          <Plus className="h-3.5 w-3.5 text-slate-500" />
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="mt-4">
+                    <p className="mb-2 text-[11px] font-semibold text-slate-600">Selected ({inviteSelected.length || selectedMeeting.participants.length})</p>
+                    <div className="flex flex-wrap gap-2">
+                      {(inviteSelected.length ? inviteSelected : selectedMeeting.participants.slice(0, 7).map((person) => person.name)).map((name, index) => (
+                        <button
+                          key={name}
+                          type="button"
+                          onClick={() => setInviteSelected((current) => current.filter((item) => item !== name))}
+                          title={inviteSelected.length ? `Remove ${name}` : name}
+                        >
+                          <Avatar name={name} index={index} />
+                        </button>
+                      ))}
+                      {!inviteSelected.length && selectedMeeting.participants.length > 7 && (
+                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-[10px] font-semibold text-slate-500">
+                          +{selectedMeeting.participants.length - 7}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <Field label="Message">
+                    <textarea
+                      value={inviteMessage}
+                      onChange={(event) => setInviteMessage(event.target.value)}
+                      className="min-h-24 w-full resize-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-200"
+                    />
+                  </Field>
+
+                  <div className="mt-4 flex justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setInviteSelected([])
+                        setInviteQuery('')
+                      }}
+                      className="h-9 rounded-lg border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                    >
+                      Clear
+                    </button>
+                    <button type="button" onClick={sendInvitations} className="inline-flex h-9 items-center gap-2 rounded-lg bg-slate-900 px-4 text-xs font-semibold text-white hover:bg-slate-800">
+                      <Send className="h-3.5 w-3.5" />
+                      Send invitation
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
 
@@ -1587,7 +1744,7 @@ export default function ProjectsMeetingsPage() {
                     className="min-h-20 w-full resize-none bg-transparent text-sm text-slate-700 outline-none placeholder:text-slate-400"
                   />
                   <div className="mt-2 flex justify-end">
-                    <button type="button" onClick={addNote} className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-700">
+                    <button type="button" onClick={addNote} className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800">
                       Add Note
                     </button>
                   </div>
@@ -1636,7 +1793,7 @@ export default function ProjectsMeetingsPage() {
                         ...meeting,
                         actions: meeting.actions.filter((_, actionIndex) => actionIndex !== index),
                       }))}
-                      className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-rose-50 hover:text-rose-600"
+                      className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700"
                     >
                       <X className="h-4 w-4" />
                     </button>
@@ -1648,7 +1805,7 @@ export default function ProjectsMeetingsPage() {
                     ...meeting,
                     actions: [...meeting.actions, { title: 'New action item', owner: meeting.organizer.name, dueDate: 'Today' }],
                   }))}
-                  className="inline-flex h-9 items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 text-xs font-semibold text-blue-700 hover:bg-blue-100"
+                  className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 hover:bg-slate-50"
                 >
                   <Plus className="h-3.5 w-3.5" />
                   Add Action Item
@@ -1658,7 +1815,7 @@ export default function ProjectsMeetingsPage() {
 
             {activeTab === 'Attachments' && (
               <div className="space-y-3 p-5">
-                <label className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 text-xs font-semibold text-blue-700 hover:bg-blue-100">
+                <label className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 hover:bg-slate-50">
                   <Upload className="h-3.5 w-3.5" />
                   Upload Files
                   <input type="file" multiple className="sr-only" onChange={(event) => addFilesToSelectedMeeting(event.target.files)} />
@@ -1687,333 +1844,33 @@ export default function ProjectsMeetingsPage() {
                   ...selectedMeeting.notes,
                 ].map((activity, index) => (
                   <div key={`${activity}-${index}`} className="flex items-start gap-3 rounded-lg border border-slate-200 bg-white p-3">
-                    <div className="mt-1.5 h-2 w-2 rounded-full bg-blue-500" />
+                    <div className="mt-1.5 h-2 w-2 rounded-full bg-slate-300" />
                     <p className="text-sm text-slate-600">{activity}</p>
                   </div>
                 ))}
               </div>
             )}
-          </SectionShell>
-        </div>
-
-        <div className="grid gap-4 2xl:grid-cols-[minmax(0,1.45fr)_minmax(300px,0.68fr)_minmax(260px,0.55fr)]">
-          <SectionShell className="p-5">
-            <div className="mb-4">
-              <h2 className="text-sm font-semibold text-slate-900">Schedule Meeting</h2>
-              <p className="text-xs text-slate-400">Create a project meeting and notify the selected participants.</p>
-            </div>
-
-            <div className="grid gap-4 lg:grid-cols-2">
-              <div className="space-y-3">
-                <Field label="Meeting Title">
-                  <TextInput value={scheduleForm.title} onChange={(event) => updateScheduleField('title', event.target.value)} />
-                </Field>
-                <Field label="Project">
-                  <SelectInput value={scheduleForm.projectId} onChange={(event) => updateScheduleField('projectId', event.target.value)}>
-                    {projectOptions.map((project) => (
-                      <option key={project.id} value={project.id}>{project.name}</option>
-                    ))}
-                  </SelectInput>
-                </Field>
-                <Field label="Description">
-                  <textarea
-                    value={scheduleForm.description}
-                    onChange={(event) => updateScheduleField('description', event.target.value)}
-                    className="min-h-20 w-full resize-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15"
-                  />
-                </Field>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <Field label="Meeting Type">
-                    <SelectInput value={scheduleForm.type} onChange={(event) => updateScheduleField('type', event.target.value as MeetingType)}>
-                      {(['Planning', 'Review', 'Design', 'Retrospective', 'Architecture'] as MeetingType[]).map((type) => (
-                        <option key={type}>{type}</option>
-                      ))}
-                    </SelectInput>
-                  </Field>
-                  <Field label="Platform">
-                    <SelectInput value={scheduleForm.platform} onChange={(event) => updateScheduleField('platform', event.target.value as Meeting['platform'])}>
-                      <option>Google Meet</option>
-                      <option>Microsoft Teams</option>
-                      <option>Zoom</option>
-                    </SelectInput>
-                  </Field>
-                </div>
-                <Field label="Meeting URL">
-                  <TextInput value={scheduleForm.link} onChange={(event) => updateScheduleField('link', event.target.value)} />
-                </Field>
-              </div>
-
-              <div className="space-y-3">
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <Field label="Date">
-                    <TextInput type="date" value={scheduleForm.date} onChange={(event) => updateScheduleField('date', event.target.value)} />
-                  </Field>
-                  <Field label="Start Time">
-                    <TextInput type="time" value={scheduleForm.startTime} onChange={(event) => updateScheduleField('startTime', event.target.value)} />
-                  </Field>
-                  <Field label="End Time">
-                    <TextInput type="time" value={scheduleForm.endTime} onChange={(event) => updateScheduleField('endTime', event.target.value)} />
-                  </Field>
-                  <Field label="Time Zone">
-                    <SelectInput value={scheduleForm.timezone} onChange={(event) => updateScheduleField('timezone', event.target.value)}>
-                      <option value="IST">GMT+05:30 India Standard Time</option>
-                      <option value="UTC">UTC</option>
-                      <option value="PST">Pacific Time</option>
-                    </SelectInput>
-                  </Field>
-                </div>
-
-                <Field label="Participants">
-                  <div className="flex flex-wrap gap-2 rounded-lg border border-slate-200 bg-white p-2">
-                    {scheduleForm.participants.slice(0, 6).map((name) => (
-                      <span key={name} className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-1 text-[11px] font-semibold text-blue-700">
-                        {name}
-                        <button
-                          type="button"
-                          onClick={() => updateScheduleField('participants', scheduleForm.participants.filter((participant) => participant !== name))}
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      </span>
-                    ))}
-                    <select
-                      value=""
-                      onChange={(event) => {
-                        if (!event.target.value) return
-                        updateScheduleField('participants', Array.from(new Set([...scheduleForm.participants, event.target.value])))
-                      }}
-                      className="min-w-32 rounded-full border border-slate-200 bg-white px-2 py-1 text-[11px] text-slate-600 outline-none"
-                    >
-                      <option value="">Add person</option>
-                      {allPeople.filter((name) => !scheduleForm.participants.includes(name)).map((name) => (
-                        <option key={name} value={name}>{name}</option>
-                      ))}
-                    </select>
-                  </div>
-                </Field>
-
-                <Field label="Agenda">
-                  <div className="overflow-hidden rounded-lg border border-slate-200">
-                    {scheduleForm.agenda.map((item, index) => (
-                      <div key={item} className="flex items-center gap-2 border-b border-slate-100 px-3 py-2 last:border-b-0">
-                        <span className="text-[11px] font-semibold text-slate-400">{index + 1}</span>
-                        <input
-                          value={item}
-                          onChange={(event) => updateScheduleField('agenda', scheduleForm.agenda.map((agendaItem, agendaIndex) => agendaIndex === index ? event.target.value : agendaItem))}
-                          className="min-w-0 flex-1 bg-transparent text-xs text-slate-700 outline-none"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => updateScheduleField('agenda', scheduleForm.agenda.filter((_, agendaIndex) => agendaIndex !== index))}
-                          className="text-slate-300 hover:text-rose-500"
-                        >
-                          <X className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                  <button type="button" onClick={addAgendaItem} className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold text-blue-700">
-                    <Plus className="h-3 w-3" />
-                    Add Agenda Item
-                  </button>
-                </Field>
-
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <Field label="Add Attachments">
-                    <label className="inline-flex h-9 w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-blue-200 bg-blue-50 text-xs font-semibold text-blue-700 hover:bg-blue-100">
-                      <Upload className="h-3.5 w-3.5" />
-                      Choose Files
-                      <input type="file" multiple className="sr-only" onChange={(event) => addScheduleFiles(event.target.files)} />
-                    </label>
-                  </Field>
-                  <Field label="Add Reminder">
-                    <SelectInput value={scheduleForm.reminder} onChange={(event) => updateScheduleField('reminder', event.target.value)}>
-                      <option>15 minutes before</option>
-                      <option>30 minutes before</option>
-                      <option>1 hour before</option>
-                      <option>No reminder</option>
-                    </SelectInput>
-                  </Field>
-                </div>
-                <Field label="Repeat">
-                  <SelectInput value={scheduleForm.repeat} onChange={(event) => updateScheduleField('repeat', event.target.value)}>
-                    <option>Does not repeat</option>
-                    <option>Daily</option>
-                    <option>Weekly</option>
-                    <option>Monthly</option>
-                  </SelectInput>
-                </Field>
-              </div>
-            </div>
-
-            <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-              <label className="inline-flex items-center gap-2 text-xs font-medium text-slate-600">
-                <input
-                  type="checkbox"
-                  checked={scheduleForm.sendEmail}
-                  onChange={(event) => updateScheduleField('sendEmail', event.target.checked)}
-                  className="h-3.5 w-3.5 rounded accent-blue-600"
-                />
-                Send email invitation
-              </label>
-              <div className="flex gap-2">
-                <button type="button" onClick={resetScheduleForm} className="h-9 rounded-lg border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-600 hover:bg-slate-50">Cancel</button>
-                <button type="button" onClick={createMeeting} className="h-9 rounded-lg bg-blue-600 px-4 text-xs font-semibold text-white hover:bg-blue-700">Schedule Meeting</button>
-              </div>
-            </div>
-          </SectionShell>
-
-          <SectionShell className="p-5">
-            <div className="mb-4">
-              <h2 className="text-sm font-semibold text-slate-900">Invite People</h2>
-              <p className="text-xs text-slate-400">Add people or send a quick invitation.</p>
-            </div>
-
-            <Field label="Add people or email">
-              <div className="relative">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
-                <TextInput
-                  value={inviteQuery}
-                  onChange={(event) => setInviteQuery(event.target.value)}
-                  className="pl-9"
-                  placeholder="Search by name or email"
-                />
-              </div>
-            </Field>
-
-            {inviteMatches.length > 0 && (
-              <div className="mt-2 overflow-hidden rounded-lg border border-slate-200 bg-white">
-                {inviteMatches.map((name) => (
-                  <button
-                    key={name}
-                    type="button"
-                    onClick={() => {
-                      setInviteSelected((current) => [...current, name])
-                      setInviteQuery('')
-                    }}
-                    className="flex w-full items-center justify-between px-3 py-2 text-left text-xs text-slate-600 hover:bg-blue-50"
-                  >
-                    <span>{name}</span>
-                    <Plus className="h-3.5 w-3.5 text-blue-600" />
-                  </button>
-                ))}
-              </div>
-            )}
-
-            <div className="mt-4">
-              <p className="mb-2 text-[11px] font-semibold text-slate-600">Selected ({inviteSelected.length || selectedMeeting.participants.length})</p>
-              <div className="flex flex-wrap gap-2">
-                {(inviteSelected.length ? inviteSelected : selectedMeeting.participants.slice(0, 7).map((person) => person.name)).map((name, index) => (
-                  <button
-                    key={name}
-                    type="button"
-                    onClick={() => setInviteSelected((current) => current.filter((item) => item !== name))}
-                    title={inviteSelected.length ? `Remove ${name}` : name}
-                  >
-                    <Avatar name={name} index={index} />
-                  </button>
-                ))}
-                {!inviteSelected.length && selectedMeeting.participants.length > 7 && (
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-[10px] font-semibold text-slate-500">
-                    +{selectedMeeting.participants.length - 7}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <Field label="Message (Optional)">
-              <textarea
-                value={inviteMessage}
-                onChange={(event) => setInviteMessage(event.target.value)}
-                className="min-h-28 w-full resize-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15"
-              />
-            </Field>
-
-            <div className="mt-4 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setInviteSelected([])
-                  setInviteQuery('')
-                }}
-                className="h-9 rounded-lg border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-600 hover:bg-slate-50"
-              >
-                Cancel
-              </button>
-              <button type="button" onClick={sendInvitations} className="inline-flex h-9 items-center gap-2 rounded-lg bg-blue-600 px-4 text-xs font-semibold text-white hover:bg-blue-700">
-                <Send className="h-3.5 w-3.5" />
-                Send Invitation
-              </button>
-            </div>
-          </SectionShell>
-
-          <SectionShell className="p-5">
-            <div className="mb-5">
-              <h2 className="text-sm font-semibold text-slate-900">RSVP Status</h2>
-              <p className="text-xs text-slate-400">Participant responses for this meeting.</p>
-            </div>
-
-            {[
-              { label: 'Accepted', value: accepted.length, people: accepted, icon: Check, tone: 'bg-emerald-50 text-emerald-600' },
-              { label: 'Pending', value: pending.length, people: pending, icon: Clock3, tone: 'bg-amber-50 text-amber-600' },
-              { label: 'Declined', value: declined.length, people: declined, icon: X, tone: 'bg-rose-50 text-rose-600' },
-            ].map((group) => {
-              const Icon = group.icon
-              return (
-                <div key={group.label} className="mb-4 flex items-center justify-between gap-3 last:mb-0">
-                  <div className="flex items-center gap-3">
-                    <div className={`flex h-8 w-8 items-center justify-center rounded-full ${group.tone}`}>
-                      <Icon className="h-4 w-4" />
-                    </div>
-                    <div>
-                      <p className="text-xs font-semibold text-slate-800">{group.label} ({group.value})</p>
-                      <p className="text-[11px] text-slate-400">{group.value ? 'Response recorded' : 'No responses yet'}</p>
-                    </div>
-                  </div>
-                  <AvatarStack people={group.people} limit={4} />
-                </div>
-              )
-            })}
-
-            {pending.length > 0 && (
-              <div className="mt-5 grid grid-cols-2 gap-2">
+              </>
+            ) : (
+              <div className="p-8 text-center">
+                <MessageSquare className="mx-auto mb-3 h-9 w-9 text-slate-300" />
+                <h2 className="text-sm font-semibold text-slate-900">No meeting selected</h2>
+                <p className="mx-auto mt-2 max-w-sm text-xs leading-5 text-slate-500">
+                  Meetings from the backend will appear here. Schedule a meeting once a project is available.
+                </p>
                 <button
                   type="button"
-                  onClick={() => {
-                    updateMeeting(selectedMeeting.id, (meeting) => ({
-                      ...meeting,
-                      participants: meeting.participants.map((participant) => participant.status === 'Pending' ? { ...participant, status: 'Accepted' } : participant),
-                    }))
-                    showMessage('Pending participants accepted')
-                  }}
-                  className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700"
+                  onClick={openScheduler}
+                  className="mt-4 inline-flex h-9 items-center gap-2 rounded-lg bg-slate-900 px-4 text-xs font-semibold text-white hover:bg-slate-800"
                 >
-                  Accept Pending
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    updateMeeting(selectedMeeting.id, (meeting) => ({
-                      ...meeting,
-                      participants: meeting.participants.map((participant) => participant.status === 'Pending' ? { ...participant, status: 'Declined' } : participant),
-                    }))
-                    showMessage('Pending participants declined')
-                  }}
-                  className="rounded-lg border border-rose-200 bg-white px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-50"
-                >
-                  Decline Pending
+                  <Plus className="h-3.5 w-3.5" />
+                  Schedule meeting
                 </button>
               </div>
             )}
-
-            <div className="mt-6 rounded-lg border border-blue-100 bg-blue-50 p-3">
-              <div className="flex items-start gap-2">
-                <Mail className="mt-0.5 h-4 w-4 shrink-0 text-blue-700" />
-                <p className="text-xs leading-5 text-blue-800">Reminder emails are queued for pending participants 15 minutes before the meeting.</p>
-              </div>
-            </div>
           </SectionShell>
         </div>
+
       </div>
     </div>
   )

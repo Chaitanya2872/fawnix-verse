@@ -1,0 +1,1 @@
+{"nodes": [{"id": "home_nishanth_desktop_acs_fawnix_verse_docker_postgres_bootstrap_create_databases_sql", "label": "create-databases.sql", "file_type": "code", "source_file": "docker/postgres/bootstrap/create-databases.sql", "source_location": null}], "edges": []}

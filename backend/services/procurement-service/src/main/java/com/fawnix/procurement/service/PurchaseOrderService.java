@@ -1,5 +1,15 @@
 package com.fawnix.procurement.service;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.util.List;
+import java.util.UUID;
+
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import com.fawnix.procurement.client.InventoryClient;
 import com.fawnix.procurement.client.dto.InventoryProductResponse;
 import com.fawnix.procurement.common.exception.BadRequestException;
@@ -12,23 +22,20 @@ import com.fawnix.procurement.domain.PurchaseRequisitionItem;
 import com.fawnix.procurement.domain.Vendor;
 import com.fawnix.procurement.dto.ProcurementDtos;
 import com.fawnix.procurement.mapper.ProcurementMapper;
+import com.fawnix.procurement.repository.GoodsReceiptRepository;
+import com.fawnix.procurement.repository.InvoiceRepository;
 import com.fawnix.procurement.repository.PurchaseOrderItemRepository;
 import com.fawnix.procurement.repository.PurchaseOrderRepository;
+
 import feign.FeignException;
-import java.math.BigDecimal;
-import java.math.RoundingMode;
-import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
-import java.util.List;
-import java.util.UUID;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class PurchaseOrderService {
 
   private final PurchaseOrderRepository purchaseOrderRepository;
   private final PurchaseOrderItemRepository purchaseOrderItemRepository;
+  private final GoodsReceiptRepository goodsReceiptRepository;
+  private final InvoiceRepository invoiceRepository;
   private final PurchaseRequisitionService purchaseRequisitionService;
   private final VendorService vendorService;
   private final InventoryClient inventoryClient;
@@ -37,6 +44,8 @@ public class PurchaseOrderService {
   public PurchaseOrderService(
       PurchaseOrderRepository purchaseOrderRepository,
       PurchaseOrderItemRepository purchaseOrderItemRepository,
+      GoodsReceiptRepository goodsReceiptRepository,
+      InvoiceRepository invoiceRepository,
       PurchaseRequisitionService purchaseRequisitionService,
       VendorService vendorService,
       InventoryClient inventoryClient,
@@ -44,6 +53,8 @@ public class PurchaseOrderService {
   ) {
     this.purchaseOrderRepository = purchaseOrderRepository;
     this.purchaseOrderItemRepository = purchaseOrderItemRepository;
+    this.goodsReceiptRepository = goodsReceiptRepository;
+    this.invoiceRepository = invoiceRepository;
     this.purchaseRequisitionService = purchaseRequisitionService;
     this.vendorService = vendorService;
     this.inventoryClient = inventoryClient;
@@ -104,6 +115,25 @@ public class PurchaseOrderService {
   public ProcurementDtos.PurchaseOrderResponse getPurchaseOrder(UUID id) {
     PurchaseOrder purchaseOrder = requirePurchaseOrder(id);
     return procurementMapper.toPurchaseOrderResponse(purchaseOrder, purchaseOrderItemRepository.findByPurchaseOrderId(id));
+  }
+
+  @Transactional
+  public void deletePurchaseOrder(UUID id) {
+    PurchaseOrder purchaseOrder = requirePurchaseOrder(id);
+    if (purchaseOrder.getStatus() != PurchaseOrderStatus.CREATED) {
+      throw new BadRequestException("Only purchase orders awaiting receipt can be deleted.");
+    }
+    if (goodsReceiptRepository.existsByPurchaseOrderId(id)) {
+      throw new BadRequestException("Purchase order has a goods receipt and cannot be deleted.");
+    }
+    if (invoiceRepository.existsByPurchaseOrderId(id)) {
+      throw new BadRequestException("Purchase order has an invoice and cannot be deleted.");
+    }
+
+    PurchaseRequisition requisition = purchaseOrder.getPurchaseRequisition();
+    purchaseOrderItemRepository.deleteByPurchaseOrderId(id);
+    purchaseOrderRepository.delete(purchaseOrder);
+    purchaseRequisitionService.markPurchaseOrderDeleted(requisition);
   }
 
   public PurchaseOrder requirePurchaseOrder(UUID id) {

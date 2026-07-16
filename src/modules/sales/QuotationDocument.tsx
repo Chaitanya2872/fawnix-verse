@@ -1,5 +1,9 @@
 import type { Quote } from "./types";
+import iotiqHeader from "@/assets/quotation/IOTIQ_header.png";
 import iotiqLogo from "@/assets/purchase-order/IOTIQ_logo.png";
+import iotiqStamp from "@/assets/purchase-order/IOTIQ_stamp.png";
+import paymentQr from "@/assets/quotation/payment_QR.png";
+import upiMark from "@/assets/quotation/UPI_mark.jpg";
 
 type SalesRepDetails = {
   name: string;
@@ -80,7 +84,7 @@ export function QuotationDocument({
     <div className="quotation-sheet mx-auto bg-white text-[10px] leading-tight text-black">
       <div className="border border-black">
         <img
-          src="/quotation-assets/IOTIQ_header.png"
+          src={iotiqHeader}
           alt="IOTIQ Header"
           className="h-[168px] w-full object-contain"
         />
@@ -200,13 +204,13 @@ export function QuotationDocument({
           <div className="border-r border-black p-3">
             <p className="mb-2 font-semibold">Payment</p>
             <img
-              src="/quotation-assets/payment_QR.png"
+              src={paymentQr}
               alt="Payment QR"
               className="h-24 w-24 border border-black object-contain"
             />
             <div className="mt-2 flex items-center gap-2">
               <img
-                src="/quotation-assets/UPI_mark.jpg"
+                src={upiMark}
                 alt="UPI"
                 className="h-7 object-contain"
               />
@@ -248,7 +252,7 @@ export function QuotationDocument({
           </div>
           <div className="flex items-center justify-center border-x border-black p-3">
             <img
-              src="/quotation-assets/IOTIQ_stamp.png"
+              src={iotiqStamp}
               alt="IOTIQ Stamp"
               className="h-20 object-contain opacity-90"
             />

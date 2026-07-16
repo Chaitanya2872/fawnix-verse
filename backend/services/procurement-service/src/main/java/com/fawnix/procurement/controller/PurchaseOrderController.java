@@ -5,6 +5,7 @@ import com.fawnix.procurement.service.PurchaseOrderService;
 import jakarta.validation.Valid;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -40,5 +41,11 @@ public class PurchaseOrderController {
   @GetMapping("/{id}")
   public ProcurementDtos.PurchaseOrderResponse getPurchaseOrder(@PathVariable UUID id) {
     return purchaseOrderService.getPurchaseOrder(id);
+  }
+
+  @DeleteMapping("/{id}")
+  @ResponseStatus(HttpStatus.NO_CONTENT)
+  public void deletePurchaseOrder(@PathVariable UUID id) {
+    purchaseOrderService.deletePurchaseOrder(id);
   }
 }

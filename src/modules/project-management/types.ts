@@ -69,6 +69,16 @@ export type MemberRole =
   | 'UI/UX Designer'
   | 'DevOps Engineer'
   | 'Business Analyst'
+  | 'Campaign Manager'
+  | 'Marketing Lead'
+  | 'Recruiter'
+  | 'HR Partner'
+  | 'Finance Analyst'
+  | 'Sales Manager'
+  | 'Account Executive'
+  | 'Designer'
+  | 'Operations Lead'
+  | 'Operations Analyst'
   | 'Stakeholder'
 
 export type RolePermission =
@@ -170,6 +180,10 @@ export type CommunicationSettings = {
   reportingFrequency: 'Daily' | 'Weekly' | 'Monthly'
 }
 
+export type TemplateFieldValue = string | string[]
+
+export type TemplateData = Record<string, TemplateFieldValue>
+
 export type Task = {
   id: string
   projectId: string
@@ -192,6 +206,7 @@ export type Project = {
   description: string
   projectType: ProjectType
   projectTemplate: string
+  templateData: TemplateData
   projectCategory: string
   tags: string[]
   // Client
@@ -254,6 +269,7 @@ export type ProjectFormState = {
   projectType: ProjectType
   projectTypes: string[]
   projectTemplate: string
+  templateData: TemplateData
   projectCategory: string
   priority: Priority
   status: ProjectStatus

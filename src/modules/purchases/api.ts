@@ -360,6 +360,15 @@ export async function createPurchaseOrder(
   }
 }
 
+export async function deletePurchaseOrder(id: string): Promise<void> {
+  try {
+    await ensureApiSession();
+    await api.delete(`/procurement/purchase-orders/${id}`);
+  } catch (error) {
+    rethrow(error, "Failed to delete purchase order.");
+  }
+}
+
 export async function fetchGoodsReceipts(): Promise<GoodsReceipt[]> {
   try {
     await ensureApiSession();

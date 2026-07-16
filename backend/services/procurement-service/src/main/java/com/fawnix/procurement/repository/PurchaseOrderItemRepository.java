@@ -8,4 +8,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface PurchaseOrderItemRepository extends JpaRepository<PurchaseOrderItem, UUID> {
 
   List<PurchaseOrderItem> findByPurchaseOrderId(UUID purchaseOrderId);
+
+  void deleteByPurchaseOrderId(UUID purchaseOrderId);
 }

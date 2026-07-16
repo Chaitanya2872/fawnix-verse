@@ -9,6 +9,7 @@ interface InventoryLayoutProps {
   eyebrow?: string;
   actions?: React.ReactNode;
   addProductButton?: React.ReactNode;
+  showHeader?: boolean;
 }
 
 function InventoryLayout({
@@ -18,30 +19,37 @@ function InventoryLayout({
   eyebrow = "Module",
   actions,
   addProductButton,
+  showHeader = true,
 }: InventoryLayoutProps) {
   const headerActions = actions ?? addProductButton;
+  const containerClassName = showHeader
+    ? "flex flex-col gap-6 p-6 md:p-8"
+    : "flex flex-col gap-4 px-6 pb-6 pt-0 md:px-8 md:pb-8 md:pt-0";
+  const contentClassName = showHeader ? "flex flex-col gap-6" : "flex flex-col gap-4";
 
   return (
-    <div className="flex flex-col gap-6 p-6 md:p-8">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <div className="mb-1.5 flex items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/10 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-primary">
-              <span className="h-1 w-1 rounded-full bg-primary" />
-              {eyebrow}
-            </span>
+    <div className={containerClassName}>
+      {showHeader ? (
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <div className="mb-1.5 flex items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/10 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-primary">
+                <span className="h-1 w-1 rounded-full bg-primary" />
+                {eyebrow}
+              </span>
+            </div>
+            <h1 className="text-2xl font-bold tracking-tight">{title}</h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {description}
+            </p>
           </div>
-          <h1 className="text-2xl font-bold tracking-tight">{title}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {description}
-          </p>
+          {headerActions && (
+            <div className="flex-shrink-0 pt-1">{headerActions}</div>
+          )}
         </div>
-        {headerActions && (
-          <div className="flex-shrink-0 pt-1">{headerActions}</div>
-        )}
-      </div>
+      ) : null}
 
-      <div className="flex flex-col gap-6">{children}</div>
+      <div className={contentClassName}>{children}</div>
     </div>
   );
 }
