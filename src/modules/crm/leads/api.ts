@@ -11,6 +11,7 @@ import {
   type CreateLeadRemarkInput,
   type EditLeadRemarkInput,
   type Lead,
+  type LeadB2bProfileInput,
   type LeadImportResult,
   type LeadFilter,
   type LeadFormData,
@@ -74,6 +75,22 @@ function normalizeLead(lead: Lead): Lead {
     metaFormId: lead.metaFormId ?? null,
     metaAdId: lead.metaAdId ?? null,
     sourceCreatedAt: lead.sourceCreatedAt ?? null,
+    businessFlowStage: lead.businessFlowStage ?? null,
+    b2bProfile: lead.b2bProfile
+      ? {
+          ...lead.b2bProfile,
+          requirementSummary: lead.b2bProfile.requirementSummary ?? null,
+          solutionSummary: lead.b2bProfile.solutionSummary ?? null,
+          proposedItems: lead.b2bProfile.proposedItems ?? null,
+          technicalApprovalNotes: lead.b2bProfile.technicalApprovalNotes ?? null,
+          commercialApprovalNotes: lead.b2bProfile.commercialApprovalNotes ?? null,
+          negotiationNotes: lead.b2bProfile.negotiationNotes ?? null,
+          expectedOrderValue: lead.b2bProfile.expectedOrderValue ?? null,
+          expectedDeliveryTimeline: lead.b2bProfile.expectedDeliveryTimeline ?? null,
+          customerPoNumber: lead.b2bProfile.customerPoNumber ?? null,
+          lastReviewedAt: lead.b2bProfile.lastReviewedAt ?? null,
+        }
+      : null,
     whatsappAssignment: lead.whatsappAssignment ?? null,
   };
 }
@@ -165,6 +182,34 @@ export async function updateLead(id: string, data: LeadUpdateData): Promise<Lead
     return normalizeLead(response.data);
   } catch (error) {
     rethrowApiError(error, "Failed to update lead.");
+  }
+}
+
+export async function updateLeadBusinessFlowStage(
+  id: string,
+  businessFlowStage: string
+): Promise<Lead> {
+  try {
+    await ensureApiSession();
+    const response = await api.patch<Lead>(`/leads/${id}/business-flow`, {
+      businessFlowStage,
+    });
+    return normalizeLead(response.data);
+  } catch (error) {
+    rethrowApiError(error, "Failed to update B2B flow stage.");
+  }
+}
+
+export async function upsertLeadB2bProfile(
+  id: string,
+  input: LeadB2bProfileInput
+): Promise<Lead> {
+  try {
+    await ensureApiSession();
+    const response = await api.put<Lead>(`/leads/${id}/b2b-profile`, input);
+    return normalizeLead(response.data);
+  } catch (error) {
+    rethrowApiError(error, "Failed to update B2B presales profile.");
   }
 }
 

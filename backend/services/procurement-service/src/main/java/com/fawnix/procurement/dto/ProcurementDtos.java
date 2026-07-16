@@ -24,6 +24,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 public final class ProcurementDtos {
@@ -528,6 +529,41 @@ public final class ProcurementDtos {
       long fileSize,
       Instant createdAt,
       Instant updatedAt
+  ) {
+  }
+
+  public record VendorImportError(
+      int row,
+      String field,
+      String message
+  ) {
+  }
+
+  public record VendorImportPreviewRow(
+      int row,
+      Map<String, String> data,
+      String status,
+      String duplicateType,
+      List<VendorImportError> errors
+  ) {
+  }
+
+  public record VendorImportPreviewResult(
+      int total,
+      int valid,
+      int invalid,
+      int duplicate,
+      List<VendorImportPreviewRow> rows
+  ) {
+  }
+
+  public record VendorImportResult(
+      int total,
+      int created,
+      int updated,
+      int skipped,
+      int failed,
+      List<VendorImportError> errors
   ) {
   }
 
