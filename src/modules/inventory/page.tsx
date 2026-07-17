@@ -19,6 +19,7 @@ import {
   Search,
   Tags,
   Trash2,
+  Upload,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -46,6 +47,7 @@ import {
 } from "./hooks";
 import { InventoryLayout } from "./layout";
 import { exportProductsCsv } from "./export";
+import { ProductImportModal } from "./ProductImportModal";
 
 type StockView = "items" | "categories";
 type StockActionMode = "consume" | "receive";
@@ -1163,6 +1165,7 @@ export default function InventoryPage() {
   const [warehouseFilter, setWarehouseFilter] = useState("ALL");
   const [filter, setFilter] = useState<ProductFilter>(defaultFilter);
   const [addOpen, setAddOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [analyticsOpen, setAnalyticsOpen] = useState(false);
   const [editProduct, setEditProduct] = useState<Product | null>(null);
   const [deleteProduct, setDeleteProduct] = useState<Product | null>(null);
@@ -1460,6 +1463,14 @@ export default function InventoryPage() {
                   <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap xl:justify-end">
                     <button
                       type="button"
+                      onClick={() => setImportOpen(true)}
+                      className="inline-flex items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+                    >
+                      <Upload className="h-4 w-4" />
+                      Import
+                    </button>
+                    <button
+                      type="button"
                       onClick={handleExportProducts}
                       className="inline-flex items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
                     >
@@ -1735,6 +1746,7 @@ export default function InventoryPage() {
         isLoading={activeAdjustmentMutation.isPending}
       />
       <DeleteDialog open={!!deleteProduct} product={deleteProduct} onClose={() => setDeleteProduct(null)} onConfirm={handleDelete} isLoading={deleteMutation.isPending} />
+      <ProductImportModal open={importOpen} onClose={() => setImportOpen(false)} />
     </>
   );
 }

@@ -46,6 +46,39 @@ export interface PaginatedProducts {
   totalPages: number;
 }
 
+export type ProductImportRowStatus = "VALID" | "INVALID" | "DUPLICATE" | "DUPLICATE_IN_FILE";
+
+export interface ProductImportError {
+  row: number;
+  field?: string | null;
+  message: string;
+}
+
+export interface ProductImportPreviewRow {
+  row: number;
+  data: Record<string, string | null>;
+  status: ProductImportRowStatus;
+  duplicateType?: string | null;
+  errors: ProductImportError[];
+}
+
+export interface ProductImportPreviewResult {
+  total: number;
+  valid: number;
+  invalid: number;
+  duplicate: number;
+  rows: ProductImportPreviewRow[];
+}
+
+export interface ProductImportResult {
+  total: number;
+  created: number;
+  updated: number;
+  skipped: number;
+  failed: number;
+  errors: ProductImportError[];
+}
+
 export interface InventoryCategorySummary {
   category: string;
   productCount: number;

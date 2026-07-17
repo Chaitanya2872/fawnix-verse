@@ -12,6 +12,8 @@ import type {
   Warehouse,
   WarehouseFilter,
   WarehouseFormData,
+  ProductImportPreviewResult,
+  ProductImportResult,
 } from "./types";
 import { getApiErrorMessage } from "@/services/api-client";
 
@@ -104,6 +106,39 @@ export async function deleteProduct(id: string): Promise<void> {
     await api.delete(`/inventory/${id}`);
   } catch (error) {
     rethrow(error, "Failed to delete inventory item.");
+  }
+}
+
+export async function downloadProductImportTemplate(): Promise<Blob> {
+  try {
+    const response = await api.get("/inventory/import/template", {
+      responseType: "blob",
+    });
+    return response.data as Blob;
+  } catch (error) {
+    rethrow(error, "Failed to download the inventory import template.");
+  }
+}
+
+export async function previewProductImport(file: File): Promise<ProductImportPreviewResult> {
+  try {
+    const formData = new FormData();
+    formData.append("file", file);
+    const response = await api.post<ProductImportPreviewResult>("/inventory/import/preview", formData);
+    return response.data;
+  } catch (error) {
+    rethrow(error, "Failed to validate the inventory import file.");
+  }
+}
+
+export async function importProducts(file: File): Promise<ProductImportResult> {
+  try {
+    const formData = new FormData();
+    formData.append("file", file);
+    const response = await api.post<ProductImportResult>("/inventory/import", formData);
+    return response.data;
+  } catch (error) {
+    rethrow(error, "Failed to import inventory items.");
   }
 }
 

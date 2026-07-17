@@ -26,6 +26,8 @@ import {
   fetchProducts,
   fetchTransactions,
   fetchWarehouses,
+  importProducts,
+  previewProductImport,
   receiveStock,
   updateProduct,
   updateWarehouse,
@@ -162,6 +164,23 @@ export function useDeleteProduct() {
       queryClient.invalidateQueries({ queryKey: inventoryKeys.lists() });
       queryClient.invalidateQueries({ queryKey: inventoryKeys.overview() });
       queryClient.invalidateQueries({ queryKey: inventoryKeys.transactions() });
+    },
+  });
+}
+
+export function usePreviewProductImport() {
+  return useMutation({
+    mutationFn: (file: File) => previewProductImport(file),
+  });
+}
+
+export function useImportProducts() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (file: File) => importProducts(file),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: inventoryKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: inventoryKeys.overview() });
     },
   });
 }

@@ -6,6 +6,7 @@ import jakarta.validation.constraints.NotBlank;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 
 public final class ProductDtos {
 
@@ -129,6 +130,41 @@ public final class ProductDtos {
       int page,
       int pageSize,
       int totalPages
+  ) {
+  }
+
+  public record ProductImportError(
+      int row,
+      String field,
+      String message
+  ) {
+  }
+
+  public record ProductImportPreviewRow(
+      int row,
+      Map<String, String> data,
+      String status,
+      String duplicateType,
+      List<ProductImportError> errors
+  ) {
+  }
+
+  public record ProductImportPreviewResult(
+      int total,
+      int valid,
+      int invalid,
+      int duplicate,
+      List<ProductImportPreviewRow> rows
+  ) {
+  }
+
+  public record ProductImportResult(
+      int total,
+      int created,
+      int updated,
+      int skipped,
+      int failed,
+      List<ProductImportError> errors
   ) {
   }
 }
