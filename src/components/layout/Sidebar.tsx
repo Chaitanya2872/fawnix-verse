@@ -162,6 +162,7 @@ const ERP_NAV_SECTIONS: readonly SidebarNavSection[] = [
     heading: "Administration",
     items: [
       { label: "Users", to: "/users", icon: Users, permission: PERMISSIONS.PAGE_ADMIN_USERS },
+      { label: "Manage Templates", to: "/settings/templates", icon: Settings2, permission: PERMISSIONS.PAGE_ADMIN_SETTINGS },
     ],
   },
   {
