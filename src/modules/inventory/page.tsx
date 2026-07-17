@@ -32,6 +32,7 @@ import {
   type ProductCategory,
   type ProductFilter,
   type ProductFormData,
+  type Warehouse,
 } from "./types";
 import {
   useConsumeStock,
@@ -96,7 +97,20 @@ const defaultForm: ProductFormData = {
   priceTier2: null,
   priceTier3: null,
   status: ProductStatus.IN_STOCK,
+  storageMappings: [],
 };
+
+function createEmptyStorageMappingDraft() {
+  return {
+    warehouseId: "",
+    storageLocationId: "",
+    quantityOnHand: 0,
+    minStockLevel: null,
+    maxStockLevel: null,
+    primaryMapping: false,
+    notes: "",
+  };
+}
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(value);
@@ -550,12 +564,14 @@ function ProductDialog({
   open,
   onClose,
   product,
+  warehouses,
   onSave,
   isLoading,
 }: {
   open: boolean;
   onClose: () => void;
   product?: Product | null;
+  warehouses: Warehouse[];
   onSave: (data: ProductFormData) => void;
   isLoading?: boolean;
 }) {
@@ -582,6 +598,16 @@ function ProductDialog({
             priceTier2: product.priceTier2 ?? null,
             priceTier3: product.priceTier3 ?? null,
             status: product.status,
+            storageMappings: product.storageMappings.map((mapping) => ({
+              id: mapping.id,
+              warehouseId: mapping.warehouseId,
+              storageLocationId: mapping.storageLocationId,
+              quantityOnHand: toNumber(mapping.quantityOnHand),
+              minStockLevel: mapping.minStockLevel ?? null,
+              maxStockLevel: mapping.maxStockLevel ?? null,
+              primaryMapping: mapping.primaryMapping,
+              notes: mapping.notes ?? "",
+            })),
           }
         : defaultForm
     );
@@ -599,9 +625,51 @@ function ProductDialog({
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
+  function updateStorageMapping(index: number, patch: Partial<ProductFormData["storageMappings"][number]>) {
+    setForm((prev) => ({
+      ...prev,
+      storageMappings: prev.storageMappings.map((mapping, currentIndex) =>
+        currentIndex === index ? { ...mapping, ...patch } : mapping
+      ),
+    }));
+  }
+
+  function addStorageMapping() {
+    setForm((prev) => ({
+      ...prev,
+      storageMappings: [...prev.storageMappings, createEmptyStorageMappingDraft()],
+    }));
+  }
+
+  function removeStorageMapping(index: number) {
+    setForm((prev) => ({
+      ...prev,
+      storageMappings: prev.storageMappings.filter((_, currentIndex) => currentIndex !== index),
+    }));
+  }
+
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
-    onSave(form);
+    const normalizedMappings = form.storageMappings
+      .map((mapping, index) => ({
+        ...mapping,
+        quantityOnHand: Number(mapping.quantityOnHand) || 0,
+        minStockLevel: mapping.minStockLevel == null ? null : Number(mapping.minStockLevel),
+        maxStockLevel: mapping.maxStockLevel == null ? null : Number(mapping.maxStockLevel),
+        primaryMapping: Boolean(mapping.primaryMapping || index === 0),
+        notes: mapping.notes?.trim() || "",
+      }))
+      .filter((mapping) => mapping.warehouseId && mapping.storageLocationId);
+
+    const computedStockQty = normalizedMappings.length
+      ? normalizedMappings.reduce((sum, mapping) => sum + (Number(mapping.quantityOnHand) || 0), 0)
+      : form.stockQty;
+
+    onSave({
+      ...form,
+      stockQty: computedStockQty,
+      storageMappings: normalizedMappings,
+    });
   }
 
   return (
@@ -621,7 +689,7 @@ function ProductDialog({
             <X className="h-4 w-4" />
           </button>
         </div>
-        <form onSubmit={handleSubmit} className="space-y-4 p-6">
+        <form onSubmit={handleSubmit} className="space-y-6 p-6">
           <div className="grid gap-4 md:grid-cols-2">
             <div className="md:col-span-2">
               <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -689,7 +757,11 @@ function ProductDialog({
                 value={form.stockQty}
                 onChange={(e) => updateField("stockQty", Number(e.target.value) || 0)}
                 className={inputClass}
+                disabled={form.storageMappings.length > 0}
               />
+              {form.storageMappings.length > 0 ? (
+                <p className="mt-1 text-xs text-slate-500">Calculated from mapped warehouse locations below.</p>
+              ) : null}
             </div>
             <div>
               <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Unit Price</label>
@@ -707,6 +779,147 @@ function ProductDialog({
               <input value={form.description ?? ""} onChange={(e) => updateField("description", e.target.value)} className={inputClass} />
             </div>
           </div>
+          <section className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+            <div className="flex flex-col gap-3 border-b border-slate-200 pb-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h3 className="text-base font-semibold text-slate-900">Warehouse Mapping</h3>
+                <p className="mt-1 text-sm text-slate-500">Assign this item to one or more warehouse storage locations with on-hand quantities.</p>
+              </div>
+              <button
+                type="button"
+                onClick={addStorageMapping}
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+              >
+                <Plus className="h-4 w-4" />
+                Add Mapping
+              </button>
+            </div>
+
+            <div className="mt-4 space-y-4">
+              {form.storageMappings.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-4 py-6 text-sm text-slate-500">
+                  No warehouse mappings yet. Add one to connect this item to a storage location.
+                </div>
+              ) : (
+                form.storageMappings.map((mapping, index) => {
+                  const selectedWarehouse = warehouses.find((warehouse) => warehouse.id === mapping.warehouseId) ?? null;
+                  const availableLocations = selectedWarehouse?.storageLocations ?? [];
+                  return (
+                    <div key={mapping.id ?? `mapping-${index}`} className="rounded-2xl border border-slate-200 bg-white p-4">
+                      <div className="mb-4 flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold text-slate-900">{selectedWarehouse?.name ?? `Mapping ${index + 1}`}</p>
+                          <p className="text-xs text-slate-500">{availableLocations.find((location) => location.id === mapping.storageLocationId)?.code ?? "Select location"}</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => removeStorageMapping(index)}
+                          className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 transition-colors hover:bg-rose-100"
+                        >
+                          Remove
+                        </button>
+                      </div>
+
+                      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                        <div>
+                          <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Warehouse</label>
+                          <select
+                            value={mapping.warehouseId}
+                            onChange={(event) => updateStorageMapping(index, { warehouseId: event.target.value, storageLocationId: "" })}
+                            className={inputClass}
+                          >
+                            <option value="">Select warehouse</option>
+                            {warehouses.map((warehouse) => (
+                              <option key={warehouse.id} value={warehouse.id}>
+                                {warehouse.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Storage Location</label>
+                          <select
+                            value={mapping.storageLocationId}
+                            onChange={(event) => updateStorageMapping(index, { storageLocationId: event.target.value })}
+                            className={inputClass}
+                            disabled={!selectedWarehouse}
+                          >
+                            <option value="">{selectedWarehouse ? "Select location" : "Select warehouse first"}</option>
+                            {availableLocations.map((location) => (
+                              <option key={location.id ?? `${selectedWarehouse?.id}-${location.code}`} value={location.id}>
+                                {location.code} - {location.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Qty on Hand</label>
+                          <input
+                            type="number"
+                            min={0}
+                            step={0.01}
+                            value={mapping.quantityOnHand}
+                            onChange={(event) => updateStorageMapping(index, { quantityOnHand: Number(event.target.value) || 0 })}
+                            className={inputClass}
+                          />
+                        </div>
+                        <div className="flex items-end">
+                          <label className="flex w-full items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">
+                            Primary location
+                            <input
+                              type="checkbox"
+                              checked={mapping.primaryMapping}
+                              onChange={(event) =>
+                                setForm((prev) => ({
+                                  ...prev,
+                                  storageMappings: prev.storageMappings.map((entry, currentIndex) => ({
+                                    ...entry,
+                                    primaryMapping: currentIndex === index ? event.target.checked : false,
+                                  })),
+                                }))
+                              }
+                              className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+                            />
+                          </label>
+                        </div>
+                        <div>
+                          <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Min Stock</label>
+                          <input
+                            type="number"
+                            min={0}
+                            step={0.01}
+                            value={mapping.minStockLevel ?? ""}
+                            onChange={(event) => updateStorageMapping(index, { minStockLevel: event.target.value ? Number(event.target.value) : null })}
+                            className={inputClass}
+                          />
+                        </div>
+                        <div>
+                          <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Max Stock</label>
+                          <input
+                            type="number"
+                            min={0}
+                            step={0.01}
+                            value={mapping.maxStockLevel ?? ""}
+                            onChange={(event) => updateStorageMapping(index, { maxStockLevel: event.target.value ? Number(event.target.value) : null })}
+                            className={inputClass}
+                          />
+                        </div>
+                        <div className="md:col-span-2 xl:col-span-2">
+                          <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Notes</label>
+                          <input
+                            value={mapping.notes ?? ""}
+                            onChange={(event) => updateStorageMapping(index, { notes: event.target.value })}
+                            className={inputClass}
+                            placeholder="Fast moving, quarantine, project-specific, overflow..."
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </section>
           <div className="flex justify-end gap-3 border-t border-slate-200 pt-4">
             <button
               type="button"
@@ -962,14 +1175,22 @@ export default function InventoryPage() {
 
   const productsQuery = useProducts(filter);
   const overviewQuery = useInventoryOverview();
-  const warehouseQuery = useWarehouses({ search: "", status: "ACTIVE", page: 1, pageSize: 1 });
+  const warehouseQuery = useWarehouses({ search: "", status: "ACTIVE", page: 1, pageSize: 200 });
   const createMutation = useCreateProduct();
   const updateMutation = useUpdateProduct();
   const deleteMutation = useDeleteProduct();
   const consumeMutation = useConsumeStock();
   const receiveMutation = useReceiveStock();
 
-  const products = useMemo(() => productsQuery.data?.data ?? [], [productsQuery.data?.data]);
+  const allProducts = useMemo(() => productsQuery.data?.data ?? [], [productsQuery.data?.data]);
+  const warehouseOptions = useMemo(() => warehouseQuery.data?.data ?? [], [warehouseQuery.data?.data]);
+  const products = useMemo(
+    () =>
+      warehouseFilter === "ALL"
+        ? allProducts
+        : allProducts.filter((product) => product.storageMappings.some((mapping) => mapping.warehouseId === warehouseFilter)),
+    [allProducts, warehouseFilter]
+  );
   const pageData = productsQuery.data;
   const categories = overviewQuery.data?.categories ?? buildCategorySummary(products).map((item) => ({
     category: item.category,
@@ -1018,7 +1239,7 @@ export default function InventoryPage() {
     visibleStockValue,
   ]);
 
-  const warehouseCount = warehouseQuery.data?.total ?? 5;
+  const warehouseCount = warehouseQuery.data?.total ?? 0;
   function resetAdjustmentForm() {
     setAdjustmentForm({ quantity: "", txnDate: getTodayDateValue(), notes: "" });
   }
@@ -1275,6 +1496,11 @@ export default function InventoryPage() {
                       className="min-w-40 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition-colors focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
                     >
                       <option value="ALL">All Warehouses</option>
+                      {warehouseOptions.map((warehouse) => (
+                        <option key={warehouse.id} value={warehouse.id}>
+                          {warehouse.name}
+                        </option>
+                      ))}
                     </select>
                     <button
                       type="button"
@@ -1304,7 +1530,7 @@ export default function InventoryPage() {
                     <table className="w-full min-w-[980px] text-sm">
                       <thead>
                         <tr className="border-b border-slate-200 bg-slate-50/80">
-                          {["Item", "Category", "Stock", "Unit Price", "Status", "Actions"].map((heading) => (
+                        {["Item", "Category", "Warehouse Map", "Stock", "Unit Price", "Status", "Actions"].map((heading) => (
                             <th
                               key={heading}
                               className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500"
@@ -1336,7 +1562,21 @@ export default function InventoryPage() {
                                   <p>{product.category}</p>
                                   <p className="mt-1 text-xs text-slate-400">{product.subCategory ?? product.brand ?? "-"}</p>
                                 </td>
-                                <td className="px-3 py-2.5 font-semibold text-slate-900">{currentStock.toLocaleString("en-IN")}</td>
+                            <td className="px-3 py-2.5 text-slate-600">
+                              {product.storageMappings.length ? (
+                                <div className="space-y-1">
+                                  <p className="font-semibold text-slate-900">
+                                    {product.storageMappings[0].warehouseCode} / {product.storageMappings[0].storageLocationCode}
+                                  </p>
+                                  <p className="text-xs text-slate-500">
+                                    {product.storageMappings.length} location{product.storageMappings.length === 1 ? "" : "s"} mapped
+                                  </p>
+                                </div>
+                              ) : (
+                                <span className="text-xs text-slate-400">Not mapped</span>
+                              )}
+                            </td>
+                            <td className="px-3 py-2.5 font-semibold text-slate-900">{currentStock.toLocaleString("en-IN")}</td>
                                 <td className="px-3 py-2.5 font-semibold text-slate-900">{formatCurrency(toNumber(product.price))}</td>
                                 <td className="px-3 py-2.5">
                                   <StatusBadge status={product.status} />
@@ -1368,7 +1608,7 @@ export default function InventoryPage() {
                           })
                         ) : (
                           <tr>
-                            <td colSpan={6} className="px-3 py-10 text-center text-sm text-slate-500">
+                            <td colSpan={7} className="px-3 py-10 text-center text-sm text-slate-500">
                               No inventory items matched your filters.
                             </td>
                           </tr>
@@ -1483,8 +1723,8 @@ export default function InventoryPage() {
         categories={categories}
         isLoading={overviewQuery.isLoading}
       />
-      <ProductDialog open={addOpen} onClose={() => setAddOpen(false)} onSave={handleCreate} isLoading={createMutation.isPending} />
-      <ProductDialog open={!!editProduct} onClose={() => setEditProduct(null)} product={editProduct} onSave={handleUpdate} isLoading={updateMutation.isPending} />
+      <ProductDialog open={addOpen} onClose={() => setAddOpen(false)} warehouses={warehouseOptions} onSave={handleCreate} isLoading={createMutation.isPending} />
+      <ProductDialog open={!!editProduct} onClose={() => setEditProduct(null)} product={editProduct} warehouses={warehouseOptions} onSave={handleUpdate} isLoading={updateMutation.isPending} />
       <StockAdjustmentDialog
         product={stockAction?.product ?? null}
         mode={stockAction?.mode ?? "consume"}

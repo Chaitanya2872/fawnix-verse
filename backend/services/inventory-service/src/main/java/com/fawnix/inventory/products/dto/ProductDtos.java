@@ -36,7 +36,8 @@ public final class ProductDtos {
       @DecimalMin(value = "0.00", message = "Price 3 must be at least 0.")
       BigDecimal priceTier3,
       @DecimalMin(value = "0.00", message = "Stock quantity cannot be negative.")
-      BigDecimal stockQty
+      BigDecimal stockQty,
+      List<ProductStorageMappingRequest> storageMappings
   ) {
   }
 
@@ -55,7 +56,46 @@ public final class ProductDtos {
       BigDecimal priceTier1,
       BigDecimal priceTier2,
       BigDecimal priceTier3,
-      BigDecimal stockQty
+      BigDecimal stockQty,
+      List<ProductStorageMappingRequest> storageMappings
+  ) {
+  }
+
+  public record ProductStorageMappingRequest(
+      String id,
+      @NotBlank(message = "Warehouse ID is required.")
+      String warehouseId,
+      @NotBlank(message = "Storage location ID is required.")
+      String storageLocationId,
+      @DecimalMin(value = "0.00", message = "Quantity on hand cannot be negative.")
+      BigDecimal quantityOnHand,
+      @DecimalMin(value = "0.00", message = "Minimum stock cannot be negative.")
+      BigDecimal minStockLevel,
+      @DecimalMin(value = "0.00", message = "Maximum stock cannot be negative.")
+      BigDecimal maxStockLevel,
+      Boolean primaryMapping,
+      String notes
+  ) {
+  }
+
+  public record ProductStorageMappingResponse(
+      String id,
+      String warehouseId,
+      String warehouseCode,
+      String warehouseName,
+      String storageLocationId,
+      String storageLocationCode,
+      String storageLocationName,
+      String zoneName,
+      String rackName,
+      String binName,
+      BigDecimal quantityOnHand,
+      BigDecimal minStockLevel,
+      BigDecimal maxStockLevel,
+      boolean primaryMapping,
+      String notes,
+      Instant createdAt,
+      Instant updatedAt
   ) {
   }
 
@@ -77,6 +117,7 @@ public final class ProductDtos {
       BigDecimal priceTier3,
       BigDecimal stockQty,
       ProductStatus status,
+      List<ProductStorageMappingResponse> storageMappings,
       Instant createdAt,
       Instant updatedAt
   ) {

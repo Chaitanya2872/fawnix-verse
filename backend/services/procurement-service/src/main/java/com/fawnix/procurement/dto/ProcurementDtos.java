@@ -356,10 +356,8 @@ public final class ProcurementDtos {
       @NotBlank(message = "Bank name is required.")
       @Size(max = 160, message = "Bank name cannot exceed 160 characters.")
       String bankName,
-      @NotBlank(message = "Account number is required.")
       @Size(max = 64, message = "Account number cannot exceed 64 characters.")
       String accountNumber,
-      @NotBlank(message = "Please re-enter account number.")
       @Size(max = 64, message = "Account confirmation cannot exceed 64 characters.")
       String confirmAccountNumber,
       @NotBlank(message = "IFSC code is required.")

@@ -36,6 +36,16 @@ function toProductPayload(data: Partial<ProductFormData>): Partial<ProductFormDa
     priceTier1: data.priceTier1,
     priceTier2: data.priceTier2,
     priceTier3: data.priceTier3,
+    storageMappings: data.storageMappings?.map((mapping) => ({
+      id: mapping.id,
+      warehouseId: mapping.warehouseId,
+      storageLocationId: mapping.storageLocationId,
+      quantityOnHand: mapping.quantityOnHand,
+      minStockLevel: mapping.minStockLevel,
+      maxStockLevel: mapping.maxStockLevel,
+      primaryMapping: mapping.primaryMapping,
+      notes: mapping.notes,
+    })),
   };
 }
 

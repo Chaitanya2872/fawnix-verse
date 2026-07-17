@@ -2,15 +2,21 @@ package com.fawnix.inventory.warehouses.service;
 
 import com.fawnix.inventory.common.exception.BadRequestException;
 import com.fawnix.inventory.common.exception.ResourceNotFoundException;
+import com.fawnix.inventory.products.repository.ProductStorageMappingRepository;
 import com.fawnix.inventory.warehouses.dto.WarehouseDtos;
+import com.fawnix.inventory.warehouses.entity.StorageLocationEntity;
 import com.fawnix.inventory.warehouses.entity.WarehouseEntity;
+import com.fawnix.inventory.warehouses.repository.StorageLocationRepository;
 import com.fawnix.inventory.warehouses.repository.WarehouseRepository;
 import com.fawnix.inventory.warehouses.specification.WarehouseSpecifications;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -25,9 +31,17 @@ public class WarehouseService {
   private static final BigDecimal ZERO = BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
 
   private final WarehouseRepository warehouseRepository;
+  private final StorageLocationRepository storageLocationRepository;
+  private final ProductStorageMappingRepository productStorageMappingRepository;
 
-  public WarehouseService(WarehouseRepository warehouseRepository) {
+  public WarehouseService(
+      WarehouseRepository warehouseRepository,
+      StorageLocationRepository storageLocationRepository,
+      ProductStorageMappingRepository productStorageMappingRepository
+  ) {
     this.warehouseRepository = warehouseRepository;
+    this.storageLocationRepository = storageLocationRepository;
+    this.productStorageMappingRepository = productStorageMappingRepository;
   }
 
   @Transactional(readOnly = true)
@@ -98,7 +112,9 @@ public class WarehouseService {
     warehouse.setCreatedAt(now);
     warehouse.setUpdatedAt(now);
 
-    return toResponse(warehouseRepository.save(warehouse));
+    WarehouseEntity savedWarehouse = warehouseRepository.save(warehouse);
+    replaceStorageLocations(savedWarehouse, request.storageLocations());
+    return toResponse(savedWarehouse);
   }
 
   @Transactional
@@ -156,16 +172,26 @@ public class WarehouseService {
     }
 
     warehouse.setUpdatedAt(Instant.now());
-    return toResponse(warehouseRepository.save(warehouse));
+    WarehouseEntity savedWarehouse = warehouseRepository.save(warehouse);
+    if (request.storageLocations() != null) {
+      replaceStorageLocations(savedWarehouse, request.storageLocations());
+    }
+    return toResponse(savedWarehouse);
   }
 
   @Transactional
   public void deleteWarehouse(String id) {
     WarehouseEntity warehouse = requireWarehouse(id);
+    if (productStorageMappingRepository.existsByWarehouse_Id(id)) {
+      throw new BadRequestException("Warehouse is mapped to inventory items and cannot be deleted.");
+    }
     warehouseRepository.delete(warehouse);
   }
 
   private WarehouseDtos.WarehouseResponse toResponse(WarehouseEntity warehouse) {
+    List<WarehouseDtos.StorageLocationResponse> storageLocations = storageLocationRepository.findByWarehouse_IdOrderByNameAsc(warehouse.getId()).stream()
+        .map(this::toStorageLocationResponse)
+        .toList();
     return new WarehouseDtos.WarehouseResponse(
         warehouse.getId(),
         warehouse.getCode(),
@@ -183,9 +209,82 @@ public class WarehouseService {
         warehouse.getCapacity(),
         warehouse.isActive(),
         warehouse.getNotes(),
+        storageLocations,
         warehouse.getCreatedAt(),
         warehouse.getUpdatedAt()
     );
+  }
+
+  private WarehouseDtos.StorageLocationResponse toStorageLocationResponse(StorageLocationEntity entity) {
+    return new WarehouseDtos.StorageLocationResponse(
+        entity.getId(),
+        entity.getCode(),
+        entity.getName(),
+        entity.getZoneName(),
+        entity.getRackName(),
+        entity.getBinName(),
+        entity.getCapacity(),
+        entity.isActive(),
+        entity.getNotes(),
+        entity.getCreatedAt(),
+        entity.getUpdatedAt()
+    );
+  }
+
+  private void replaceStorageLocations(WarehouseEntity warehouse, List<WarehouseDtos.StorageLocationRequest> requests) {
+    List<WarehouseDtos.StorageLocationRequest> nextRequests = requests == null ? List.of() : requests;
+    List<StorageLocationEntity> existingLocations = storageLocationRepository.findByWarehouse_IdOrderByNameAsc(warehouse.getId());
+    Set<String> requestedIds = new HashSet<>();
+    for (WarehouseDtos.StorageLocationRequest request : nextRequests) {
+      if (request.id() != null && !request.id().isBlank()) {
+        requestedIds.add(request.id());
+      }
+    }
+
+    List<StorageLocationEntity> removableLocations = existingLocations.stream()
+        .filter(location -> !requestedIds.contains(location.getId()))
+        .toList();
+    for (StorageLocationEntity location : removableLocations) {
+      if (productStorageMappingRepository.existsByStorageLocation_Id(location.getId())) {
+        throw new BadRequestException("Storage location " + location.getCode() + " is mapped to inventory items and cannot be removed.");
+      }
+    }
+
+    List<StorageLocationEntity> updatedLocations = new ArrayList<>();
+    Set<String> uniqueCodes = new HashSet<>();
+    Instant now = Instant.now();
+    for (WarehouseDtos.StorageLocationRequest request : nextRequests) {
+      String normalizedCode = normalizeStorageLocationCode(request.code());
+      if (!uniqueCodes.add(normalizedCode.toLowerCase(Locale.ROOT))) {
+        throw new BadRequestException("Duplicate storage location code in the same warehouse.");
+      }
+      StorageLocationEntity entity = request.id() == null || request.id().isBlank()
+          ? new StorageLocationEntity()
+          : storageLocationRepository.findByIdAndWarehouse_Id(request.id(), warehouse.getId())
+              .orElseThrow(() -> new ResourceNotFoundException("Storage location not found."));
+      if (entity.getId() == null) {
+        entity.setId(UUID.randomUUID().toString());
+        entity.setCreatedAt(now);
+      }
+      entity.setWarehouse(warehouse);
+      entity.setCode(normalizedCode);
+      entity.setName(normalizeRequired(request.name(), "Storage location name is required."));
+      entity.setZoneName(trimToNull(request.zoneName()));
+      entity.setRackName(trimToNull(request.rackName()));
+      entity.setBinName(trimToNull(request.binName()));
+      entity.setCapacity(scale(defaultCapacity(request.capacity())));
+      entity.setActive(request.active() == null || request.active());
+      entity.setNotes(trimToNull(request.notes()));
+      entity.setUpdatedAt(now);
+      updatedLocations.add(entity);
+    }
+
+    if (!removableLocations.isEmpty()) {
+      storageLocationRepository.deleteAll(removableLocations);
+    }
+    if (!updatedLocations.isEmpty()) {
+      storageLocationRepository.saveAll(updatedLocations);
+    }
   }
 
   private WarehouseEntity requireWarehouse(String id) {
@@ -210,6 +309,14 @@ public class WarehouseService {
     String normalized = normalizeRequired(value, "Warehouse code is required.").toUpperCase(Locale.ROOT);
     if (normalized.length() > 30) {
       throw new BadRequestException("Warehouse code cannot exceed 30 characters.");
+    }
+    return normalized;
+  }
+
+  private String normalizeStorageLocationCode(String value) {
+    String normalized = normalizeRequired(value, "Storage location code is required.").toUpperCase(Locale.ROOT);
+    if (normalized.length() > 40) {
+      throw new BadRequestException("Storage location code cannot exceed 40 characters.");
     }
     return normalized;
   }

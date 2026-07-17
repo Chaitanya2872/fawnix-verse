@@ -2,7 +2,6 @@
 
 import { useMemo, useState, type FormEvent, type ReactNode } from "react";
 import {
-  Building2,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
@@ -19,18 +18,8 @@ import {
 import { toast } from "sonner";
 import { getApiErrorMessage } from "@/services/api-client";
 import { InventoryLayout } from "./layout";
-import {
-  useCreateWarehouse,
-  useDeleteWarehouse,
-  useUpdateWarehouse,
-  useWarehouses,
-} from "./hooks";
-import type {
-  Warehouse,
-  WarehouseFilter,
-  WarehouseFormData,
-  WarehouseStatusFilter,
-} from "./types";
+import { useCreateWarehouse, useDeleteWarehouse, useUpdateWarehouse, useWarehouses } from "./hooks";
+import type { StorageLocation, Warehouse, WarehouseFilter, WarehouseFormData, WarehouseStatusFilter } from "./types";
 
 const defaultFilter: WarehouseFilter = {
   search: "",
@@ -38,6 +27,17 @@ const defaultFilter: WarehouseFilter = {
   page: 1,
   pageSize: 10,
 };
+
+const createEmptyLocation = (): StorageLocation => ({
+  code: "",
+  name: "",
+  zoneName: "",
+  rackName: "",
+  binName: "",
+  capacity: 0,
+  active: true,
+  notes: "",
+});
 
 const defaultForm: WarehouseFormData = {
   code: "",
@@ -55,6 +55,7 @@ const defaultForm: WarehouseFormData = {
   capacity: 0,
   active: true,
   notes: "",
+  storageLocations: [createEmptyLocation()],
 };
 
 const warehouseTypes = ["Main", "Regional", "Project", "Transit", "Service", "Returns"];
@@ -80,9 +81,7 @@ function WarehouseStatusBadge({ active }: { active: boolean }) {
   return (
     <span
       className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${
-        active
-          ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-          : "border-slate-200 bg-slate-50 text-slate-600"
+        active ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-slate-200 bg-slate-50 text-slate-600"
       }`}
     >
       {active ? <CheckCircle2 className="h-3.5 w-3.5" /> : <XCircle className="h-3.5 w-3.5" />}
@@ -100,8 +99,7 @@ function MetricTile({
   value: string;
   tone?: "default" | "success" | "muted";
 }) {
-  const valueClass =
-    tone === "success" ? "text-emerald-700" : tone === "muted" ? "text-slate-600" : "text-slate-900";
+  const valueClass = tone === "success" ? "text-emerald-700" : tone === "muted" ? "text-slate-600" : "text-slate-900";
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
@@ -140,6 +138,18 @@ function IconAction({
   );
 }
 
+function Field({ label, required, children }: { label: string; required?: boolean; children: ReactNode }) {
+  return (
+    <label className="block">
+      <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+        {label}
+        {required ? <span className="text-rose-500"> *</span> : null}
+      </span>
+      {children}
+    </label>
+  );
+}
+
 function WarehouseDialog({
   warehouse,
   isLoading,
@@ -169,6 +179,17 @@ function WarehouseDialog({
           capacity: Number(warehouse.capacity ?? 0),
           active: warehouse.active,
           notes: warehouse.notes ?? "",
+          storageLocations:
+            warehouse.storageLocations.length > 0
+              ? warehouse.storageLocations.map((location) => ({
+                  ...location,
+                  zoneName: location.zoneName ?? "",
+                  rackName: location.rackName ?? "",
+                  binName: location.binName ?? "",
+                  notes: location.notes ?? "",
+                  capacity: Number(location.capacity ?? 0),
+                }))
+              : [createEmptyLocation()],
         }
       : defaultForm
   );
@@ -180,6 +201,29 @@ function WarehouseDialog({
     setForm((current) => ({ ...current, [key]: value }));
   }
 
+  function updateLocation(index: number, patch: Partial<StorageLocation>) {
+    setForm((current) => ({
+      ...current,
+      storageLocations: current.storageLocations.map((location, currentIndex) =>
+        currentIndex === index ? { ...location, ...patch } : location
+      ),
+    }));
+  }
+
+  function addLocation() {
+    setForm((current) => ({
+      ...current,
+      storageLocations: [...current.storageLocations, createEmptyLocation()],
+    }));
+  }
+
+  function removeLocation(index: number) {
+    setForm((current) => ({
+      ...current,
+      storageLocations: current.storageLocations.length > 1 ? current.storageLocations.filter((_, currentIndex) => currentIndex !== index) : [createEmptyLocation()],
+    }));
+  }
+
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     onSave({
@@ -189,66 +233,49 @@ function WarehouseDialog({
       city: form.city.trim(),
       country: form.country.trim() || "India",
       capacity: Number(form.capacity) || 0,
+      storageLocations: form.storageLocations
+        .map((location) => ({
+          ...location,
+          code: location.code.trim().toUpperCase(),
+          name: location.name.trim(),
+          zoneName: location.zoneName?.trim() || "",
+          rackName: location.rackName?.trim() || "",
+          binName: location.binName?.trim() || "",
+          capacity: Number(location.capacity) || 0,
+          notes: location.notes?.trim() || "",
+        }))
+        .filter((location) => location.code || location.name),
     });
   }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <button
-        type="button"
-        aria-label="Close warehouse dialog"
-        className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm"
-        onClick={onClose}
-      />
-      <div className="relative z-10 max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-3xl border border-slate-200 bg-white shadow-2xl">
+      <button type="button" aria-label="Close warehouse dialog" className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative z-10 max-h-[92vh] w-full max-w-6xl overflow-y-auto rounded-3xl border border-slate-200 bg-white shadow-2xl">
         <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-6 py-4">
           <div>
             <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-brand-50 px-3 py-1 text-xs font-semibold text-brand-700">
               <WarehouseIcon className="h-4 w-4" />
               Warehouse Master
             </div>
-            <h2 className="text-lg font-semibold text-slate-900">
-              {warehouse ? "Edit Warehouse" : "Add Warehouse"}
-            </h2>
-            <p className="mt-1 text-sm text-slate-500">
-              Maintain storage locations used for receiving, staging, and dispatch planning.
-            </p>
+            <h2 className="text-lg font-semibold text-slate-900">{warehouse ? "Edit Warehouse" : "Add Warehouse"}</h2>
+            <p className="mt-1 text-sm text-slate-500">Maintain the warehouse profile and every storage location used for staging, picking, and dispatch.</p>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-xl p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
-          >
+          <button type="button" onClick={onClose} className="rounded-xl p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700">
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-5 p-6">
-          <div className="grid gap-4 md:grid-cols-2">
+        <form onSubmit={handleSubmit} className="space-y-6 p-6">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <Field label="Warehouse Code" required>
-              <input
-                required
-                value={form.code}
-                onChange={(event) => updateField("code", event.target.value)}
-                className={inputClass}
-                placeholder="WH-BLR-01"
-              />
+              <input required value={form.code} onChange={(event) => updateField("code", event.target.value)} className={inputClass} placeholder="WH-BLR-01" />
             </Field>
             <Field label="Warehouse Name" required>
-              <input
-                required
-                value={form.name}
-                onChange={(event) => updateField("name", event.target.value)}
-                className={inputClass}
-                placeholder="Bengaluru Main Warehouse"
-              />
+              <input required value={form.name} onChange={(event) => updateField("name", event.target.value)} className={inputClass} placeholder="Bengaluru Main Warehouse" />
             </Field>
             <Field label="Type">
-              <select
-                value={form.type ?? ""}
-                onChange={(event) => updateField("type", event.target.value)}
-                className={inputClass}
-              >
+              <select value={form.type ?? ""} onChange={(event) => updateField("type", event.target.value)} className={inputClass}>
                 {warehouseTypes.map((type) => (
                   <option key={type} value={type}>
                     {type}
@@ -257,128 +284,118 @@ function WarehouseDialog({
               </select>
             </Field>
             <Field label="Capacity">
-              <input
-                type="number"
-                min={0}
-                step={0.01}
-                value={form.capacity}
-                onChange={(event) => updateField("capacity", Number(event.target.value) || 0)}
-                className={inputClass}
-              />
+              <input type="number" min={0} step={0.01} value={form.capacity} onChange={(event) => updateField("capacity", Number(event.target.value) || 0)} className={inputClass} />
             </Field>
             <Field label="City" required>
-              <input
-                required
-                value={form.city}
-                onChange={(event) => updateField("city", event.target.value)}
-                className={inputClass}
-                placeholder="Bengaluru"
-              />
+              <input required value={form.city} onChange={(event) => updateField("city", event.target.value)} className={inputClass} placeholder="Bengaluru" />
             </Field>
             <Field label="State">
-              <input
-                value={form.state ?? ""}
-                onChange={(event) => updateField("state", event.target.value)}
-                className={inputClass}
-                placeholder="Karnataka"
-              />
+              <input value={form.state ?? ""} onChange={(event) => updateField("state", event.target.value)} className={inputClass} placeholder="Karnataka" />
             </Field>
             <Field label="Postal Code">
-              <input
-                value={form.postalCode ?? ""}
-                onChange={(event) => updateField("postalCode", event.target.value)}
-                className={inputClass}
-                placeholder="560001"
-              />
+              <input value={form.postalCode ?? ""} onChange={(event) => updateField("postalCode", event.target.value)} className={inputClass} placeholder="560001" />
             </Field>
             <Field label="Country">
-              <input
-                value={form.country}
-                onChange={(event) => updateField("country", event.target.value)}
-                className={inputClass}
-              />
+              <input value={form.country} onChange={(event) => updateField("country", event.target.value)} className={inputClass} />
             </Field>
-            <div className="md:col-span-2">
-              <Field label="Address">
-                <input
-                  value={form.addressLine1 ?? ""}
-                  onChange={(event) => updateField("addressLine1", event.target.value)}
-                  className={inputClass}
-                  placeholder="Address line 1"
-                />
+            <div className="md:col-span-2 xl:col-span-4">
+              <Field label="Address Line 1">
+                <input value={form.addressLine1 ?? ""} onChange={(event) => updateField("addressLine1", event.target.value)} className={inputClass} placeholder="Address line 1" />
               </Field>
             </div>
-            <div className="md:col-span-2">
+            <div className="md:col-span-2 xl:col-span-4">
               <Field label="Address Line 2">
-                <input
-                  value={form.addressLine2 ?? ""}
-                  onChange={(event) => updateField("addressLine2", event.target.value)}
-                  className={inputClass}
-                  placeholder="Address line 2"
-                />
+                <input value={form.addressLine2 ?? ""} onChange={(event) => updateField("addressLine2", event.target.value)} className={inputClass} placeholder="Address line 2" />
               </Field>
             </div>
             <Field label="Manager">
-              <input
-                value={form.managerName ?? ""}
-                onChange={(event) => updateField("managerName", event.target.value)}
-                className={inputClass}
-                placeholder="Warehouse manager"
-              />
+              <input value={form.managerName ?? ""} onChange={(event) => updateField("managerName", event.target.value)} className={inputClass} placeholder="Warehouse manager" />
             </Field>
             <Field label="Contact Phone">
-              <input
-                value={form.contactPhone ?? ""}
-                onChange={(event) => updateField("contactPhone", event.target.value)}
-                className={inputClass}
-                placeholder="+91 9876543210"
-              />
+              <input value={form.contactPhone ?? ""} onChange={(event) => updateField("contactPhone", event.target.value)} className={inputClass} placeholder="+91 9876543210" />
             </Field>
             <Field label="Contact Email">
-              <input
-                type="email"
-                value={form.contactEmail ?? ""}
-                onChange={(event) => updateField("contactEmail", event.target.value)}
-                className={inputClass}
-                placeholder="warehouse@example.com"
-              />
+              <input type="email" value={form.contactEmail ?? ""} onChange={(event) => updateField("contactEmail", event.target.value)} className={inputClass} placeholder="warehouse@example.com" />
             </Field>
             <div className="flex items-end">
               <label className="flex w-full items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">
                 Active warehouse
-                <input
-                  type="checkbox"
-                  checked={form.active}
-                  onChange={(event) => updateField("active", event.target.checked)}
-                  className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
-                />
+                <input type="checkbox" checked={form.active} onChange={(event) => updateField("active", event.target.checked)} className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500" />
               </label>
             </div>
-            <div className="md:col-span-2">
+            <div className="md:col-span-2 xl:col-span-4">
               <Field label="Notes">
-                <textarea
-                  value={form.notes ?? ""}
-                  onChange={(event) => updateField("notes", event.target.value)}
-                  className={`${inputClass} min-h-24 resize-y`}
-                  placeholder="Operational notes, gate timing, storage constraints"
-                />
+                <textarea value={form.notes ?? ""} onChange={(event) => updateField("notes", event.target.value)} className={`${inputClass} min-h-24 resize-y`} placeholder="Operational notes, loading rules, access constraints" />
               </Field>
             </div>
           </div>
 
+          <section className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+            <div className="flex flex-col gap-3 border-b border-slate-200 pb-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h3 className="text-base font-semibold text-slate-900">Storage Locations</h3>
+                <p className="mt-1 text-sm text-slate-500">Define aisle, rack, and bin level destinations that inventory items can be mapped to.</p>
+              </div>
+              <button type="button" onClick={addLocation} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50">
+                <Plus className="h-4 w-4" />
+                Add Location
+              </button>
+            </div>
+
+            <div className="mt-4 space-y-4">
+              {form.storageLocations.map((location, index) => (
+                <div key={location.id ?? `draft-${index}`} className="rounded-2xl border border-slate-200 bg-white p-4">
+                  <div className="mb-4 flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">{location.name || `Location ${index + 1}`}</p>
+                      <p className="text-xs text-slate-500">{location.code || "New location"}</p>
+                    </div>
+                    <button type="button" onClick={() => removeLocation(index)} className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 transition-colors hover:bg-rose-100">
+                      Remove
+                    </button>
+                  </div>
+
+                  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                    <Field label="Location Code" required>
+                      <input value={location.code} onChange={(event) => updateLocation(index, { code: event.target.value })} className={inputClass} placeholder="A1-R1-B1" />
+                    </Field>
+                    <Field label="Location Name" required>
+                      <input value={location.name} onChange={(event) => updateLocation(index, { name: event.target.value })} className={inputClass} placeholder="Aisle 1 Rack 1 Bin 1" />
+                    </Field>
+                    <Field label="Zone">
+                      <input value={location.zoneName ?? ""} onChange={(event) => updateLocation(index, { zoneName: event.target.value })} className={inputClass} placeholder="Inbound" />
+                    </Field>
+                    <Field label="Rack">
+                      <input value={location.rackName ?? ""} onChange={(event) => updateLocation(index, { rackName: event.target.value })} className={inputClass} placeholder="Rack 1" />
+                    </Field>
+                    <Field label="Bin">
+                      <input value={location.binName ?? ""} onChange={(event) => updateLocation(index, { binName: event.target.value })} className={inputClass} placeholder="Bin 12" />
+                    </Field>
+                    <Field label="Capacity">
+                      <input type="number" min={0} step={0.01} value={location.capacity} onChange={(event) => updateLocation(index, { capacity: Number(event.target.value) || 0 })} className={inputClass} />
+                    </Field>
+                    <div className="flex items-end">
+                      <label className="flex w-full items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">
+                        Active location
+                        <input type="checkbox" checked={location.active} onChange={(event) => updateLocation(index, { active: event.target.checked })} className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500" />
+                      </label>
+                    </div>
+                    <div className="md:col-span-2 xl:col-span-4">
+                      <Field label="Notes">
+                        <textarea value={location.notes ?? ""} onChange={(event) => updateLocation(index, { notes: event.target.value })} className={`${inputClass} min-h-20 resize-y`} placeholder="Picking rules, overflow notes, temperature restrictions" />
+                      </Field>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+
           <div className="flex justify-end gap-3 border-t border-slate-200 pt-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50"
-            >
+            <button type="button" onClick={onClose} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50">
               Cancel
             </button>
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50"
-            >
+            <button type="submit" disabled={isLoading} className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50">
               {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
               {warehouse ? "Save Changes" : "Add Warehouse"}
             </button>
@@ -386,26 +403,6 @@ function WarehouseDialog({
         </form>
       </div>
     </div>
-  );
-}
-
-function Field({
-  label,
-  required,
-  children,
-}: {
-  label: string;
-  required?: boolean;
-  children: ReactNode;
-}) {
-  return (
-    <label className="block">
-      <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
-        {label}
-        {required ? <span className="text-rose-500"> *</span> : null}
-      </span>
-      {children}
-    </label>
   );
 }
 
@@ -424,12 +421,7 @@ function DeleteDialog({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <button
-        type="button"
-        aria-label="Close delete dialog"
-        className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm"
-        onClick={onClose}
-      />
+      <button type="button" aria-label="Close delete dialog" className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" onClick={onClose} />
       <div className="relative z-10 w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl">
         <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-rose-50 text-rose-600">
           <Trash2 className="h-6 w-6" />
@@ -439,19 +431,10 @@ function DeleteDialog({
           <span className="font-semibold text-slate-900">{warehouse.name}</span> will be removed from the warehouse master.
         </p>
         <div className="mt-6 flex justify-end gap-3">
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50"
-          >
+          <button type="button" onClick={onClose} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50">
             Cancel
           </button>
-          <button
-            type="button"
-            onClick={onConfirm}
-            disabled={isLoading}
-            className="inline-flex items-center gap-2 rounded-xl bg-rose-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
-          >
+          <button type="button" onClick={onConfirm} disabled={isLoading} className="inline-flex items-center gap-2 rounded-xl bg-rose-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50">
             {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
             Delete
           </button>
@@ -481,9 +464,10 @@ export default function InventoryWarehousesPage() {
         current.active += warehouse.active ? 1 : 0;
         current.inactive += warehouse.active ? 0 : 1;
         current.capacity += Number(warehouse.capacity ?? 0);
+        current.locations += warehouse.storageLocations.length;
         return current;
       },
-      { active: 0, inactive: 0, capacity: 0 }
+      { active: 0, inactive: 0, capacity: 0, locations: 0 }
     );
   }, [warehouses]);
 
@@ -532,13 +516,9 @@ export default function InventoryWarehousesPage() {
     <>
       <InventoryLayout
         title="Warehouses"
-        description="Manage inventory storage locations, operating contacts, and active warehouse capacity."
+        description="Manage warehouse masters, storage locations, and the physical map inventory items can be assigned to."
         actions={
-          <button
-            type="button"
-            onClick={() => setAddOpen(true)}
-            className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-700"
-          >
+          <button type="button" onClick={() => setAddOpen(true)} className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-700">
             <Plus className="h-4 w-4" />
             Add Warehouse
           </button>
@@ -549,15 +529,13 @@ export default function InventoryWarehousesPage() {
             <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
               <div>
                 <h2 className="text-lg font-semibold text-slate-900">Warehouse Master</h2>
-                <p className="mt-1 text-sm text-slate-500">
-                  Keep each physical storage location discoverable for receiving, staging, and dispatch teams.
-                </p>
+                <p className="mt-1 text-sm text-slate-500">Keep each facility and every storage destination discoverable for receiving, picking, and dispatch teams.</p>
               </div>
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 <MetricTile label="Warehouses" value={formatNumber(pageData?.total ?? warehouses.length)} />
                 <MetricTile label="Visible Active" value={formatNumber(summary.active)} tone="success" />
-                <MetricTile label="Visible Inactive" value={formatNumber(summary.inactive)} tone="muted" />
-                <MetricTile label="Visible Capacity" value={formatNumber(summary.capacity)} />
+                <MetricTile label="Storage Locations" value={formatNumber(summary.locations)} />
+                <MetricTile label="Visible Capacity" value={formatNumber(summary.capacity)} tone="muted" />
               </div>
             </div>
           </div>
@@ -568,22 +546,14 @@ export default function InventoryWarehousesPage() {
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 <input
                   value={filter.search}
-                  onChange={(event) =>
-                    setFilter((current) => ({ ...current, search: event.target.value, page: 1 }))
-                  }
-                  placeholder="Search by code, name, city, manager, or contact"
+                  onChange={(event) => setFilter((current) => ({ ...current, search: event.target.value, page: 1 }))}
+                  placeholder="Search by code, warehouse, city, or location"
                   className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-3 text-sm text-slate-900 outline-none transition-colors focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
                 />
               </div>
               <select
                 value={filter.status}
-                onChange={(event) =>
-                  setFilter((current) => ({
-                    ...current,
-                    status: event.target.value as WarehouseStatusFilter,
-                    page: 1,
-                  }))
-                }
+                onChange={(event) => setFilter((current) => ({ ...current, status: event.target.value as WarehouseStatusFilter, page: 1 }))}
                 className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition-colors focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
               >
                 <option value="ALL">All Warehouses</option>
@@ -597,20 +567,15 @@ export default function InventoryWarehousesPage() {
                 <Loader2 className="h-6 w-6 animate-spin text-brand-600" />
               </div>
             ) : warehousesQuery.isError ? (
-              <div className="p-6 text-sm text-rose-600">
-                {getApiErrorMessage(warehousesQuery.error, "Failed to load warehouses.")}
-              </div>
+              <div className="p-6 text-sm text-rose-600">{getApiErrorMessage(warehousesQuery.error, "Failed to load warehouses.")}</div>
             ) : (
               <>
                 <div className="overflow-x-auto">
-                  <table className="w-full min-w-[980px] text-sm">
+                  <table className="w-full min-w-[1180px] text-sm">
                     <thead>
                       <tr className="border-b border-slate-200 bg-slate-50/80">
-                        {["Warehouse", "Location", "Manager", "Capacity", "Status", "Updated", "Actions"].map((heading) => (
-                          <th
-                            key={heading}
-                            className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500"
-                          >
+                        {["Warehouse", "City", "Storage Locations", "Manager", "Capacity", "Status", "Updated", "Actions"].map((heading) => (
+                          <th key={heading} className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                             {heading}
                           </th>
                         ))}
@@ -636,27 +601,33 @@ export default function InventoryWarehousesPage() {
                               <div className="flex items-start gap-2">
                                 <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
                                 <div>
-                                  <p className="font-medium text-slate-800">
-                                    {[warehouse.city, warehouse.state].filter(Boolean).join(", ")}
-                                  </p>
-                                  <p className="mt-1 max-w-xs truncate text-xs text-slate-500">
-                                    {display(warehouse.addressLine1)}
-                                  </p>
+                                  <p className="font-medium text-slate-800">{[warehouse.city, warehouse.state].filter(Boolean).join(", ")}</p>
+                                  <p className="mt-1 max-w-xs truncate text-xs text-slate-500">{display(warehouse.addressLine1)}</p>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-5 py-4">
+                              <div className="space-y-2">
+                                <p className="font-semibold text-slate-900">{warehouse.storageLocations.length} mapped</p>
+                                <div className="flex flex-wrap gap-1.5">
+                                  {warehouse.storageLocations.slice(0, 3).map((location) => (
+                                    <span key={location.id ?? `${warehouse.id}-${location.code}`} className="rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] font-semibold text-slate-600">
+                                      {location.code}
+                                    </span>
+                                  ))}
+                                  {warehouse.storageLocations.length > 3 ? (
+                                    <span className="rounded-full border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-500">
+                                      +{warehouse.storageLocations.length - 3}
+                                    </span>
+                                  ) : null}
                                 </div>
                               </div>
                             </td>
                             <td className="px-5 py-4 text-slate-600">
-                              <div className="flex items-start gap-2">
-                                <Building2 className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
-                                <div>
-                                  <p className="font-medium text-slate-800">{display(warehouse.managerName)}</p>
-                                  <p className="mt-1 text-xs text-slate-500">{display(warehouse.contactPhone)}</p>
-                                </div>
-                              </div>
+                              <p className="font-medium text-slate-800">{display(warehouse.managerName)}</p>
+                              <p className="mt-1 text-xs text-slate-500">{display(warehouse.contactPhone)}</p>
                             </td>
-                            <td className="px-5 py-4 font-semibold text-slate-900">
-                              {formatNumber(Number(warehouse.capacity ?? 0))}
-                            </td>
+                            <td className="px-5 py-4 font-semibold text-slate-900">{formatNumber(Number(warehouse.capacity ?? 0))}</td>
                             <td className="px-5 py-4">
                               <WarehouseStatusBadge active={warehouse.active} />
                             </td>
@@ -666,11 +637,7 @@ export default function InventoryWarehousesPage() {
                                 <IconAction label={`Edit ${warehouse.name}`} onClick={() => setEditWarehouse(warehouse)}>
                                   <Pencil className="h-4 w-4" />
                                 </IconAction>
-                                <IconAction
-                                  label={`Delete ${warehouse.name}`}
-                                  tone="danger"
-                                  onClick={() => setDeleteWarehouse(warehouse)}
-                                >
+                                <IconAction label={`Delete ${warehouse.name}`} tone="danger" onClick={() => setDeleteWarehouse(warehouse)}>
                                   <Trash2 className="h-4 w-4" />
                                 </IconAction>
                               </div>
@@ -679,7 +646,7 @@ export default function InventoryWarehousesPage() {
                         ))
                       ) : (
                         <tr>
-                          <td colSpan={7} className="px-5 py-16 text-center text-sm text-slate-500">
+                          <td colSpan={8} className="px-5 py-16 text-center text-sm text-slate-500">
                             No warehouses matched your filters.
                           </td>
                         </tr>
@@ -691,31 +658,15 @@ export default function InventoryWarehousesPage() {
                 {pageData ? (
                   <div className="flex flex-col gap-3 border-t border-slate-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
                     <p className="text-sm text-slate-500">
-                      Showing{" "}
-                      <span className="font-semibold text-slate-900">
-                        {pageData.total ? (pageData.page - 1) * pageData.pageSize + 1 : 0}-
-                        {Math.min(pageData.page * pageData.pageSize, pageData.total)}
-                      </span>{" "}
-                      of <span className="font-semibold text-slate-900">{pageData.total}</span> warehouses
+                      Showing <span className="font-semibold text-slate-900">{pageData.total ? (pageData.page - 1) * pageData.pageSize + 1 : 0}-{Math.min(pageData.page * pageData.pageSize, pageData.total)}</span> of{" "}
+                      <span className="font-semibold text-slate-900">{pageData.total}</span> warehouses
                     </p>
                     <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        disabled={filter.page === 1}
-                        onClick={() => setFilter((current) => ({ ...current, page: current.page - 1 }))}
-                        className="rounded-xl border border-slate-200 p-2 text-slate-500 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
-                      >
+                      <button type="button" disabled={filter.page === 1} onClick={() => setFilter((current) => ({ ...current, page: current.page - 1 }))} className="rounded-xl border border-slate-200 p-2 text-slate-500 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40">
                         <ChevronLeft className="h-4 w-4" />
                       </button>
-                      <span className="text-sm font-semibold text-slate-700">
-                        Page {pageData.page} of {Math.max(pageData.totalPages, 1)}
-                      </span>
-                      <button
-                        type="button"
-                        disabled={filter.page >= pageData.totalPages}
-                        onClick={() => setFilter((current) => ({ ...current, page: current.page + 1 }))}
-                        className="rounded-xl border border-slate-200 p-2 text-slate-500 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
-                      >
+                      <span className="text-sm font-semibold text-slate-700">Page {pageData.page} of {Math.max(pageData.totalPages, 1)}</span>
+                      <button type="button" disabled={filter.page >= pageData.totalPages} onClick={() => setFilter((current) => ({ ...current, page: current.page + 1 }))} className="rounded-xl border border-slate-200 p-2 text-slate-500 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40">
                         <ChevronRight className="h-4 w-4" />
                       </button>
                     </div>
@@ -727,28 +678,9 @@ export default function InventoryWarehousesPage() {
         </div>
       </InventoryLayout>
 
-      {addOpen ? (
-        <WarehouseDialog
-          onClose={() => setAddOpen(false)}
-          onSave={handleCreate}
-          isLoading={createMutation.isPending}
-        />
-      ) : null}
-      {editWarehouse ? (
-        <WarehouseDialog
-          key={editWarehouse.id}
-          warehouse={editWarehouse}
-          onClose={() => setEditWarehouse(null)}
-          onSave={handleUpdate}
-          isLoading={updateMutation.isPending}
-        />
-      ) : null}
-      <DeleteDialog
-        warehouse={deleteWarehouse}
-        onClose={() => setDeleteWarehouse(null)}
-        onConfirm={handleDelete}
-        isLoading={deleteMutation.isPending}
-      />
+      {addOpen ? <WarehouseDialog onClose={() => setAddOpen(false)} onSave={handleCreate} isLoading={createMutation.isPending} /> : null}
+      {editWarehouse ? <WarehouseDialog key={editWarehouse.id} warehouse={editWarehouse} onClose={() => setEditWarehouse(null)} onSave={handleUpdate} isLoading={updateMutation.isPending} /> : null}
+      <DeleteDialog warehouse={deleteWarehouse} onClose={() => setDeleteWarehouse(null)} onConfirm={handleDelete} isLoading={deleteMutation.isPending} />
     </>
   );
 }

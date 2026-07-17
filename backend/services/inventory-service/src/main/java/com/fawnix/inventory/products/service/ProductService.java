@@ -5,21 +5,30 @@ import com.fawnix.inventory.common.exception.ResourceNotFoundException;
 import com.fawnix.inventory.products.dto.InventoryOverviewDtos;
 import com.fawnix.inventory.products.dto.ProductDtos;
 import com.fawnix.inventory.products.entity.ProductEntity;
+import com.fawnix.inventory.products.entity.ProductStorageMappingEntity;
 import com.fawnix.inventory.products.entity.ProductStatus;
 import com.fawnix.inventory.products.repository.ProductRepository;
+import com.fawnix.inventory.products.repository.ProductStorageMappingRepository;
 import com.fawnix.inventory.products.specification.ProductSpecifications;
 import com.fawnix.inventory.transactions.entity.StockTransactionEntity;
 import com.fawnix.inventory.transactions.entity.TransactionType;
 import com.fawnix.inventory.transactions.repository.StockTransactionRepository;
+import com.fawnix.inventory.warehouses.entity.StorageLocationEntity;
+import com.fawnix.inventory.warehouses.entity.WarehouseEntity;
+import com.fawnix.inventory.warehouses.repository.StorageLocationRepository;
+import com.fawnix.inventory.warehouses.repository.WarehouseRepository;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.time.LocalDate;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import org.springframework.data.domain.Page;
@@ -36,13 +45,22 @@ public class ProductService {
 
   private final ProductRepository productRepository;
   private final StockTransactionRepository stockTransactionRepository;
+  private final WarehouseRepository warehouseRepository;
+  private final StorageLocationRepository storageLocationRepository;
+  private final ProductStorageMappingRepository productStorageMappingRepository;
 
   public ProductService(
       ProductRepository productRepository,
-      StockTransactionRepository stockTransactionRepository
+      StockTransactionRepository stockTransactionRepository,
+      WarehouseRepository warehouseRepository,
+      StorageLocationRepository storageLocationRepository,
+      ProductStorageMappingRepository productStorageMappingRepository
   ) {
     this.productRepository = productRepository;
     this.stockTransactionRepository = stockTransactionRepository;
+    this.warehouseRepository = warehouseRepository;
+    this.storageLocationRepository = storageLocationRepository;
+    this.productStorageMappingRepository = productStorageMappingRepository;
   }
 
   @Transactional(readOnly = true)
@@ -178,10 +196,12 @@ public class ProductService {
         request.subCategory(), request.brand(), request.unit(),
         request.reorderLevel(), request.description(), request.hsnCode(),
         request.notes(), request.price(), request.priceTier1(), request.priceTier2(),
-        request.priceTier3(), request.stockQty());
+        request.priceTier3(), request.stockQty(), request.storageMappings());
     product.setCreatedAt(now);
     product.setUpdatedAt(now);
-    return toResponse(productRepository.save(product));
+    ProductEntity savedProduct = productRepository.save(product);
+    replaceStorageMappings(savedProduct, request.storageMappings());
+    return toResponse(savedProduct);
   }
 
   @Transactional
@@ -234,6 +254,9 @@ public class ProductService {
     }
     if (request.stockQty() != null) {
       product.setStockQty(scale(request.stockQty()));
+    }
+    if (request.storageMappings() != null) {
+      replaceStorageMappings(product, request.storageMappings());
     }
 
     product.setStatus(resolveStatus(product.getStockQty(), product.getReorderLevel()));
@@ -317,7 +340,8 @@ public class ProductService {
       BigDecimal priceTier1,
       BigDecimal priceTier2,
       BigDecimal priceTier3,
-      BigDecimal stockQty
+      BigDecimal stockQty,
+      List<ProductDtos.ProductStorageMappingRequest> storageMappings
   ) {
     product.setSku(sku.trim());
     product.setName(name.trim());
@@ -333,7 +357,7 @@ public class ProductService {
     product.setPriceTier1(scaleNullable(priceTier1));
     product.setPriceTier2(scaleNullable(priceTier2));
     product.setPriceTier3(scaleNullable(priceTier3));
-    product.setStockQty(scale(defaultMoney(stockQty)));
+    product.setStockQty(resolveStockQty(stockQty, storageMappings));
     if (product.getReservedQty() == null) {
       product.setReservedQty(ZERO);
     }
@@ -341,6 +365,10 @@ public class ProductService {
   }
 
   private ProductDtos.ProductResponse toResponse(ProductEntity product) {
+    List<ProductDtos.ProductStorageMappingResponse> storageMappings =
+        productStorageMappingRepository.findByProduct_IdOrderByPrimaryMappingDescWarehouse_NameAscStorageLocation_NameAsc(product.getId()).stream()
+            .map(this::toStorageMappingResponse)
+            .toList();
     return new ProductDtos.ProductResponse(
         product.getId(),
         product.getSku(),
@@ -359,9 +387,97 @@ public class ProductService {
         product.getPriceTier3(),
         product.getStockQty(),
         product.getStatus(),
+        storageMappings,
         product.getCreatedAt(),
         product.getUpdatedAt()
     );
+  }
+
+  private ProductDtos.ProductStorageMappingResponse toStorageMappingResponse(ProductStorageMappingEntity entity) {
+    StorageLocationEntity location = entity.getStorageLocation();
+    WarehouseEntity warehouse = entity.getWarehouse();
+    return new ProductDtos.ProductStorageMappingResponse(
+        entity.getId(),
+        warehouse.getId(),
+        warehouse.getCode(),
+        warehouse.getName(),
+        location.getId(),
+        location.getCode(),
+        location.getName(),
+        location.getZoneName(),
+        location.getRackName(),
+        location.getBinName(),
+        entity.getQuantityOnHand(),
+        entity.getMinStockLevel(),
+        entity.getMaxStockLevel(),
+        entity.isPrimaryMapping(),
+        entity.getNotes(),
+        entity.getCreatedAt(),
+        entity.getUpdatedAt()
+    );
+  }
+
+  private void replaceStorageMappings(ProductEntity product, List<ProductDtos.ProductStorageMappingRequest> requests) {
+    List<ProductDtos.ProductStorageMappingRequest> nextRequests = requests == null ? List.of() : requests;
+    List<ProductStorageMappingEntity> existingMappings =
+        productStorageMappingRepository.findByProduct_IdOrderByPrimaryMappingDescWarehouse_NameAscStorageLocation_NameAsc(product.getId());
+    if (!existingMappings.isEmpty()) {
+      productStorageMappingRepository.deleteAll(existingMappings);
+    }
+    if (nextRequests.isEmpty()) {
+      return;
+    }
+
+    List<ProductStorageMappingEntity> updatedMappings = new ArrayList<>();
+    Set<String> uniqueLocations = new HashSet<>();
+    boolean primaryAssigned = false;
+    Instant now = Instant.now();
+    for (ProductDtos.ProductStorageMappingRequest request : nextRequests) {
+      WarehouseEntity warehouse = warehouseRepository.findById(request.warehouseId())
+          .orElseThrow(() -> new ResourceNotFoundException("Warehouse not found."));
+      StorageLocationEntity location = storageLocationRepository.findById(request.storageLocationId())
+          .orElseThrow(() -> new ResourceNotFoundException("Storage location not found."));
+      if (!warehouse.getId().equals(location.getWarehouse().getId())) {
+        throw new BadRequestException("Storage location does not belong to the selected warehouse.");
+      }
+      if (!uniqueLocations.add(location.getId())) {
+        throw new BadRequestException("The same storage location cannot be mapped twice for one item.");
+      }
+
+      ProductStorageMappingEntity mapping = new ProductStorageMappingEntity();
+      mapping.setId(request.id() != null && !request.id().isBlank() ? request.id() : UUID.randomUUID().toString());
+      mapping.setProduct(product);
+      mapping.setWarehouse(warehouse);
+      mapping.setStorageLocation(location);
+      mapping.setQuantityOnHand(scale(defaultMoney(request.quantityOnHand())));
+      mapping.setMinStockLevel(scaleNullable(request.minStockLevel()));
+      mapping.setMaxStockLevel(scaleNullable(request.maxStockLevel()));
+      boolean primary = Boolean.TRUE.equals(request.primaryMapping()) || !primaryAssigned;
+      mapping.setPrimaryMapping(primary);
+      mapping.setNotes(trimToNull(request.notes()));
+      mapping.setCreatedAt(now);
+      mapping.setUpdatedAt(now);
+      primaryAssigned = primaryAssigned || primary;
+      updatedMappings.add(mapping);
+    }
+
+    productStorageMappingRepository.saveAll(updatedMappings);
+    product.setStockQty(updatedMappings.stream()
+        .map(ProductStorageMappingEntity::getQuantityOnHand)
+        .reduce(ZERO, BigDecimal::add));
+  }
+
+  private BigDecimal resolveStockQty(
+      BigDecimal stockQty,
+      List<ProductDtos.ProductStorageMappingRequest> storageMappings
+  ) {
+    if (storageMappings != null && !storageMappings.isEmpty()) {
+      return scale(storageMappings.stream()
+          .map(ProductDtos.ProductStorageMappingRequest::quantityOnHand)
+          .filter(Objects::nonNull)
+          .reduce(ZERO, BigDecimal::add));
+    }
+    return scale(defaultMoney(stockQty));
   }
 
   private ProductEntity requireProduct(String id) {

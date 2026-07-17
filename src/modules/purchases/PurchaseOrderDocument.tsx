@@ -11,6 +11,8 @@ type PartyDetails = {
   pan?: string | null;
   contactName?: string | null;
   contactNumber?: string | null;
+  /** Populated only when the vendor master has a logo on file; omit or leave null otherwise. */
+  logoUrl?: string | null;
 };
 
 export type PurchaseOrderDocumentItem = {
@@ -170,7 +172,16 @@ export function PurchaseOrderDocument({ document }: { document: PurchaseOrderDoc
           <div className="border-r-2 border-black">
             <div className="border-b border-black bg-slate-100 px-2 py-1.5 font-bold uppercase">Vendor Details</div>
             <div className="p-2 leading-5">
-              <p className="font-semibold">{document.vendor.name || "-"}</p>
+              <div className="flex items-start gap-2">
+                {document.vendor.logoUrl ? (
+                  <img
+                    src={document.vendor.logoUrl}
+                    alt={`${document.vendor.name} logo`}
+                    className="h-10 w-10 shrink-0 rounded border border-slate-200 object-contain"
+                  />
+                ) : null}
+                <p className="font-semibold">{document.vendor.name || "-"}</p>
+              </div>
               {document.vendor.addressLines.map((line) => (
                 <p key={line}>{line}</p>
               ))}

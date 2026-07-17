@@ -24,11 +24,10 @@ export interface Product {
   priceTier2?: number | null;
   priceTier3?: number | null;
   status: ProductStatus;
+  storageMappings: ProductStorageMapping[];
   createdAt: string;
   updatedAt: string;
 }
-
-export type ProductFormData = Omit<Product, "id" | "createdAt" | "updatedAt">;
 
 export interface ProductFilter {
   search: string;
@@ -131,6 +130,40 @@ export const INVENTORY_TRANSACTION_TYPES = [
 
 export type InventoryTransactionType = (typeof INVENTORY_TRANSACTION_TYPES)[number];
 
+export interface StorageLocation {
+  id?: string;
+  code: string;
+  name: string;
+  zoneName?: string | null;
+  rackName?: string | null;
+  binName?: string | null;
+  capacity: number;
+  active: boolean;
+  notes?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface ProductStorageMapping {
+  id?: string;
+  warehouseId: string;
+  warehouseCode: string;
+  warehouseName: string;
+  storageLocationId: string;
+  storageLocationCode: string;
+  storageLocationName: string;
+  zoneName?: string | null;
+  rackName?: string | null;
+  binName?: string | null;
+  quantityOnHand: number;
+  minStockLevel?: number | null;
+  maxStockLevel?: number | null;
+  primaryMapping: boolean;
+  notes?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export interface InventoryTransaction {
   id: string;
   sku: string;
@@ -180,11 +213,25 @@ export interface Warehouse {
   capacity: number;
   active: boolean;
   notes?: string | null;
+  storageLocations: StorageLocation[];
   createdAt: string;
   updatedAt: string;
 }
 
 export type WarehouseFormData = Omit<Warehouse, "id" | "createdAt" | "updatedAt">;
+
+export interface ProductFormData extends Omit<Product, "id" | "createdAt" | "updatedAt" | "storageMappings"> {
+  storageMappings: Array<{
+    id?: string;
+    warehouseId: string;
+    storageLocationId: string;
+    quantityOnHand: number;
+    minStockLevel?: number | null;
+    maxStockLevel?: number | null;
+    primaryMapping: boolean;
+    notes?: string | null;
+  }>;
+}
 
 export interface WarehouseFilter {
   search: string;

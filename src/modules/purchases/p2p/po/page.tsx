@@ -9,7 +9,9 @@ import {
   Eye,
   FileText,
   Loader2,
+  Lock,
   PackageCheck,
+  Pencil,
   Plus,
   Printer,
   Search,
@@ -24,6 +26,7 @@ import acsLogo from "@/assets/purchase-order/ACS_logo.png";
 import acsSeal from "@/assets/purchase-order/ACS_seal.png";
 import iotiqStamp from "@/assets/purchase-order/IOTIQ_stamp.png";
 import iotiqLogo from "@/assets/purchase-order/IOTIQ_logo.png";
+import { DatePicker } from "@/components/ui/DatePicker";
 import { cn } from "@/lib/utils";
 import { PurchaseOrderDocument, type PurchaseOrderDocumentData } from "@/modules/purchases/PurchaseOrderDocument";
 import { useCreatePurchaseOrder, useDeletePurchaseOrder, usePurchaseOrders, usePurchaseRequisitions, useVendors } from "@/modules/purchases/hooks";
@@ -187,14 +190,14 @@ const ACS_TERMS = [
   },
 ];
 
-const PO_TEMPLATE_OPTIONS: Array<{ code: PoTemplate; label: string; companyName: string; accent: string }> = [
-  { code: "ACS", label: "ACS", companyName: ACS_COMPANY.name, accent: "border-emerald-500 bg-emerald-50 text-emerald-700" },
-  { code: "IOTIQ", label: "IOTIQ", companyName: IOTIQ_COMPANY.name, accent: "border-blue-500 bg-blue-50 text-blue-700" },
+const PO_TEMPLATE_OPTIONS: Array<{ code: PoTemplate; label: string; companyName: string }> = [
+  { code: "ACS", label: "ACS", companyName: ACS_COMPANY.name },
+  { code: "IOTIQ", label: "IOTIQ", companyName: IOTIQ_COMPANY.name },
 ];
 
 const PO_CREATE_SECTIONS = [
   { key: "source", title: "Source & Template", hint: "Approved PR, template, and PO date", icon: ClipboardList },
-  { key: "vendor", title: "Vendor Information", hint: "Master data, statutory numbers, communication", icon: Truck },
+  { key: "vendor", title: "Vendor Details", hint: "Master data, statutory numbers, communication", icon: Truck },
   { key: "commercial", title: "PO Details", hint: "Project, reference, contact, and ship-to", icon: FileText },
   { key: "items", title: "Items", hint: "Line items, tax, and total value", icon: PackageCheck },
   { key: "terms", title: "Terms", hint: "Terms and conditions for the order", icon: Send },
@@ -868,7 +871,18 @@ function CreatePurchaseOrderPanel({
     terms: true,
   });
   const [activeSection, setActiveSection] = useState<CreatePoSectionKey>("source");
+  const [vendorFieldsUnlocked, setVendorFieldsUnlocked] = useState(false);
+  const [lastVendorId, setLastVendorId] = useState(vendorId);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const isPrSelected = Boolean(purchaseRequisitionId);
+
+  if (vendorId !== lastVendorId) {
+    setLastVendorId(vendorId);
+    setVendorFieldsUnlocked(false);
+  }
+
+  const vendorFieldsLocked = Boolean(vendorId) && !vendorFieldsUnlocked;
+
   const company = selectedTemplate === "ACS" ? ACS_COMPANY : IOTIQ_COMPANY;
   const billing = selectedTemplate === "ACS" ? ACS_BUYER : IOTIQ_BILLING;
   const basicValue = lineItems.reduce((sum, item) => sum + calculateLineTotal(item), 0);
@@ -907,7 +921,6 @@ function CreatePurchaseOrderPanel({
     hasInvalidLineItems ? "Complete Item Details" : "",
   ].filter(Boolean);
   const canGenerate = missingFields.length === 0;
-  const canSubmit = canGenerate && !isSubmitting;
 
   function updateDraftDetail(key: keyof PoDraftDetails, value: string) {
     onPoDraftDetailsChange({ ...poDraftDetails, [key]: value });
@@ -1045,61 +1058,92 @@ function CreatePurchaseOrderPanel({
   }
 
   function renderVendorDetails() {
+    const locked = vendorFieldsLocked;
     return (
-      <div className="grid gap-x-5 gap-y-5 sm:grid-cols-2">
-        <P2PFormField label="Vendor Name">
-          <input
-            value={poDraftDetails.vendorName}
-            onChange={(event) => updateDraftDetail("vendorName", event.target.value)}
-            placeholder="A N Projects Works"
-            className={panelFieldClass(showValidation && !poDraftDetails.vendorName.trim())}
-          />
-        </P2PFormField>
-        <P2PFormField label="Vendor GST Number">
-          <input
-            value={poDraftDetails.vendorGst}
-            onChange={(event) => updateDraftDetail("vendorGst", event.target.value.toUpperCase())}
-            placeholder="37DQWPP6101C1ZN"
-            className={cn(panelFieldClass(showValidation && !poDraftDetails.vendorGst.trim()), "uppercase")}
-          />
-        </P2PFormField>
-        <div className="sm:col-span-2">
-          <P2PFormField label="Vendor Address">
-            <textarea
-              rows={3}
-              value={poDraftDetails.vendorAddress}
-              onChange={(event) => updateDraftDetail("vendorAddress", event.target.value)}
-              placeholder="Enter vendor address"
-              className={cn(panelFieldClass(showValidation && !poDraftDetails.vendorAddress.trim()), "resize-y leading-6")}
+      <div className="space-y-3">
+        {vendorId ? (
+          <div className="flex items-center justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">
+            <span className="flex items-center gap-1.5">
+              {locked ? <Lock className="h-3 w-3" /> : <Pencil className="h-3 w-3" />}
+              {locked ? "Auto-filled from the selected vendor record." : "Editing vendor details for this PO only — the vendor record is unchanged."}
+            </span>
+            <button
+              type="button"
+              onClick={() => setVendorFieldsUnlocked((current) => !current)}
+              className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-700"
+            >
+              <Pencil className="h-3 w-3" />
+              {locked ? "Edit" : "Done"}
+            </button>
+          </div>
+        ) : (
+          <p className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">
+            Select a vendor record above, or enter the vendor's details manually below.
+          </p>
+        )}
+        <div className="grid gap-x-5 gap-y-5 sm:grid-cols-2">
+          <P2PFormField label="Vendor Name">
+            <input
+              value={poDraftDetails.vendorName}
+              onChange={(event) => updateDraftDetail("vendorName", event.target.value)}
+              placeholder="Enter vendor name"
+              disabled={locked}
+              className={panelFieldClass(showValidation && !poDraftDetails.vendorName.trim(), locked)}
             />
           </P2PFormField>
+          <P2PFormField label="Vendor GST Number">
+            <input
+              value={poDraftDetails.vendorGst}
+              onChange={(event) => updateDraftDetail("vendorGst", event.target.value.toUpperCase())}
+              placeholder="Enter GSTIN"
+              disabled={locked}
+              className={cn(panelFieldClass(showValidation && !poDraftDetails.vendorGst.trim(), locked), "uppercase")}
+            />
+          </P2PFormField>
+          <div className="sm:col-span-2">
+            <P2PFormField label="Vendor Address">
+              <textarea
+                rows={3}
+                value={poDraftDetails.vendorAddress}
+                onChange={(event) => updateDraftDetail("vendorAddress", event.target.value)}
+                placeholder="Enter vendor address"
+                disabled={locked}
+                className={cn(panelFieldClass(showValidation && !poDraftDetails.vendorAddress.trim(), locked), "resize-y leading-6")}
+              />
+            </P2PFormField>
+          </div>
+          {selectedTemplate === "ACS" ? (
+            <>
+              <P2PFormField label="PAN Number">
+                <input
+                  value={poDraftDetails.vendorPan}
+                  onChange={(event) => updateDraftDetail("vendorPan", event.target.value.toUpperCase())}
+                  placeholder="Enter PAN"
+                  disabled={locked}
+                  className={cn(panelFieldClass(showValidation && !poDraftDetails.vendorPan.trim(), locked), "uppercase")}
+                />
+              </P2PFormField>
+              <P2PFormField label="Vendor Contact Name">
+                <input
+                  value={poDraftDetails.vendorContactName}
+                  onChange={(event) => updateDraftDetail("vendorContactName", event.target.value)}
+                  placeholder="Enter contact name"
+                  disabled={locked}
+                  className={panelFieldClass(showValidation && !poDraftDetails.vendorContactName.trim(), locked)}
+                />
+              </P2PFormField>
+              <P2PFormField label="Vendor Contact Number">
+                <input
+                  value={poDraftDetails.vendorContactNumber}
+                  onChange={(event) => updateDraftDetail("vendorContactNumber", event.target.value)}
+                  placeholder="Enter contact number"
+                  disabled={locked}
+                  className={panelFieldClass(showValidation && !poDraftDetails.vendorContactNumber.trim(), locked)}
+                />
+              </P2PFormField>
+            </>
+          ) : null}
         </div>
-        {selectedTemplate === "ACS" ? (
-          <>
-            <P2PFormField label="PAN Number">
-              <input
-                value={poDraftDetails.vendorPan}
-                onChange={(event) => updateDraftDetail("vendorPan", event.target.value.toUpperCase())}
-                placeholder="DQWPP6101C"
-                className={cn(panelFieldClass(showValidation && !poDraftDetails.vendorPan.trim()), "uppercase")}
-              />
-            </P2PFormField>
-            <P2PFormField label="Vendor Contact Name">
-              <input
-                value={poDraftDetails.vendorContactName}
-                onChange={(event) => updateDraftDetail("vendorContactName", event.target.value)}
-                className={panelFieldClass(showValidation && !poDraftDetails.vendorContactName.trim())}
-              />
-            </P2PFormField>
-            <P2PFormField label="Vendor Contact Number">
-              <input
-                value={poDraftDetails.vendorContactNumber}
-                onChange={(event) => updateDraftDetail("vendorContactNumber", event.target.value)}
-                className={panelFieldClass(showValidation && !poDraftDetails.vendorContactNumber.trim())}
-              />
-            </P2PFormField>
-          </>
-        ) : null}
       </div>
     );
   }
@@ -1109,14 +1153,6 @@ function CreatePurchaseOrderPanel({
       <div className="grid gap-x-5 gap-y-5 sm:grid-cols-2">
         <P2PFormField label={selectedTemplate === "ACS" ? "PO Number" : "Purchase Order Number"} hint="Generated from the selected PR until submit.">
           <input value={poNumber} disabled className={panelFieldClass(false, true)} />
-        </P2PFormField>
-        <P2PFormField label="PO Date">
-          <input
-            type="date"
-            value={orderDate}
-            onChange={(event) => onOrderDateChange(event.target.value)}
-            className={panelFieldClass(showValidation && !orderDate)}
-          />
         </P2PFormField>
         <P2PFormField label="Project">
           <input
@@ -1169,14 +1205,22 @@ function CreatePurchaseOrderPanel({
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="text-sm font-semibold text-slate-900">Item Details</p>
-            <p className="text-xs text-slate-500">{lineItems.length} item(s) loaded from the selected PR.</p>
+            <p className="text-xs text-slate-500">
+              {isPrSelected ? `${lineItems.length} item(s) loaded from the selected PR.` : "Select an approved requisition to load items."}
+            </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <button type="button" onClick={addItemColumn} className={buttonSecondary}>
+            <button type="button" onClick={addItemColumn} disabled={!isPrSelected} className={buttonSecondary} title={!isPrSelected ? "Select an approved requisition first" : undefined}>
               <Plus className="h-4 w-4" />
               Add Column
             </button>
-            <button type="button" onClick={() => onLineItemsChange([...lineItems, createLineItemDraft(null)])} className={buttonSecondary}>
+            <button
+              type="button"
+              onClick={() => onLineItemsChange([...lineItems, createLineItemDraft(null)])}
+              disabled={!isPrSelected}
+              className={buttonSecondary}
+              title={!isPrSelected ? "Select an approved requisition first" : undefined}
+            >
               <Plus className="h-4 w-4" />
               Add Item
             </button>
@@ -1437,12 +1481,22 @@ function CreatePurchaseOrderPanel({
             })}
             <div className="mt-auto rounded-lg bg-slate-50 px-3 py-2.5 text-[11px] leading-relaxed text-slate-500">
               <p className={cn(microLabel, "text-[10px]")}>Readiness</p>
-              <p className="mt-1">{missingFields.length ? `${missingFields.length} detail(s) pending` : "Ready to submit"}</p>
+              {missingFields.length ? (
+                <>
+                  <p className="mt-1 font-semibold text-slate-700">{missingFields.length} required detail{missingFields.length > 1 ? "s" : ""} pending</p>
+                  <p className="mt-0.5 text-slate-500">
+                    {missingFields.slice(0, 3).join(", ")}
+                    {missingFields.length > 3 ? `, +${missingFields.length - 3} more` : ""}
+                  </p>
+                </>
+              ) : (
+                <p className="mt-1 font-semibold text-emerald-600">Ready to submit</p>
+              )}
             </div>
           </nav>
 
           <div ref={scrollRef} onScroll={handlePanelScroll} className="flex-1 overflow-y-auto px-5 py-1 sm:px-8">
-            <div className="mx-auto max-w-4xl">
+            <div className="mx-auto max-w-3xl">
               <PoFlatSection
                 title="Source & Template"
                 hint={PO_CREATE_SECTIONS[0].hint}
@@ -1451,24 +1505,37 @@ function CreatePurchaseOrderPanel({
                 onToggle={() => toggleSection("source")}
               >
                 <div className="space-y-4">
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    {PO_TEMPLATE_OPTIONS.map((option) => {
-                      const active = selectedTemplate === option.code;
-                      return (
-                        <button
-                          key={option.code}
-                          type="button"
-                          onClick={() => onSelectedTemplateChange(option.code)}
-                          className={cn(
-                            "rounded-lg border px-4 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30",
-                            active ? option.accent : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"
-                          )}
-                        >
-                          <span className="block text-sm font-bold uppercase tracking-[0.16em]">{option.label}</span>
-                          <span className="mt-1 block truncate text-xs font-medium">{option.companyName}</span>
-                        </button>
-                      );
-                    })}
+                  <div>
+                    <p className={cn(microLabel, "mb-2")}>Purchasing Company</p>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {PO_TEMPLATE_OPTIONS.map((option) => {
+                        const active = selectedTemplate === option.code;
+                        return (
+                          <button
+                            key={option.code}
+                            type="button"
+                            onClick={() => onSelectedTemplateChange(option.code)}
+                            aria-pressed={active}
+                            className={cn(
+                              "relative rounded-lg border px-4 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30",
+                              active
+                                ? "border-blue-400 bg-blue-50/60 ring-1 ring-inset ring-blue-500/20"
+                                : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"
+                            )}
+                          >
+                            {active ? (
+                              <span className="absolute right-2.5 top-2.5 flex h-4 w-4 items-center justify-center rounded-full bg-blue-600 text-white">
+                                <Check className="h-2.5 w-2.5" />
+                              </span>
+                            ) : null}
+                            <span className={cn("block text-sm font-bold uppercase tracking-[0.16em]", active ? "text-blue-700" : "text-slate-700")}>
+                              {option.label}
+                            </span>
+                            <span className="mt-1 block truncate text-xs font-medium text-slate-500">{option.companyName}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
 
                   <div className="grid gap-x-4 gap-y-4 sm:grid-cols-2">
@@ -1490,10 +1557,10 @@ function CreatePurchaseOrderPanel({
                       </div>
                     </P2PFormField>
                     <P2PFormField label="PO Date">
-                      <input
-                        type="date"
+                      <DatePicker
                         value={orderDate}
-                        onChange={(event) => onOrderDateChange(event.target.value)}
+                        onChange={onOrderDateChange}
+                        placeholder="Select PO date"
                         className={panelFieldClass(showValidation && !orderDate)}
                       />
                     </P2PFormField>
@@ -1524,12 +1591,19 @@ function CreatePurchaseOrderPanel({
                 onToggle={() => toggleSection("vendor")}
               >
                 <div className="space-y-4">
+                  {!isPrSelected ? (
+                    <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
+                      <Lock className="h-3.5 w-3.5 shrink-0" />
+                      Select an approved requisition in "Source &amp; Template" first — it may auto-fill the vendor for this PO.
+                    </div>
+                  ) : null}
                   <P2PFormField label="Vendor Record" hint="Auto-fills editable vendor cells.">
                     <div className="relative">
                       <select
                         value={vendorId}
                         onChange={(event) => onVendorIdChange(event.target.value)}
-                        className={cn(panelFieldClass(showValidation && !vendorId), "appearance-none pr-10")}
+                        disabled={!isPrSelected}
+                        className={cn(panelFieldClass(showValidation && !vendorId, !isPrSelected), "appearance-none pr-10")}
                       >
                         <option value="">Select vendor</option>
                         {vendors.map((vendor) => (
@@ -1675,23 +1749,43 @@ function CreatePurchaseOrderPanel({
 
         <div className="border-t border-slate-200 bg-white px-5 py-3.5 sm:px-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <p className={microLabel}>Total Purchase Order Value</p>
-              <p className="text-lg font-semibold text-slate-900">{formatCurrency(totalPurchaseOrderValue)}</p>
-              {draftSavedAt ? <p className="mt-1 text-xs font-medium text-emerald-600">Draft saved at {draftSavedAt}</p> : null}
+            <div className="flex flex-wrap items-center gap-4">
+              <div>
+                <p className={microLabel}>Subtotal</p>
+                <p className="text-sm font-semibold text-slate-600">{formatCurrency(basicValue)}</p>
+              </div>
+              <div>
+                <p className={microLabel}>Total Purchase Order Value</p>
+                <p className="text-lg font-semibold text-slate-900">{formatCurrency(totalPurchaseOrderValue)}</p>
+              </div>
+              {draftSavedAt ? <p className="text-xs font-medium text-emerald-600">Draft saved at {draftSavedAt}</p> : null}
             </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <button type="button" onClick={onClose} className={buttonSecondary}>
-                Cancel
-              </button>
-              <button type="button" onClick={handleSaveDraft} disabled={isSubmitting} className={buttonSecondary}>
-                <FileText className="h-4 w-4" />
-                Save Draft
-              </button>
-              <button type="button" onClick={handleSubmitPo} disabled={!canSubmit} className={buttonPrimary}>
-                {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                Submit
-              </button>
+            <div className="flex flex-wrap items-center gap-3">
+              {!canGenerate ? (
+                <p className="text-xs font-medium text-amber-600">
+                  Complete {missingFields.length} required detail{missingFields.length > 1 ? "s" : ""} before submitting.
+                </p>
+              ) : null}
+              <div className="flex flex-wrap items-center gap-2">
+                <button type="button" onClick={onClose} className={buttonSecondary}>
+                  Cancel
+                </button>
+                <button type="button" onClick={handleSaveDraft} disabled={isSubmitting} className={buttonSecondary}>
+                  <FileText className="h-4 w-4" />
+                  Save Draft
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSubmitPo}
+                  disabled={isSubmitting}
+                  aria-disabled={!canGenerate}
+                  title={!canGenerate ? `Complete ${missingFields.length} required detail(s): ${missingFields.join(", ")}` : undefined}
+                  className={cn(buttonPrimary, !canGenerate && "opacity-50 hover:bg-blue-600")}
+                >
+                  {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                  Submit
+                </button>
+              </div>
             </div>
           </div>
           {errorMessage ? <p className="mt-2 text-sm text-rose-600">{errorMessage}</p> : null}

@@ -32,7 +32,8 @@ public final class WarehouseDtos {
       @DecimalMin(value = "0.00", message = "Capacity cannot be negative.")
       BigDecimal capacity,
       Boolean active,
-      String notes
+      String notes,
+      List<StorageLocationRequest> storageLocations
   ) {
   }
 
@@ -53,7 +54,39 @@ public final class WarehouseDtos {
       @DecimalMin(value = "0.00", message = "Capacity cannot be negative.")
       BigDecimal capacity,
       Boolean active,
+      String notes,
+      List<StorageLocationRequest> storageLocations
+  ) {
+  }
+
+  public record StorageLocationRequest(
+      String id,
+      @NotBlank(message = "Storage location code is required.")
+      String code,
+      @NotBlank(message = "Storage location name is required.")
+      String name,
+      String zoneName,
+      String rackName,
+      String binName,
+      @DecimalMin(value = "0.00", message = "Location capacity cannot be negative.")
+      BigDecimal capacity,
+      Boolean active,
       String notes
+  ) {
+  }
+
+  public record StorageLocationResponse(
+      String id,
+      String code,
+      String name,
+      String zoneName,
+      String rackName,
+      String binName,
+      BigDecimal capacity,
+      boolean active,
+      String notes,
+      Instant createdAt,
+      Instant updatedAt
   ) {
   }
 
@@ -74,6 +107,7 @@ public final class WarehouseDtos {
       BigDecimal capacity,
       boolean active,
       String notes,
+      List<StorageLocationResponse> storageLocations,
       Instant createdAt,
       Instant updatedAt
   ) {

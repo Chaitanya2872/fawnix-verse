@@ -11,7 +11,7 @@ export function P2PFormField({ label, hint, children }: P2PFormFieldProps) {
     <label className="space-y-1 text-xs font-semibold text-slate-500">
       {label}
       {children}
-      {hint ? <span className="block text-[0.65rem] font-normal text-slate-400">{hint}</span> : null}
+      {hint ? <span className="block text-[0.7rem] font-normal text-slate-500">{hint}</span> : null}
     </label>
   );
 }
