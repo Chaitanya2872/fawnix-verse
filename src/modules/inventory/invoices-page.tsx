@@ -21,9 +21,74 @@ const PROFORMA_STATUSES = ["DRAFT", "SENT", "ACCEPTED", "EXPIRED", "CANCELLED"] 
 
 type ProformaStatus = (typeof PROFORMA_STATUSES)[number];
 
+type ProformaBuilderSectionId =
+  | "invoice"
+  | "dispatch"
+  | "buyer"
+  | "consignee"
+  | "items"
+  | "bank"
+  | "terms";
+
+const PROFORMA_BUILDER_SECTIONS: Array<{
+  id: ProformaBuilderSectionId;
+  title: string;
+  total: number;
+}> = [
+  { id: "invoice", title: "Invoice Details", total: 10 },
+  { id: "dispatch", title: "Dispatch From", total: 4 },
+  { id: "buyer", title: "Bill To / Buyer", total: 5 },
+  { id: "consignee", title: "Ship To / Consignee", total: 4 },
+  { id: "items", title: "Product Items", total: 1 },
+  { id: "bank", title: "Bank Details", total: 5 },
+  { id: "terms", title: "Terms & Signature", total: 2 },
+];
+
+type ProformaParty = {
+  name: string;
+  company?: string;
+  address: string;
+  gstin: string;
+  state: string;
+};
+
+type ProformaLineItem = {
+  id: string;
+  description: string;
+  hsnSac: string;
+  uom: string;
+  quantity: number;
+  rate: number;
+  taxPercent: number;
+};
+
+type ProformaLineItemForm = {
+  id: string;
+  description: string;
+  hsnSac: string;
+  uom: string;
+  quantity: string;
+  rate: string;
+  taxPercent: string;
+};
+
+type ProformaBankDetails = {
+  accountNumber: string;
+  bank: string;
+  branch: string;
+  ifsc: string;
+  accountType: string;
+};
+
 type ProformaInvoice = {
   id: string;
   proformaNumber: string;
+  invoiceDate: string;
+  poDate: string;
+  poNumber: string;
+  projectRef: string;
+  ewayBillNo: string;
+  ewayBillDate: string;
   customerName: string;
   company: string;
   salesOrderNumber: string;
@@ -37,25 +102,59 @@ type ProformaInvoice = {
   taxPercent: number;
   status: ProformaStatus;
   notes: string;
+  dispatchFrom: ProformaParty;
+  billTo: ProformaParty;
+  shipTo: ProformaParty;
+  items: ProformaLineItem[];
+  bankDetails: ProformaBankDetails;
+  terms: string[];
   createdAt: string;
   updatedAt: string;
 };
 
 type ProformaFormState = {
-  customerName: string;
-  company: string;
+  proformaNumber: string;
+  invoiceDate: string;
+  poDate: string;
+  poNumber: string;
+  projectRef: string;
+  ewayBillNo: string;
+  ewayBillDate: string;
   salesOrderNumber: string;
   validUntil: string;
   currency: string;
-  amount: string;
-  productDescription: string;
-  hsnSac: string;
-  uom: string;
-  quantity: string;
-  taxPercent: string;
   status: ProformaStatus;
+  dispatchFrom: ProformaParty;
+  billTo: ProformaParty;
+  shipTo: ProformaParty;
+  items: ProformaLineItemForm[];
+  bankDetails: ProformaBankDetails;
   notes: string;
+  terms: string;
 };
+
+type ProformaSectionProgress = Record<ProformaBuilderSectionId, { count: number; total: number; complete: boolean }>;
+
+const DEFAULT_DISPATCH_FROM: ProformaParty = {
+  name: "ACS TECHNOLOGIES LIMITED",
+  address: "7th Floor, Level-7, Pardia Picassa Building\nDurgam Cheruvu, Hyderabad, Telangana-500081.",
+  gstin: "36AAACL4102B3Z9",
+  state: "Telangana",
+};
+
+const DEFAULT_BANK_DETAILS_FORM: ProformaBankDetails = {
+  accountNumber: "5020 0009 1346 10",
+  bank: "HDFC BANK LTD",
+  branch: "PUNJAGUTTA, HYDERABAD",
+  ifsc: "HDFC 000 1228",
+  accountType: "Current Account",
+};
+
+const DEFAULT_PROFORMA_TERMS = [
+  "Validity up to the mentioned validity date.",
+  "Payment terms as agreed with the customer.",
+  "Final tax invoice will be issued after order confirmation.",
+];
 
 function formatCurrency(value: number, currency = "INR") {
   return new Intl.NumberFormat("en-IN", { style: "currency", currency }).format(value);
@@ -92,26 +191,177 @@ function createProformaNumber(records: ProformaInvoice[]) {
   return `${prefix}${String(next).padStart(3, "0")}`;
 }
 
-function createEmptyProformaForm(): ProformaFormState {
+function createLocalId(prefix: string) {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function createEmptyProformaItem(): ProformaLineItemForm {
   return {
-    customerName: "",
-    company: "",
-    salesOrderNumber: "",
-    validUntil: getDateInputValue(14),
-    currency: "INR",
-    amount: "",
-    productDescription: "",
+    id: createLocalId("proforma-item"),
+    description: "",
     hsnSac: "",
     uom: "Nos",
     quantity: "1",
+    rate: "",
     taxPercent: "18",
+  };
+}
+
+function createEmptyProformaForm(proformaNumber = ""): ProformaFormState {
+  return {
+    proformaNumber,
+    invoiceDate: getDateInputValue(),
+    poDate: "",
+    poNumber: "",
+    projectRef: "",
+    ewayBillNo: "",
+    ewayBillDate: "",
+    salesOrderNumber: "",
+    validUntil: getDateInputValue(14),
+    currency: "INR",
     status: "DRAFT",
+    dispatchFrom: { ...DEFAULT_DISPATCH_FROM },
+    billTo: {
+      name: "",
+      company: "",
+      address: "",
+      gstin: "",
+      state: "",
+    },
+    shipTo: {
+      name: "",
+      address: "",
+      gstin: "",
+      state: "",
+    },
+    items: [createEmptyProformaItem()],
+    bankDetails: { ...DEFAULT_BANK_DETAILS_FORM },
     notes: "",
+    terms: DEFAULT_PROFORMA_TERMS.join("\n"),
   };
 }
 
 function isProformaStatus(value: unknown): value is ProformaStatus {
   return typeof value === "string" && PROFORMA_STATUSES.includes(value as ProformaStatus);
+}
+
+function stringValue(value: unknown, fallback = "") {
+  return typeof value === "string" ? value : fallback;
+}
+
+function numberValue(value: unknown, fallback = 0) {
+  const number = typeof value === "number" ? value : typeof value === "string" ? Number(value) : Number.NaN;
+  return Number.isFinite(number) ? number : fallback;
+}
+
+function positiveNumberValue(value: unknown, fallback = 0) {
+  const number = numberValue(value, fallback);
+  return number > 0 ? number : fallback;
+}
+
+function splitTextLines(value?: string | null) {
+  return (value ?? "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+function partyAddressLines(party: ProformaParty, fallback: string) {
+  const lines = splitTextLines(party.address);
+  if (party.company?.trim()) {
+    return [party.company.trim(), ...(lines.length ? lines : [fallback])];
+  }
+  return lines.length ? lines : [fallback];
+}
+
+function normalizeParty(value: unknown, fallback: ProformaParty): ProformaParty {
+  const party = value && typeof value === "object" ? (value as Partial<ProformaParty>) : {};
+  return {
+    name: stringValue(party.name, fallback.name),
+    company: stringValue(party.company, fallback.company ?? ""),
+    address: stringValue(party.address, fallback.address),
+    gstin: stringValue(party.gstin, fallback.gstin),
+    state: stringValue(party.state, fallback.state),
+  };
+}
+
+function normalizeBankDetails(value: unknown): ProformaBankDetails {
+  const bankDetails = value && typeof value === "object" ? (value as Partial<ProformaBankDetails>) : {};
+  return {
+    accountNumber: stringValue(bankDetails.accountNumber, DEFAULT_BANK_DETAILS_FORM.accountNumber),
+    bank: stringValue(bankDetails.bank, DEFAULT_BANK_DETAILS_FORM.bank),
+    branch: stringValue(bankDetails.branch, DEFAULT_BANK_DETAILS_FORM.branch),
+    ifsc: stringValue(bankDetails.ifsc, DEFAULT_BANK_DETAILS_FORM.ifsc),
+    accountType: stringValue(bankDetails.accountType, DEFAULT_BANK_DETAILS_FORM.accountType),
+  };
+}
+
+function calculateLineTotal(item: Pick<ProformaLineItem, "quantity" | "rate" | "taxPercent">) {
+  const basic = item.quantity * item.rate;
+  return basic + (basic * item.taxPercent) / 100;
+}
+
+function calculateItemsTotal(items: Array<Pick<ProformaLineItem, "quantity" | "rate" | "taxPercent">>) {
+  return items.reduce((sum, item) => sum + calculateLineTotal(item), 0);
+}
+
+function createLegacyLineItem(record: Partial<ProformaInvoice>): ProformaLineItem {
+  const quantity = positiveNumberValue(record.quantity, 1);
+  const taxPercent = numberValue(record.taxPercent, 18);
+  const amount = numberValue(record.amount, 0);
+  const taxMultiplier = 1 + Math.max(taxPercent, 0) / 100;
+  const rate = amount > 0 ? amount / taxMultiplier / quantity : 0;
+
+  return {
+    id: `${stringValue(record.id, createLocalId("legacy-proforma"))}-item`,
+    description:
+      stringValue(record.productDescription) ||
+      stringValue(record.notes) ||
+      `Proforma supply against ${stringValue(record.salesOrderNumber) || stringValue(record.proformaNumber)}`,
+    hsnSac: stringValue(record.hsnSac),
+    uom: stringValue(record.uom, "Nos"),
+    quantity,
+    rate,
+    taxPercent: amount > 0 ? Math.max(taxPercent, 0) : 0,
+  };
+}
+
+function normalizeLineItems(value: unknown, record: Partial<ProformaInvoice>) {
+  if (!Array.isArray(value)) return [createLegacyLineItem(record)];
+
+  const items = value
+    .map((item, index): ProformaLineItem | null => {
+      if (!item || typeof item !== "object") return null;
+      const line = item as Partial<ProformaLineItem>;
+      const quantity = positiveNumberValue(line.quantity, 0);
+      const rate = positiveNumberValue(line.rate, 0);
+
+      if (!quantity && !rate && !stringValue(line.description)) return null;
+
+      return {
+        id: stringValue(line.id, `${stringValue(record.id, "proforma")}-item-${index + 1}`),
+        description: stringValue(line.description, "Product details to be updated"),
+        hsnSac: stringValue(line.hsnSac),
+        uom: stringValue(line.uom, "Nos"),
+        quantity,
+        rate,
+        taxPercent: Math.max(numberValue(line.taxPercent, 0), 0),
+      };
+    })
+    .filter((item): item is ProformaLineItem => Boolean(item));
+
+  return items.length ? items : [createLegacyLineItem(record)];
+}
+
+function normalizeTerms(value: unknown) {
+  if (Array.isArray(value)) {
+    const terms = value.map((term) => stringValue(term).trim()).filter(Boolean);
+    if (terms.length) return terms;
+  }
+  return DEFAULT_PROFORMA_TERMS;
 }
 
 function normalizeProformaRecord(value: unknown): ProformaInvoice | null {
@@ -120,32 +370,57 @@ function normalizeProformaRecord(value: unknown): ProformaInvoice | null {
   if (
     typeof record.id !== "string" ||
     typeof record.proformaNumber !== "string" ||
-    typeof record.customerName !== "string" ||
-    typeof record.salesOrderNumber !== "string" ||
-    typeof record.validUntil !== "string" ||
     !isProformaStatus(record.status)
   ) {
     return null;
   }
 
+  const items = normalizeLineItems(record.items, record);
+  const billTo = normalizeParty(record.billTo, {
+    name: stringValue(record.customerName),
+    company: stringValue(record.company),
+    address: stringValue(record.company, "Billing address to be updated"),
+    gstin: "",
+    state: "Telangana",
+  });
+  const shipTo = normalizeParty(record.shipTo, {
+    name: stringValue(record.customerName),
+    address: stringValue(record.company, "Shipping address to be updated"),
+    gstin: "",
+    state: "Telangana",
+  });
+  const calculatedAmount = calculateItemsTotal(items);
+
   return {
     id: record.id,
     proformaNumber: record.proformaNumber,
-    customerName: record.customerName,
-    company: record.company ?? "",
-    salesOrderNumber: record.salesOrderNumber,
-    validUntil: record.validUntil,
-    currency: record.currency ?? "INR",
-    amount: Number(record.amount ?? 0),
-    productDescription: record.productDescription ?? "",
-    hsnSac: record.hsnSac ?? "",
-    uom: record.uom ?? "Nos",
-    quantity: Number(record.quantity ?? 1),
-    taxPercent: Number(record.taxPercent ?? 18),
+    invoiceDate: stringValue(record.invoiceDate, record.createdAt ?? getDateInputValue()),
+    poDate: stringValue(record.poDate, record.createdAt ?? ""),
+    poNumber: stringValue(record.poNumber, record.salesOrderNumber ?? ""),
+    projectRef: stringValue(record.projectRef, record.company ?? ""),
+    ewayBillNo: stringValue(record.ewayBillNo),
+    ewayBillDate: stringValue(record.ewayBillDate, record.validUntil ?? ""),
+    customerName: billTo.name || stringValue(record.customerName),
+    company: billTo.company ?? stringValue(record.company),
+    salesOrderNumber: stringValue(record.salesOrderNumber, record.poNumber ?? ""),
+    validUntil: stringValue(record.validUntil, getDateInputValue(14)),
+    currency: stringValue(record.currency, "INR"),
+    amount: numberValue(record.amount, calculatedAmount),
+    productDescription: stringValue(record.productDescription, items[0]?.description ?? ""),
+    hsnSac: stringValue(record.hsnSac, items[0]?.hsnSac ?? ""),
+    uom: stringValue(record.uom, items[0]?.uom ?? "Nos"),
+    quantity: positiveNumberValue(record.quantity, items[0]?.quantity ?? 1),
+    taxPercent: numberValue(record.taxPercent, items[0]?.taxPercent ?? 18),
     status: record.status,
-    notes: record.notes ?? "",
-    createdAt: record.createdAt ?? new Date().toISOString(),
-    updatedAt: record.updatedAt ?? new Date().toISOString(),
+    notes: stringValue(record.notes),
+    dispatchFrom: normalizeParty(record.dispatchFrom, DEFAULT_DISPATCH_FROM),
+    billTo,
+    shipTo,
+    items,
+    bankDetails: normalizeBankDetails(record.bankDetails),
+    terms: normalizeTerms(record.terms),
+    createdAt: stringValue(record.createdAt, new Date().toISOString()),
+    updatedAt: stringValue(record.updatedAt, new Date().toISOString()),
   };
 }
 
@@ -296,61 +571,179 @@ function ProformaField({
   );
 }
 
+function toDocumentParty(party: ProformaParty, fallbackAddress: string) {
+  return {
+    name: party.name,
+    addressLines: partyAddressLines(party, fallbackAddress),
+    gstin: party.gstin || "-",
+    state: party.state || "-",
+  };
+}
+
+function bankDetailsRows(bankDetails: ProformaBankDetails): Array<[string, string]> {
+  return [
+    ["A/C No.", bankDetails.accountNumber],
+    ["Bank", bankDetails.bank],
+    ["Branch", bankDetails.branch],
+    ["IFSC", bankDetails.ifsc],
+    ["A/c Type", bankDetails.accountType],
+  ];
+}
+
 function buildProformaDocument(proforma: ProformaInvoice): ProformaInvoiceDocumentData {
-  const quantity = proforma.quantity > 0 ? proforma.quantity : 1;
-  const taxPercent = Number.isFinite(proforma.taxPercent) ? proforma.taxPercent : 18;
-  const taxMultiplier = 1 + taxPercent / 100;
-  const taxableValue = proforma.amount > 0 ? proforma.amount / taxMultiplier / quantity : 0;
-  const itemDescription =
-    proforma.productDescription ||
-    proforma.notes ||
-    `Proforma supply against ${proforma.salesOrderNumber || proforma.proformaNumber}`;
+  const items = proforma.items.length ? proforma.items : [createLegacyLineItem(proforma)];
 
   return {
     proformaNumber: proforma.proformaNumber,
-    invoiceDate: proforma.createdAt,
-    poNumber: proforma.salesOrderNumber,
-    poDate: proforma.createdAt,
-    projectRef: proforma.company || proforma.customerName,
-    ewayBillNo: "-",
-    ewayBillDate: proforma.validUntil,
-    dispatchFrom: {
-      name: "ACS TECHNOLOGIES LIMITED",
-      addressLines: [
-        "7th Floor, Level-7, Pardia Picassa Building",
-        "Durgam Cheruvu, Hyderabad, Telangana-500081.",
-      ],
-      gstin: "36AAACL4102B3Z9",
-      state: "Telangana",
+    invoiceDate: proforma.invoiceDate || proforma.createdAt,
+    poNumber: proforma.poNumber || proforma.salesOrderNumber,
+    poDate: proforma.poDate || proforma.createdAt,
+    projectRef: proforma.projectRef || proforma.company || proforma.customerName,
+    ewayBillNo: proforma.ewayBillNo || "-",
+    ewayBillDate: proforma.ewayBillDate || proforma.validUntil,
+    validUntil: proforma.validUntil,
+    dispatchFrom: toDocumentParty(proforma.dispatchFrom, "Dispatch address to be updated"),
+    billTo: toDocumentParty(proforma.billTo, "Billing address to be updated"),
+    shipTo: toDocumentParty(proforma.shipTo, "Shipping address to be updated"),
+    items: items.map((item) => ({
+      id: item.id,
+      description: item.description || "Product details to be updated",
+      hsnSac: item.hsnSac || "-",
+      uom: item.uom || "Nos",
+      quantity: item.quantity,
+      rate: item.rate,
+      taxPercent: item.taxPercent,
+    })),
+    bankDetails: bankDetailsRows(proforma.bankDetails),
+    terms: proforma.terms.length ? proforma.terms : DEFAULT_PROFORMA_TERMS,
+    notes: proforma.notes,
+  };
+}
+
+function parseFormLineItem(item: ProformaLineItemForm): ProformaLineItem | null {
+  const quantity = positiveNumberValue(item.quantity, 0);
+  const rate = positiveNumberValue(item.rate, 0);
+  if (quantity <= 0 || rate <= 0) return null;
+
+  return {
+    id: item.id,
+    description: item.description.trim() || "Product details to be updated",
+    hsnSac: item.hsnSac.trim(),
+    uom: item.uom.trim() || "Nos",
+    quantity,
+    rate,
+    taxPercent: Math.max(numberValue(item.taxPercent, 0), 0),
+  };
+}
+
+function draftDocumentItems(items: ProformaLineItemForm[]) {
+  const parsedItems = items.map(parseFormLineItem).filter((item): item is ProformaLineItem => Boolean(item));
+  if (parsedItems.length) return parsedItems;
+
+  const firstItem = items[0] ?? createEmptyProformaItem();
+  return [
+    {
+      id: firstItem.id,
+      description: firstItem.description.trim() || "Product details to be updated",
+      hsnSac: firstItem.hsnSac.trim(),
+      uom: firstItem.uom.trim() || "Nos",
+      quantity: positiveNumberValue(firstItem.quantity, 0),
+      rate: positiveNumberValue(firstItem.rate, 0),
+      taxPercent: Math.max(numberValue(firstItem.taxPercent, 0), 0),
     },
-    billTo: {
-      name: proforma.customerName,
-      addressLines: [proforma.company || "Billing address to be updated"],
-      gstin: "-",
-      state: "Telangana",
+  ];
+}
+
+function buildDraftProformaDocument(form: ProformaFormState): ProformaInvoiceDocumentData {
+  const terms = splitTextLines(form.terms);
+  return {
+    proformaNumber: form.proformaNumber || "PI-DRAFT",
+    invoiceDate: form.invoiceDate,
+    poNumber: form.poNumber || form.salesOrderNumber,
+    poDate: form.poDate,
+    projectRef: form.projectRef,
+    ewayBillNo: form.ewayBillNo || "-",
+    ewayBillDate: form.ewayBillDate,
+    validUntil: form.validUntil,
+    dispatchFrom: toDocumentParty(form.dispatchFrom, "Dispatch address to be updated"),
+    billTo: toDocumentParty(form.billTo, "Billing address to be updated"),
+    shipTo: toDocumentParty(form.shipTo, "Shipping address to be updated"),
+    items: draftDocumentItems(form.items).map((item) => ({
+      id: item.id,
+      description: item.description,
+      hsnSac: item.hsnSac || "-",
+      uom: item.uom,
+      quantity: item.quantity,
+      rate: item.rate,
+      taxPercent: item.taxPercent,
+    })),
+    bankDetails: bankDetailsRows(form.bankDetails),
+    terms: terms.length ? terms : DEFAULT_PROFORMA_TERMS,
+    notes: form.notes,
+  };
+}
+
+function isFilled(value: string) {
+  return Boolean(value.trim());
+}
+
+function getProformaSectionProgress(form: ProformaFormState): ProformaSectionProgress {
+  const validItems = form.items.map(parseFormLineItem).filter(Boolean).length;
+  const termsCount = [form.notes, form.terms].filter(isFilled).length;
+
+  return {
+    invoice: {
+      count: [
+        form.proformaNumber,
+        form.invoiceDate,
+        form.salesOrderNumber || form.poNumber,
+        form.poDate,
+        form.projectRef,
+        form.ewayBillNo,
+        form.ewayBillDate,
+        form.validUntil,
+        form.currency,
+        form.status,
+      ].filter(isFilled).length,
+      total: 10,
+      complete: isFilled(form.proformaNumber) && isFilled(form.invoiceDate) && isFilled(form.validUntil),
     },
-    shipTo: {
-      name: proforma.customerName,
-      addressLines: [proforma.company || "Shipping address to be updated"],
-      gstin: "-",
-      state: "Telangana",
+    dispatch: {
+      count: [form.dispatchFrom.name, form.dispatchFrom.address, form.dispatchFrom.gstin, form.dispatchFrom.state].filter(isFilled).length,
+      total: 4,
+      complete: isFilled(form.dispatchFrom.name) && isFilled(form.dispatchFrom.address),
     },
-    items: [
-      {
-        id: `${proforma.id}-item`,
-        description: itemDescription,
-        hsnSac: proforma.hsnSac || "-",
-        uom: proforma.uom || "Nos",
-        quantity,
-        rate: taxableValue,
-        taxPercent: proforma.amount > 0 ? taxPercent : 0,
-      },
-    ],
-    terms: [
-      `Validity up to ${formatDate(proforma.validUntil)}.`,
-      "Payment terms as agreed with the customer.",
-      "Final tax invoice will be issued after order confirmation.",
-    ],
+    buyer: {
+      count: [form.billTo.name, form.billTo.company ?? "", form.billTo.address, form.billTo.gstin, form.billTo.state].filter(isFilled).length,
+      total: 5,
+      complete: isFilled(form.billTo.name),
+    },
+    consignee: {
+      count: [form.shipTo.name, form.shipTo.address, form.shipTo.gstin, form.shipTo.state].filter(isFilled).length,
+      total: 4,
+      complete: isFilled(form.shipTo.name) || isFilled(form.shipTo.address),
+    },
+    items: {
+      count: validItems,
+      total: Math.max(form.items.length, 1),
+      complete: validItems > 0,
+    },
+    bank: {
+      count: [
+        form.bankDetails.accountNumber,
+        form.bankDetails.bank,
+        form.bankDetails.branch,
+        form.bankDetails.ifsc,
+        form.bankDetails.accountType,
+      ].filter(isFilled).length,
+      total: 5,
+      complete: isFilled(form.bankDetails.accountNumber) && isFilled(form.bankDetails.bank) && isFilled(form.bankDetails.ifsc),
+    },
+    terms: {
+      count: termsCount,
+      total: 2,
+      complete: isFilled(form.terms),
+    },
   };
 }
 
@@ -411,6 +804,8 @@ export default function InventoryInvoicesPage() {
   const [proformas, setProformas] = useState<ProformaInvoice[]>(() => loadProformaInvoices());
   const [showProformaForm, setShowProformaForm] = useState(false);
   const [proformaForm, setProformaForm] = useState<ProformaFormState>(() => createEmptyProformaForm());
+  const [activeProformaSection, setActiveProformaSection] = useState<ProformaBuilderSectionId>("invoice");
+  const [proformaFormError, setProformaFormError] = useState<string | null>(null);
   const [previewProformaId, setPreviewProformaId] = useState<string | null>(null);
   const billsQuery = useBills();
   const invoicesQuery = useSalesInvoices();
@@ -479,52 +874,151 @@ export default function InventoryInvoicesPage() {
   const proformaCurrency = filteredProformas[0]?.currency ?? "INR";
   const previewProforma = proformas.find((proforma) => proforma.id === previewProformaId) ?? null;
   const inputClass =
-    "w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition-colors focus:border-brand-400 focus:ring-2 focus:ring-brand-100";
+    "w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition-colors focus:border-brand-400 focus:ring-2 focus:ring-brand-100";
+  const parsedProformaItems = useMemo(
+    () => proformaForm.items.map(parseFormLineItem).filter((item): item is ProformaLineItem => Boolean(item)),
+    [proformaForm.items]
+  );
+  const proformaDraftTotal = useMemo(() => calculateItemsTotal(parsedProformaItems), [parsedProformaItems]);
+  const proformaDraftDocument = useMemo(() => buildDraftProformaDocument(proformaForm), [proformaForm]);
+  const proformaSectionProgress = useMemo(() => getProformaSectionProgress(proformaForm), [proformaForm]);
 
   function openProformaForm() {
-    setProformaForm(createEmptyProformaForm());
+    setProformaForm(createEmptyProformaForm(createProformaNumber(proformas)));
+    setActiveProformaSection("invoice");
+    setProformaFormError(null);
     setShowProformaForm(true);
     setView("proforma");
   }
 
   function updateProformaField<K extends keyof ProformaFormState>(key: K, value: ProformaFormState[K]) {
     setProformaForm((current) => ({ ...current, [key]: value }));
+    setProformaFormError(null);
+  }
+
+  function updateProformaParty(section: "dispatchFrom" | "billTo" | "shipTo", key: keyof ProformaParty, value: string) {
+    setProformaForm((current) => ({
+      ...current,
+      [section]: {
+        ...current[section],
+        [key]: value,
+      },
+    }));
+    setProformaFormError(null);
+  }
+
+  function updateProformaBankField(key: keyof ProformaBankDetails, value: string) {
+    setProformaForm((current) => ({
+      ...current,
+      bankDetails: {
+        ...current.bankDetails,
+        [key]: value,
+      },
+    }));
+  }
+
+  function updateProformaItem(id: string, key: keyof ProformaLineItemForm, value: string) {
+    setProformaForm((current) => ({
+      ...current,
+      items: current.items.map((item) => (item.id === id ? { ...item, [key]: value } : item)),
+    }));
+    setProformaFormError(null);
+  }
+
+  function addProformaItem() {
+    setProformaForm((current) => ({ ...current, items: [...current.items, createEmptyProformaItem()] }));
+    setActiveProformaSection("items");
+  }
+
+  function removeProformaItem(id: string) {
+    setProformaForm((current) => ({
+      ...current,
+      items: current.items.length > 1 ? current.items.filter((item) => item.id !== id) : current.items,
+    }));
   }
 
   function handleCreateProforma(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const customerName = proformaForm.customerName.trim();
-    const amount = Number(proformaForm.amount);
-    const quantity = Number(proformaForm.quantity);
-    const taxPercent = Number(proformaForm.taxPercent);
+    const customerName = proformaForm.billTo.name.trim();
+    const items = proformaForm.items.map(parseFormLineItem).filter((item): item is ProformaLineItem => Boolean(item));
 
-    if (!customerName || !Number.isFinite(amount) || amount < 0 || !Number.isFinite(quantity) || quantity <= 0) {
+    if (!customerName) {
+      setProformaFormError("Bill To / Buyer name is required before saving.");
+      setActiveProformaSection("buyer");
+      return;
+    }
+
+    if (!items.length) {
+      setProformaFormError("Add at least one product item with positive quantity and rate.");
+      setActiveProformaSection("items");
       return;
     }
 
     const now = new Date().toISOString();
+    const amount = calculateItemsTotal(items);
+    const firstItem = items[0];
     const record: ProformaInvoice = {
-      id: crypto.randomUUID(),
-      proformaNumber: createProformaNumber(proformas),
+      id: createLocalId("proforma"),
+      proformaNumber: proformaForm.proformaNumber || createProformaNumber(proformas),
+      invoiceDate: proformaForm.invoiceDate,
+      poDate: proformaForm.poDate,
+      poNumber: proformaForm.poNumber.trim() || proformaForm.salesOrderNumber.trim(),
+      projectRef: proformaForm.projectRef.trim(),
+      ewayBillNo: proformaForm.ewayBillNo.trim(),
+      ewayBillDate: proformaForm.ewayBillDate,
       customerName,
-      company: proformaForm.company.trim(),
+      company: proformaForm.billTo.company?.trim() ?? "",
       salesOrderNumber: proformaForm.salesOrderNumber.trim(),
       validUntil: proformaForm.validUntil,
       currency: proformaForm.currency.trim().toUpperCase() || "INR",
       amount,
-      productDescription: proformaForm.productDescription.trim(),
-      hsnSac: proformaForm.hsnSac.trim(),
-      uom: proformaForm.uom.trim() || "Nos",
-      quantity,
-      taxPercent: Number.isFinite(taxPercent) && taxPercent >= 0 ? taxPercent : 0,
+      productDescription: firstItem.description,
+      hsnSac: firstItem.hsnSac,
+      uom: firstItem.uom,
+      quantity: firstItem.quantity,
+      taxPercent: firstItem.taxPercent,
       status: proformaForm.status,
       notes: proformaForm.notes.trim(),
+      dispatchFrom: {
+        ...proformaForm.dispatchFrom,
+        name: proformaForm.dispatchFrom.name.trim(),
+        company: proformaForm.dispatchFrom.company?.trim(),
+        address: proformaForm.dispatchFrom.address.trim(),
+        gstin: proformaForm.dispatchFrom.gstin.trim(),
+        state: proformaForm.dispatchFrom.state.trim(),
+      },
+      billTo: {
+        ...proformaForm.billTo,
+        name: customerName,
+        company: proformaForm.billTo.company?.trim(),
+        address: proformaForm.billTo.address.trim(),
+        gstin: proformaForm.billTo.gstin.trim(),
+        state: proformaForm.billTo.state.trim(),
+      },
+      shipTo: {
+        ...proformaForm.shipTo,
+        name: proformaForm.shipTo.name.trim() || customerName,
+        company: proformaForm.shipTo.company?.trim(),
+        address: proformaForm.shipTo.address.trim() || proformaForm.billTo.address.trim(),
+        gstin: proformaForm.shipTo.gstin.trim() || proformaForm.billTo.gstin.trim(),
+        state: proformaForm.shipTo.state.trim() || proformaForm.billTo.state.trim(),
+      },
+      items,
+      bankDetails: {
+        accountNumber: proformaForm.bankDetails.accountNumber.trim(),
+        bank: proformaForm.bankDetails.bank.trim(),
+        branch: proformaForm.bankDetails.branch.trim(),
+        ifsc: proformaForm.bankDetails.ifsc.trim(),
+        accountType: proformaForm.bankDetails.accountType.trim(),
+      },
+      terms: splitTextLines(proformaForm.terms),
       createdAt: now,
       updatedAt: now,
     };
 
     setProformas((current) => [record, ...current]);
     setProformaForm(createEmptyProformaForm());
+    setProformaFormError(null);
     setShowProformaForm(false);
   }
 
@@ -768,153 +1262,284 @@ export default function InventoryInvoicesPage() {
             {showProformaForm ? (
               <form
                 onSubmit={handleCreateProforma}
-                className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm"
+                className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm"
               >
-                <div className="flex flex-col gap-2 border-b border-slate-200 pb-4 sm:flex-row sm:items-start sm:justify-between">
+                <div className="flex flex-col gap-3 border-b border-slate-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <h3 className="text-base font-semibold text-slate-900">New Proforma Invoice</h3>
                     <p className="mt-1 text-sm text-slate-500">
-                      Local proforma draft for pre-invoice customer confirmation.
+                      Build every proforma section and preview the invoice before saving.
                     </p>
                   </div>
-                  <span className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
-                    {createProformaNumber(proformas)}
-                  </span>
-                </div>
-
-                <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                  <ProformaField label="Customer" required>
-                    <input
-                      required
-                      value={proformaForm.customerName}
-                      onChange={(event) => updateProformaField("customerName", event.target.value)}
-                      className={inputClass}
-                      placeholder="Customer name"
-                    />
-                  </ProformaField>
-                  <ProformaField label="Company">
-                    <input
-                      value={proformaForm.company}
-                      onChange={(event) => updateProformaField("company", event.target.value)}
-                      className={inputClass}
-                      placeholder="Company"
-                    />
-                  </ProformaField>
-                  <ProformaField label="Sales Order">
-                    <input
-                      value={proformaForm.salesOrderNumber}
-                      onChange={(event) => updateProformaField("salesOrderNumber", event.target.value)}
-                      className={inputClass}
-                      placeholder="SO-2026-001"
-                    />
-                  </ProformaField>
-                  <ProformaField label="Valid Until" required>
-                    <input
-                      required
-                      type="date"
-                      value={proformaForm.validUntil}
-                      onChange={(event) => updateProformaField("validUntil", event.target.value)}
-                      className={inputClass}
-                    />
-                  </ProformaField>
-                  <ProformaField label="Currency">
-                    <input
-                      value={proformaForm.currency}
-                      onChange={(event) => updateProformaField("currency", event.target.value)}
-                      className={inputClass}
-                      placeholder="INR"
-                    />
-                  </ProformaField>
-                  <ProformaField label="Amount" required>
-                    <input
-                      required
-                      type="number"
-                      min={0}
-                      step="0.01"
-                      value={proformaForm.amount}
-                      onChange={(event) => updateProformaField("amount", event.target.value)}
-                      className={inputClass}
-                      placeholder="0.00"
-                    />
-                  </ProformaField>
-                  <div className="md:col-span-2">
-                    <ProformaField label="Product Description">
-                      <input
-                        value={proformaForm.productDescription}
-                        onChange={(event) => updateProformaField("productDescription", event.target.value)}
-                        className={inputClass}
-                        placeholder="C & Z Purlins, controller, material, service..."
-                      />
-                    </ProformaField>
-                  </div>
-                  <ProformaField label="HSN/SAC">
-                    <input
-                      value={proformaForm.hsnSac}
-                      onChange={(event) => updateProformaField("hsnSac", event.target.value)}
-                      className={inputClass}
-                      placeholder="72103090"
-                    />
-                  </ProformaField>
-                  <ProformaField label="UOM">
-                    <input
-                      value={proformaForm.uom}
-                      onChange={(event) => updateProformaField("uom", event.target.value)}
-                      className={inputClass}
-                      placeholder="Kgs"
-                    />
-                  </ProformaField>
-                  <ProformaField label="Quantity" required>
-                    <input
-                      required
-                      type="number"
-                      min={0.01}
-                      step="0.01"
-                      value={proformaForm.quantity}
-                      onChange={(event) => updateProformaField("quantity", event.target.value)}
-                      className={inputClass}
-                      placeholder="1"
-                    />
-                  </ProformaField>
-                  <ProformaField label="Tax %">
-                    <input
-                      type="number"
-                      min={0}
-                      step="0.01"
-                      value={proformaForm.taxPercent}
-                      onChange={(event) => updateProformaField("taxPercent", event.target.value)}
-                      className={inputClass}
-                      placeholder="18"
-                    />
-                  </ProformaField>
-                  <ProformaField label="Status">
-                    <select
-                      value={proformaForm.status}
-                      onChange={(event) => updateProformaField("status", event.target.value as ProformaStatus)}
-                      className={inputClass}
-                    >
-                      {PROFORMA_STATUSES.map((status) => (
-                        <option key={status} value={status}>
-                          {status.replaceAll("_", " ")}
-                        </option>
-                      ))}
-                    </select>
-                  </ProformaField>
-                  <div className="md:col-span-2 xl:col-span-4">
-                    <ProformaField label="Notes">
-                      <textarea
-                        value={proformaForm.notes}
-                        onChange={(event) => updateProformaField("notes", event.target.value)}
-                        className={`${inputClass} min-h-20 resize-y`}
-                        placeholder="Commercial terms, validity note, or dispatch assumptions"
-                      />
-                    </ProformaField>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="rounded-full border border-brand-200 bg-brand-50 px-3 py-1 text-xs font-semibold text-brand-700">
+                      {proformaForm.proformaNumber}
+                    </span>
+                    <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">
+                      {formatCurrency(proformaDraftTotal, proformaForm.currency || "INR")}
+                    </span>
                   </div>
                 </div>
 
-                <div className="mt-5 flex justify-end gap-3 border-t border-slate-200 pt-4">
+                <div className="grid gap-0 xl:grid-cols-[280px_minmax(0,1fr)_390px]">
+                  <aside className="border-b border-slate-200 bg-white xl:border-b-0 xl:border-r">
+                    <div className="border-b border-slate-200 px-5 py-4">
+                      <p className="text-sm font-semibold text-slate-900">Sections</p>
+                      <p className="mt-1 text-xs text-slate-500">All proforma sections</p>
+                    </div>
+                    <div className="divide-y divide-slate-100">
+                      {PROFORMA_BUILDER_SECTIONS.map((section) => {
+                        const progress = proformaSectionProgress[section.id];
+                        return (
+                          <button
+                            key={section.id}
+                            type="button"
+                            onClick={() => setActiveProformaSection(section.id)}
+                            className={`flex w-full items-center gap-3 px-5 py-3 text-left transition-colors ${
+                              activeProformaSection === section.id
+                                ? "border-l-2 border-brand-600 bg-brand-50"
+                                : "border-l-2 border-transparent hover:bg-slate-50"
+                            }`}
+                          >
+                            <span
+                              className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border text-xs font-bold ${
+                                progress.complete
+                                  ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                                  : "border-slate-200 bg-slate-50 text-slate-500"
+                              }`}
+                            >
+                              {progress.count}
+                            </span>
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate text-sm font-semibold text-slate-900">{section.title}</span>
+                              <span className="mt-0.5 block text-xs text-slate-500">
+                                {progress.count}/{progress.total} fields
+                              </span>
+                            </span>
+                            <span className={`h-2 w-2 rounded-full ${progress.complete ? "bg-emerald-500" : "bg-slate-300"}`} />
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </aside>
+
+                  <section className="min-w-0 border-b border-slate-200 xl:border-b-0 xl:border-r">
+                    <div className="border-b border-slate-200 px-5 py-4">
+                      <h4 className="text-sm font-semibold text-slate-900">
+                        {PROFORMA_BUILDER_SECTIONS.find((section) => section.id === activeProformaSection)?.title}
+                      </h4>
+                      {proformaFormError ? <p className="mt-1 text-sm font-semibold text-rose-600">{proformaFormError}</p> : null}
+                    </div>
+
+                    <div className="space-y-4 p-5">
+                      {activeProformaSection === "invoice" ? (
+                        <div className="grid gap-4 md:grid-cols-2">
+                          <ProformaField label="Proforma No." required>
+                            <input value={proformaForm.proformaNumber} readOnly className={`${inputClass} bg-slate-50 font-semibold`} />
+                          </ProformaField>
+                          <ProformaField label="Invoice Date" required>
+                            <input type="date" value={proformaForm.invoiceDate} onChange={(event) => updateProformaField("invoiceDate", event.target.value)} className={inputClass} />
+                          </ProformaField>
+                          <ProformaField label="PO/SO No.">
+                            <input value={proformaForm.salesOrderNumber} onChange={(event) => updateProformaField("salesOrderNumber", event.target.value)} className={inputClass} placeholder="PO/ARC/2025-26-03/04" />
+                          </ProformaField>
+                          <ProformaField label="PO/SO Date">
+                            <input type="date" value={proformaForm.poDate} onChange={(event) => updateProformaField("poDate", event.target.value)} className={inputClass} />
+                          </ProformaField>
+                          <ProformaField label="Project Ref.">
+                            <input value={proformaForm.projectRef} onChange={(event) => updateProformaField("projectRef", event.target.value)} className={inputClass} placeholder="ARCHIMEDES" />
+                          </ProformaField>
+                          <ProformaField label="Ewaybill No.">
+                            <input value={proformaForm.ewayBillNo} onChange={(event) => updateProformaField("ewayBillNo", event.target.value)} className={inputClass} placeholder="1624 2910 5413" />
+                          </ProformaField>
+                          <ProformaField label="Ewaybill Date">
+                            <input type="date" value={proformaForm.ewayBillDate} onChange={(event) => updateProformaField("ewayBillDate", event.target.value)} className={inputClass} />
+                          </ProformaField>
+                          <ProformaField label="Valid Until" required>
+                            <input type="date" value={proformaForm.validUntil} onChange={(event) => updateProformaField("validUntil", event.target.value)} className={inputClass} />
+                          </ProformaField>
+                          <ProformaField label="Currency">
+                            <input value={proformaForm.currency} onChange={(event) => updateProformaField("currency", event.target.value)} className={inputClass} placeholder="INR" />
+                          </ProformaField>
+                          <ProformaField label="Status">
+                            <select value={proformaForm.status} onChange={(event) => updateProformaField("status", event.target.value as ProformaStatus)} className={inputClass}>
+                              {PROFORMA_STATUSES.map((status) => (
+                                <option key={status} value={status}>
+                                  {status.replaceAll("_", " ")}
+                                </option>
+                              ))}
+                            </select>
+                          </ProformaField>
+                        </div>
+                      ) : null}
+
+                      {activeProformaSection === "dispatch" ? (
+                        <div className="grid gap-4 md:grid-cols-2">
+                          <ProformaField label="Name" required>
+                            <input value={proformaForm.dispatchFrom.name} onChange={(event) => updateProformaParty("dispatchFrom", "name", event.target.value)} className={inputClass} />
+                          </ProformaField>
+                          <ProformaField label="GSTIN">
+                            <input value={proformaForm.dispatchFrom.gstin} onChange={(event) => updateProformaParty("dispatchFrom", "gstin", event.target.value)} className={inputClass} />
+                          </ProformaField>
+                          <div className="md:col-span-2">
+                            <ProformaField label="Address" required>
+                              <textarea value={proformaForm.dispatchFrom.address} onChange={(event) => updateProformaParty("dispatchFrom", "address", event.target.value)} className={`${inputClass} min-h-24 resize-y`} />
+                            </ProformaField>
+                          </div>
+                          <ProformaField label="State">
+                            <input value={proformaForm.dispatchFrom.state} onChange={(event) => updateProformaParty("dispatchFrom", "state", event.target.value)} className={inputClass} />
+                          </ProformaField>
+                        </div>
+                      ) : null}
+
+                      {activeProformaSection === "buyer" ? (
+                        <div className="grid gap-4 md:grid-cols-2">
+                          <ProformaField label="Name" required>
+                            <input value={proformaForm.billTo.name} onChange={(event) => updateProformaParty("billTo", "name", event.target.value)} className={inputClass} placeholder="ARCHIMEDES GREEN ENERGY(S)P LTD" />
+                          </ProformaField>
+                          <ProformaField label="Company">
+                            <input value={proformaForm.billTo.company ?? ""} onChange={(event) => updateProformaParty("billTo", "company", event.target.value)} className={inputClass} />
+                          </ProformaField>
+                          <div className="md:col-span-2">
+                            <ProformaField label="Address">
+                              <textarea value={proformaForm.billTo.address} onChange={(event) => updateProformaParty("billTo", "address", event.target.value)} className={`${inputClass} min-h-24 resize-y`} />
+                            </ProformaField>
+                          </div>
+                          <ProformaField label="GSTIN/UIN">
+                            <input value={proformaForm.billTo.gstin} onChange={(event) => updateProformaParty("billTo", "gstin", event.target.value)} className={inputClass} />
+                          </ProformaField>
+                          <ProformaField label="State">
+                            <input value={proformaForm.billTo.state} onChange={(event) => updateProformaParty("billTo", "state", event.target.value)} className={inputClass} />
+                          </ProformaField>
+                        </div>
+                      ) : null}
+
+                      {activeProformaSection === "consignee" ? (
+                        <div className="grid gap-4 md:grid-cols-2">
+                          <ProformaField label="Name">
+                            <input value={proformaForm.shipTo.name} onChange={(event) => updateProformaParty("shipTo", "name", event.target.value)} className={inputClass} placeholder="Ship to / Consignee" />
+                          </ProformaField>
+                          <ProformaField label="GSTIN">
+                            <input value={proformaForm.shipTo.gstin} onChange={(event) => updateProformaParty("shipTo", "gstin", event.target.value)} className={inputClass} />
+                          </ProformaField>
+                          <div className="md:col-span-2">
+                            <ProformaField label="Address">
+                              <textarea value={proformaForm.shipTo.address} onChange={(event) => updateProformaParty("shipTo", "address", event.target.value)} className={`${inputClass} min-h-24 resize-y`} />
+                            </ProformaField>
+                          </div>
+                          <ProformaField label="State">
+                            <input value={proformaForm.shipTo.state} onChange={(event) => updateProformaParty("shipTo", "state", event.target.value)} className={inputClass} />
+                          </ProformaField>
+                        </div>
+                      ) : null}
+
+                      {activeProformaSection === "items" ? (
+                        <div className="space-y-4">
+                          {proformaForm.items.map((item, index) => (
+                            <div key={item.id} className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                              <div className="mb-3 flex items-center justify-between gap-3">
+                                <p className="text-sm font-semibold text-slate-900">Item {index + 1}</p>
+                                <button type="button" onClick={() => removeProformaItem(item.id)} disabled={proformaForm.items.length === 1} className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-rose-200 bg-white text-rose-600 disabled:opacity-40" title="Remove item">
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
+                              </div>
+                              <div className="grid gap-4 md:grid-cols-2">
+                                <div className="md:col-span-2">
+                                  <ProformaField label="Product Description" required>
+                                    <textarea value={item.description} onChange={(event) => updateProformaItem(item.id, "description", event.target.value)} className={`${inputClass} min-h-20 resize-y bg-white`} placeholder="C & Z Purlins..." />
+                                  </ProformaField>
+                                </div>
+                                <ProformaField label="HSN/SAC">
+                                  <input value={item.hsnSac} onChange={(event) => updateProformaItem(item.id, "hsnSac", event.target.value)} className={inputClass} placeholder="72103090" />
+                                </ProformaField>
+                                <ProformaField label="UOM">
+                                  <input value={item.uom} onChange={(event) => updateProformaItem(item.id, "uom", event.target.value)} className={inputClass} placeholder="Kgs" />
+                                </ProformaField>
+                                <ProformaField label="Quantity" required>
+                                  <input type="number" min={0.01} step="0.01" value={item.quantity} onChange={(event) => updateProformaItem(item.id, "quantity", event.target.value)} className={inputClass} />
+                                </ProformaField>
+                                <ProformaField label="Rate" required>
+                                  <input type="number" min={0.01} step="0.01" value={item.rate} onChange={(event) => updateProformaItem(item.id, "rate", event.target.value)} className={inputClass} />
+                                </ProformaField>
+                                <ProformaField label="Tax %">
+                                  <input type="number" min={0} step="0.01" value={item.taxPercent} onChange={(event) => updateProformaItem(item.id, "taxPercent", event.target.value)} className={inputClass} />
+                                </ProformaField>
+                                <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
+                                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Line Total</p>
+                                  <p className="mt-1 text-sm font-bold text-slate-900">
+                                    {formatCurrency(calculateLineTotal({
+                                      quantity: positiveNumberValue(item.quantity, 0),
+                                      rate: positiveNumberValue(item.rate, 0),
+                                      taxPercent: numberValue(item.taxPercent, 0),
+                                    }), proformaForm.currency || "INR")}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                          <button type="button" onClick={addProformaItem} className="inline-flex items-center gap-2 rounded-lg border border-brand-200 bg-brand-50 px-3 py-2 text-sm font-semibold text-brand-700 hover:bg-brand-100">
+                            <Plus className="h-4 w-4" />
+                            Add Item
+                          </button>
+                        </div>
+                      ) : null}
+
+                      {activeProformaSection === "bank" ? (
+                        <div className="grid gap-4 md:grid-cols-2">
+                          <ProformaField label="A/C No.">
+                            <input value={proformaForm.bankDetails.accountNumber} onChange={(event) => updateProformaBankField("accountNumber", event.target.value)} className={inputClass} />
+                          </ProformaField>
+                          <ProformaField label="Bank">
+                            <input value={proformaForm.bankDetails.bank} onChange={(event) => updateProformaBankField("bank", event.target.value)} className={inputClass} />
+                          </ProformaField>
+                          <ProformaField label="Branch">
+                            <input value={proformaForm.bankDetails.branch} onChange={(event) => updateProformaBankField("branch", event.target.value)} className={inputClass} />
+                          </ProformaField>
+                          <ProformaField label="IFSC">
+                            <input value={proformaForm.bankDetails.ifsc} onChange={(event) => updateProformaBankField("ifsc", event.target.value)} className={inputClass} />
+                          </ProformaField>
+                          <ProformaField label="A/C Type">
+                            <input value={proformaForm.bankDetails.accountType} onChange={(event) => updateProformaBankField("accountType", event.target.value)} className={inputClass} />
+                          </ProformaField>
+                        </div>
+                      ) : null}
+
+                      {activeProformaSection === "terms" ? (
+                        <div className="space-y-4">
+                          <ProformaField label="Terms & Conditions">
+                            <textarea value={proformaForm.terms} onChange={(event) => updateProformaField("terms", event.target.value)} className={`${inputClass} min-h-32 resize-y`} placeholder="One term per line" />
+                          </ProformaField>
+                          <ProformaField label="Note">
+                            <textarea value={proformaForm.notes} onChange={(event) => updateProformaField("notes", event.target.value)} className={`${inputClass} min-h-24 resize-y`} placeholder="Internal note or customer-facing remark" />
+                          </ProformaField>
+                        </div>
+                      ) : null}
+                    </div>
+                  </section>
+
+                  <aside className="bg-white">
+                    <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+                      <div>
+                        <p className="text-sm font-semibold text-slate-900">Preview</p>
+                        <p className="mt-1 text-xs text-slate-500">{proformaForm.proformaNumber}</p>
+                      </div>
+                      <Eye className="h-4 w-4 text-slate-400" />
+                    </div>
+                    <div className="max-h-[760px] overflow-auto bg-[#e9e2cf] p-4">
+                      <div className="origin-top-left scale-[0.45]">
+                        <ProformaInvoiceDocument document={proformaDraftDocument} />
+                      </div>
+                    </div>
+                  </aside>
+                </div>
+
+                <div className="flex justify-end gap-3 border-t border-slate-200 px-5 py-4">
                   <button
                     type="button"
-                    onClick={() => setShowProformaForm(false)}
+                    onClick={() => {
+                      setShowProformaForm(false);
+                      setProformaFormError(null);
+                    }}
                     className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50"
                   >
                     Cancel

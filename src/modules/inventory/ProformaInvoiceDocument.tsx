@@ -26,12 +26,14 @@ export type ProformaInvoiceDocumentData = {
   projectRef?: string | null;
   ewayBillNo?: string | null;
   ewayBillDate?: string | null;
+  validUntil?: string | null;
   dispatchFrom: PartyDetails;
   billTo: PartyDetails;
   shipTo: PartyDetails;
   items: ProformaInvoiceDocumentItem[];
   bankDetails?: Array<[string, string]>;
   terms?: string[];
+  notes?: string | null;
 };
 
 const ACS_COMPANY = {
