@@ -91,7 +91,6 @@ const TOPBAR_ROUTES: readonly TopbarRoute[] = [
   { path: "/setup/workflows", title: "Workflows", breadcrumb: "ERP / Organization / Setup / Workflows" },
   { path: "/setup/activate", title: "Activate", breadcrumb: "ERP / Organization / Setup / Activate" },
   { path: "/settings", exact: true, title: "CRM Integrations", breadcrumb: "ERP / Integrations / CRM Integrations" },
-  { path: "/settings/templates", title: "Manage Templates", breadcrumb: "ERP / Administration / Manage Templates" },
   { path: "/settings/portal-credentials", title: "Portal Credentials", breadcrumb: "ERP / Integrations / Portal Credentials" },
   { path: "/settings/calendar-integrations", title: "Calendar Integrations", breadcrumb: "ERP / Integrations / Calendar Integrations" },
   { path: "/settings/approval-workflows", title: "Approval Workflows", breadcrumb: "ERP / Integrations / Approval Workflows" },

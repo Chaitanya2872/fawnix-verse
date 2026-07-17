@@ -21,7 +21,6 @@ import OpportunitiesPage from "@/modules/crm/opportunities/page";
 import IntegrationsPage from "@/modules/integrations/page";
 import ReportsPage from "@/modules/reports/page";
 import UsersPage from "@/modules/users/page";
-import DashboardTemplatesPage from "@/modules/templates/dashboard-templates-page";
 import AccessRequestsPage from "@/modules/access/page";
 import SalesPage from "@/modules/sales/page";
 import SalesOrdersPage from "@/modules/sales/orders/page";
@@ -738,14 +737,6 @@ export const router = createBrowserRouter([
             element: (
               <RequirePermission permission={PERMISSIONS.PAGE_ADMIN_SETTINGS}>
                 <IntegrationsPage />
-              </RequirePermission>
-            ),
-          },
-          {
-            path: "settings/templates",
-            element: (
-              <RequirePermission permission={PERMISSIONS.PAGE_ADMIN_SETTINGS}>
-                <DashboardTemplatesPage />
               </RequirePermission>
             ),
           },

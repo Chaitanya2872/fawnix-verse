@@ -1,12 +1,17 @@
 "use client";
 
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
-import { Loader2, Plus, Search, Trash2 } from "lucide-react";
+import { createPortal } from "react-dom";
+import { Eye, Loader2, Plus, Printer, Search, Trash2 } from "lucide-react";
 import { getApiErrorMessage } from "@/services/api-client";
 import { useInvoices as useBills } from "@/modules/purchases/hooks";
 import type { Invoice as Bill, InvoiceStatus as BillStatus } from "@/modules/purchases/types";
 import { useSalesInvoices } from "@/modules/sales/orders/hooks";
 import { SalesInvoiceStatus, type SalesInvoice } from "@/modules/sales/orders/types";
+import {
+  ProformaInvoiceDocument,
+  type ProformaInvoiceDocumentData,
+} from "./ProformaInvoiceDocument";
 import { InventoryLayout } from "./layout";
 
 type BillingView = "bills" | "invoices" | "proforma";
@@ -25,6 +30,11 @@ type ProformaInvoice = {
   validUntil: string;
   currency: string;
   amount: number;
+  productDescription: string;
+  hsnSac: string;
+  uom: string;
+  quantity: number;
+  taxPercent: number;
   status: ProformaStatus;
   notes: string;
   createdAt: string;
@@ -38,6 +48,11 @@ type ProformaFormState = {
   validUntil: string;
   currency: string;
   amount: string;
+  productDescription: string;
+  hsnSac: string;
+  uom: string;
+  quantity: string;
+  taxPercent: string;
   status: ProformaStatus;
   notes: string;
 };
@@ -85,6 +100,11 @@ function createEmptyProformaForm(): ProformaFormState {
     validUntil: getDateInputValue(14),
     currency: "INR",
     amount: "",
+    productDescription: "",
+    hsnSac: "",
+    uom: "Nos",
+    quantity: "1",
+    taxPercent: "18",
     status: "DRAFT",
     notes: "",
   };
@@ -117,6 +137,11 @@ function normalizeProformaRecord(value: unknown): ProformaInvoice | null {
     validUntil: record.validUntil,
     currency: record.currency ?? "INR",
     amount: Number(record.amount ?? 0),
+    productDescription: record.productDescription ?? "",
+    hsnSac: record.hsnSac ?? "",
+    uom: record.uom ?? "Nos",
+    quantity: Number(record.quantity ?? 1),
+    taxPercent: Number(record.taxPercent ?? 18),
     status: record.status,
     notes: record.notes ?? "",
     createdAt: record.createdAt ?? new Date().toISOString(),
@@ -271,12 +296,122 @@ function ProformaField({
   );
 }
 
+function buildProformaDocument(proforma: ProformaInvoice): ProformaInvoiceDocumentData {
+  const quantity = proforma.quantity > 0 ? proforma.quantity : 1;
+  const taxPercent = Number.isFinite(proforma.taxPercent) ? proforma.taxPercent : 18;
+  const taxMultiplier = 1 + taxPercent / 100;
+  const taxableValue = proforma.amount > 0 ? proforma.amount / taxMultiplier / quantity : 0;
+  const itemDescription =
+    proforma.productDescription ||
+    proforma.notes ||
+    `Proforma supply against ${proforma.salesOrderNumber || proforma.proformaNumber}`;
+
+  return {
+    proformaNumber: proforma.proformaNumber,
+    invoiceDate: proforma.createdAt,
+    poNumber: proforma.salesOrderNumber,
+    poDate: proforma.createdAt,
+    projectRef: proforma.company || proforma.customerName,
+    ewayBillNo: "-",
+    ewayBillDate: proforma.validUntil,
+    dispatchFrom: {
+      name: "ACS TECHNOLOGIES LIMITED",
+      addressLines: [
+        "7th Floor, Level-7, Pardia Picassa Building",
+        "Durgam Cheruvu, Hyderabad, Telangana-500081.",
+      ],
+      gstin: "36AAACL4102B3Z9",
+      state: "Telangana",
+    },
+    billTo: {
+      name: proforma.customerName,
+      addressLines: [proforma.company || "Billing address to be updated"],
+      gstin: "-",
+      state: "Telangana",
+    },
+    shipTo: {
+      name: proforma.customerName,
+      addressLines: [proforma.company || "Shipping address to be updated"],
+      gstin: "-",
+      state: "Telangana",
+    },
+    items: [
+      {
+        id: `${proforma.id}-item`,
+        description: itemDescription,
+        hsnSac: proforma.hsnSac || "-",
+        uom: proforma.uom || "Nos",
+        quantity,
+        rate: taxableValue,
+        taxPercent: proforma.amount > 0 ? taxPercent : 0,
+      },
+    ],
+    terms: [
+      `Validity up to ${formatDate(proforma.validUntil)}.`,
+      "Payment terms as agreed with the customer.",
+      "Final tax invoice will be issued after order confirmation.",
+    ],
+  };
+}
+
+function ProformaPreviewModal({
+  data,
+  title,
+  onClose,
+}: {
+  data: ProformaInvoiceDocumentData;
+  title: string;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    document.body.classList.add("printing-quotation");
+    return () => document.body.classList.remove("printing-quotation");
+  }, []);
+
+  return createPortal(
+    <div className="quotation-print-layer fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm print:static print:block print:bg-white print:p-0">
+      <div className="quotation-print-root relative flex h-[92vh] w-full max-w-[1100px] flex-col overflow-hidden rounded-3xl border border-slate-200 bg-[#f5f1e6] shadow-2xl print:h-auto print:max-w-none print:rounded-none print:border-none print:bg-white print:shadow-none">
+        <div className="flex items-center justify-between border-b border-slate-200 bg-white px-6 py-4 print:hidden">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-700">
+              Proforma Invoice Preview
+            </p>
+            <h2 className="mt-1 text-lg font-semibold text-slate-900">{title}</h2>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => window.print()}
+              className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700"
+            >
+              <Printer className="h-4 w-4" />
+              Print / Save PDF
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+        <div className="quotation-preview-stage flex-1 overflow-auto bg-[#e9e2cf] p-6 print:overflow-visible print:bg-white print:p-0">
+          <ProformaInvoiceDocument document={data} />
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 export default function InventoryInvoicesPage() {
   const [view, setView] = useState<BillingView>("bills");
   const [search, setSearch] = useState("");
   const [proformas, setProformas] = useState<ProformaInvoice[]>(() => loadProformaInvoices());
   const [showProformaForm, setShowProformaForm] = useState(false);
   const [proformaForm, setProformaForm] = useState<ProformaFormState>(() => createEmptyProformaForm());
+  const [previewProformaId, setPreviewProformaId] = useState<string | null>(null);
   const billsQuery = useBills();
   const invoicesQuery = useSalesInvoices();
 
@@ -342,6 +477,7 @@ export default function InventoryInvoicesPage() {
 
   const invoiceCurrency = invoices[0]?.currency ?? "INR";
   const proformaCurrency = filteredProformas[0]?.currency ?? "INR";
+  const previewProforma = proformas.find((proforma) => proforma.id === previewProformaId) ?? null;
   const inputClass =
     "w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition-colors focus:border-brand-400 focus:ring-2 focus:ring-brand-100";
 
@@ -359,8 +495,10 @@ export default function InventoryInvoicesPage() {
     event.preventDefault();
     const customerName = proformaForm.customerName.trim();
     const amount = Number(proformaForm.amount);
+    const quantity = Number(proformaForm.quantity);
+    const taxPercent = Number(proformaForm.taxPercent);
 
-    if (!customerName || !Number.isFinite(amount) || amount < 0) {
+    if (!customerName || !Number.isFinite(amount) || amount < 0 || !Number.isFinite(quantity) || quantity <= 0) {
       return;
     }
 
@@ -374,6 +512,11 @@ export default function InventoryInvoicesPage() {
       validUntil: proformaForm.validUntil,
       currency: proformaForm.currency.trim().toUpperCase() || "INR",
       amount,
+      productDescription: proformaForm.productDescription.trim(),
+      hsnSac: proformaForm.hsnSac.trim(),
+      uom: proformaForm.uom.trim() || "Nos",
+      quantity,
+      taxPercent: Number.isFinite(taxPercent) && taxPercent >= 0 ? taxPercent : 0,
       status: proformaForm.status,
       notes: proformaForm.notes.trim(),
       createdAt: now,
@@ -694,6 +837,55 @@ export default function InventoryInvoicesPage() {
                       placeholder="0.00"
                     />
                   </ProformaField>
+                  <div className="md:col-span-2">
+                    <ProformaField label="Product Description">
+                      <input
+                        value={proformaForm.productDescription}
+                        onChange={(event) => updateProformaField("productDescription", event.target.value)}
+                        className={inputClass}
+                        placeholder="C & Z Purlins, controller, material, service..."
+                      />
+                    </ProformaField>
+                  </div>
+                  <ProformaField label="HSN/SAC">
+                    <input
+                      value={proformaForm.hsnSac}
+                      onChange={(event) => updateProformaField("hsnSac", event.target.value)}
+                      className={inputClass}
+                      placeholder="72103090"
+                    />
+                  </ProformaField>
+                  <ProformaField label="UOM">
+                    <input
+                      value={proformaForm.uom}
+                      onChange={(event) => updateProformaField("uom", event.target.value)}
+                      className={inputClass}
+                      placeholder="Kgs"
+                    />
+                  </ProformaField>
+                  <ProformaField label="Quantity" required>
+                    <input
+                      required
+                      type="number"
+                      min={0.01}
+                      step="0.01"
+                      value={proformaForm.quantity}
+                      onChange={(event) => updateProformaField("quantity", event.target.value)}
+                      className={inputClass}
+                      placeholder="1"
+                    />
+                  </ProformaField>
+                  <ProformaField label="Tax %">
+                    <input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      value={proformaForm.taxPercent}
+                      onChange={(event) => updateProformaField("taxPercent", event.target.value)}
+                      className={inputClass}
+                      placeholder="18"
+                    />
+                  </ProformaField>
                   <ProformaField label="Status">
                     <select
                       value={proformaForm.status}
@@ -784,6 +976,15 @@ export default function InventoryInvoicesPage() {
                           </td>
                           <td className="px-5 py-4">
                             <div className="flex items-center justify-end gap-2">
+                              <button
+                                type="button"
+                                onClick={() => setPreviewProformaId(proforma.id)}
+                                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-brand-200 bg-brand-50 text-brand-700 transition-colors hover:bg-brand-100"
+                                aria-label={`Preview ${proforma.proformaNumber}`}
+                                title="Preview / Print PDF"
+                              >
+                                <Eye className="h-4 w-4" />
+                              </button>
                               <select
                                 value={proforma.status}
                                 onChange={(event) => updateProformaStatus(proforma.id, event.target.value as ProformaStatus)}
@@ -821,6 +1022,13 @@ export default function InventoryInvoicesPage() {
               </div>
             </div>
           </div>
+        ) : null}
+        {previewProforma ? (
+          <ProformaPreviewModal
+            data={buildProformaDocument(previewProforma)}
+            title={previewProforma.proformaNumber}
+            onClose={() => setPreviewProformaId(null)}
+          />
         ) : null}
       </div>
     </InventoryLayout>
