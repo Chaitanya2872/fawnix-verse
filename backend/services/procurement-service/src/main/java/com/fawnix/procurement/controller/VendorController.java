@@ -1,6 +1,7 @@
 package com.fawnix.procurement.controller;
 
 import com.fawnix.procurement.dto.ProcurementDtos;
+import com.fawnix.procurement.service.VendorImportService;
 import com.fawnix.procurement.service.VendorService;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -28,9 +29,11 @@ import org.springframework.web.multipart.MultipartFile;
 public class VendorController {
 
   private final VendorService vendorService;
+  private final VendorImportService vendorImportService;
 
-  public VendorController(VendorService vendorService) {
+  public VendorController(VendorService vendorService, VendorImportService vendorImportService) {
     this.vendorService = vendorService;
+    this.vendorImportService = vendorImportService;
   }
 
   @PostMapping
@@ -47,6 +50,29 @@ public class VendorController {
   @GetMapping("/{id}")
   public ProcurementDtos.VendorResponse getVendor(@PathVariable UUID id) {
     return vendorService.getVendor(id);
+  }
+
+  @GetMapping("/import/template")
+  public ResponseEntity<ByteArrayResource> downloadVendorImportTemplate() {
+    byte[] template = vendorImportService.generateTemplate();
+    return ResponseEntity.ok()
+        .header(
+            HttpHeaders.CONTENT_DISPOSITION,
+            ContentDisposition.attachment().filename("vendor_import_template.xlsx").build().toString()
+        )
+        .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+        .contentLength(template.length)
+        .body(new ByteArrayResource(template));
+  }
+
+  @PostMapping(path = "/import/preview", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+  public ProcurementDtos.VendorImportPreviewResult previewVendorImport(@RequestParam("file") MultipartFile file) {
+    return vendorImportService.previewImport(file);
+  }
+
+  @PostMapping(path = "/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+  public ProcurementDtos.VendorImportResult importVendors(@RequestParam("file") MultipartFile file) {
+    return vendorImportService.commitImport(file);
   }
 
   @PutMapping("/{id}")

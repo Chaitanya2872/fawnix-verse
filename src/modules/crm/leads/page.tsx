@@ -10,10 +10,13 @@ import {
   ChevronLeft,
   ChevronRight,
   FileText,
+  Kanban,
   Loader2,
   Plus,
   Search,
+  SlidersHorizontal,
   Sparkles,
+  Table2,
   TrendingUp,
   Trash2,
   Users,
@@ -54,6 +57,8 @@ import { useCurrentUser } from "@/modules/auth/hooks";
 import { RowActions } from "./components/RowActions";
 import { LeadDetailPanel } from "./components/LeadDetailPanel";
 import { AssigneeSearchSelect } from "./components/AssigneeSearchSelect";
+import { DateRangeFilter, type LeadDateRange } from "./components/DateRangeFilter";
+import { LeadBoardView } from "./components/LeadBoardView";
 import { fmt, fmtDate, fmtDateTime, PriorityDot, REP_COLORS, StatusBadge, getInitials } from "./lead-ui";
 
 const PAGE_SIZE = 10;
@@ -700,6 +705,8 @@ export default function LeadsPage() {
     pageSize: PAGE_SIZE,
   });
   const [quickView, setQuickView] = useState<"ALL" | "MY_QUEUE" | "UNASSIGNED" | "NEEDS_CONTACT" | "FOLLOW_UP" | "CUSTOM">("ALL");
+  const [viewMode, setViewMode] = useState<"table" | "board">("table");
+  const [dateRange, setDateRange] = useState<LeadDateRange>({ from: null, to: null });
   const [formState, setFormState] = useState<{ mode: LeadDialogMode; lead: Lead | null } | null>(null);
   const [stageUpdateTarget, setStageUpdateTarget] = useState<{
     lead: Lead;
@@ -738,7 +745,11 @@ export default function LeadsPage() {
 
   const assigneesQuery = useLeadAssignees();
   const assignees = assigneesQuery.data ?? [];
-  const { data, isLoading, isError, error } = useLeads(filter, { refetchInterval: 15_000 });
+  const queryFilter = useMemo<LeadFilter>(
+    () => ({ ...filter, page: 1, pageSize: 200 }),
+    [filter]
+  );
+  const { data, isLoading, isError, error } = useLeads(queryFilter, { refetchInterval: 15_000 });
   const notificationsQuery = useLeadNotifications({ enabled: calendarOpen, refetchInterval: 15_000 });
   const followUpCalendarQuery = useLeads(
     {
@@ -788,6 +799,17 @@ export default function LeadsPage() {
     }
   }, [isSalesRep, myQueueValue]);
 
+  const handleDateRangeChange = useCallback((range: LeadDateRange) => {
+    setDateRange(range);
+    setFilter((prev) => ({ ...prev, page: 1 }));
+  }, []);
+
+  const activeAdvancedFilterCount = [
+    filter.source !== "ALL",
+    filter.priority !== "ALL",
+    (filter.questionnaireStatus ?? "ALL") !== "ALL",
+  ].filter(Boolean).length;
+
   function applyQuickView(view: "ALL" | "MY_QUEUE" | "UNASSIGNED" | "NEEDS_CONTACT" | "FOLLOW_UP" | "CUSTOM") {
     setQuickView(view);
     switch (view) {
@@ -809,7 +831,7 @@ export default function LeadsPage() {
     }
   }
 
-  const leads = data?.data ?? [];
+  const allLeads = useMemo(() => data?.data ?? [], [data?.data]);
   const selectedLead = leadDetail.data ?? null;
   const summary = data?.summary ?? {
     totalPipelineValue: 0,
@@ -818,6 +840,23 @@ export default function LeadsPage() {
     convertedCount: 0,
     statusCounts: {},
   };
+
+  const dateFilteredLeads = useMemo(() => {
+    if (!dateRange.from && !dateRange.to) {
+      return allLeads;
+    }
+    const fromTime = dateRange.from ? new Date(`${dateRange.from}T00:00:00`).getTime() : -Infinity;
+    const toTime = dateRange.to ? new Date(`${dateRange.to}T23:59:59.999`).getTime() : Infinity;
+    return allLeads.filter((lead) => {
+      const createdTime = new Date(lead.createdAt).getTime();
+      return createdTime >= fromTime && createdTime <= toTime;
+    });
+  }, [allLeads, dateRange]);
+
+  const totalFiltered = dateFilteredLeads.length;
+  const totalPages = Math.max(1, Math.ceil(totalFiltered / PAGE_SIZE));
+  const currentPage = Math.min(filter.page, totalPages);
+  const leads = dateFilteredLeads.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
   function resetMutations() {
     createLead.reset();
@@ -1006,6 +1045,7 @@ export default function LeadsPage() {
 
   function resetFilters() {
     setQuickView("ALL");
+    setDateRange({ from: null, to: null });
     setFilter({
       search: "",
       status: "ALL",
@@ -1079,6 +1119,31 @@ export default function LeadsPage() {
 
       <LeadsLayout actionButton={(
         <div className="flex flex-wrap items-center gap-2">
+          <div className="inline-flex items-center gap-0.5 rounded-xl border border-border bg-muted/40 p-0.5">
+            <button
+              onClick={() => setViewMode("table")}
+              className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-colors ${
+                viewMode === "table" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <Table2 className="h-3.5 w-3.5" />
+              Table
+            </button>
+            <button
+              onClick={() => setViewMode("board")}
+              className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-colors ${
+                viewMode === "board" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <Kanban className="h-3.5 w-3.5" />
+              Board
+            </button>
+          </div>
+
+          <DateRangeFilter value={dateRange} onChange={handleDateRangeChange} />
+
+          <div className="mx-1 hidden h-6 w-px bg-border sm:block" />
+
           <button onClick={openImportDialog} className="rounded-xl border border-border px-3 py-2 text-xs font-semibold text-muted-foreground hover:bg-accent hover:text-foreground">
             <FileText className="mr-2 inline h-3.5 w-3.5" />
             Import
@@ -1096,7 +1161,7 @@ export default function LeadsPage() {
         <div className="space-y-6">
           <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
             <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-              <StatCard label="Total Leads" value={data?.total ?? "-"} sub="All statuses" icon={<Users className="h-5 w-5 text-sky-600" />} accent="bg-sky-50 dark:bg-sky-950" />
+              <StatCard label="Total Leads" value={totalFiltered} sub="Matching filters" icon={<Users className="h-5 w-5 text-sky-600" />} accent="bg-sky-50 dark:bg-sky-950" />
               <StatCard label="Pipeline Value" value={fmt(summary.totalPipelineValue)} sub={`${summary.qualifiedCount} qualified`} icon={<TrendingUp className="h-5 w-5 text-violet-600" />} accent="bg-violet-50 dark:bg-violet-950" />
               <StatCard label="New Leads" value={summary.newCount} sub="Uncontacted" icon={<Sparkles className="h-5 w-5 text-amber-600" />} accent="bg-amber-50 dark:bg-amber-950" />
               <StatCard label="Converted" value={summary.convertedCount} sub="This period" icon={<Zap className="h-5 w-5 text-emerald-600" />} accent="bg-emerald-50 dark:bg-emerald-950" />
@@ -1194,7 +1259,12 @@ export default function LeadsPage() {
                     showFilters ? "border-sky-500 bg-sky-50 text-sky-700 dark:bg-sky-950 dark:text-sky-300" : "border-border text-muted-foreground hover:bg-accent hover:text-foreground"
                   }`}
                 >
-                  <Search className="h-3.5 w-3.5" /> Filters
+                  <SlidersHorizontal className="h-3.5 w-3.5" /> Filters
+                  {activeAdvancedFilterCount > 0 ? (
+                    <span className="flex h-4 w-4 items-center justify-center rounded-full bg-sky-600 text-[10px] font-bold text-white">
+                      {activeAdvancedFilterCount}
+                    </span>
+                  ) : null}
                   <ChevronDown className={`h-3.5 w-3.5 transition-transform ${showFilters ? "rotate-180" : ""}`} />
                 </button>
               </div>
@@ -1241,6 +1311,17 @@ export default function LeadsPage() {
             </div>
           </div>
 
+          {viewMode === "board" ? (
+            <LeadBoardView
+              leads={dateFilteredLeads}
+              isLoading={isLoading}
+              isError={isError}
+              errorMessage={error instanceof Error ? error.message : null}
+              movingLeadId={isStageUpdating ? stageUpdateTarget?.lead.id ?? null : null}
+              onOpenLead={handleLeadRowClick}
+              onDropStatus={(lead, status) => handleStatusChange(lead, status)}
+            />
+          ) : (
           <div className="relative">
             <div className="rounded-2xl border border-border bg-card shadow-sm">
               {deleteError ? (
@@ -1350,24 +1431,24 @@ export default function LeadsPage() {
                 )}
               </div>
 
-              {data && data.totalPages > 1 && (
+              {totalPages > 1 && (
                 <div className="flex items-center justify-between border-t border-border px-5 py-3.5">
                   <p className="text-xs text-muted-foreground">
                     <span className="font-medium text-foreground">
-                      {(data.page - 1) * data.pageSize + 1}-{Math.min(data.page * data.pageSize, data.total)}
+                      {(currentPage - 1) * PAGE_SIZE + 1}-{Math.min(currentPage * PAGE_SIZE, totalFiltered)}
                     </span>{" "}
-                    of {data.total} leads
+                    of {totalFiltered} leads
                   </p>
                   <div className="flex items-center gap-1">
-                    <button disabled={filter.page === 1} onClick={() => setFilter((p) => ({ ...p, page: p.page - 1 }))} className="flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground hover:bg-accent disabled:opacity-30">
+                    <button disabled={currentPage === 1} onClick={() => setFilter((p) => ({ ...p, page: p.page - 1 }))} className="flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground hover:bg-accent disabled:opacity-30">
                       <ChevronLeft className="h-4 w-4" />
                     </button>
-                    {Array.from({ length: Math.min(5, data.totalPages) }, (_, i) => i + 1).map((pg) => (
-                      <button key={pg} onClick={() => setFilter((p) => ({ ...p, page: pg }))} className={`flex h-7 w-7 items-center justify-center rounded-lg text-xs font-medium transition-colors ${pg === filter.page ? "bg-sky-600 text-white" : "text-muted-foreground hover:bg-accent"}`}>
+                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => i + 1).map((pg) => (
+                      <button key={pg} onClick={() => setFilter((p) => ({ ...p, page: pg }))} className={`flex h-7 w-7 items-center justify-center rounded-lg text-xs font-medium transition-colors ${pg === currentPage ? "bg-sky-600 text-white" : "text-muted-foreground hover:bg-accent"}`}>
                         {pg}
                       </button>
                     ))}
-                    <button disabled={filter.page === data.totalPages} onClick={() => setFilter((p) => ({ ...p, page: p.page + 1 }))} className="flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground hover:bg-accent disabled:opacity-30">
+                    <button disabled={currentPage === totalPages} onClick={() => setFilter((p) => ({ ...p, page: p.page + 1 }))} className="flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground hover:bg-accent disabled:opacity-30">
                       <ChevronRight className="h-4 w-4" />
                     </button>
                   </div>
@@ -1375,6 +1456,7 @@ export default function LeadsPage() {
               )}
             </div>
           </div>
+          )}
         </div>
       </LeadsLayout>
 

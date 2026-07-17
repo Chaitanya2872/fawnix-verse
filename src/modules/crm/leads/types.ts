@@ -33,6 +33,23 @@ export const LeadPriority = {
 } as const;
 export type LeadPriority = (typeof LeadPriority)[keyof typeof LeadPriority];
 
+export const LeadBusinessFlowStage = {
+  SUSPECT: "SUSPECT",
+  PROSPECT: "PROSPECT",
+  SOLUTIONING: "SOLUTIONING",
+  QUOTATION: "QUOTATION",
+  NEGOTIATION: "NEGOTIATION",
+  ORDER_WON: "ORDER_WON",
+  DELIVERY: "DELIVERY",
+  INVOICING: "INVOICING",
+  PAYMENT_COLLECTION: "PAYMENT_COLLECTION",
+  WARRANTY: "WARRANTY",
+  AMC: "AMC",
+  CLOSED_LOST: "CLOSED_LOST",
+} as const;
+export type LeadBusinessFlowStage =
+  (typeof LeadBusinessFlowStage)[keyof typeof LeadBusinessFlowStage];
+
 // ---------------------------------------------------------------------------
 // Core types
 // ---------------------------------------------------------------------------
@@ -106,6 +123,25 @@ export interface LeadStatusHistoryEntry {
   changedAt: string;
 }
 
+export interface LeadB2bProfile {
+  leadId: string;
+  requirementSummary: string | null;
+  solutionSummary: string | null;
+  proposedItems: string | null;
+  technicalApprovalNotes: string | null;
+  commercialApprovalNotes: string | null;
+  negotiationNotes: string | null;
+  expectedOrderValue: number | null;
+  expectedDeliveryTimeline: string | null;
+  customerPoNumber: string | null;
+  sitcRequired: boolean;
+  warrantyRequired: boolean;
+  amcOpportunity: boolean;
+  lastReviewedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Lead {
   id: string;
   name: string;
@@ -133,6 +169,7 @@ export interface Lead {
   metaAdId: string | null;
   sourceCreatedAt: string | null;
   status: LeadStatus;
+  businessFlowStage: LeadBusinessFlowStage | null;
   source: LeadSource;
   priority: LeadPriority;
   assignedTo: string;
@@ -150,6 +187,7 @@ export interface Lead {
   convertedAt: string | null;
   createdAt: string;
   updatedAt: string;
+  b2bProfile?: LeadB2bProfile | null;
   whatsappAssignment?: WhatsappDispatchLog | null;
 }
 
@@ -304,7 +342,9 @@ export type LeadFormData = Pick<
   | "notes"
   | "tags"
   | "followUpAt"
->;
+> & {
+  businessFlowStage?: LeadBusinessFlowStage | null;
+};
 
 export type LeadUpdateData = Partial<
   LeadFormData & {
@@ -315,6 +355,25 @@ export type LeadUpdateData = Partial<
     projectState: string | null;
     statusRemark: string | null;
   }
+>;
+
+export type LeadB2bProfileInput = Partial<
+  Pick<
+    LeadB2bProfile,
+    | "requirementSummary"
+    | "solutionSummary"
+    | "proposedItems"
+    | "technicalApprovalNotes"
+    | "commercialApprovalNotes"
+    | "negotiationNotes"
+    | "expectedOrderValue"
+    | "expectedDeliveryTimeline"
+    | "customerPoNumber"
+    | "sitcRequired"
+    | "warrantyRequired"
+    | "amcOpportunity"
+    | "lastReviewedAt"
+  > & { businessFlowStage: LeadBusinessFlowStage | null }
 >;
 
 export interface AssignLeadInput {

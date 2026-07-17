@@ -18,6 +18,10 @@ public interface VendorRepository extends JpaRepository<Vendor, UUID> {
 
   boolean existsByMobileAndIdNot(String mobile, UUID id);
 
+  Optional<Vendor> findFirstByEmailIgnoreCase(String email);
+
+  Optional<Vendor> findFirstByMobile(String mobile);
+
   List<Vendor> findAllByOrderByCreatedAtDesc();
 
   @Override
