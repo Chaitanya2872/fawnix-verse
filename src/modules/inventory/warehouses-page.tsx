@@ -530,29 +530,30 @@ export default function InventoryWarehousesPage() {
 
   return (
     <>
-      <InventoryLayout
-        title="Warehouses"
-        description="Manage inventory storage locations, operating contacts, and active warehouse capacity."
-        actions={
-          <button
-            type="button"
-            onClick={() => setAddOpen(true)}
-            className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-700"
-          >
-            <Plus className="h-4 w-4" />
-            Add Warehouse
-          </button>
-        }
+     <InventoryLayout showHeader={false}>
+  <div className="space-y-6">
+
+    <div className="flex justify-end -mt-4">
+      <button
+        type="button"
+        onClick={() => setAddOpen(true)}
+        className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-700"
       >
-        <div className="space-y-6">
-          <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+        <Plus className="h-4 w-4" />
+        Add Warehouse
+      </button>
+    </div>
+
+ 
+
+              <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-              <div>
+              {/* <div>
                 <h2 className="text-lg font-semibold text-slate-900">Warehouse Master</h2>
                 <p className="mt-1 text-sm text-slate-500">
                   Keep each physical storage location discoverable for receiving, staging, and dispatch teams.
                 </p>
-              </div>
+              </div> */}
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 <MetricTile label="Warehouses" value={formatNumber(pageData?.total ?? warehouses.length)} />
                 <MetricTile label="Visible Active" value={formatNumber(summary.active)} tone="success" />
