@@ -65,24 +65,27 @@ export default function InventoryTransactionsPage() {
   return (
     <InventoryLayout showHeader={false}>
       <div className="space-y-6">
-        <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-            {/* <div>
-              <h2 className="text-lg font-semibold text-slate-900">Transactions</h2>
-              <p className="mt-1 text-sm text-slate-500">Track every received and consumed stock movement in one place.</p>
-            </div> */}
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Received</p>
-                <p className="mt-1 text-2xl font-bold text-emerald-700">{formatQuantity(summary.received)}</p>
-              </div>
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Consumed</p>
-                <p className="mt-1 text-2xl font-bold text-amber-700">{formatQuantity(summary.consumed)}</p>
-              </div>
-            </div>
-          </div>
-        </div>
+        
+        
+      <div className="grid gap-3 sm:grid-cols-2">
+  <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+      Received
+    </p>
+    <p className="mt-1 text-2xl font-bold text-emerald-700">
+      {formatQuantity(summary.received)}
+    </p>
+  </div>
+
+  <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+      Consumed
+    </p>
+    <p className="mt-1 text-2xl font-bold text-amber-700">
+      {formatQuantity(summary.consumed)}
+    </p>
+  </div>
+</div>
 
         <div className="rounded-3xl border border-slate-200 bg-white shadow-sm">
           <div className="flex flex-col gap-4 border-b border-slate-200 p-5 lg:flex-row lg:items-center lg:justify-between">

@@ -2,7 +2,23 @@
 
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { Eye, Loader2, Plus, Printer, Search, Trash2 } from "lucide-react";
+import {
+  Building2,
+  ClipboardList,
+  Eye,
+  FileText,
+  Landmark,
+  Loader2,
+  PackageCheck,
+  Plus,
+  Printer,
+  Search,
+  Trash2,
+  Truck,
+  UserRound,
+  X,
+  type LucideIcon,
+} from "lucide-react";
 import { getApiErrorMessage } from "@/services/api-client";
 import { useInvoices as useBills } from "@/modules/purchases/hooks";
 import type { Invoice as Bill, InvoiceStatus as BillStatus } from "@/modules/purchases/types";
@@ -34,14 +50,15 @@ const PROFORMA_BUILDER_SECTIONS: Array<{
   id: ProformaBuilderSectionId;
   title: string;
   total: number;
+  icon: LucideIcon;
 }> = [
-  { id: "invoice", title: "Invoice Details", total: 10 },
-  { id: "dispatch", title: "Dispatch From", total: 4 },
-  { id: "buyer", title: "Bill To / Buyer", total: 5 },
-  { id: "consignee", title: "Ship To / Consignee", total: 4 },
-  { id: "items", title: "Product Items", total: 1 },
-  { id: "bank", title: "Bank Details", total: 5 },
-  { id: "terms", title: "Terms & Signature", total: 2 },
+  { id: "invoice", title: "Invoice Details", total: 10, icon: FileText },
+  { id: "dispatch", title: "Dispatch From", total: 4, icon: Building2 },
+  { id: "buyer", title: "Bill To / Buyer", total: 5, icon: UserRound },
+  { id: "consignee", title: "Ship To / Consignee", total: 4, icon: Truck },
+  { id: "items", title: "Product Items", total: 1, icon: PackageCheck },
+  { id: "bank", title: "Bank Details", total: 5, icon: Landmark },
+  { id: "terms", title: "Terms & Signature", total: 2, icon: ClipboardList },
 ];
 
 type ProformaParty = {
@@ -1037,7 +1054,80 @@ export default function InventoryInvoicesPage() {
   return (
     <InventoryLayout showHeader={false}>
       <div className="space-y-6">
-        <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+       <div className="space-y-4">
+  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+        Bills
+      </p>
+      <p className="mt-1 text-2xl font-bold text-slate-900">
+        {formatQuantity(bills.length)}
+      </p>
+    </div>
+
+    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+        Bill Value
+      </p>
+      <p className="mt-1 text-xl font-bold text-slate-900">
+        {formatCurrency(billSummary.totalValue)}
+      </p>
+    </div>
+
+    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+        Invoices
+      </p>
+      <p className="mt-1 text-2xl font-bold text-slate-900">
+        {formatQuantity(invoices.length)}
+      </p>
+    </div>
+
+    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+        Balance Due
+      </p>
+      <p className="mt-1 text-xl font-bold text-slate-900">
+        {formatCurrency(invoiceSummary.balanceDue, invoiceCurrency)}
+      </p>
+    </div>
+
+    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+        Proforma
+      </p>
+      <p className="mt-1 text-2xl font-bold text-slate-900">
+        {formatQuantity(filteredProformas.length)}
+      </p>
+    </div>
+  </div>
+
+  <div className="border-b border-slate-200">
+    <div className="flex items-center gap-6">
+      <UnderlineTab
+        active={view === "bills"}
+        onClick={() => setView("bills")}
+      >
+        Bills
+      </UnderlineTab>
+
+      <UnderlineTab
+        active={view === "invoices"}
+        onClick={() => setView("invoices")}
+      >
+        Invoices
+      </UnderlineTab>
+
+      <UnderlineTab
+        active={view === "proforma"}
+        onClick={() => setView("proforma")}
+      >
+        Proforma
+      </UnderlineTab>
+    </div>
+  </div>
+</div>
+        {/* <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <div className="space-y-3">
@@ -1085,7 +1175,7 @@ export default function InventoryInvoicesPage() {
               </div>
             </div>
           </div>
-        </div>
+        </div> */}
 
         <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -1260,10 +1350,11 @@ export default function InventoryInvoicesPage() {
         {view === "proforma" ? (
           <div className="space-y-4">
             {showProformaForm ? (
-              <form
-                onSubmit={handleCreateProforma}
-                className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm"
-              >
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-sm">
+                <form
+                  onSubmit={handleCreateProforma}
+                  className="flex h-[min(92vh,900px)] w-full max-w-[1500px] flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl"
+                >
                 <div className="flex flex-col gap-3 border-b border-slate-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <h3 className="text-base font-semibold text-slate-900">New Proforma Invoice</h3>
@@ -1278,52 +1369,48 @@ export default function InventoryInvoicesPage() {
                     <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">
                       {formatCurrency(proformaDraftTotal, proformaForm.currency || "INR")}
                     </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowProformaForm(false);
+                        setProformaFormError(null);
+                      }}
+                      className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-900"
+                      aria-label="Close proforma form"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
                   </div>
                 </div>
 
-                <div className="grid gap-0 xl:grid-cols-[280px_minmax(0,1fr)_390px]">
-                  <aside className="border-b border-slate-200 bg-white xl:border-b-0 xl:border-r">
-                    <div className="border-b border-slate-200 px-5 py-4">
-                      <p className="text-sm font-semibold text-slate-900">Sections</p>
-                      <p className="mt-1 text-xs text-slate-500">All proforma sections</p>
-                    </div>
-                    <div className="divide-y divide-slate-100">
+                <div className="grid min-h-0 flex-1 gap-0 lg:grid-cols-[220px_minmax(0,1fr)] xl:grid-cols-[220px_minmax(0,1fr)_390px]">
+                  <aside className="border-b border-slate-200 bg-slate-50/70 p-3 lg:border-b-0 lg:border-r">
+                    <div className="space-y-1">
                       {PROFORMA_BUILDER_SECTIONS.map((section) => {
                         const progress = proformaSectionProgress[section.id];
+                        const Icon = section.icon;
+                        const active = activeProformaSection === section.id;
                         return (
                           <button
                             key={section.id}
                             type="button"
                             onClick={() => setActiveProformaSection(section.id)}
-                            className={`flex w-full items-center gap-3 px-5 py-3 text-left transition-colors ${
-                              activeProformaSection === section.id
-                                ? "border-l-2 border-brand-600 bg-brand-50"
-                                : "border-l-2 border-transparent hover:bg-slate-50"
+                            aria-label={`${section.title}, ${progress.count} of ${progress.total} fields filled`}
+                            className={`group flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-xs font-semibold transition-colors ${
+                              active
+                                ? "bg-brand-50 text-slate-900 shadow-sm"
+                                : "text-slate-500 hover:bg-white hover:text-slate-800"
                             }`}
                           >
-                            <span
-                              className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border text-xs font-bold ${
-                                progress.complete
-                                  ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                                  : "border-slate-200 bg-slate-50 text-slate-500"
-                              }`}
-                            >
-                              {progress.count}
-                            </span>
-                            <span className="min-w-0 flex-1">
-                              <span className="block truncate text-sm font-semibold text-slate-900">{section.title}</span>
-                              <span className="mt-0.5 block text-xs text-slate-500">
-                                {progress.count}/{progress.total} fields
-                              </span>
-                            </span>
-                            <span className={`h-2 w-2 rounded-full ${progress.complete ? "bg-emerald-500" : "bg-slate-300"}`} />
+                            <Icon className={`h-4 w-4 shrink-0 ${active ? "text-brand-600" : "text-slate-400 group-hover:text-slate-500"}`} />
+                            <span className="min-w-0 truncate leading-tight">{section.title}</span>
                           </button>
                         );
                       })}
                     </div>
                   </aside>
 
-                  <section className="min-w-0 border-b border-slate-200 xl:border-b-0 xl:border-r">
+                  <section className="min-h-0 min-w-0 overflow-auto border-b border-slate-200 xl:border-b-0 xl:border-r">
                     <div className="border-b border-slate-200 px-5 py-4">
                       <h4 className="text-sm font-semibold text-slate-900">
                         {PROFORMA_BUILDER_SECTIONS.find((section) => section.id === activeProformaSection)?.title}
@@ -1517,7 +1604,7 @@ export default function InventoryInvoicesPage() {
                     </div>
                   </section>
 
-                  <aside className="bg-white">
+                  <aside className="hidden min-h-0 bg-white xl:block">
                     <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
                       <div>
                         <p className="text-sm font-semibold text-slate-900">Preview</p>
@@ -1525,7 +1612,7 @@ export default function InventoryInvoicesPage() {
                       </div>
                       <Eye className="h-4 w-4 text-slate-400" />
                     </div>
-                    <div className="max-h-[760px] overflow-auto bg-[#e9e2cf] p-4">
+                    <div className="h-[calc(100%-57px)] overflow-auto bg-[#e9e2cf] p-4">
                       <div className="origin-top-left scale-[0.45]">
                         <ProformaInvoiceDocument document={proformaDraftDocument} />
                       </div>
@@ -1551,7 +1638,8 @@ export default function InventoryInvoicesPage() {
                     Save Proforma
                   </button>
                 </div>
-              </form>
+                </form>
+              </div>
             ) : null}
 
             <div className="rounded-3xl border border-slate-200 bg-white shadow-sm">
