@@ -527,7 +527,7 @@ export default function InventoryWarehousesPage() {
         <div className="space-y-6">
           <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-              <div>
+              {/* <div>
                 <h2 className="text-lg font-semibold text-slate-900">Warehouse Master</h2>
                 <p className="mt-1 text-sm text-slate-500">Keep each facility and every storage destination discoverable for receiving, picking, and dispatch teams.</p>
               </div>

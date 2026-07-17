@@ -165,7 +165,7 @@ export default function InventoryInvoicesPage() {
   const invoiceCurrency = invoices[0]?.currency ?? "INR";
 
   return (
-    <InventoryLayout>
+    <InventoryLayout showHeader={false}>
       <div className="space-y-6">
         <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
