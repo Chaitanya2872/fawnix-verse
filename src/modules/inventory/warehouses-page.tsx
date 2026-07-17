@@ -102,7 +102,7 @@ function MetricTile({
   const valueClass = tone === "success" ? "text-emerald-700" : tone === "muted" ? "text-slate-600" : "text-slate-900";
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
       <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p>
       <p className={`mt-1 text-2xl font-bold ${valueClass}`}>{value}</p>
     </div>
@@ -514,31 +514,42 @@ export default function InventoryWarehousesPage() {
 
   return (
     <>
-      <InventoryLayout
-        title="Warehouses"
-        description="Manage warehouse masters, storage locations, and the physical map inventory items can be assigned to."
-        actions={
-          <button type="button" onClick={() => setAddOpen(true)} className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-700">
-            <Plus className="h-4 w-4" />
-            Add Warehouse
-          </button>
-        }
+     <InventoryLayout showHeader={false}>
+  <div className="space-y-6">
+
+    <div className="flex justify-end -mt-4">
+      <button
+        type="button"
+        onClick={() => setAddOpen(true)}
+        className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-700"
       >
-        <div className="space-y-6">
-          <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-              <div>
-                <h2 className="text-lg font-semibold text-slate-900">Warehouse Master</h2>
-                <p className="mt-1 text-sm text-slate-500">Keep each facility and every storage destination discoverable for receiving, picking, and dispatch teams.</p>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                <MetricTile label="Warehouses" value={formatNumber(pageData?.total ?? warehouses.length)} />
-                <MetricTile label="Visible Active" value={formatNumber(summary.active)} tone="success" />
-                <MetricTile label="Storage Locations" value={formatNumber(summary.locations)} />
-                <MetricTile label="Visible Capacity" value={formatNumber(summary.capacity)} tone="muted" />
-              </div>
-            </div>
-          </div>
+        <Plus className="h-4 w-4" />
+        Add Warehouse
+      </button>
+    </div>
+
+ 
+
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+  <MetricTile
+    label="Warehouses"
+    value={formatNumber(pageData?.total ?? warehouses.length)}
+  />
+  <MetricTile
+    label="Visible Active"
+    value={formatNumber(summary.active)}
+    tone="success"
+  />
+  <MetricTile
+    label="Visible Inactive"
+    value={formatNumber(summary.inactive)}
+    tone="muted"
+  />
+  <MetricTile
+    label="Visible Capacity"
+    value={formatNumber(summary.capacity)}
+  />
+</div>
 
           <div className="rounded-3xl border border-slate-200 bg-white shadow-sm">
             <div className="flex flex-col gap-4 border-b border-slate-200 p-5 lg:flex-row lg:items-center lg:justify-between">
