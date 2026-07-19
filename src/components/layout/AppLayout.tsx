@@ -15,6 +15,7 @@ type TopbarRoute = TopbarContext & {
 const TOPBAR_ROUTES: readonly TopbarRoute[] = [
   { path: "/", exact: true, title: "Dashboard", breadcrumb: "ERP / Dashboard" },
   { path: "/inventory", exact: true, title: "Inventory", breadcrumb: "ERP / Inventory" },
+  { path: "/inventory/master-data", title: "Master Data", breadcrumb: "ERP / Inventory / Master Data" },
   { path: "/inventory/bills", title: "Bills & Invoices", breadcrumb: "ERP / Inventory / Bills & Invoices" },
   { path: "/inventory/warehouses", title: "Warehouses", breadcrumb: "ERP / Inventory / Warehouses" },
   { path: "/inventory/transactions", title: "Transactions", breadcrumb: "ERP / Inventory / Transactions" },

@@ -267,6 +267,9 @@ public class ProductService {
   @Transactional
   public void deleteProduct(String id) {
     ProductEntity product = requireProduct(id);
+    if (stockTransactionRepository.existsByProduct_Id(product.getId())) {
+      throw new BadRequestException("This item has stock transaction history and cannot be deleted.");
+    }
     productRepository.delete(product);
   }
 

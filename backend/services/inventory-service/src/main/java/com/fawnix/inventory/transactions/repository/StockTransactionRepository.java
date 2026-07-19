@@ -9,4 +9,6 @@ public interface StockTransactionRepository extends JpaRepository<StockTransacti
   List<StockTransactionEntity> findAllByOrderByTxnDateDescCreatedAtDesc();
 
   List<StockTransactionEntity> findByProduct_IdOrderByTxnDateDescCreatedAtDesc(String productId);
+
+  boolean existsByProduct_Id(String productId);
 }

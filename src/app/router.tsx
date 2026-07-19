@@ -11,6 +11,7 @@ import UnauthorizedPage from "@/modules/auth/unauthorized";
 
 // import DashboardPage from "@/modules/dashboard/page";
 import InventoryPage from "@/modules/inventory/page";
+import InventoryMasterDataPage from "@/modules/inventory/master-data-page";
 import InventoryTransactionsPage from "@/modules/inventory/transactions-page";
 import InventoryInvoicesPage from "@/modules/inventory/invoices-page";
 import InventoryWarehousesPage from "@/modules/inventory/warehouses-page";
@@ -142,6 +143,14 @@ export const router = createBrowserRouter([
             element: (
               <RequirePermission permission={PERMISSIONS.PAGE_INVENTORY_MANAGE}>
                 <InventoryPage />
+              </RequirePermission>
+            ),
+          },
+          {
+            path: "inventory/master-data",
+            element: (
+              <RequirePermission permission={PERMISSIONS.PAGE_INVENTORY_MANAGE}>
+                <InventoryMasterDataPage />
               </RequirePermission>
             ),
           },
