@@ -25,8 +25,8 @@ import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
 import org.apache.commons.csv.CSVRecord;
 import org.apache.poi.ss.usermodel.Cell;
-import org.apache.poi.ss.usermodel.CellType;
 import org.apache.poi.ss.usermodel.CellStyle;
+import org.apache.poi.ss.usermodel.CellType;
 import org.apache.poi.ss.usermodel.DataFormatter;
 import org.apache.poi.ss.usermodel.DateUtil;
 import org.apache.poi.ss.usermodel.Font;
@@ -193,7 +193,7 @@ public class ProductImportService {
 
       workbook.write(out);
       return out.toByteArray();
-    } catch (IOException ex) {
+    } catch (Exception ex) {
       throw new BadRequestException("Failed to generate product import template.");
     }
   }

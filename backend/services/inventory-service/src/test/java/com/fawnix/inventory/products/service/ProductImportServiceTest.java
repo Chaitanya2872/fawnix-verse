@@ -13,8 +13,11 @@ import com.fawnix.inventory.products.dto.ProductDtos.ProductImportPreviewResult;
 import com.fawnix.inventory.products.dto.ProductDtos.ProductImportResult;
 import com.fawnix.inventory.products.entity.ProductEntity;
 import com.fawnix.inventory.products.repository.ProductRepository;
+import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Optional;
+import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.ss.usermodel.WorkbookFactory;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -140,5 +143,21 @@ class ProductImportServiceTest {
     assertThat(result.invalid()).isEqualTo(1);
     verify(productService, never()).createProduct(any());
     verify(productService, never()).updateProduct(any(), any());
+  }
+
+  @Test
+  void generateTemplate_returnsReadableWorkbookWithExpectedSheets() throws Exception {
+    byte[] template = productImportService.generateTemplate();
+
+    assertThat(template).isNotEmpty();
+
+    try (Workbook workbook = WorkbookFactory.create(new ByteArrayInputStream(template))) {
+      assertThat(workbook.getNumberOfSheets()).isEqualTo(2);
+      assertThat(workbook.getSheetName(0)).isEqualTo("Products");
+      assertThat(workbook.getSheetName(1)).isEqualTo("Instructions");
+      assertThat(workbook.getSheet("Products").getRow(0).getCell(0).getStringCellValue()).isEqualTo("sku");
+      assertThat(workbook.getSheet("Products").getRow(1).getCell(0).getStringCellValue()).isEqualTo("SKU-1001");
+      assertThat(workbook.getSheet("Instructions").getRow(0).getCell(0).getStringCellValue()).isEqualTo("Column");
+    }
   }
 }
