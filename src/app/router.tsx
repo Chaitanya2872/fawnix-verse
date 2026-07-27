@@ -767,9 +767,11 @@ export const router = createBrowserRouter([
           {
             path: "vms/*",
             element: (
-              <Suspense fallback={null}>
-                <VMSAppRoutes />
-              </Suspense>
+              <RequirePermission permission={PERMISSIONS.MODULE_VMS}>
+                <Suspense fallback={null}>
+                  <VMSAppRoutes />
+                </Suspense>
+              </RequirePermission>
             ),
           },
         ],

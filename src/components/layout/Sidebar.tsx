@@ -167,14 +167,14 @@ const ERP_NAV_SECTIONS: readonly SidebarNavSection[] = [
   {
     heading: "Operations",
     items: [
-      { label: "VMS Dashboard",       to: "/vms/dashboard",            icon: UserCheck,     end: true },
-      { label: "New Visitor",          to: "/vms/visitors/new",         icon: UserPlus },
-      { label: "Visitors",             to: "/vms/visitors",             icon: ClipboardList },
-      { label: "Approvals",            to: "/vms/approvals",            icon: CheckSquare },
-      { label: "Desk Check-In",        to: "/vms/desk",                 icon: ArrowLeftRight },
-      { label: "Visitor History",      to: "/vms/history",              icon: CalendarClock },
-      { label: "VMS Reports",          to: "/vms/reports",              icon: BarChart3 },
-      { label: "VMS Settings",         to: "/vms/settings",             icon: Settings },
+      { label: "VMS Dashboard",       to: "/vms/dashboard",            icon: UserCheck,     end: true, permission: PERMISSIONS.MODULE_VMS },
+      { label: "New Visitor",          to: "/vms/visitors/new",         icon: UserPlus,      permission: PERMISSIONS.MODULE_VMS },
+      { label: "Visitors",             to: "/vms/visitors",             icon: ClipboardList, permission: PERMISSIONS.MODULE_VMS },
+      { label: "Approvals",            to: "/vms/approvals",            icon: CheckSquare,   permission: PERMISSIONS.MODULE_VMS },
+      { label: "Desk Check-In",        to: "/vms/desk",                 icon: ArrowLeftRight, permission: PERMISSIONS.MODULE_VMS },
+      { label: "Visitor History",      to: "/vms/history",              icon: CalendarClock, permission: PERMISSIONS.MODULE_VMS },
+      { label: "VMS Reports",          to: "/vms/reports",              icon: BarChart3,     permission: PERMISSIONS.MODULE_VMS },
+      { label: "VMS Settings",         to: "/vms/settings",             icon: Settings,      permission: PERMISSIONS.MODULE_VMS },
     ],
   },
 ];

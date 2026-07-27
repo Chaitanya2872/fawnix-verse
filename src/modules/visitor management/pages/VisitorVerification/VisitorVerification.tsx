@@ -5,6 +5,7 @@ import { Icons } from "../../components/common/Icons";
 import StatusBadge from "../../components/common/StatusBadge";
 import flowService from "../../services/flowService";
 import visitorRequestService from "../../services/visitorRequestService";
+import { VMS_PATHS } from "../../routes/paths";
 import { initials } from "../../utils/visitorUtils";
 
 function getQrExpiryStatus(visitor) {
@@ -116,10 +117,6 @@ function VisitorVerification() {
 
   const updateStatus = async (action) => {
     if (!selectedVisitor) return;
-    if (action === "checkIn" && qrExpiry.expired) {
-      setAlert({ type: "error", title: "QR expired", message: qrExpiry.message });
-      return;
-    }
     try {
       let updated;
       if (action === "approve") {
@@ -128,9 +125,6 @@ function VisitorVerification() {
       } else if (action === "reject") {
         updated = await visitorRequestService.reject(selectedVisitor.id, "");
         setAlert({ type: "success", title: "Rejected", message: `${selectedVisitor.name} has been rejected.` });
-      } else if (action === "checkIn") {
-        updated = await visitorRequestService.checkIn(selectedVisitor.id, selectedVisitor.qrCodeData);
-        setAlert({ type: "success", title: "Checked in", message: `${selectedVisitor.name} has checked in.` });
       }
       if (updated) {
         flowService.setCurrentVisitor(updated);
@@ -333,7 +327,10 @@ function VisitorVerification() {
                 <button
                   className="btn btn-primary"
                   type="button"
-                  onClick={() => updateStatus("checkIn")}
+                  onClick={() => {
+                    flowService.setCurrentVisitor(selectedVisitor);
+                    navigate(VMS_PATHS.desk);
+                  }}
                   disabled={qrExpiry.expired}
                 >
                   Check In

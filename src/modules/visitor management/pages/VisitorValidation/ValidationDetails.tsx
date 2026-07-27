@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import Alert from "../../components/common/Alert";
 import { Icons } from "../../components/common/Icons";
 import StatusBadge from "../../components/common/StatusBadge";
 import flowService from "../../services/flowService";
 import visitorRequestService from "../../services/visitorRequestService";
+import { VMS_PATHS } from "../../routes/paths";
 import { initials } from "../../utils/visitorUtils";
 
 function getQrExpiryStatus(visitor) {
@@ -35,6 +37,7 @@ function getQrExpiryStatus(visitor) {
 }
 
 function ValidationDetails() {
+  const navigate = useNavigate();
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   const [qrInput, setQrInput] = useState(() => flowService.getCurrentVisitor()?.qrCodeData || "");
@@ -127,10 +130,6 @@ function ValidationDetails() {
 
   const updateStatus = async (action) => {
     if (!selectedVisitor) return;
-    if (action === "checkIn" && qrExpiry.expired) {
-      setAlert({ type: "error", title: "QR code expired", message: qrExpiry.message || "This visitor's QR code has expired and cannot be checked in." });
-      return;
-    }
     try {
       let updated;
       if (action === "approve") {
@@ -139,9 +138,6 @@ function ValidationDetails() {
       } else if (action === "reject") {
         updated = await visitorRequestService.reject(selectedVisitor.id, "");
         setAlert({ type: "success", title: "Visitor updated", message: `${selectedVisitor.name} has been rejected.` });
-      } else if (action === "checkIn") {
-        updated = await visitorRequestService.checkIn(selectedVisitor.id, selectedVisitor.qrCodeData);
-        setAlert({ type: "success", title: "Visitor updated", message: `${selectedVisitor.name} has checked in.` });
       }
       if (updated) {
         flowService.setCurrentVisitor(updated);
@@ -313,7 +309,15 @@ function ValidationDetails() {
                 </>
               )}
               {selectedVisitor.status === "Approved" && !selectedVisitor.checkIn && (
-                <button className="btn btn-primary" type="button" onClick={() => updateStatus("checkIn")} disabled={qrExpiry.expired}>
+                <button
+                  className="btn btn-primary"
+                  type="button"
+                  onClick={() => {
+                    flowService.setCurrentVisitor(selectedVisitor);
+                    navigate(VMS_PATHS.desk);
+                  }}
+                  disabled={qrExpiry.expired}
+                >
                   Check In
                 </button>
               )}

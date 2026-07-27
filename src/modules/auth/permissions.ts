@@ -17,6 +17,7 @@ export const PERMISSIONS = {
   MODULE_NOTIFICATIONS: "module.notifications",
   MODULE_TASKS: "module.tasks",
   MODULE_PROJECTS: "module.projects",
+  MODULE_VMS: "module.vms",
   PAGE_DASHBOARD: "page.dashboard",
   PAGE_CRM_LEADS: "page.crm.leads",
   PAGE_CRM_CONTACTS: "page.crm.contacts",
@@ -63,6 +64,7 @@ export const MODULE_PERMISSION_MAP: Record<string, Permission> = {
   notifications: PERMISSIONS.MODULE_NOTIFICATIONS,
   tasks: PERMISSIONS.MODULE_TASKS,
   projects: PERMISSIONS.MODULE_PROJECTS,
+  vms: PERMISSIONS.MODULE_VMS,
 };
 
 export function hasPermission(
@@ -116,6 +118,7 @@ export function getDefaultAuthorizedPath(
     { path: "/approvals", permission: PERMISSIONS.MODULE_APPROVALS },
     { path: "/tasks", permission: PERMISSIONS.PAGE_TASKS },
     { path: "/projects", permission: PERMISSIONS.PAGE_PROJECTS },
+    { path: "/vms/dashboard", permission: PERMISSIONS.MODULE_VMS },
     { path: "/setup", permission: PERMISSIONS.MODULE_ORG },
     { path: "/settings", permission: PERMISSIONS.PAGE_ADMIN_SETTINGS },
     { path: "/reports", permission: PERMISSIONS.PAGE_REPORTS },

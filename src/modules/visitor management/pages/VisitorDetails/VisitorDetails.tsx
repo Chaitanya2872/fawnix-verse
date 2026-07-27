@@ -22,6 +22,7 @@ import { StatusPill } from "../../components/vms/StatusPill";
 import { VisitorActionDialog } from "../../components/vms/VisitorActionDialog";
 import { useVisitor, useVisitorActions } from "../../hooks/useVisitors";
 import { VMS_PATHS } from "../../routes/paths";
+import flowService from "../../services/flowService";
 import type { VisitorAction, VisitorRecord } from "../../types";
 import {
   canApprove,
@@ -204,9 +205,18 @@ function VisitorDetails() {
                 <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
                 Approve
               </Button>
-              <Button type="button" variant="outline" className="justify-start" onClick={() => openAction("checkIn")} disabled={!canCheckIn(visitor) || windowState.state !== "active"}>
+              <Button
+                type="button"
+                variant="outline"
+                className="justify-start"
+                onClick={() => {
+                  flowService.setCurrentVisitor(visitor);
+                  navigate(VMS_PATHS.desk);
+                }}
+                disabled={!canCheckIn(visitor) || windowState.state !== "active"}
+              >
                 <LogIn className="h-4 w-4" aria-hidden="true" />
-                Check In
+                Open Desk for Check In
               </Button>
               <Button type="button" variant="outline" className="justify-start" onClick={() => openAction("checkOut")} disabled={!canCheckOut(visitor)}>
                 <LogOut className="h-4 w-4" aria-hidden="true" />

@@ -233,7 +233,7 @@
 // }
 
 // export default CameraCapture;
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import Alert from "../../components/common/Alert";
 import { Icons } from "../../components/common/Icons";
@@ -241,6 +241,7 @@ import StatusBadge from "../../components/common/StatusBadge";
 import flowService from "../../services/flowService";
 import faceCaptureService from "../../services/faceCaptureService";
 import { VMS_PATHS } from "../../routes/paths";
+import type { VisitorRecord } from "../../types";
 
 const POSES = [
   { id: "front", label: "Look straight ahead", hint: "Center your face in the frame, neutral expression." },
@@ -253,22 +254,35 @@ const POSES = [
   { id: "smile", label: "Smile", hint: "Look straight ahead with a natural smile." },
 ];
 
+type CaptureMode = "idle" | "camera" | "review";
+
+type CaptureAlert = {
+  type: "success" | "error";
+  title: string;
+  message: string;
+};
+
+type UploadProgress = {
+  done: number;
+  total: number;
+};
+
 function CameraCapture() {
   const navigate = useNavigate();
-  const videoRef = useRef(null);
-  const canvasRef = useRef(null);
-  const fileRef = useRef(null);
-  const streamRef = useRef(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const fileRef = useRef<HTMLInputElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
 
-  const [mode, setMode] = useState("idle");
+  const [mode, setMode] = useState<CaptureMode>("idle");
   const [poseIndex, setPoseIndex] = useState(0);
   const [captures, setCaptures] = useState<Record<string, string>>({});
-  const [preview, setPreview] = useState(null);
-  const [alert, setAlert] = useState(null);
+  const [preview, setPreview] = useState<string | null>(null);
+  const [alert, setAlert] = useState<CaptureAlert | null>(null);
   const [starting, setStarting] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(null);
-  const [currentVisitor, setCurrentVisitor] = useState(() => flowService.getCurrentVisitor());
+  const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
+  const [currentVisitor, setCurrentVisitor] = useState<VisitorRecord | null>(() => flowService.getCurrentVisitor());
 
   const currentPose = POSES[poseIndex];
   const allPosesCaptured = POSES.every((pose) => captures[pose.id]);
@@ -312,7 +326,9 @@ function CameraCapture() {
     if (!video || !canvas) return;
     canvas.width = video.videoWidth || 960;
     canvas.height = video.videoHeight || 720;
-    canvas.getContext("2d").drawImage(video, 0, 0);
+    const context = canvas.getContext("2d");
+    if (!context) return;
+    context.drawImage(video, 0, 0);
     const dataUrl = canvas.toDataURL("image/jpeg", 0.86);
 
     const updatedCaptures = { ...captures, [currentPose.id]: dataUrl };
@@ -330,7 +346,7 @@ function CameraCapture() {
     }
   };
 
-  const handleFileUpload = (event) => {
+  const handleFileUpload = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
     if (file.size > 5 * 1024 * 1024) {
@@ -395,7 +411,11 @@ function CameraCapture() {
     } catch (err) {
       console.error("[API] POST /api/public/visitor/register-face error:", err);
       setSaving(false);
-      setAlert({ type: "error", title: "Upload failed", message: err.message || "Failed to upload one or more face angles to the server. You can retry." });
+      setAlert({
+        type: "error",
+        title: "Upload failed",
+        message: err instanceof Error ? err.message : "Failed to upload one or more face angles to the server. You can retry.",
+      });
       return;
     }
 

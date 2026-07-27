@@ -11,6 +11,8 @@ export const PURPOSE_OPTIONS = [
 
 // True only when the server was completely unreachable (no HTTP response at all)
 const isNetworkError = (err) => err instanceof TypeError && err.message === "Failed to fetch";
+const isDemoFallbackEnabled = () => import.meta.env.DEV || import.meta.env.VITE_VMS_DEMO_MODE === "true";
+const shouldUseLocalFallback = (err) => isNetworkError(err) && isDemoFallbackEnabled();
 
 // Backend status + arrived flag -> frontend display status
 const resolveStatus = (req) => {
@@ -135,7 +137,7 @@ const visitorRequestService = {
       flowService.saveVisitor(visitor);
       return visitor;
     } catch (err) {
-      if (!isNetworkError(err)) throw err;
+      if (!shouldUseLocalFallback(err)) throw err;
       console.warn("[offline] create visitor -> localStorage");
       const id = Date.now();
       const visitor = {
@@ -193,7 +195,7 @@ const visitorRequestService = {
       });
       return visitors;
     } catch (err) {
-      if (!isNetworkError(err)) throw err;
+      if (!shouldUseLocalFallback(err)) throw err;
       console.warn("[offline] getAll -> localStorage");
       const deletedIds = new Set(flowService.getDeletedIds().map(String));
       return flowService.getVisitors().filter((v) => !deletedIds.has(String(v.id)));
@@ -209,12 +211,12 @@ const visitorRequestService = {
       flowService.saveVisitor(visitor);
       return visitor;
     } catch (err) {
+      if (!shouldUseLocalFallback(err)) throw err;
       const found = getCachedVisitor(id);
       if (found) {
         console.warn("[cache] getById -> localStorage/current visitor");
         return found;
       }
-      if (!isNetworkError(err)) throw err;
       console.warn("[offline] getById -> localStorage");
       if (!found) throw new Error(`Visitor ${id} not found.`, { cause: err });
       return found;
@@ -230,7 +232,7 @@ const visitorRequestService = {
       const data = await handleResponse(res);
       return Array.isArray(data) ? data.map(normalize) : [];
     } catch (err) {
-      if (!isNetworkError(err)) throw err;
+      if (!shouldUseLocalFallback(err)) throw err;
       console.warn("[offline] search -> localStorage");
       const kw = keyword.toLowerCase();
       return flowService.getVisitors().filter(
@@ -248,7 +250,7 @@ const visitorRequestService = {
       const res = await authFetch(`${API_BASE_URL}/api/visitor-requests/statistics`);
       return handleResponse(res);
     } catch (err) {
-      if (!isNetworkError(err)) throw err;
+      if (!shouldUseLocalFallback(err)) throw err;
       console.warn("[offline] getStatistics -> localStorage");
       return localStats(flowService.getVisitors());
     }
@@ -265,8 +267,8 @@ const visitorRequestService = {
       flowService.updateVisitor(id, { status: "Approved" });
       return visitor;
     } catch (err) {
+      if (!shouldUseLocalFallback(err)) throw err;
       const found = getCachedVisitor(id);
-      if (!found && !isNetworkError(err)) throw err;
       console.warn("[cache] approve -> localStorage/current visitor");
       flowService.updateVisitor(id, { status: "Approved" });
       if (!found) throw new Error(`Visitor ${id} not found.`, { cause: err });
@@ -286,8 +288,8 @@ const visitorRequestService = {
       flowService.updateVisitor(id, { status: "Rejected", rejectionReason });
       return visitor;
     } catch (err) {
+      if (!shouldUseLocalFallback(err)) throw err;
       const found = getCachedVisitor(id);
-      if (!found && !isNetworkError(err)) throw err;
       console.warn("[cache] reject -> localStorage/current visitor");
       flowService.updateVisitor(id, { status: "Rejected", rejectionReason });
       if (!found) throw new Error(`Visitor ${id} not found.`, { cause: err });
@@ -308,8 +310,8 @@ const visitorRequestService = {
       flowService.deleteVisitor(id);
       flowService.markDeleted(id);
     } catch (err) {
+      if (!shouldUseLocalFallback(err)) throw err;
       const found = getCachedVisitor(id);
-      if (!found && !isNetworkError(err)) throw err;
       console.warn("[cache] delete -> localStorage/current visitor");
       flowService.deleteVisitor(id);
       flowService.markDeleted(id);
@@ -338,7 +340,7 @@ const visitorRequestService = {
           !deletedIds.has(String(v.visitorId)) &&
           (v.qrCodeData === input || String(v.visitorId) === String(input) || String(v.id) === String(input))
       );
-      if (!found && !isNetworkError(err)) throw err;
+      if (!shouldUseLocalFallback(err)) throw err;
       console.warn("[cache] verifyQr -> localStorage");
       if (!found) throw new Error(`No visitor found for: ${input}`, { cause: err });
       return found;
@@ -357,8 +359,8 @@ const visitorRequestService = {
       flowService.updateVisitor(id, { status: "Checked In", checkIn: new Date().toISOString() });
       return visitor;
     } catch (err) {
+      if (!shouldUseLocalFallback(err)) throw err;
       const found = getCachedVisitor(id);
-      if (!found && !isNetworkError(err)) throw err;
       console.warn("[cache] checkIn -> localStorage/current visitor");
       const checkIn = new Date().toISOString();
       flowService.updateVisitor(id, { status: "Checked In", checkIn });
@@ -379,8 +381,8 @@ const visitorRequestService = {
       flowService.updateVisitor(id, { status: "Checked Out", checkOut: new Date().toISOString() });
       return visitor;
     } catch (err) {
+      if (!shouldUseLocalFallback(err)) throw err;
       const found = getCachedVisitor(id);
-      if (!found && !isNetworkError(err)) throw err;
       console.warn("[cache] checkOut -> localStorage/current visitor");
       const checkOut = new Date().toISOString();
       flowService.updateVisitor(id, { status: "Checked Out", checkOut });

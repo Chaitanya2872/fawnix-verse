@@ -3,6 +3,7 @@ import { clearAuthTokens, getAccessToken } from "@/services/api-client";
 
 const TOKEN_KEY = "vms_auth_token";
 const USER_KEY = "vms_auth_user";
+const isDemoFallbackEnabled = () => import.meta.env.DEV || import.meta.env.VITE_VMS_DEMO_MODE === "true";
 
 // Attach JWT + ngrok bypass header to every request.
 // Skips Content-Type for FormData (browser sets it with boundary).
@@ -52,7 +53,9 @@ const authService = {
       return data;
     } catch (err) {
       // Network unreachable — accept demo credentials for offline development
-      if (!(err instanceof TypeError && err.message === "Failed to fetch")) throw err;
+      if (!(err instanceof TypeError && err.message === "Failed to fetch") || !isDemoFallbackEnabled()) {
+        throw err;
+      }
       console.warn("[offline] login → demo session");
       const demoUser = {
         token: "offline-demo-token",

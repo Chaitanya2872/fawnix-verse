@@ -10,6 +10,7 @@ const base64ToBlob = (dataUrl: string, mimeType = "image/jpeg") => {
 };
 
 const isNetworkError = (err: unknown) => err instanceof TypeError && err.message === "Failed to fetch";
+const isDemoFallbackEnabled = () => import.meta.env.DEV || import.meta.env.VITE_VMS_DEMO_MODE === "true";
 
 type UploadFacePayload = {
   requestId: string | number;
@@ -89,7 +90,7 @@ const faceCaptureService = {
       flowService.updateVisitor(requestId, { faceRegistered: true, photo: imageBase64 });
       return res.json().catch(() => ({}));
     } catch (err) {
-      if (!isNetworkError(err)) throw err;
+      if (!isNetworkError(err) || !isDemoFallbackEnabled()) throw err;
       console.warn("[offline] uploadFace → localStorage");
       // Save photo locally so the flow can continue
       flowService.updateVisitor(requestId, { faceRegistered: true, photo: imageBase64 });

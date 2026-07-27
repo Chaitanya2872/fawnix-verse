@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { VMS_PATHS } from "../../routes/paths";
+import flowService from "../../services/flowService";
 import type { VisitorAction, VisitorRecord } from "../../types";
 import {
   canApprove,
@@ -191,9 +192,15 @@ function renderActionButtons(
         </IconAction>
       ) : null}
       {(scope === "full" || scope === "desk") && canCheckIn(visitor) ? (
-        <IconAction label={`Check in ${visitor.name}`} onClick={() => onAction("checkIn", visitor)}>
-          <LogIn className="h-4 w-4" aria-hidden="true" />
-        </IconAction>
+        <Button asChild variant="ghost" size="icon" title={`Open desk for ${visitor.name}`}>
+          <Link
+            to={VMS_PATHS.desk}
+            aria-label={`Open desk for ${visitor.name}`}
+            onClick={() => flowService.setCurrentVisitor(visitor)}
+          >
+            <LogIn className="h-4 w-4" aria-hidden="true" />
+          </Link>
+        </Button>
       ) : null}
       {(scope === "full" || scope === "desk") && canCheckOut(visitor) ? (
         <IconAction label={`Check out ${visitor.name}`} onClick={() => onAction("checkOut", visitor)}>

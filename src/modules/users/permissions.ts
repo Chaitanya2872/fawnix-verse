@@ -72,6 +72,13 @@ const FALLBACK_PERMISSION_MODULE_GROUPS: PermissionModuleGroup[] = [
     pages: [{ value: PERMISSIONS.PAGE_TASKS, label: "Task Management" }],
     features: [],
   },
+  {
+    key: "vms",
+    label: "Visitor Management",
+    module: { value: PERMISSIONS.MODULE_VMS, label: "Visitor Management Module" },
+    pages: [],
+    features: [],
+  },
 ];
 
 export function uniquePermissions(list: string[]): string[] {
