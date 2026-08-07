@@ -355,25 +355,16 @@ function DashboardMetricCard({
   value,
   helper,
   icon,
-  tone,
 }: {
   label: string;
   value: string | number;
   helper: string;
   icon: React.ReactNode;
-  tone: "blue" | "emerald" | "violet" | "amber";
 }) {
-  const toneClass = {
-    blue: "bg-blue-50 text-blue-700",
-    emerald: "bg-emerald-50 text-emerald-700",
-    violet: "bg-violet-50 text-violet-700",
-    amber: "bg-amber-50 text-amber-700",
-  }[tone];
-
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
       <div className="flex items-center gap-3">
-        <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md ${toneClass}`}>
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-brand-50 text-brand-700">
           {icon}
         </span>
         <div className="min-w-0">
@@ -412,11 +403,11 @@ function StockByCategoryPanel({
     }));
   const maxValue = Math.max(...rows.map((row) => row.value), 1);
   const tones = [
-    { icon: "bg-blue-50 text-blue-700", bar: "bg-blue-600" },
-    { icon: "bg-emerald-50 text-emerald-700", bar: "bg-emerald-500" },
-    { icon: "bg-violet-50 text-violet-700", bar: "bg-violet-500" },
-    { icon: "bg-amber-50 text-amber-700", bar: "bg-amber-500" },
-    { icon: "bg-rose-50 text-rose-700", bar: "bg-rose-500" },
+    { icon: "bg-brand-50 text-brand-700", bar: "bg-brand-700" },
+    { icon: "bg-brand-50 text-brand-700", bar: "bg-brand-600" },
+    { icon: "bg-brand-50 text-brand-700", bar: "bg-brand-500" },
+    { icon: "bg-brand-50 text-brand-700", bar: "bg-brand-400" },
+    { icon: "bg-brand-50 text-brand-700", bar: "bg-brand-300" },
   ];
 
   return (
@@ -1168,28 +1159,24 @@ export default function InventoryPage() {
               value={analyticsSummary.totalItems.toLocaleString("en-IN")}
               helper="All Products"
               icon={<Boxes className="h-5 w-5" />}
-              tone="blue"
             />
             <DashboardMetricCard
               label="Categories"
               value={analyticsSummary.totalCategories.toLocaleString("en-IN")}
               helper="Product Categories"
               icon={<Tags className="h-5 w-5" />}
-              tone="emerald"
             />
             <DashboardMetricCard
               label="Warehouses"
               value={warehouseCount.toLocaleString("en-IN")}
               helper="Active Warehouses"
               icon={<Building2 className="h-5 w-5" />}
-              tone="violet"
             />
             <DashboardMetricCard
               label="Inventory Value"
               value={formatCompactCurrency(analyticsSummary.visibleStockValue)}
               helper="Current Stock Value"
               icon={<IndianRupee className="h-5 w-5" />}
-              tone="amber"
             />
           </section>
 
@@ -1323,7 +1310,7 @@ export default function InventoryPage() {
                               <tr key={product.id} className="border-b border-slate-100 align-top">
                                 <td className="px-3 py-2.5">
                                   <div className="flex items-start gap-2">
-                                    <div className="flex h-8 w-8 items-center justify-center rounded-md bg-blue-50 text-blue-700">
+                                    <div className="flex h-8 w-8 items-center justify-center rounded-md bg-brand-50 text-brand-700">
                                       <Package className="h-4 w-4" />
                                     </div>
                                     <div>

@@ -72,7 +72,7 @@ export default function InventoryTransactionsPage() {
     <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
       Received
     </p>
-    <p className="mt-1 text-2xl font-bold text-emerald-700">
+    <p className="mt-1 text-2xl font-bold text-brand-700">
       {formatQuantity(summary.received)}
     </p>
   </div>
@@ -81,7 +81,7 @@ export default function InventoryTransactionsPage() {
     <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
       Consumed
     </p>
-    <p className="mt-1 text-2xl font-bold text-amber-700">
+    <p className="mt-1 text-2xl font-bold text-brand-700">
       {formatQuantity(summary.consumed)}
     </p>
   </div>

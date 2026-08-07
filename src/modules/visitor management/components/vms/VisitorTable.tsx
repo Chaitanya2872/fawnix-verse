@@ -12,6 +12,9 @@ import {
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
 import { VMS_PATHS } from "../../routes/paths";
 import flowService from "../../services/flowService";
 import type { VisitorAction, VisitorRecord } from "../../types";
@@ -34,6 +37,7 @@ type VisitorTableProps = {
   actionScope?: "full" | "approval" | "desk" | "history" | "readonly";
   onAction?: (action: VisitorAction, visitor: VisitorRecord) => void;
   onExport?: () => void;
+  embedded?: boolean;
 };
 
 export function VisitorTable({
@@ -43,6 +47,7 @@ export function VisitorTable({
   actionScope = "full",
   onAction,
   onExport,
+  embedded = false,
 }: VisitorTableProps) {
   const [query, setQuery] = useState("");
 
@@ -68,19 +73,19 @@ export function VisitorTable({
   }, [query, visitors]);
 
   return (
-    <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-      <div className="flex flex-col gap-3 border-b border-slate-100 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
-        <label className="relative max-w-md flex-1">
+    <div className={cn("overflow-hidden bg-card text-card-foreground", embedded ? "rounded-none border-0 shadow-none" : "rounded-lg border border-border shadow-sm")}>
+      <div className="flex flex-col gap-3 border-b border-border px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
+        <Label className="relative max-w-md flex-1">
           <span className="sr-only">Search visitors</span>
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
-          <input
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+          <Input
             type="search"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Search visitor, host, company, ID"
-            className="h-9 w-full rounded-md border border-slate-200 bg-slate-50 pl-9 pr-3 text-sm outline-none transition focus:border-blue-400 focus:bg-white focus:ring-2 focus:ring-blue-100"
+            className="bg-muted/40 pl-9"
           />
-        </label>
+        </Label>
 
         {onExport ? (
           <Button type="button" variant="outline" size="sm" onClick={onExport} disabled={visitors.length === 0}>
@@ -93,7 +98,7 @@ export function VisitorTable({
       <div className="overflow-x-auto">
         <table className="min-w-[980px] w-full border-collapse text-left text-sm">
           <thead>
-            <tr className="border-b border-slate-100 bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <tr className="border-b border-border bg-muted/60 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               <th className="px-4 py-3">Visitor</th>
               <th className="px-4 py-3">Visit</th>
               <th className="px-4 py-3">Host</th>
@@ -102,51 +107,51 @@ export function VisitorTable({
               <th className="px-4 py-3 text-right">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
+          <tbody className="divide-y divide-border">
             {loading ? (
               <tr>
-                <td className="px-4 py-10 text-center text-sm text-slate-500" colSpan={6}>
+                <td className="px-4 py-10 text-center text-sm text-muted-foreground" colSpan={6}>
                   Loading visitors...
                 </td>
               </tr>
             ) : visibleVisitors.length === 0 ? (
               <tr>
-                <td className="px-4 py-10 text-center text-sm text-slate-500" colSpan={6}>
+                <td className="px-4 py-10 text-center text-sm text-muted-foreground" colSpan={6}>
                   {emptyMessage}
                 </td>
               </tr>
             ) : (
               visibleVisitors.map((visitor) => (
-                <tr key={visitor.id} className="align-top transition hover:bg-blue-50/40">
+                <tr key={visitor.id} className="align-top transition hover:bg-muted/60">
                   <td className="px-4 py-3">
                     <div className="flex min-w-64 items-center gap-3">
                       {visitor.photo ? (
                         <img className="h-10 w-10 rounded-md object-cover" src={visitor.photo} alt={visitor.name} />
                       ) : (
-                        <span className="flex h-10 w-10 items-center justify-center rounded-md bg-blue-600 text-xs font-semibold text-white">
+                        <span className="flex h-10 w-10 items-center justify-center rounded-md bg-primary text-xs font-semibold text-primary-foreground">
                           {getInitials(visitor.name)}
                         </span>
                       )}
                       <div className="min-w-0">
-                        <Link className="font-semibold text-slate-900 hover:text-blue-700" to={VMS_PATHS.visitorDetails(visitor.id)}>
+                        <Link className="font-semibold text-foreground hover:text-primary" to={VMS_PATHS.visitorDetails(visitor.id)}>
                           {visitor.name}
                         </Link>
-                        <p className="font-mono text-xs text-slate-500">{visitor.visitorId || visitor.id}</p>
-                        <p className="truncate text-xs text-slate-500">{visitor.company || "Individual"}</p>
+                        <p className="font-mono text-xs text-muted-foreground">{visitor.visitorId || visitor.id}</p>
+                        <p className="truncate text-xs text-muted-foreground">{visitor.company || "Individual"}</p>
                       </div>
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-slate-600">
+                  <td className="px-4 py-3 text-foreground">
                     <div className="min-w-40">
                       <p>{formatDateTime(visitor.fromDateTime)}</p>
-                      <p className="text-xs text-slate-400">to {formatDateTime(visitor.toDateTime)}</p>
+                      <p className="text-xs text-muted-foreground">to {formatDateTime(visitor.toDateTime)}</p>
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-slate-600">{visitor.employeeToMeet || "-"}</td>
-                  <td className="px-4 py-3 text-slate-600">{getPurposeLabel(visitor.purpose)}</td>
+                  <td className="px-4 py-3 text-foreground">{visitor.employeeToMeet || "-"}</td>
+                  <td className="px-4 py-3 text-foreground">{getPurposeLabel(visitor.purpose)}</td>
                   <td className="px-4 py-3"><StatusPill status={visitor.status} /></td>
                   <td className="px-4 py-3">
-                    <div className="flex flex-wrap justify-end gap-1.5">
+                    <div className="flex min-w-44 flex-wrap justify-end gap-1.5">
                       <Button asChild variant="ghost" size="icon" title="View visitor">
                         <Link to={VMS_PATHS.visitorDetails(visitor.id)} aria-label={`View ${visitor.name}`}>
                           <Eye className="h-4 w-4" aria-hidden="true" />
@@ -232,7 +237,7 @@ function IconAction({
       type="button"
       variant="ghost"
       size="icon"
-      className={destructive ? "text-rose-600 hover:bg-rose-50 hover:text-rose-700" : undefined}
+      className={destructive ? "text-destructive hover:bg-destructive/10 hover:text-destructive" : undefined}
       aria-label={label}
       title={label}
       onClick={onClick}

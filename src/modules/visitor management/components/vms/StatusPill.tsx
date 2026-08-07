@@ -8,10 +8,11 @@ const toneMap: Record<string, string> = {
   approved: "border-blue-200 bg-blue-50 text-blue-700",
   checkedin: "border-emerald-200 bg-emerald-50 text-emerald-700",
   arrived: "border-emerald-200 bg-emerald-50 text-emerald-700",
-  checkedout: "border-slate-200 bg-slate-100 text-slate-700",
-  completed: "border-slate-200 bg-slate-100 text-slate-700",
+  checkedout: "border-border bg-muted text-muted-foreground",
+  completed: "border-border bg-muted text-muted-foreground",
   rejected: "border-rose-200 bg-rose-50 text-rose-700",
-  cancelled: "border-slate-200 bg-slate-50 text-slate-500",
+  cancelled: "border-border bg-muted/60 text-muted-foreground",
+  expired: "border-amber-200 bg-amber-50 text-amber-700",
 };
 
 function StatusIcon({ status }: { status?: VisitorStatus }) {

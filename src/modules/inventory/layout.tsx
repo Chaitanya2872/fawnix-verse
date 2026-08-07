@@ -33,8 +33,8 @@ function InventoryLayout({
         <div className="flex items-start justify-between gap-4">
           <div>
             <div className="mb-1.5 flex items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/10 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-primary">
-                <span className="h-1 w-1 rounded-full bg-primary" />
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-brand-200 bg-brand-50 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-brand-700">
+                <span className="h-1 w-1 rounded-full bg-brand-600" />
                 {eyebrow}
               </span>
             </div>

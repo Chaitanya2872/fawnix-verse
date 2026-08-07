@@ -5,6 +5,12 @@ import { ArrowRight, CalendarClock, RotateCcw, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  VmsAlert,
+  VmsIconBadge,
+  vmsSelectClassName,
+  vmsTextareaClassName,
+} from "../../components/vms/VmsPage";
 import flowService from "../../services/flowService";
 import visitorRequestService, { PURPOSE_OPTIONS } from "../../services/visitorRequestService";
 import { VMS_PATHS } from "../../routes/paths";
@@ -92,9 +98,9 @@ function CreateVisitorForm() {
   };
 
   return (
-    <form className="rounded-lg border border-slate-200 bg-white shadow-sm" onSubmit={handleSubmit} noValidate>
+    <form className="rounded-lg border border-border bg-card text-card-foreground shadow-sm" onSubmit={handleSubmit} noValidate>
       <div className="grid gap-0 lg:grid-cols-2">
-        <section className="border-b border-slate-100 p-5 lg:border-b-0 lg:border-r">
+        <section className="border-b border-border p-5 lg:border-b-0 lg:border-r">
           <SectionHeader
             icon={<UserRound className="h-5 w-5" aria-hidden="true" />}
             title="Visitor Details"
@@ -132,7 +138,7 @@ function CreateVisitorForm() {
                 name="purpose"
                 value={form.purpose}
                 onChange={handleChange}
-                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm outline-none transition focus-visible:ring-1 focus-visible:ring-ring"
+                className={vmsSelectClassName}
               >
                 <option value="">Select purpose</option>
                 {PURPOSE_OPTIONS.map((option) => (
@@ -151,7 +157,7 @@ function CreateVisitorForm() {
                     value={form.otherPurpose}
                     onChange={handleChange}
                     placeholder="Describe the reason for this visit"
-                    className="min-h-24 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm outline-none transition focus-visible:ring-1 focus-visible:ring-ring"
+                    className={vmsTextareaClassName}
                   />
                 </Field>
               </div>
@@ -167,17 +173,17 @@ function CreateVisitorForm() {
       </div>
 
       {(status === "error" || apiError) ? (
-        <div className="mx-5 mb-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+        <VmsAlert tone="error" className="mx-5 mb-4">
           {apiError || "Some fields need attention before the visitor can be registered."}
-        </div>
+        </VmsAlert>
       ) : null}
 
-      <div className="flex flex-col-reverse gap-2 border-t border-slate-100 px-5 py-4 sm:flex-row sm:justify-end">
+      <div className="flex flex-col-reverse gap-2 border-t border-border px-5 py-4 sm:flex-row sm:justify-end">
         <Button type="button" variant="outline" onClick={handleClear} disabled={status === "saving"}>
           <RotateCcw className="h-4 w-4" aria-hidden="true" />
           Clear
         </Button>
-        <Button type="submit" className="bg-blue-600 text-white hover:bg-blue-700" disabled={status === "saving"}>
+        <Button type="submit" disabled={status === "saving"}>
           {status === "saving" ? "Registering..." : "Register Visitor"}
           {status !== "saving" ? <ArrowRight className="h-4 w-4" aria-hidden="true" /> : null}
         </Button>
@@ -197,10 +203,10 @@ function SectionHeader({
 }) {
   return (
     <div className="flex gap-3">
-      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-700">{icon}</span>
+      <VmsIconBadge>{icon}</VmsIconBadge>
       <div>
-        <h3 className="text-sm font-semibold text-slate-950">{title}</h3>
-        <p className="mt-1 text-sm leading-6 text-slate-500">{description}</p>
+        <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+        <p className="mt-1 text-sm leading-6 text-muted-foreground">{description}</p>
       </div>
     </div>
   );
@@ -221,7 +227,7 @@ function Field({
     <div className="space-y-2">
       <Label htmlFor={id}>{label}</Label>
       {children}
-      {error ? <p className="text-xs font-medium text-rose-600">{error}</p> : null}
+      {error ? <p className="text-xs font-medium text-destructive">{error}</p> : null}
     </div>
   );
 }

@@ -4,7 +4,7 @@ import { Plus, RefreshCcw, Users, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { VisitorActionDialog } from "../../components/vms/VisitorActionDialog";
 import { VisitorTable } from "../../components/vms/VisitorTable";
-import { EmptyState, VmsPage } from "../../components/vms/VmsPage";
+import { EmptyState, VmsAlert, VmsPage } from "../../components/vms/VmsPage";
 import { useVisitorActions, useVisitors } from "../../hooks/useVisitors";
 import { VMS_PATHS } from "../../routes/paths";
 import type { VisitorAction, VisitorRecord } from "../../types";
@@ -52,7 +52,7 @@ function VisitorRequests() {
             <RefreshCcw className="h-4 w-4" aria-hidden="true" />
             Refresh
           </Button>
-          <Button asChild className="bg-blue-600 text-white hover:bg-blue-700">
+          <Button asChild>
             <Link to={VMS_PATHS.newVisitor}>
               <Plus className="h-4 w-4" aria-hidden="true" />
               New Visitor
@@ -70,15 +70,11 @@ function VisitorRequests() {
       ) : null}
 
       {notice ? (
-        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-          {notice}
-        </div>
+        <VmsAlert tone="success">{notice}</VmsAlert>
       ) : null}
 
       {actionError ? (
-        <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-          {actionError}
-        </div>
+        <VmsAlert tone="error">{actionError}</VmsAlert>
       ) : null}
 
       <VisitorTable
@@ -96,7 +92,7 @@ function VisitorRequests() {
           title="Start with a visitor request"
           description="Create the first visitor request to unlock approvals, badge preview, and desk processing."
           actions={
-            <Button asChild className="bg-blue-600 text-white hover:bg-blue-700">
+            <Button asChild>
               <Link to={VMS_PATHS.newVisitor}>Create Visitor</Link>
             </Button>
           }

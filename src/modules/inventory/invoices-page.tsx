@@ -461,7 +461,7 @@ function billStatusTone(status: BillStatus) {
     PENDING_APPROVAL: "border-amber-200 bg-amber-50 text-amber-700",
     APPROVED: "border-emerald-200 bg-emerald-50 text-emerald-700",
     REJECTED: "border-rose-200 bg-rose-50 text-rose-700",
-    PAID: "border-blue-200 bg-blue-50 text-blue-700",
+    PAID: "border-emerald-200 bg-emerald-50 text-emerald-700",
   };
   return tones[status];
 }
@@ -478,7 +478,7 @@ function billMatchingTone(status: Bill["matchingStatus"]) {
 function invoiceStatusTone(status: SalesInvoiceStatus) {
   const tones: Record<SalesInvoiceStatus, string> = {
     DRAFT: "border-slate-200 bg-slate-50 text-slate-700",
-    ISSUED: "border-blue-200 bg-blue-50 text-blue-700",
+    ISSUED: "border-brand-200 bg-brand-50 text-brand-700",
     PARTIALLY_PAID: "border-amber-200 bg-amber-50 text-amber-700",
     PAID: "border-emerald-200 bg-emerald-50 text-emerald-700",
     OVERDUE: "border-rose-200 bg-rose-50 text-rose-700",
@@ -490,7 +490,7 @@ function invoiceStatusTone(status: SalesInvoiceStatus) {
 function proformaStatusTone(status: ProformaStatus) {
   const tones: Record<ProformaStatus, string> = {
     DRAFT: "border-slate-200 bg-slate-50 text-slate-700",
-    SENT: "border-blue-200 bg-blue-50 text-blue-700",
+    SENT: "border-brand-200 bg-brand-50 text-brand-700",
     ACCEPTED: "border-emerald-200 bg-emerald-50 text-emerald-700",
     EXPIRED: "border-amber-200 bg-amber-50 text-amber-700",
     CANCELLED: "border-rose-200 bg-rose-50 text-rose-700",

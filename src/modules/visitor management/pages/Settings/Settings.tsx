@@ -1,7 +1,13 @@
 import { useState } from "react";
 import { Bell, BadgeCheck, Clock3, Mail, Printer, Save, ShieldCheck, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { VmsCard, VmsCardHeader, VmsPage } from "../../components/vms/VmsPage";
+import {
+  VmsAlert,
+  VmsCard,
+  VmsCardHeader,
+  VmsIconBadge,
+  VmsPage,
+} from "../../components/vms/VmsPage";
 
 const initialSettings = {
   emailAlerts: true,
@@ -33,16 +39,16 @@ function Settings() {
       title="Settings"
       description="Configure security desk behavior, notification preferences, badge prompts, and verification policy."
       actions={
-        <Button type="button" className="bg-blue-600 text-white hover:bg-blue-700" onClick={saveSettings}>
+        <Button type="button" onClick={saveSettings}>
           <Save className="h-4 w-4" aria-hidden="true" />
           Save Changes
         </Button>
       }
     >
       {saved ? (
-        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+        <VmsAlert tone="success">
           Visitor Management settings saved.
-        </div>
+        </VmsAlert>
       ) : null}
 
       <section className="grid gap-4 xl:grid-cols-3">
@@ -149,23 +155,23 @@ function SettingsPanel({
       <VmsCardHeader
         title={title}
         description={description}
-        actions={<span className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-700">{icon}</span>}
+        actions={<VmsIconBadge>{icon}</VmsIconBadge>}
       />
       <div className="space-y-3 p-4">
         {rows.map((row) => (
-          <label key={row.label} className="flex cursor-pointer items-start justify-between gap-4 rounded-lg border border-slate-100 bg-slate-50 px-4 py-3 transition hover:border-blue-200 hover:bg-blue-50/60">
+          <label key={row.label} className="flex cursor-pointer items-start justify-between gap-4 rounded-lg border border-border bg-muted/40 px-4 py-3 transition hover:border-primary/40 hover:bg-accent/60">
             <span className="flex gap-3">
-              <span className="mt-0.5 text-slate-500">{row.icon}</span>
+              <span className="mt-0.5 text-muted-foreground">{row.icon}</span>
               <span>
-                <strong className="block text-sm font-semibold text-slate-900">{row.label}</strong>
-                <small className="mt-1 block text-sm leading-5 text-slate-500">{row.helper}</small>
+                <strong className="block text-sm font-semibold text-foreground">{row.label}</strong>
+                <small className="mt-1 block text-sm leading-5 text-muted-foreground">{row.helper}</small>
               </span>
             </span>
             <input
               type="checkbox"
               checked={row.checked}
               onChange={row.onChange}
-              className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+              className="mt-1 h-4 w-4 rounded border-input accent-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             />
           </label>
         ))}
@@ -176,9 +182,9 @@ function SettingsPanel({
 
 function ProfileField({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg border border-slate-100 bg-slate-50 px-4 py-3">
-      <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">{label}</p>
-      <p className="mt-1 text-sm font-medium text-slate-900">{value}</p>
+    <div className="rounded-lg border border-border bg-muted/40 px-4 py-3">
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p className="mt-1 text-sm font-medium text-foreground">{value}</p>
     </div>
   );
 }

@@ -17,7 +17,15 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { BadgePreview } from "../../components/vms/BadgePreview";
-import { EmptyState, VmsCard, VmsCardHeader, VmsPage } from "../../components/vms/VmsPage";
+import {
+  EmptyState,
+  VmsAlert,
+  VmsCard,
+  VmsCardHeader,
+  VmsIconBadge,
+  VmsInfoTile,
+  VmsPage,
+} from "../../components/vms/VmsPage";
 import { StatusPill } from "../../components/vms/StatusPill";
 import { VisitorActionDialog } from "../../components/vms/VisitorActionDialog";
 import { useVisitor, useVisitorActions } from "../../hooks/useVisitors";
@@ -119,7 +127,7 @@ function VisitorDetails() {
               Face Registration
             </Link>
           </Button>
-          <Button asChild className="bg-blue-600 text-white hover:bg-blue-700">
+          <Button asChild>
             <Link to={VMS_PATHS.desk}>
               <LogIn className="h-4 w-4" aria-hidden="true" />
               Open Desk
@@ -129,15 +137,11 @@ function VisitorDetails() {
       }
     >
       {notice ? (
-        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-          {notice}
-        </div>
+        <VmsAlert tone="success">{notice}</VmsAlert>
       ) : null}
 
       {actionError ? (
-        <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-          {actionError}
-        </div>
+        <VmsAlert tone="error">{actionError}</VmsAlert>
       ) : null}
 
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
@@ -145,25 +149,25 @@ function VisitorDetails() {
           <VmsCard>
             <VmsCardHeader title="Profile" actions={<StatusPill status={visitor.status} />} />
             <div className="grid gap-5 p-5 md:grid-cols-[220px_1fr]">
-              <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-center">
+              <div className="rounded-lg border border-border bg-muted/40 p-4 text-center">
                 {visitor.photo ? (
                   <img src={visitor.photo} alt={visitor.name} className="mx-auto h-40 w-40 rounded-lg object-cover" />
                 ) : (
-                  <span className="mx-auto flex h-40 w-40 items-center justify-center rounded-lg bg-blue-600 text-3xl font-semibold text-white">
+                  <VmsIconBadge tone="strong" className="mx-auto h-40 w-40 text-3xl font-semibold">
                     {getInitials(visitor.name)}
-                  </span>
+                  </VmsIconBadge>
                 )}
-                <p className="mt-4 text-sm font-semibold text-slate-950">{visitor.name}</p>
-                <p className="mt-1 font-mono text-xs text-slate-500">{visitor.visitorId || visitor.id}</p>
+                <p className="mt-4 text-sm font-semibold text-foreground">{visitor.name}</p>
+                <p className="mt-1 font-mono text-xs text-muted-foreground">{visitor.visitorId || visitor.id}</p>
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2">
-                <InfoTile icon={<Mail className="h-4 w-4" aria-hidden="true" />} label="Email" value={visitor.email || "-"} />
-                <InfoTile icon={<Phone className="h-4 w-4" aria-hidden="true" />} label="Mobile" value={visitor.mobile || "-"} />
-                <InfoTile icon={<UserRound className="h-4 w-4" aria-hidden="true" />} label="Company" value={visitor.company || "Individual"} />
-                <InfoTile icon={<ShieldCheck className="h-4 w-4" aria-hidden="true" />} label="Host" value={visitor.employeeToMeet || "-"} />
-                <InfoTile icon={<BadgeCheck className="h-4 w-4" aria-hidden="true" />} label="Purpose" value={getPurposeLabel(visitor.purpose)} />
-                <InfoTile icon={<Camera className="h-4 w-4" aria-hidden="true" />} label="Face Profile" value={visitor.photo || visitor.faceRegistered ? "Registered" : "Missing"} />
+                <VmsInfoTile icon={<Mail className="h-4 w-4" aria-hidden="true" />} label="Email" value={visitor.email || "-"} />
+                <VmsInfoTile icon={<Phone className="h-4 w-4" aria-hidden="true" />} label="Mobile" value={visitor.mobile || "-"} />
+                <VmsInfoTile icon={<UserRound className="h-4 w-4" aria-hidden="true" />} label="Company" value={visitor.company || "Individual"} />
+                <VmsInfoTile icon={<ShieldCheck className="h-4 w-4" aria-hidden="true" />} label="Host" value={visitor.employeeToMeet || "-"} />
+                <VmsInfoTile icon={<BadgeCheck className="h-4 w-4" aria-hidden="true" />} label="Purpose" value={getPurposeLabel(visitor.purpose)} />
+                <VmsInfoTile icon={<Camera className="h-4 w-4" aria-hidden="true" />} label="Face Profile" value={visitor.photo || visitor.faceRegistered ? "Registered" : "Missing"} />
               </div>
             </div>
           </VmsCard>
@@ -182,13 +186,13 @@ function VisitorDetails() {
             <VmsCardHeader title="Visitor Timeline" description="Lifecycle events based on the current visitor record." />
             <div className="space-y-3 p-5">
               {timeline.map((item) => (
-                <div key={item.label} className="flex gap-3 rounded-lg border border-slate-100 bg-slate-50 px-4 py-3">
-                  <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white text-blue-600 shadow-sm">
+                <div key={item.label} className="flex gap-3 rounded-lg border border-border bg-muted/40 px-4 py-3">
+                  <VmsIconBadge className="mt-0.5 h-7 w-7 rounded-full bg-card shadow-sm [&_svg]:h-4 [&_svg]:w-4">
                     {item.icon}
-                  </span>
+                  </VmsIconBadge>
                   <div>
-                    <p className="text-sm font-semibold text-slate-900">{item.label}</p>
-                    <p className="mt-0.5 text-sm text-slate-500">{item.value}</p>
+                    <p className="text-sm font-semibold text-foreground">{item.label}</p>
+                    <p className="mt-0.5 text-sm text-muted-foreground">{item.value}</p>
                   </div>
                 </div>
               ))}
@@ -201,7 +205,7 @@ function VisitorDetails() {
           <VmsCard>
             <VmsCardHeader title="Available Actions" description="Actions adapt to the visitor's current lifecycle state." />
             <div className="grid gap-2 p-4">
-              <Button type="button" className="justify-start bg-blue-600 text-white hover:bg-blue-700" onClick={() => openAction("approve")} disabled={!canApprove(visitor)}>
+              <Button type="button" className="justify-start" onClick={() => openAction("approve")} disabled={!canApprove(visitor)}>
                 <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
                 Approve
               </Button>
@@ -226,7 +230,7 @@ function VisitorDetails() {
                 <XCircle className="h-4 w-4" aria-hidden="true" />
                 Reject
               </Button>
-              <Button type="button" variant="outline" className="justify-start text-rose-600 hover:bg-rose-50 hover:text-rose-700" onClick={() => openAction("delete")}>
+              <Button type="button" variant="outline" className="justify-start text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => openAction("delete")}>
                 <Trash2 className="h-4 w-4" aria-hidden="true" />
                 Delete
               </Button>
@@ -246,31 +250,11 @@ function VisitorDetails() {
   );
 }
 
-function InfoTile({
-  icon,
-  label,
-  value,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-}) {
-  return (
-    <div className="rounded-lg border border-slate-200 bg-white px-4 py-3">
-      <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
-        {icon}
-        {label}
-      </div>
-      <p className="mt-2 break-words text-sm font-medium text-slate-800">{value}</p>
-    </div>
-  );
-}
-
 function DetailRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg border border-slate-100 bg-slate-50 px-4 py-3">
-      <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">{label}</p>
-      <p className="mt-1 text-sm font-medium text-slate-800">{value}</p>
+    <div className="rounded-lg border border-border bg-muted/40 px-4 py-3">
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p className="mt-1 text-sm font-medium text-foreground">{value}</p>
     </div>
   );
 }

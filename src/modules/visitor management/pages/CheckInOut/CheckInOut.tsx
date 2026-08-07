@@ -15,8 +15,16 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { BadgePreview } from "../../components/vms/BadgePreview";
-import { EmptyState, VmsCard, VmsCardHeader, VmsPage } from "../../components/vms/VmsPage";
+import {
+  EmptyState,
+  VmsAlert,
+  VmsCard,
+  VmsCardHeader,
+  VmsIconBadge,
+  VmsPage,
+} from "../../components/vms/VmsPage";
 import { StatusPill } from "../../components/vms/StatusPill";
 import { VisitorActionDialog } from "../../components/vms/VisitorActionDialog";
 import { useVisitorActions } from "../../hooks/useVisitors";
@@ -207,21 +215,13 @@ function CheckInOut() {
       }
     >
       {message ? (
-        <div className={`rounded-lg border px-4 py-3 text-sm ${
-          message.type === "success"
-            ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-            : message.type === "error"
-              ? "border-rose-200 bg-rose-50 text-rose-700"
-              : "border-blue-200 bg-blue-50 text-blue-700"
-        }`}>
+        <VmsAlert tone={message.type === "success" ? "success" : message.type === "error" ? "error" : "info"}>
           {message.text}
-        </div>
+        </VmsAlert>
       ) : null}
 
       {actionError ? (
-        <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-          {actionError}
-        </div>
+        <VmsAlert tone="error">{actionError}</VmsAlert>
       ) : null}
 
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
@@ -233,25 +233,26 @@ function CheckInOut() {
               actions={visitor ? <StatusPill status={visitor.status} /> : null}
             />
             <div className="grid gap-5 p-5 lg:grid-cols-[240px_1fr]">
-              <div className="flex min-h-56 items-center justify-center rounded-lg border border-dashed border-blue-200 bg-blue-50/60">
-                <div className="grid h-32 w-32 grid-cols-5 gap-1 rounded-lg bg-white p-3 shadow-sm" aria-hidden="true">
+              <div className="flex min-h-56 items-center justify-center rounded-lg border border-dashed border-border bg-muted/50">
+                <div className="grid h-32 w-32 grid-cols-5 gap-1 rounded-lg border border-border bg-card p-3 shadow-sm" aria-hidden="true">
                   {Array.from({ length: 25 }).map((_, index) => (
-                    <span key={index} className={(index + Math.floor(index / 5)) % 3 === 0 ? "rounded-sm bg-blue-600" : "rounded-sm bg-blue-100"} />
+                    <span key={index} className={(index + Math.floor(index / 5)) % 3 === 0 ? "rounded-sm bg-primary" : "rounded-sm bg-muted"} />
                   ))}
                 </div>
               </div>
               <form className="space-y-4" onSubmit={lookup}>
-                <label className="space-y-2">
-                  <span className="text-sm font-medium text-slate-700">QR Code / Visitor ID</span>
+                <div className="space-y-2">
+                  <Label htmlFor="qrInput">QR Code / Visitor ID</Label>
                   <Input
+                    id="qrInput"
                     value={qrInput}
                     onChange={(event) => setQrInput(event.target.value)}
                     placeholder="VMS|... or VISITOR_12"
                     disabled={lookupLoading}
                   />
-                </label>
+                </div>
                 <div className="flex flex-wrap gap-2">
-                  <Button type="submit" className="bg-blue-600 text-white hover:bg-blue-700" disabled={lookupLoading}>
+                  <Button type="submit" disabled={lookupLoading}>
                     <Search className="h-4 w-4" aria-hidden="true" />
                     {lookupLoading ? "Loading..." : "Load Visitor"}
                   </Button>
@@ -265,13 +266,9 @@ function CheckInOut() {
                   </Button>
                 </div>
                 {visitor ? (
-                  <div className={`rounded-lg border px-4 py-3 text-sm ${
-                    windowState.state === "active"
-                      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                      : "border-amber-200 bg-amber-50 text-amber-700"
-                  }`}>
+                  <VmsAlert tone={windowState.state === "active" ? "success" : "warning"}>
                     {windowState.message}
-                  </div>
+                  </VmsAlert>
                 ) : null}
               </form>
             </div>
@@ -286,7 +283,7 @@ function CheckInOut() {
               }
             />
             <div className="grid gap-5 p-5 lg:grid-cols-[minmax(0,1fr)_280px]">
-              <div className="flex min-h-72 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-slate-950">
+              <div className="flex min-h-72 items-center justify-center overflow-hidden rounded-lg border border-border bg-foreground">
                 {faceMode === "camera" ? (
                   <video ref={videoRef} autoPlay playsInline muted className="h-full min-h-72 w-full object-cover" />
                 ) : livePreview ? (
@@ -294,10 +291,10 @@ function CheckInOut() {
                 ) : visitor?.photo ? (
                   <img src={visitor.photo} alt={visitor.name} className="h-full min-h-72 w-full object-cover" />
                 ) : (
-                  <div className="px-6 text-center text-slate-300">
+                  <div className="px-6 text-center text-background/80">
                     <Camera className="mx-auto h-10 w-10" aria-hidden="true" />
                     <p className="mt-3 text-sm font-semibold">No registered face preview</p>
-                    <p className="mt-1 text-xs text-slate-400">Register a face profile from visitor details or the action below.</p>
+                    <p className="mt-1 text-xs text-background/60">Register a face profile from visitor details or the action below.</p>
                   </div>
                 )}
               </div>
@@ -305,10 +302,10 @@ function CheckInOut() {
               <div className="space-y-3">
                 {visitor ? (
                   <>
-                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                      <p className="text-sm font-semibold text-slate-900">{visitor.name}</p>
-                      <p className="mt-1 font-mono text-xs text-slate-500">{visitor.visitorId || visitor.id}</p>
-                      <p className="mt-2 text-xs text-slate-500">Face profile: {visitor.photo || visitor.faceRegistered ? "Available" : "Missing"}</p>
+                    <div className="rounded-lg border border-border bg-muted/40 p-3">
+                      <p className="text-sm font-semibold text-foreground">{visitor.name}</p>
+                      <p className="mt-1 font-mono text-xs text-muted-foreground">{visitor.visitorId || visitor.id}</p>
+                      <p className="mt-2 text-xs text-muted-foreground">Face profile: {visitor.photo || visitor.faceRegistered ? "Available" : "Missing"}</p>
                     </div>
                     {faceMode === "camera" ? (
                       <div className="flex flex-wrap gap-2">
@@ -316,14 +313,14 @@ function CheckInOut() {
                           <X className="h-4 w-4" aria-hidden="true" />
                           Cancel
                         </Button>
-                        <Button type="button" className="bg-blue-600 text-white hover:bg-blue-700" onClick={() => void runFaceMatch()}>
+                        <Button type="button" onClick={() => void runFaceMatch()}>
                           <ShieldCheck className="h-4 w-4" aria-hidden="true" />
                           Run Match
                         </Button>
                       </div>
                     ) : (
                       <div className="flex flex-wrap gap-2">
-                        <Button type="button" className="bg-blue-600 text-white hover:bg-blue-700" onClick={startFaceCheck} disabled={faceMode === "verifying"}>
+                        <Button type="button" onClick={startFaceCheck} disabled={faceMode === "verifying"}>
                           <Camera className="h-4 w-4" aria-hidden="true" />
                           {faceMode === "verifying" ? "Verifying..." : "Start Face Check"}
                         </Button>
@@ -335,17 +332,17 @@ function CheckInOut() {
                       </div>
                     )}
                     {faceMode === "verified" ? (
-                      <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+                      <VmsAlert tone="success" className="px-3 py-2">
                         <CheckCircle2 className="mr-1 inline h-4 w-4" aria-hidden="true" />
                         {faceResult?.message || "Face verification passed."}
                         {typeof faceResult?.confidence === "number" ? ` Confidence: ${faceResult.confidence}%.` : ""}
-                      </div>
+                      </VmsAlert>
                     ) : null}
                     {faceMode === "failed" ? (
-                      <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+                      <VmsAlert tone="error" className="px-3 py-2">
                         <AlertCircle className="mr-1 inline h-4 w-4" aria-hidden="true" />
                         Face verification failed. Check-in remains blocked.
-                      </div>
+                      </VmsAlert>
                     ) : null}
                   </>
                 ) : (
@@ -370,7 +367,7 @@ function CheckInOut() {
                 <div className="grid gap-2 p-4">
                   <Button
                     type="button"
-                    className="justify-start bg-blue-600 text-white hover:bg-blue-700"
+                    className="justify-start"
                     onClick={() => openAction("checkIn")}
                     disabled={!canDeskCheckIn || !faceReady}
                   >
@@ -378,9 +375,9 @@ function CheckInOut() {
                     Check In
                   </Button>
                   {!faceReady && canDeskCheckIn ? (
-                    <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                    <VmsAlert tone="warning" className="px-3 py-2 text-xs">
                       Face verification must pass before check-in is enabled.
-                    </p>
+                    </VmsAlert>
                   ) : null}
                   <Button
                     type="button"
@@ -435,13 +432,13 @@ function VisitorProfile({ visitor }: { visitor: VisitorRecord }) {
           {visitor.photo ? (
             <img src={visitor.photo} alt={visitor.name} className="h-14 w-14 rounded-lg object-cover" />
           ) : (
-            <span className="flex h-14 w-14 items-center justify-center rounded-lg bg-blue-600 text-sm font-semibold text-white">
+            <VmsIconBadge tone="strong" className="h-14 w-14 text-sm font-semibold">
               {getInitials(visitor.name)}
-            </span>
+            </VmsIconBadge>
           )}
           <div className="min-w-0">
-            <p className="truncate text-base font-semibold text-slate-950">{visitor.name}</p>
-            <p className="font-mono text-xs text-slate-500">{visitor.visitorId || visitor.id}</p>
+            <p className="truncate text-base font-semibold text-foreground">{visitor.name}</p>
+            <p className="font-mono text-xs text-muted-foreground">{visitor.visitorId || visitor.id}</p>
           </div>
         </div>
         <div className="space-y-2 text-sm">
@@ -460,9 +457,9 @@ function VisitorProfile({ visitor }: { visitor: VisitorRecord }) {
 
 function DetailRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-start justify-between gap-3 rounded-md bg-slate-50 px-3 py-2">
-      <span className="text-slate-500">{label}</span>
-      <strong className="text-right font-medium text-slate-800">{value}</strong>
+    <div className="flex items-start justify-between gap-3 rounded-md bg-muted/40 px-3 py-2">
+      <span className="text-muted-foreground">{label}</span>
+      <strong className="text-right font-medium text-foreground">{value}</strong>
     </div>
   );
 }

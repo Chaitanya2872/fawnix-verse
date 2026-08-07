@@ -17,7 +17,14 @@ import { Button } from "@/components/ui/button";
 import { VMS_PATHS } from "../../routes/paths";
 import { useVisitors } from "../../hooks/useVisitors";
 import { VisitorTable } from "../../components/vms/VisitorTable";
-import { EmptyState, VmsCard, VmsCardHeader, VmsPage } from "../../components/vms/VmsPage";
+import {
+  EmptyState,
+  VmsCard,
+  VmsCardHeader,
+  VmsIconBadge,
+  VmsMetricCard,
+  VmsPage,
+} from "../../components/vms/VmsPage";
 import {
   getVisitorStats,
   isToday,
@@ -43,7 +50,7 @@ function Dashboard() {
       description="Manage the complete visitor lifecycle from registration and approval to identity verification, badge issue, check-in, and check-out."
       actions={
         <>
-          <Button asChild className="bg-blue-600 text-white hover:bg-blue-700">
+          <Button asChild>
             <Link to={VMS_PATHS.newVisitor}>
               <Plus className="h-4 w-4" aria-hidden="true" />
               New Visitor
@@ -67,14 +74,14 @@ function Dashboard() {
       ) : null}
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <MetricCard
+        <VmsMetricCard
           label="Today"
           value={loading ? "..." : stats.todayVisitors}
           helper="Scheduled or created today"
           icon={<DoorOpen className="h-5 w-5" aria-hidden="true" />}
           to={VMS_PATHS.visitors}
         />
-        <MetricCard
+        <VmsMetricCard
           label="Pending Approval"
           value={loading ? "..." : stats.pendingRequests}
           helper="Waiting for host/security review"
@@ -82,7 +89,7 @@ function Dashboard() {
           to={VMS_PATHS.approvals}
           highlight={stats.pendingRequests > 0}
         />
-        <MetricCard
+        <VmsMetricCard
           label="On Premises"
           value={loading ? "..." : stats.currentlyArrived}
           helper="Currently checked in"
@@ -90,7 +97,7 @@ function Dashboard() {
           to={VMS_PATHS.desk}
           highlight={stats.currentlyArrived > 0}
         />
-        <MetricCard
+        <VmsMetricCard
           label="Completed"
           value={loading ? "..." : stats.completedRequests}
           helper="Checked out visitors"
@@ -144,47 +151,12 @@ function Dashboard() {
             visitors={recentVisitors}
             loading={loading}
             actionScope="readonly"
+            embedded
             emptyMessage="No visitor records available yet."
           />
         </div>
       </VmsCard>
     </VmsPage>
-  );
-}
-
-function MetricCard({
-  label,
-  value,
-  helper,
-  icon,
-  to,
-  highlight = false,
-}: {
-  label: string;
-  value: string | number;
-  helper: string;
-  icon: ReactNode;
-  to: string;
-  highlight?: boolean;
-}) {
-  return (
-    <Link
-      to={to}
-      className={`rounded-lg border bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md ${
-        highlight ? "border-blue-200 bg-blue-50/70" : "border-slate-200"
-      }`}
-    >
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-sm font-medium text-slate-500">{label}</p>
-          <p className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">{value}</p>
-        </div>
-        <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-700">
-          {icon}
-        </span>
-      </div>
-      <p className="mt-3 text-sm text-slate-500">{helper}</p>
-    </Link>
   );
 }
 
@@ -202,15 +174,15 @@ function WorkflowCard({
   return (
     <Link
       to={to}
-      className="group rounded-lg border border-slate-200 bg-white p-4 shadow-sm transition hover:border-blue-200 hover:bg-blue-50/50"
+      className="group rounded-lg border border-border bg-card p-4 text-card-foreground shadow-sm transition hover:border-primary/40 hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
       <div className="flex items-start gap-3">
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600 transition group-hover:bg-blue-600 group-hover:text-white">
+        <VmsIconBadge className="transition group-hover:border-primary group-hover:bg-primary group-hover:text-primary-foreground">
           {icon}
-        </span>
+        </VmsIconBadge>
         <div>
-          <h3 className="text-sm font-semibold text-slate-950">{title}</h3>
-          <p className="mt-1 text-sm leading-6 text-slate-500">{description}</p>
+          <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+          <p className="mt-1 text-sm leading-6 text-muted-foreground">{description}</p>
         </div>
       </div>
     </Link>

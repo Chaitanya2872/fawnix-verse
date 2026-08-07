@@ -8,7 +8,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
 import type { VisitorAction, VisitorRecord } from "../../types";
+import { vmsTextareaClassName } from "./VmsPage";
 
 const actionCopy: Record<VisitorAction, { title: string; label: string; description: string; tone: "default" | "destructive" }> = {
   approve: {
@@ -70,14 +72,14 @@ export function VisitorActionDialog({
         </DialogHeader>
 
         {action === "reject" ? (
-          <label className="space-y-2 text-sm">
-            <span className="font-medium text-slate-700">Rejection reason</span>
+          <Label className="space-y-2 text-sm">
+            <span>Rejection reason</span>
             <textarea
               ref={reasonRef}
-              className="min-h-24 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+              className={vmsTextareaClassName}
               placeholder="Optional reason visible in visitor history"
             />
-          </label>
+          </Label>
         ) : null}
 
         <DialogFooter>

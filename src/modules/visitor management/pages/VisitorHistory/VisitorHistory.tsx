@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import { Clock3, Download, Plus, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { EmptyState, VmsPage } from "../../components/vms/VmsPage";
+import { EmptyState, VmsAlert, VmsPage } from "../../components/vms/VmsPage";
 import { VisitorTable } from "../../components/vms/VisitorTable";
 import { useVisitors } from "../../hooks/useVisitors";
 import { VMS_PATHS } from "../../routes/paths";
@@ -35,7 +35,7 @@ function VisitorHistory() {
             <Download className="h-4 w-4" aria-hidden="true" />
             Export
           </Button>
-          <Button asChild className="bg-blue-600 text-white hover:bg-blue-700">
+          <Button asChild>
             <Link to={VMS_PATHS.newVisitor}>
               <Plus className="h-4 w-4" aria-hidden="true" />
               New Visitor
@@ -45,9 +45,7 @@ function VisitorHistory() {
       }
     >
       {error ? (
-        <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-          {error}
-        </div>
+        <VmsAlert tone="error">{error}</VmsAlert>
       ) : null}
 
       {history.length === 0 && !loading ? (
