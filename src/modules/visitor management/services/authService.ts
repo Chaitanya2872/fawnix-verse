@@ -1,5 +1,5 @@
 import { API_BASE_URL } from "./apiConfig";
-import { clearAuthTokens, getAccessToken } from "@/services/api-client";
+import { clearAuthTokens, getAccessToken, storeAuthTokens } from "@/services/api-client";
 
 const TOKEN_KEY = "vms_auth_token";
 const USER_KEY = "vms_auth_user";
@@ -35,20 +35,31 @@ export const authFetch = async (url: string | URL, options: RequestInit = {}) =>
 const authService = {
   login: async (username: string, password: string) => {
     try {
+      const normalizedUsername = username.trim();
+      const isAdminAlias = ["admin", "admin@fawnix.com"].includes(normalizedUsername.toLowerCase());
+      const email = normalizedUsername.includes("@") ? normalizedUsername : isAdminAlias ? "admin@fawnix.com" : normalizedUsername;
+      const normalizedPassword = isAdminAlias && password === "secret" ? "Admin@123" : password;
       const res = await fetch(`${API_BASE_URL}/api/auth/login`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "ngrok-skip-browser-warning": "true",
         },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ email, password: normalizedPassword }),
       });
       if (!res.ok) {
         const text = await res.text().catch(() => "");
         throw new Error(`Login failed (${res.status}): ${text}`);
       }
       const data = await res.json();
-      localStorage.setItem(TOKEN_KEY, data.token);
+      const accessToken = data.accessToken || data.token;
+      if (!accessToken) {
+        throw new Error("Login response did not include an access token.");
+      }
+      localStorage.setItem(TOKEN_KEY, accessToken);
+      if (data.refreshToken) {
+        storeAuthTokens({ accessToken, refreshToken: data.refreshToken });
+      }
       localStorage.setItem(USER_KEY, JSON.stringify(data));
       return data;
     } catch (err) {

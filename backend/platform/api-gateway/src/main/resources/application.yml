@@ -30,6 +30,10 @@ spring:
           uri: ${IDENTITY_SERVICE_URL:http://localhost:8081}
           predicates:
             - Path=/api/access-requests,/api/access-requests/**
+        - id: identity-vms
+          uri: ${IDENTITY_SERVICE_URL:http://localhost:8081}
+          predicates:
+            - Path=/api/visitor-requests,/api/visitor-requests/**,/api/public/visitor/**
         - id: crm-leads
           uri: lb://CRM-SERVICE
           predicates:

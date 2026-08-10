@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { FormEvent } from "react";
+import type { ChangeEvent, FormEvent } from "react";
 import { Link } from "react-router-dom";
 import {
   AlertCircle,
@@ -46,6 +46,7 @@ import {
 function CheckInOut() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const fileRef = useRef<HTMLInputElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const [qrInput, setQrInput] = useState(() => flowService.getCurrentVisitor()?.qrCodeData || "");
   const [visitor, setVisitor] = useState<VisitorRecord | null>(() => flowService.getCurrentVisitor());
@@ -142,14 +143,8 @@ function CheckInOut() {
     return canvas.toDataURL("image/jpeg", 0.86);
   };
 
-  const runFaceMatch = async () => {
+  const verifyLiveImage = async (imageBase64: string) => {
     if (!visitor) return;
-    const imageBase64 = captureLiveFrame();
-
-    if (!imageBase64) {
-      setMessage({ type: "error", text: "Could not capture a live frame from the camera. Try again." });
-      return;
-    }
 
     stopCamera();
     setLivePreview(imageBase64);
@@ -174,6 +169,37 @@ function CheckInOut() {
       setFaceResult(null);
       setMessage({ type: "error", text: error instanceof Error ? error.message : "Face verification failed." });
     }
+  };
+
+  const runFaceMatch = async () => {
+    const imageBase64 = captureLiveFrame();
+
+    if (!imageBase64) {
+      setMessage({ type: "error", text: "Could not capture a live frame from the camera. Try again." });
+      return;
+    }
+
+    await verifyLiveImage(imageBase64);
+  };
+
+  const handleLivePhotoUpload = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      setMessage({ type: "error", text: "Upload a live verification photo smaller than 5 MB." });
+      event.target.value = "";
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (loadEvent) => {
+      const dataUrl = typeof loadEvent.target?.result === "string" ? loadEvent.target.result : "";
+      if (dataUrl) {
+        void verifyLiveImage(dataUrl);
+      }
+    };
+    reader.readAsDataURL(file);
+    event.target.value = "";
   };
 
   const openAction = (action: VisitorAction) => {
@@ -299,6 +325,7 @@ function CheckInOut() {
                 )}
               </div>
               <canvas ref={canvasRef} className="hidden" />
+              <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleLivePhotoUpload} />
               <div className="space-y-3">
                 {visitor ? (
                   <>
@@ -323,6 +350,15 @@ function CheckInOut() {
                         <Button type="button" onClick={startFaceCheck} disabled={faceMode === "verifying"}>
                           <Camera className="h-4 w-4" aria-hidden="true" />
                           {faceMode === "verifying" ? "Verifying..." : "Start Face Check"}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => fileRef.current?.click()}
+                          disabled={faceMode === "verifying"}
+                        >
+                          <Camera className="h-4 w-4" aria-hidden="true" />
+                          Upload Live Photo
                         </Button>
                         <Button asChild variant="outline">
                           <Link to={VMS_PATHS.faceRegistrationFor(visitor.id)}>
