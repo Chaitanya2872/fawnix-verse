@@ -347,16 +347,16 @@ function formatDate(value?: string | null) {
 }
 
 const buttonPrimary =
-  "inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 disabled:opacity-50";
+  "inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 disabled:opacity-50";
 const buttonSecondary =
-  "inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-400 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30 disabled:opacity-50";
+  "inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:border-slate-400 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30 disabled:opacity-50";
 const buttonGhostSmall =
   "rounded-md px-2.5 py-1.5 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30";
-const microLabel = "text-xs font-semibold uppercase tracking-wide text-slate-400";
+const microLabel = "text-[11px] font-semibold uppercase tracking-wide text-slate-400";
 
 function panelFieldClass(hasError = false, disabled = false) {
   return cn(
-    "w-full rounded-xl border bg-white px-4 py-3 text-base font-semibold text-slate-700 outline-none transition",
+    "w-full rounded-xl border bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 outline-none transition",
     "placeholder:text-slate-400",
     disabled
       ? "cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400"
@@ -392,12 +392,12 @@ function PoFlatSection({
       >
         <span className="min-w-0 flex-1">
           <span className="flex items-center gap-2">
-            <span className="text-sm font-semibold text-slate-900">{title}</span>
+            <span className="text-[13px] font-semibold text-slate-900">{title}</span>
             {badge ? (
               <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[11px] font-semibold tabular-nums text-slate-600">{badge}</span>
             ) : null}
           </span>
-          <span className="mt-0.5 block truncate text-xs text-slate-500">{hint}</span>
+          <span className="mt-0.5 block truncate text-[11px] text-slate-500">{hint}</span>
         </span>
         <ChevronDown className={cn("h-4 w-4 shrink-0 text-slate-400 transition-transform", isOpen && "rotate-180")} />
       </button>
@@ -1363,7 +1363,7 @@ function CreatePurchaseOrderPanel({
           {summaryRows.map(([label, value]) => (
             <div key={label as string} className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
               <p className="text-xs font-semibold text-slate-500">{label as string}</p>
-              <p className="mt-1 text-base font-semibold tabular-nums text-slate-900">{formatPlain(value as number)}</p>
+              <p className="mt-1 text-sm font-semibold tabular-nums text-slate-900">{formatPlain(value as number)}</p>
             </div>
           ))}
         </div>
@@ -1388,7 +1388,7 @@ function CreatePurchaseOrderPanel({
                     {selectedTemplate}
                   </span>
                 </div>
-                <h2 className="mt-0.5 truncate text-lg font-semibold text-slate-900">Create purchase order</h2>
+                <h2 className="mt-0.5 truncate text-base font-semibold text-slate-900">Create purchase order</h2>
                 <p className="mt-0.5 truncate text-xs text-slate-500">
                   {selectedRequisition?.prNumber ?? "Select approved PR"} | {selectedVendor?.vendorName ?? "No vendor selected"} | {lineItems.length} item(s)
                 </p>
@@ -1424,7 +1424,7 @@ function CreatePurchaseOrderPanel({
                   )}
                 >
                   <Icon className={cn("h-4 w-4", isActive ? "text-blue-600" : "text-slate-400 group-hover:text-slate-500")} />
-                  <span className={cn("min-w-0 flex-1 truncate text-[13px]", isActive ? "font-semibold text-blue-700" : "font-medium text-slate-700")}>
+                  <span className={cn("min-w-0 flex-1 truncate text-xs", isActive ? "font-semibold text-blue-700" : "font-medium text-slate-700")}>
                     {section.title}
                   </span>
                   {isComplete ? (
@@ -1464,7 +1464,7 @@ function CreatePurchaseOrderPanel({
                             active ? option.accent : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"
                           )}
                         >
-                          <span className="block text-sm font-bold uppercase tracking-[0.16em]">{option.label}</span>
+                          <span className="block text-xs font-bold uppercase tracking-[0.16em]">{option.label}</span>
                           <span className="mt-1 block truncate text-xs font-medium">{option.companyName}</span>
                         </button>
                       );
@@ -1499,7 +1499,7 @@ function CreatePurchaseOrderPanel({
                     </P2PFormField>
                   </div>
 
-                  <div className="grid grid-cols-[120px_1fr] overflow-hidden rounded-lg border border-slate-200 bg-white text-sm">
+                  <div className="grid grid-cols-[120px_1fr] overflow-hidden rounded-lg border border-slate-200 bg-white text-xs">
                     <div className="flex items-center justify-center border-r border-slate-200 p-3">
                       <img
                         src={selectedTemplate === "ACS" ? acsLogo : iotiqLogo}
@@ -1557,8 +1557,8 @@ function CreatePurchaseOrderPanel({
                   {selectedTemplate === "IOTIQ" ? (
                     <div className="grid gap-x-5 gap-y-5 sm:grid-cols-2">
                       <div>
-                        <p className="mb-1 text-sm font-semibold text-slate-600">Billing To Details</p>
-                        <div className="min-h-[132px] rounded-xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-700">
+                        <p className="mb-1 text-xs font-semibold text-slate-600">Billing To Details</p>
+                        <div className="min-h-[132px] rounded-xl border border-slate-300 bg-slate-50 px-4 py-3 text-xs leading-5 text-slate-700">
                           <p className="font-semibold text-slate-800">{billing.name}</p>
                           {billing.addressLines.map((line) => (
                             <p key={line}>{line}</p>
@@ -1607,7 +1607,7 @@ function CreatePurchaseOrderPanel({
                 <div className="space-y-4">
                   <div className="rounded-lg border border-slate-200 bg-white p-3">
                     <div className="flex items-center justify-between gap-3">
-                      <p className="text-sm font-semibold text-slate-900">Terms & Conditions</p>
+                      <p className="text-[13px] font-semibold text-slate-900">Terms & Conditions</p>
                       <button type="button" onClick={addTermRow} className={buttonSecondary}>
                         <Plus className="h-4 w-4" />
                         Add Row
@@ -1616,7 +1616,7 @@ function CreatePurchaseOrderPanel({
                     <div className="mt-3 grid gap-2">
                       {terms.map((term, index) => (
                         <div key={term.id} className="grid gap-2 rounded-md border border-slate-200 bg-slate-50 p-2 sm:grid-cols-[32px_170px_1fr_auto]">
-                          <span className="px-1 py-2 text-sm font-semibold text-slate-500">{index + 1}</span>
+                          <span className="px-1 py-2 text-xs font-semibold text-slate-500">{index + 1}</span>
                           <input
                             value={term.title}
                             onChange={(event) => updateTerm(term.id, { title: event.target.value })}
@@ -1642,7 +1642,7 @@ function CreatePurchaseOrderPanel({
                   </div>
 
                   <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4">
-                    <p className="text-sm font-semibold text-slate-900">Signatory</p>
+                    <p className="text-[13px] font-semibold text-slate-900">Signatory</p>
                     <div className="mt-3 flex flex-wrap items-center gap-4">
                       <div className="flex h-20 w-20 items-center justify-center rounded-xl border border-slate-200 bg-white">
                         <img
@@ -1652,10 +1652,10 @@ function CreatePurchaseOrderPanel({
                         />
                       </div>
                       <div>
-                        <p className="text-sm font-semibold text-slate-900">
+                        <p className="text-[13px] font-semibold text-slate-900">
                           For {selectedTemplate === "ACS" ? "ACS Technologies Ltd" : "IOTIQ Innovations Pvt. Ltd."}
                         </p>
-                        <p className="mt-1 text-sm text-slate-500">
+                        <p className="mt-1 text-xs text-slate-500">
                           {selectedTemplate === "ACS" ? "Authorised Signatory" : "Authorized Signatory"}
                         </p>
                       </div>
@@ -1665,7 +1665,7 @@ function CreatePurchaseOrderPanel({
               </PoFlatSection>
 
               {showValidation ? (
-                <div className="my-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                <div className="my-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-xs text-rose-700">
                   Complete mandatory fields before submitting PO: {missingFields.join(", ")}.
                 </div>
               ) : null}
@@ -1677,7 +1677,7 @@ function CreatePurchaseOrderPanel({
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className={microLabel}>Total Purchase Order Value</p>
-              <p className="text-lg font-semibold text-slate-900">{formatCurrency(totalPurchaseOrderValue)}</p>
+              <p className="text-base font-semibold text-slate-900">{formatCurrency(totalPurchaseOrderValue)}</p>
               {draftSavedAt ? <p className="mt-1 text-xs font-medium text-emerald-600">Draft saved at {draftSavedAt}</p> : null}
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -1694,7 +1694,7 @@ function CreatePurchaseOrderPanel({
               </button>
             </div>
           </div>
-          {errorMessage ? <p className="mt-2 text-sm text-rose-600">{errorMessage}</p> : null}
+          {errorMessage ? <p className="mt-2 text-xs text-rose-600">{errorMessage}</p> : null}
         </div>
       </div>
     </div>
@@ -2089,7 +2089,7 @@ export default function P2PPurchaseOrderPage() {
             <button
               type="button"
               onClick={() => setIsCreatePanelOpen(true)}
-              className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm shadow-blue-600/20 hover:bg-blue-700"
+              className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-5 py-2.5 text-xs font-semibold text-white shadow-sm shadow-blue-600/20 hover:bg-blue-700"
             >
               <Plus className="h-4 w-4" />
               Create PO

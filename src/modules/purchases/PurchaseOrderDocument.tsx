@@ -224,7 +224,7 @@ export function PurchaseOrderDocument({ document }: { document: PurchaseOrderDoc
             </div>
           </div>
         </div>
-
+ 
         <table className={`w-full table-fixed border-collapse ${itemTextSize}`}>
           <colgroup>
             {itemWidths.map((width, index) => (
