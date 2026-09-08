@@ -1,10 +1,18 @@
 "use client";
 
-import type { ReactNode } from "react";
-import { BarChart3, Sparkles, TrendingUp, Users, Zap } from "lucide-react";
+import { useState, type ReactNode } from "react";
+import { BarChart3, Maximize2, Sparkles, TrendingUp, Users, Zap } from "lucide-react";
 import { jsPDF } from "jspdf";
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { LEAD_STATUS_LABELS, LEAD_STATUS_ORDER, type LeadStatus } from "@/modules/crm/leads/types";
 import { useReportsOverview } from "./hooks";
 
@@ -28,24 +36,75 @@ const chartPalette = [
   "#129081",
 ];
 
+const STAGE_CHART_LABELS: Partial<Record<LeadStatus, string>> = {
+  ASSIGNED_TO_SALESPERSON: "Assigned",
+  PROPOSAL_SENT: "Proposal",
+  FOLLOW_UP: "Follow Up",
+};
+
+type ExpandedChartKey = "stageProgression" | "timeInStage" | "leadSources";
+
+const EXPANDED_CHART_COPY: Record<ExpandedChartKey, { title: string; subtitle: string }> = {
+  stageProgression: {
+    title: "Stage Progression",
+    subtitle: "Lead volume across each CRM funnel stage.",
+  },
+  timeInStage: {
+    title: "Time in Stage",
+    subtitle: "Average days leads spend in each stage.",
+  },
+  leadSources: {
+    title: "Lead Sources",
+    subtitle: "Source contribution by lead volume.",
+  },
+};
+
 function ChartCard({
   title,
   subtitle,
   children,
+  onExpand,
 }: {
   title: string;
   subtitle: string;
   children: ReactNode;
+  onExpand?: () => void;
 }) {
-  return (
-    <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="mb-4">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
-          {title}
-        </p>
-        <p className="text-sm text-slate-500">{subtitle}</p>
+  const content = (
+    <>
+      <div className="mb-4 flex items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+            {title}
+          </p>
+          <p className="text-sm text-slate-500">{subtitle}</p>
+        </div>
+        {onExpand ? (
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-500 transition group-hover:border-sky-200 group-hover:bg-sky-50 group-hover:text-sky-600">
+            <Maximize2 className="h-4 w-4" />
+          </span>
+        ) : null}
       </div>
       {children}
+    </>
+  );
+
+  if (onExpand) {
+    return (
+      <button
+        type="button"
+        onClick={onExpand}
+        aria-label={`Expand ${title} chart`}
+        className="group block h-full w-full cursor-zoom-in rounded-3xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:border-sky-200 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2"
+      >
+        {content}
+      </button>
+    );
+  }
+
+  return (
+    <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+      {content}
     </div>
   );
 }
@@ -53,9 +112,11 @@ function ChartCard({
 function DonutChart({
   segments,
   totalLabel,
+  expanded = false,
 }: {
   segments: { label: string; value: number; color: string }[];
   totalLabel: string;
+  expanded?: boolean;
 }) {
   const total = segments.reduce((sum, item) => sum + item.value, 0);
   let running = 0;
@@ -72,16 +133,22 @@ function DonutChart({
           .join(", ");
 
   return (
-    <div className="flex flex-wrap items-center gap-6">
-      <div className="relative flex h-32 w-32 items-center justify-center">
+    <div className={`flex flex-wrap items-center ${expanded ? "gap-8" : "gap-6"}`}>
+      <div
+        className={`relative flex items-center justify-center ${
+          expanded ? "h-64 w-64" : "h-32 w-32"
+        }`}
+      >
         <div className="h-full w-full rounded-full" style={{ background: `conic-gradient(${gradient})` }} />
-        <div className="absolute h-20 w-20 rounded-full bg-white" />
+        <div className={`absolute rounded-full bg-white ${expanded ? "h-36 w-36" : "h-20 w-20"}`} />
         <div className="absolute text-center">
           <p className="text-[10px] font-semibold uppercase text-slate-400">{totalLabel}</p>
-          <p className="text-sm font-semibold text-slate-900">{total}</p>
+          <p className={expanded ? "text-2xl font-semibold text-slate-900" : "text-sm font-semibold text-slate-900"}>
+            {total}
+          </p>
         </div>
       </div>
-      <div className="space-y-2 text-xs text-slate-500">
+      <div className={`${expanded ? "grid flex-1 grid-cols-1 gap-3 sm:grid-cols-2" : "space-y-2"} text-xs text-slate-500`}>
         {segments.map((segment) => (
           <div key={segment.label} className="flex items-center gap-2">
             <span className="h-2 w-2 rounded-full" style={{ backgroundColor: segment.color }} />
@@ -94,56 +161,113 @@ function DonutChart({
   );
 }
 
-function VerticalBarChart({
+function StageProgressionBarChart({
   items,
+  expanded = false,
 }: {
-  items: { label: string; value: number; color: string }[];
+  items: { label: string; fullLabel: string; value: number; color: string }[];
+  expanded?: boolean;
 }) {
-  const maxValue = Math.max(1, ...items.map((item) => item.value));
   return (
-    <div className="flex h-36 items-end gap-3">
-      {items.map((item) => {
-        const height = Math.round((item.value / maxValue) * 100);
-        return (
-          <div key={item.label} className="flex flex-1 flex-col items-center gap-2">
-            <div className="flex h-24 w-full items-end rounded-xl bg-slate-100">
-              <div
-                className="w-full rounded-xl"
-                style={{ height: `${height}%`, backgroundColor: item.color }}
-              />
-            </div>
-            <span className="text-[10px] text-slate-500">{item.label}</span>
-            <span className="text-xs font-semibold text-slate-700">{item.value}</span>
-          </div>
-        );
-      })}
+    <div className={expanded ? "h-[420px] w-full" : "h-64 w-full"}>
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart
+          data={items}
+          layout="vertical"
+          margin={{ top: 8, right: 16, bottom: 8, left: 0 }}
+        >
+          <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" horizontal={false} />
+          <XAxis
+            type="number"
+            allowDecimals={false}
+            axisLine={false}
+            tickLine={false}
+            tick={{ fill: "#64748b", fontSize: 10 }}
+          />
+          <YAxis
+            type="category"
+            dataKey="label"
+            width={expanded ? 124 : 88}
+            axisLine={false}
+            tickLine={false}
+            tick={{ fill: "#64748b", fontSize: expanded ? 12 : 10 }}
+          />
+          <Tooltip
+            cursor={{ fill: "#f8fafc" }}
+            formatter={(value) => [`${Number(value)} leads`, "Count"]}
+            labelFormatter={(label) => items.find((item) => item.label === label)?.fullLabel ?? label}
+            contentStyle={{
+              borderRadius: 12,
+              borderColor: "#e2e8f0",
+              boxShadow: "0 12px 24px rgb(15 23 42 / 0.08)",
+              fontSize: 12,
+            }}
+          />
+          <Bar dataKey="value" radius={[0, 8, 8, 0]} barSize={expanded ? 18 : 14}>
+            {items.map((item) => (
+              <Cell key={item.fullLabel} fill={item.color} />
+            ))}
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
     </div>
   );
 }
 
-function HorizontalBarChart({
+function TimeInStageAreaChart({
   items,
+  expanded = false,
 }: {
-  items: { label: string; value: number; color: string }[];
+  items: { label: string; days: number }[];
+  expanded?: boolean;
 }) {
-  const maxValue = Math.max(1, ...items.map((item) => item.value));
   return (
-    <div className="space-y-3">
-      {items.map((item) => {
-        const width = Math.round((item.value / maxValue) * 100);
-        return (
-          <div key={item.label} className="flex items-center gap-3 text-xs text-slate-500">
-            <span className="w-24 truncate font-medium text-slate-600">{item.label}</span>
-            <div className="h-2 flex-1 rounded-full bg-slate-100">
-              <div
-                className="h-2 rounded-full"
-                style={{ width: `${width}%`, backgroundColor: item.color }}
-              />
-            </div>
-            <span className="w-16 text-right text-slate-700">{fmtCurrency(item.value)}</span>
-          </div>
-        );
-      })}
+    <div className={expanded ? "h-[420px] w-full" : "h-52 w-full"}>
+      <ResponsiveContainer width="100%" height="100%">
+        <AreaChart data={items} margin={{ top: 8, right: 8, bottom: 8, left: -18 }}>
+          <defs>
+            <linearGradient id="timeInStageArea" x1="0" x2="0" y1="0" y2="1">
+              <stop offset="5%" stopColor="#0ea5e9" stopOpacity={0.35} />
+              <stop offset="95%" stopColor="#0ea5e9" stopOpacity={0.04} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" vertical={false} />
+          <XAxis
+            dataKey="label"
+            axisLine={false}
+            tickLine={false}
+            interval={0}
+            height={42}
+            tick={{ fill: "#64748b", fontSize: 10 }}
+            tickMargin={10}
+          />
+          <YAxis
+            axisLine={false}
+            tickLine={false}
+            tick={{ fill: "#64748b", fontSize: 10 }}
+            tickFormatter={(value) => `${value}d`}
+          />
+          <Tooltip
+            cursor={{ stroke: "#94a3b8", strokeDasharray: "3 3" }}
+            formatter={(value) => [`${Number(value).toFixed(1)} days`, "Avg time"]}
+            contentStyle={{
+              borderRadius: 12,
+              borderColor: "#e2e8f0",
+              boxShadow: "0 12px 24px rgb(15 23 42 / 0.08)",
+              fontSize: 12,
+            }}
+          />
+          <Area
+            type="monotone"
+            dataKey="days"
+            stroke="#0ea5e9"
+            strokeWidth={2}
+            fill="url(#timeInStageArea)"
+            dot={{ r: 3, fill: "#0ea5e9", strokeWidth: 0 }}
+            activeDot={{ r: 4, stroke: "#0284c7", strokeWidth: 2 }}
+          />
+        </AreaChart>
+      </ResponsiveContainer>
     </div>
   );
 }
@@ -184,6 +308,68 @@ function triggerBlobDownload(blob: Blob, filename: string) {
   link.download = filename;
   link.click();
   URL.revokeObjectURL(url);
+}
+
+function RepPerformanceTable({
+  rows,
+}: {
+  rows: {
+    userId: string | null;
+    name: string;
+    assigned: number;
+    active: number;
+    converted: number;
+    lost: number;
+    pipelineValue: number;
+  }[];
+}) {
+  if (rows.length === 0) {
+    return (
+      <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-xs text-slate-500">
+        No rep data yet.
+      </div>
+    );
+  }
+
+  return (
+    <div className="overflow-x-auto rounded-xl border border-slate-200">
+      <table className="min-w-[760px] w-full table-fixed text-left text-xs">
+        <thead className="bg-slate-50 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+          <tr>
+            <th className="w-[28%] px-4 py-3">Rep</th>
+            <th className="px-3 py-3 text-right">Assigned</th>
+            <th className="px-3 py-3 text-right">Active</th>
+            <th className="px-3 py-3 text-right">Converted</th>
+            <th className="px-3 py-3 text-right">Lost</th>
+            <th className="px-3 py-3 text-right">Conversion</th>
+            <th className="px-4 py-3 text-right">Pipeline</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100 bg-white">
+          {rows.map((row) => {
+            const conversionRate = row.assigned === 0 ? 0 : row.converted / row.assigned;
+            return (
+              <tr key={row.userId ?? row.name} className="text-slate-600">
+                <td className="px-4 py-3">
+                  <p className="truncate font-semibold text-slate-900">{row.name}</p>
+                </td>
+                <td className="px-3 py-3 text-right font-medium text-slate-800">{row.assigned}</td>
+                <td className="px-3 py-3 text-right">{row.active}</td>
+                <td className="px-3 py-3 text-right text-emerald-700">{row.converted}</td>
+                <td className="px-3 py-3 text-right text-rose-700">{row.lost}</td>
+                <td className="px-3 py-3 text-right font-medium text-slate-800">
+                  {fmtPercent(conversionRate)}
+                </td>
+                <td className="px-4 py-3 text-right font-semibold text-slate-900">
+                  {fmtCurrency(row.pipelineValue)}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
 }
 
 function StageCard({
@@ -233,6 +419,7 @@ function StageCard({
 
 export default function ReportsPage() {
   const navigate = useNavigate();
+  const [expandedChart, setExpandedChart] = useState<ExpandedChartKey | null>(null);
   const { data, isLoading, isError, error } = useReportsOverview();
 
   if (isLoading) {
@@ -259,9 +446,14 @@ export default function ReportsPage() {
     ...LEAD_STATUS_ORDER.map((status) => statusCounts[status] ?? 0)
   );
   const stageChartItems = LEAD_STATUS_ORDER.map((status, index) => ({
-    label: LEAD_STATUS_LABELS[status],
+    label: STAGE_CHART_LABELS[status] ?? LEAD_STATUS_LABELS[status],
+    fullLabel: LEAD_STATUS_LABELS[status],
     value: statusCounts[status] ?? 0,
     color: chartPalette[index % chartPalette.length],
+  }));
+  const stageTimeItems = LEAD_STATUS_ORDER.map((status) => ({
+    label: STAGE_CHART_LABELS[status] ?? LEAD_STATUS_LABELS[status],
+    days: Number((data.avgDaysInStage?.[status] ?? 0).toFixed(1)),
   }));
 
   const sourceChartItems = data.sourcePerformance.map((row, index) => ({
@@ -269,12 +461,7 @@ export default function ReportsPage() {
     value: row.total,
     color: chartPalette[index % chartPalette.length],
   }));
-
-  const repChartItems = data.repPerformance.slice(0, 6).map((row, index) => ({
-    label: row.name,
-    value: row.pipelineValue,
-    color: chartPalette[index % chartPalette.length],
-  }));
+  const expandedChartMeta = expandedChart ? EXPANDED_CHART_COPY[expandedChart] : null;
 
   const handleExportCSV = () => {
     const quote = (value: unknown) => `"${String(value ?? "").replace(/"/g, '""')}"`;
@@ -439,11 +626,26 @@ export default function ReportsPage() {
 
       <div className="flex flex-col gap-6 lg:flex-row">
         <div className="flex-1 space-y-6">
-          <div className="grid gap-4 lg:grid-cols-2">
-            <ChartCard title="Pipeline Stages" subtitle="Lead distribution across the funnel">
-              <VerticalBarChart items={stageChartItems} />
+          <div className="grid gap-4 xl:grid-cols-3">
+            <ChartCard
+              title="Stage Progression"
+              subtitle="Lead volume across each funnel stage"
+              onExpand={() => setExpandedChart("stageProgression")}
+            >
+              <StageProgressionBarChart items={stageChartItems} />
             </ChartCard>
-            <ChartCard title="Lead Sources" subtitle="Where demand is coming from">
+            <ChartCard
+              title="Time in Stage"
+              subtitle="Average days spent in each stage"
+              onExpand={() => setExpandedChart("timeInStage")}
+            >
+              <TimeInStageAreaChart items={stageTimeItems} />
+            </ChartCard>
+            <ChartCard
+              title="Lead Sources"
+              subtitle="Where demand is coming from"
+              onExpand={() => setExpandedChart("leadSources")}
+            >
               {sourceChartItems.length === 0 ? (
                 <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-xs text-slate-500">
                   No source data yet.
@@ -454,14 +656,8 @@ export default function ReportsPage() {
             </ChartCard>
           </div>
 
-          <ChartCard title="Pipeline by Rep" subtitle="Top pipeline contributors">
-            {repChartItems.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-xs text-slate-500">
-                No rep data yet.
-              </div>
-            ) : (
-              <HorizontalBarChart items={repChartItems} />
-            )}
+          <ChartCard title="Rep Performance" subtitle="Assigned leads, outcomes, and pipeline by owner">
+            <RepPerformanceTable rows={data.repPerformance} />
           </ChartCard>
         </div>
 
@@ -505,6 +701,42 @@ export default function ReportsPage() {
         </aside>
       </div>
 
+      <Dialog
+        open={expandedChart !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setExpandedChart(null);
+          }
+        }}
+      >
+        {expandedChartMeta ? (
+          <DialogContent className="max-h-[90vh] w-[calc(100vw-2rem)] max-w-5xl overflow-y-auto border-slate-200 bg-white p-6 sm:rounded-2xl">
+            <DialogHeader>
+              <DialogTitle className="text-xl text-slate-900">{expandedChartMeta.title}</DialogTitle>
+              <DialogDescription className="text-slate-500">
+                {expandedChartMeta.subtitle}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              {expandedChart === "stageProgression" ? (
+                <StageProgressionBarChart items={stageChartItems} expanded />
+              ) : null}
+              {expandedChart === "timeInStage" ? (
+                <TimeInStageAreaChart items={stageTimeItems} expanded />
+              ) : null}
+              {expandedChart === "leadSources" ? (
+                sourceChartItems.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-slate-200 bg-white p-6 text-sm text-slate-500">
+                    No source data yet.
+                  </div>
+                ) : (
+                  <DonutChart segments={sourceChartItems} totalLabel="Total leads" expanded />
+                )
+              ) : null}
+            </div>
+          </DialogContent>
+        ) : null}
+      </Dialog>
     </div>
   );
 }
